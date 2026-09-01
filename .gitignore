@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Ambiente / segredos
+.env
+.env.*
+*.key
+*.pem
+service-account*.json
+credentials*.json
+
+# Dados
+*.csv
+*.parquet
+*.duckdb
+data/
+!data/.gitkeep
+
+# Ferramentas
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
