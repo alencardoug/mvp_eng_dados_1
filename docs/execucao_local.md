@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.0 |
+| Versão | 1.1 |
 | Situação | **Nenhum comando implementado ainda.** Cada alvo passa a existir na etapa indicada |
-| Última revisão | 01/09/2026 |
+| Última revisão | 03/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -53,7 +53,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | # | Comando | O que faz | Disponível na |
 |---|---|---|---|
 | 1 | `make up` | Sobe os contêineres base: `source_db`, `legacy_db`, `warehouse_db` | Etapa 2 |
-| 2 | `make migrate` | Aplica as migrações de schema do zero | Etapa 3 |
+| 2 | `make migrate` | Aplica as migrações Alembic do zero | Etapa 3 |
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
@@ -68,8 +68,9 @@ Parâmetros de execução — perfil de volume, `seed` e `as_of_date` — são p
 ambiente ou por argumento do alvo, nunca editados no código.
 
 ```bash
-make seed-data PROFILE=smoke        # subconjunto rápido para desenvolvimento
-make seed-data PROFILE=demo_4gb     # perfil de portfólio
+make seed-data PROFILE=smoke        # padrão de desenvolvimento, em todas as etapas
+make seed-data PROFILE=demo         # medição única, ao fim da Etapa 4
+make seed-data PROFILE=demo_4gb     # validação final e portfólio, na Etapa 12
 ```
 
 ---

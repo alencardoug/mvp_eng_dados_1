@@ -39,6 +39,10 @@ que a decisão possa ser revista com conhecimento de causa, inclusive na replica
 | [0005](0005-geracao-com-faker-orientada-a-configuracao.md) | Gerar dados com Faker por meio de um motor orientado a configuração | Aceita | D05 |
 | [0006](0006-streaming-de-estoque-com-cdc-e-beam.md) | Incluir um fluxo de streaming de estoque com CDC e Apache Beam | Aceita | Mecanismo de baixa latência |
 | [0007](0007-catalogo-como-codigo.md) | Manter o catálogo de dados como código | Aceita | Ferramenta de catálogo local |
+| [0008](0008-schemas-do-armazem.md) | Fixar os schemas do armazém e separar estágio de schema | Aceita | D02 |
+| [0009](0009-sqlalchemy-para-acesso-a-dados.md) | Usar SQLAlchemy para o acesso a dados em Python | Aceita | D03 |
+| [0010](0010-alembic-para-migracoes.md) | Usar Alembic para as migrações de schema | Aceita | D04 |
+| [0011](0011-classificacao-e-papeis-de-acesso.md) | Fixar os níveis de classificação e os papéis de acesso | Aceita | D09 |
 
 ---
 
@@ -51,9 +55,6 @@ A coluna **Etapa** indica quando a decisão precisa estar fechada, conforme o
 
 | ID | Decisão | Opções em avaliação | Etapa |
 |---|---|---|---|
-| **D02** | Nomenclatura e quantidade das camadas | `raw`/`raw_legacy`/`staging`/`trusted`/`analytics`/`quarantine`/`governance` (candidata) · medalhão `bronze`/`silver`/`gold` · conjunto reduzido sem `trusted` | 1 |
-| **D03** | Acesso a dados em Python | Driver puro (`psycopg`) · ORM (`SQLAlchemy`) · ORM só no transacional e SQL puro no analítico | 1 |
-| **D04** | Ferramenta de migração de schema | `Alembic` · SQL versionado com *runner* próprio · ferramenta dedicada | 1 |
 | **D10** | Estrutura de diretórios do repositório | Proposta da [Arquitetura](../arquitetura.md#7-organização-do-repositório) · estrutura orientada a pacote Python instalável | 2 |
 | **D13** | Padrão de nomenclatura de objetos de banco | Prefixos por tipo (`stg_`, `dim_`, `fact_`) · sufixos · sem afixos, separação apenas por schema | 3 |
 
@@ -93,7 +94,6 @@ A coluna **Etapa** indica quando a decisão precisa estar fechada, conforme o
 
 | ID | Decisão | Opções em avaliação | Etapa |
 |---|---|---|---|
-| **D09** | Esquema de classificação de sensibilidade e regras de acesso por camada | Proposta das seções 4 e 7 da [Política de Governança](../governanca_de_dados.md) · esquema alternativo | 1 |
 | **D26** | Perfis de volume definitivos | Recalibração de `demo_4gb` após a primeira medição real | 4 |
 | **D14** | Escopo do schema `governance`, sem duplicar metadados já mantidos pelo dbt | Apenas objetos de controle e auditoria · nenhum schema, tudo no dbt · tabelas de resultado de reconciliação | 11 |
 

@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.0 |
-| Situação | Vigente para a fase local; itens marcados como *proposta* dependem de ADR |
+| Versão | 2.1 |
+| Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 01/09/2026 |
+| Última revisão | 03/09/2026 |
 
 ---
 
@@ -48,19 +48,23 @@ A proibição vale inclusive para exemplos em documentação, mensagens de *comm
 Todo campo de todas as camadas recebe exatamente um nível. Campo sem classificação bloqueia a
 conclusão da etapa que o criou.
 
-> **Proposta pendente de decisão (D09).** Após o ADR correspondente, esta seção passa a ser a
-> definição vigente.
+Os níveis estão fixados em [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md). O vocabulário
+é inglês, por ser identificador técnico: cada valor vira nome de *policy tag* no BigQuery.
 
-| Nível | Definição | Exemplos no projeto | Regra |
+| Valor de `sensitivity` | Definição | Exemplos no projeto | Regra |
 |---|---|---|---|
-| **Público** | Pode ser exposto sem restrição | Catálogo, contagens agregadas, `product_categories` | Livre |
-| **Interno** | Operacional, sem valor sensível | Chaves técnicas, `recorded_at`, identificadores de lote | Livre no repositório |
-| **Sensível** | Campo que, se fosse real, seria dado pessoal | Nome, e-mail, telefone, endereço, documento — sempre sintéticos | Nunca exibido em exemplos; mascarado nas views de consumo quando não for necessário |
-| **Restrito** | Não pode existir no projeto | Dados reais de qualquer natureza, credenciais | Proibido — ver seção 3 |
+| `public` | Pode ser exposto sem restrição | Catálogo, contagens agregadas, `product_categories` | Livre |
+| `internal` | Operacional, sem valor sensível | Chaves técnicas, `recorded_at`, identificadores de lote | Livre no repositório |
+| `confidential` | Não pessoal, mas de valor comercial | `unit_cost`, condições de fornecedor, margem | Fora das views de consumo abertas ao perfil de análise |
+| `personal` | Campo que, se fosse real, seria dado pessoal | Nome, e-mail, telefone, endereço, documento — sempre sintéticos | Nunca exibido em exemplos; mascarado nas views de consumo quando não for necessário |
 
-O nível **Sensível** é aplicado mesmo aos dados sintéticos: o objetivo é exercitar o controle real,
+O nível `personal` é aplicado mesmo aos dados sintéticos: o objetivo é exercitar o controle real,
 não presumir que dado simulado dispensa governança. É essa classificação que, na fase GCP, vira
 *policy tag* e passa a **bloquear** o acesso.
+
+**A proibição de dados reais não é um nível.** Ela vive exclusivamente na
+[seção 3](#3-dados-não-permitidos) — repeti-la aqui criaria dois donos para a mesma regra (**P8**),
+e nenhum campo do projeto poderia recebê-la.
 
 ---
 
@@ -97,7 +101,7 @@ models:
       - name: customer_document
         description: "Documento de identificação do cliente (sintético)."
         meta:
-          sensitivity: "sensivel"
+          sensitivity: "personal"
           data_type: "pii"
 ```
 
@@ -114,7 +118,7 @@ O trabalho já está codificado; a migração consome os mesmos arquivos:
    `dbt-google-data-catalog`) ou um script próprio chamando a API do GCP — a escolha é feita na
    Etapa 13, com a avaliação do pacote antes de escrever código.
 2. **Políticas de acesso** — o Terraform provisiona *policy tags* no BigQuery; a coluna marcada
-   como `sensitivity: "sensivel"` recebe automaticamente a *tag* correspondente, e apenas
+   como `sensitivity: "personal"` recebe automaticamente a *tag* correspondente, e apenas
    identidades autorizadas pelo IAM conseguem executar `SELECT` sobre ela.
 
 A classificação deixa de ser documental e passa a ser **controle efetivo**, sem que nenhuma
@@ -137,19 +141,21 @@ descrição precise ser reescrita.
 
 ## 7. Regras de acesso por camada
 
-> Proposta pendente (**D09**). Na fase local, papéis são *roles* do PostgreSQL; na fase GCP,
-> papéis IAM por dataset.
+Os papéis estão fixados em [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md). Na fase local
+são *roles* do PostgreSQL; na fase GCP, contas de serviço e grupos IAM por dataset.
 
-| Camada | Escrita | Leitura |
-|---|---|---|
-| `raw`, `raw_legacy` | Airbyte | Pipeline e responsável técnico |
-| `staging`, `trusted` | dbt | Pipeline e responsável técnico |
-| `analytics` | dbt e consumidor de streaming | Views de consumo |
-| `quarantine` | dbt | Auditoria e responsável técnico |
-| views de consumo | — | Perfil de análise, somente leitura |
+| Papel | Escreve | Lê | Equivalente na fase GCP |
+|---|---|---|---|
+| `ingestor` | `raw`, `raw_legacy` | as próprias | Conta de serviço do Airbyte |
+| `transformer` | `staging`, `trusted`, `analytics`, `quarantine` | camadas anteriores | Conta de serviço do dbt |
+| `streamer` | `analytics` | — | Conta de serviço do Dataflow |
+| `analyst` | — | `consumption` apenas | Grupo IAM no dataset das views |
+| `auditor` | — | `quarantine` | Grupo IAM de auditoria |
 
-Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `staging` ou `trusted`. O
-contrato de consumo é a view — e isso é testado, não apenas declarado.
+Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `staging`, `trusted` ou
+`analytics`. O contrato de consumo é a view, e o schema `consumption`
+([ADR-0008](adr/0008-schemas-do-armazem.md)) torna a regra testável por asserção de falha: um
+`SELECT` de `analyst` contra `raw` **precisa** falhar.
 
 ---
 

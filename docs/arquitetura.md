@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.0 |
-| Situação | Componentes principais decididos; itens marcados como *pendente* dependem de ADR |
-| Última revisão | 01/09/2026 |
+| Versão | 2.1 |
+| Situação | Componentes e camadas decididos; itens marcados como *pendente* dependem de ADR |
+| Última revisão | 03/09/2026 |
 
 ---
 
@@ -39,8 +39,8 @@ flowchart TB
         STG["staging"]
         TRU["trusted"]
         ANA["analytics<br/>9 fatos + 17 dimensões"]
+        CON["consumption<br/>views de consumo"]
         QUA["quarantine"]
-        VW["views de consumo"]
     end
 
     FK --> SRC
@@ -56,7 +56,7 @@ flowchart TB
     STG -->|dbt| TRU
     STG -->|dbt| QUA
     TRU -->|dbt| ANA
-    ANA --> VW
+    ANA --> CON
 
     AF["Airflow orquestra todo o fluxo batch"] -.-> RAW
     AF -.-> ANA
@@ -73,7 +73,8 @@ acompanham cada camada desde a sua criação (princípio **P3**), em vez de sere
 
 ## 2. Camadas de dados
 
-A nomenclatura é candidata e depende da decisão **D02**. As contagens de objetos e as
+Os schemas e a separação entre estágio do fluxo e schema estão fixados em
+[ADR-0008](adr/0008-schemas-do-armazem.md). As contagens de objetos e as
 materializações propostas estão no [Modelo de Dados](modelo_de_dados.md#6-camadas-no-armazém).
 
 | Camada | Conteúdo | Transformações permitidas | Consumidor |
@@ -82,10 +83,10 @@ materializações propostas estão no [Modelo de Dados](modelo_de_dados.md#6-cam
 | `raw_legacy` | *Snapshot* imutável da origem legada | Nenhuma — o valor recebido é preservado | Apenas o pipeline |
 | `staging` | Dados tipados, padronizados e deduplicados | Conversão de tipo, normalização, chaves técnicas | Apenas o pipeline |
 | `trusted` | Regras de negócio aplicadas e validadas; legado tratado e empilhado | Regras de negócio, enriquecimento, correções documentadas | Pipeline e análise exploratória |
-| `analytics` | Modelagem dimensional | Agregação, conformação de dimensões, SCD | Views de consumo |
+| `analytics` | Modelagem dimensional | Agregação, conformação de dimensões, SCD | `consumption` |
+| `consumption` | Views de consumo — contratos estáveis de leitura | Somente seleção e apresentação | Perfil de análise |
 | `quarantine` | Registros rejeitados com código e motivo | Nenhuma — é destino, não passagem | Auditoria |
-| `governance` | Objetos de catálogo e controle — escopo pendente (**D14**) | — | Governança |
-| views de consumo | Contratos estáveis de leitura | Somente seleção e apresentação | Perfil de análise |
+| `governance` | Objetos de catálogo e controle — existe apenas se **D14** aprovar | — | Governança |
 
 Regras válidas para todas as camadas:
 
@@ -111,8 +112,8 @@ Regras válidas para todas as camadas:
 | Processamento contínuo | **Apache Beam** com `DirectRunner` | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Interface de operação | `Makefile` + comandos de terminal | Firmada |
 | Testes de dados | `dbt` + `dbt-expectations`; `pytest` para código | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Acesso a dados em Python | — | Pendente (**D03**) |
-| Migração de schema | — | Pendente (**D04**) |
+| Acesso a dados em Python | **SQLAlchemy** — os modelos são a fonte de verdade do schema | [ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md) |
+| Migração de schema | **Alembic**, derivando as migrações dos modelos | [ADR-0010](adr/0010-alembic-para-migracoes.md) |
 | Controle de versão | Git + GitHub | Firmada |
 
 ### 3.1 Operação pelo terminal
@@ -164,7 +165,7 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Origem transacional | PostgreSQL em contêiner | Cloud SQL for PostgreSQL |
 | Camada de dados | Schema no `warehouse_db` | Dataset no BigQuery |
 | Fato / dimensão | Tabela no schema `analytics` | Tabela particionada e clusterizada |
-| View de consumo | View no PostgreSQL | View ou view autorizada no BigQuery |
+| View de consumo | View no schema `consumption` | *Authorized view* em dataset próprio |
 | Ingestão *batch* | Airbyte local | Airbyte gerenciado ou serviço equivalente (**D11**) |
 | Transformação | dbt | dbt, com adaptação de dialeto |
 | Orquestração | Airflow local | Airflow em serviço gerenciado (**D22**) |
@@ -226,7 +227,7 @@ mvp_ed1/
 │   ├── glossario_de_negocio/     # blocos {% docs %} importados pelo dbt
 │   └── adr/
 ├── docker/                       # (Etapa 2) composição do ambiente local
-├── db/                           # (Etapa 3) migrações e seeds
+├── db/                           # (Etapa 3) migrações Alembic e seeds
 │   ├── migrations/
 │   └── seeds/
 ├── src/                          # (Etapa 4) código Python

@@ -12,9 +12,9 @@
 |---|---|
 | Limite planejado | **4 GB decimais** (`4.000.000.000` bytes) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 1.0 |
-| Situação | Planejado — a recalibrar após a primeira execução completa |
-| Última revisão | 01/09/2026 |
+| Versão | 1.1 |
+| Situação | Planejado — a recalibrar com a medição do perfil `demo`, na Etapa 4 |
+| Última revisão | 03/09/2026 |
 
 ---
 
@@ -80,8 +80,10 @@ O pipeline **mede**, não presume:
 As medições usam `pg_database_size`, `pg_total_relation_size` e `pg_indexes_size`. O tamanho dos
 arquivos do ponto de recuperação também é somado ao total persistido.
 
-Os valores deste documento devem ser recalibrados após a primeira execução completa, distinguindo
-sempre o **planejado** do **medido**.
+Os valores deste documento são recalibrados a partir da medição do perfil `demo`, ao fim da
+Etapa 4 — bytes por linha e crescimento de índice medidos numa fração do volume e extrapolados —,
+e conferidos contra a execução real do `demo_4gb` na Etapa 12. A documentação distingue sempre o
+**planejado** do **medido** (**P5**).
 
 ---
 
