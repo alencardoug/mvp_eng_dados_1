@@ -12,9 +12,10 @@
 | Campo | Informação |
 |---|---|
 | Ferramenta | Python + `Faker` ([ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)) |
-| Perfil de referência | `demo_4gb` |
-| Versão | 1.0 |
-| Última revisão | 01/09/2026 |
+| Perfil padrão de desenvolvimento | `smoke` |
+| Perfil de validação | `demo_4gb` |
+| Versão | 1.1 |
+| Última revisão | 03/09/2026 |
 
 ---
 
@@ -76,8 +77,17 @@ A ordem respeita as dependências referenciais e a causalidade dos eventos:
 
 ## 4. Parâmetros e perfis
 
-O gerador é totalmente parametrizado. Perfis previstos: `smoke` (mínimo, para testes rápidos),
-`demo` / `demo_4gb` (portfólio) e `scale` (estresse, fora do orçamento local).
+O gerador é totalmente parametrizado. São **três perfis**, cada um com um papel distinto:
+
+| Perfil | Quando roda | Para quê |
+|---|---|---|
+| `smoke` | Padrão de todas as etapas | Desenvolver e testar em segundos. É o perfil do dia a dia, das Etapas 3 a 11. |
+| `demo` | Uma vez, ao fim da Etapa 4 | Medir bytes por linha e crescimento de índice, e calibrar **D26** por extrapolação. Cerca de 10% do `demo_4gb`. |
+| `demo_4gb` | Etapa 12 | Validação final e portfólio, onde os critérios de sucesso do Termo são verificados. |
+
+Não é preciso gerar 1,1 milhão de linhas para conhecer a largura de uma linha: a medição é feita
+numa fração do volume e extrapolada, com erro pequeno e direção conhecida. Um quarto perfil,
+`scale` (estresse, fora do orçamento local), permanece previsto mas sem uso planejado.
 
 Parâmetros gerais:
 

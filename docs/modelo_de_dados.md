@@ -13,9 +13,9 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.0 |
+| Versão | 1.1 |
 | Situação | Proposta — materializações e chaves substitutas dependem de ADR |
-| Última revisão | 01/09/2026 |
+| Última revisão | 03/09/2026 |
 
 As contagens de linhas são **metas de geração** do perfil `demo_4gb`, não resultados medidos. O
 perfil é definido em [Geração de Dados](geracao_de_dados.md).
@@ -278,8 +278,8 @@ já publicado. É esse contrato que torna possível o
 
 ## 6. Camadas no armazém
 
-O `warehouse_db` concentra as camadas analíticas. A quantidade e a nomenclatura definitivas
-dependem da decisão **D02** ([decisões pendentes](adr/README.md)).
+O `warehouse_db` concentra as camadas analíticas, fixadas em
+[ADR-0008](adr/0008-schemas-do-armazem.md).
 
 | Camada | Materialização proposta | Objetos estimados |
 |---|---|---:|
@@ -288,8 +288,9 @@ dependem da decisão **D02** ([decisões pendentes](adr/README.md)).
 | `staging` | Views dbt das duas origens | Até 80 |
 | `trusted` | Views ou modelos intermediários dbt | Variável |
 | `analytics` | Tabelas dimensionais | 26 |
+| `consumption` | Views de consumo sobre `analytics` | A definir (**D27**) |
 | `quarantine` | Registro genérico de rejeições do tratamento legado | 1 |
-| `governance` | Objetos de catálogo e controle — escopo pendente (**D14**) | A definir |
+| `governance` | Objetos de catálogo e controle — existe apenas se **D14** aprovar | A definir |
 
 Somando origens e armazém, o projeto prevê **até 187 tabelas persistidas conhecidas**. A contagem
 não inclui views, tabelas internas do Airbyte, artefatos técnicos do dbt nem objetos adicionais do

@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.0 |
-| Etapa atual | **Etapa 0 — Fundação documental** |
-| Última revisão | 01/09/2026 |
+| Versão | 2.1 |
+| Etapa atual | **Etapa 0 — Fundação documental** (Etapa 1 decidida; falta **A1**) |
+| Última revisão | 03/09/2026 |
 
 ---
 
@@ -24,6 +24,10 @@
 - Cada etapa referencia as entregas do Termo pelo identificador (**E1–E12**), sem redescrevê-las.
 - Uma etapa só termina quando **todos** os seus critérios estão satisfeitos e a *Definição de
   pronto* do [`CLAUDE.md`](../CLAUDE.md) foi aplicada.
+- **O perfil `smoke` é o padrão de desenvolvimento em todas as etapas.** O `demo` roda uma vez, ao
+  fim da Etapa 4, apenas para medir; o `demo_4gb` roda na Etapa 12, na validação final. Ciclos
+  curtos são condição para o objetivo de aprendizado, e o orçamento de 4 GB deixa de ser pressão
+  constante para virar um evento único de verificação (risco **R12**).
 - **Das Etapas 5 a 10, o trabalho avança em cortes verticais.** Cada corte atravessa todas as
   camadas: gerar, ingerir, transformar, testar, catalogar e consultar. Nenhum corte termina
   entregando uma camada isolada — é assim que o princípio **P1** deixa de ser retórica.
@@ -85,8 +89,8 @@ flowchart LR
 | **Objetivo** | Fechar as escolhas que condicionam o código antes de escrever a primeira linha dele. |
 | **Pré-requisito** | M0 |
 | **Entregas** | **E2** |
-| **Decisões** | **D02** (camadas), **D03** (acesso a dados), **D04** (migração), **D09** (classificação e acesso) |
-| **Critérios de conclusão** | Todas as decisões em estado `Aceita` · cada ADR declara o equivalente na fase GCP · nenhuma ferramenta escolhida sem problema declarado que a justifique |
+| **Decisões** | **D02** ([ADR-0008](adr/0008-schemas-do-armazem.md)), **D03** ([ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md)), **D04** ([ADR-0010](adr/0010-alembic-para-migracoes.md)), **D09** ([ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md)) — todas aceitas em 03/09/2026 |
+| **Critérios de conclusão** | Todas as decisões em estado `Aceita` ✓ · cada ADR declara o equivalente na fase GCP ✓ · nenhuma ferramenta escolhida sem problema declarado que a justifique ✓ · falta apenas a aprovação **A1**, que é pré-requisito **M0** |
 | **Riscos tratados** | **R2**, **R3**, **R8** |
 | **Conceitos** | *Trade-offs* de stack · decisão reversível contra irreversível · critério de paridade entre ambientes |
 
@@ -111,8 +115,8 @@ flowchart LR
 | **Pré-requisito** | Etapa 2 |
 | **Entregas** | **E3** |
 | **Decisões** | **D13** (nomenclatura de objetos) |
-| **Artefatos** | `db/migrations/` para as 40 tabelas · diagrama entidade-relacionamento · dicionário preenchido para o schema `oltp` |
-| **Critérios de conclusão** | Migrações aplicáveis do zero e reversíveis · 3FN como referência, com desvios justificados por escrito · chaves, *constraints* e índices declarados · `inventory_movements` conforme o [contrato de evento](modelo_de_dados.md#5-contrato-do-evento-de-estoque) · todo campo classificado |
+| **Artefatos** | Modelos SQLAlchemy das 40 tabelas em `src/` · `db/migrations/` geradas por Alembic a partir deles · diagrama entidade-relacionamento · dicionário preenchido para o schema `oltp` |
+| **Critérios de conclusão** | Migrações aplicáveis do zero e reversíveis — a descida **executada**, não apenas gerada ([ADR-0010](adr/0010-alembic-para-migracoes.md)) · 3FN como referência, com desvios justificados por escrito · chaves, *constraints* e índices declarados · `inventory_movements` conforme o [contrato de evento](modelo_de_dados.md#5-contrato-do-evento-de-estoque) · todo campo classificado |
 | **Riscos tratados** | **R4**, **R6** |
 | **Conceitos** | Normalização · integridade referencial · *constraints* e índices · migração reversível · livro de eventos *append-only* |
 
@@ -124,8 +128,8 @@ flowchart LR
 | **Pré-requisito** | Etapa 3 |
 | **Entregas** | **E4** |
 | **Decisões** | **D26** (perfis de volume definitivos) |
-| **Artefatos** | Motor em `src/generator/` · configuração declarativa das 40 tabelas · perfis `smoke` e `demo_4gb` · `make size-report` |
-| **Critérios de conclusão** | Mesma `seed` e mesma `as_of_date` produzem exatamente os mesmos dados · volume configurável sem alterar código · geração respeita todas as *constraints* e as [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) · tamanho medido e comparado ao orçamento · `cart_items` acima de 1 milhão de linhas |
+| **Artefatos** | Motor em `src/generator/` · configuração declarativa das 40 tabelas · perfis `smoke`, `demo` e `demo_4gb` · `make size-report` |
+| **Critérios de conclusão** | Mesma `seed` e mesma `as_of_date` produzem exatamente os mesmos dados · volume configurável sem alterar código · geração respeita todas as *constraints* e as [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) · bytes por linha e crescimento de índice **medidos** com o perfil `demo` e extrapolados para o orçamento, recalibrando **D26** |
 | **Riscos tratados** | **R5**, **R6**, **R12**, **R14** |
 | **Conceitos** | Determinismo por semente · modelagem de distribuições · integridade referencial na geração · medição de capacidade |
 
@@ -234,7 +238,7 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Pré-requisito** | Etapa 11 |
 | **Entregas** | **E11** |
 | **Artefatos** | [Execução Local](execucao_local.md) completa e conferida · `make check` · pacote do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação) · versão marcada no Git |
-| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo · execução completa dentro do orçamento de 4 GB, com medição registrada · restauração do ponto de recuperação testada · documentação coerente com o código · nenhum segredo no repositório nem no histórico |
+| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo · execução completa do perfil `demo_4gb` dentro do orçamento de 4 GB, com medição registrada · `cart_items` acima de 1 milhão de linhas · restauração do ponto de recuperação testada · documentação coerente com o código · nenhum segredo no repositório nem no histórico |
 | **Riscos tratados** | **R6**, **R7**, **R10**, **R12** |
 | **Conceitos** | Reprodutibilidade verificada · versionamento semântico · recuperação testada · auditoria de entrega |
 
