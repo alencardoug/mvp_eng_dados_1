@@ -50,16 +50,13 @@ header = texts[ROOT / "docs/pendencias.md"]
 if f"| Decisões pendentes | {n_pend} |" not in header:
     problems.append(f"pendencias.md desatualizado — esperado {n_pend} decisões pendentes")
 
-# lacunas de numeração, apenas informativo
+# a numeração Dnn não é densa: lacunas não indicam decisão perdida
+# (docs/adr/README.md §1), portanto não são verificadas.
 todos = set()
 for text in texts.values():
     todos |= set(re.findall(r"\bD\d{2}\b", text))
-nums = sorted(int(x[1:]) for x in todos)
-gaps = [f"D{n:02d}" for n in range(1, max(nums) + 1) if n not in nums]
 
 print(f"ADRs aceitos: {n_adr}  ·  decisões pendentes: {n_pend}  ·  Dnn citados: {len(todos)}")
-if gaps:
-    print(f"lacuna de numeração (informativo): {', '.join(gaps)}")
 print()
 
 if problems:
