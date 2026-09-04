@@ -62,6 +62,7 @@ decisão.
 | [0023](0023-escopo-do-schema-governance.md) | Restringir o schema `governance` a controle e auditoria | Aceita | D14 |
 | [0024](0024-airbyte-e-airflow-no-gcp.md) | Replicar Airbyte e Airflow no GCP preservando a paridade | Aceita | D11, D22 |
 | [0025](0025-policy-tags-por-fluxo-automatizado.md) | Aplicar as policy tags por fluxo automatizado | Aceita | Q1 |
+| [0026](0026-uv-para-ambiente-e-dependencias.md) | Adotar `uv` para o ambiente e as dependências Python | Aceita | Ambiente e interpretador Python |
 
 ---
 

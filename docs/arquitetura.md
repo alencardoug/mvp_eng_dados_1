@@ -120,6 +120,7 @@ Regras válidas para todas as camadas:
 | Testes de dados | `dbt` + `dbt-expectations`; `pytest` para código | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Acesso a dados em Python | **SQLAlchemy** — os modelos são a fonte de verdade do schema | [ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md) |
 | Migração de schema | **Alembic**, derivando as migrações dos modelos | [ADR-0010](adr/0010-alembic-para-migracoes.md) |
+| Ambiente e dependências Python | **`uv`**, com Python 3.11 e `uv.lock` versionado | [ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md) |
 | Controle de versão | Git + GitHub | Firmada |
 
 ### 3.1 Operação pelo terminal
@@ -236,11 +237,14 @@ mvp_ed1/
 ├── db/                           # (Etapa 3) migrações Alembic e seeds
 │   ├── migrations/
 │   └── seeds/
-├── pyproject.toml                # (Etapa 2) pacote instalável: `pip install -e .`
-├── src/                          # (Etapa 4) código Python, importável como pacote
-│   ├── generator/                # motor de geração + configuração declarativa
-│   ├── legacy/                   # gerador da origem legada
-│   └── streaming/                # produtor e pipeline Beam
+├── pyproject.toml                # (Etapa 2) pacote, interpretador e dependências
+├── uv.lock                       # (Etapa 2) trava de versões — versionado
+├── .python-version               # (Etapa 2) interpretador declarado: 3.11
+├── src/
+│   └── mvp_ed1/                  # (Etapa 2) pacote instalável, importado por caminho absoluto
+│       ├── generator/            # (Etapa 4) motor de geração + configuração declarativa
+│       ├── legacy/               # (Etapa 4) gerador da origem legada
+│       └── streaming/            # (Etapa 4) produtor e pipeline Beam
 ├── dbt/                          # (Etapa 5) projeto dbt: modelos, testes, .yml
 ├── airflow/                      # (Etapa 5) DAGs
 ├── terraform/                    # (Etapa 13) infraestrutura GCP

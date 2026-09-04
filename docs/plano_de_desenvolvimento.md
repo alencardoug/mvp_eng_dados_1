@@ -12,7 +12,7 @@
 | Campo | Informação |
 |---|---|
 | Versão | 2.2 |
-| Etapa atual | **Etapa 2 — Ambiente local reproduzível** (**M0** e **M1** concluídos) |
+| Etapa atual | **Etapa 3 — Modelo e banco transacional** (**M0**, **M1** e **M2** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -44,7 +44,7 @@
 |---|---|---|
 | **M0** | Termo de Abertura aprovado e documentação-base estável | Etapa 0 — **04/09/2026** |
 | **M1** | Decisões fundamentais registradas em ADR | Etapa 1 — **04/09/2026** |
-| **M2** | Ambiente local sobe do zero com um comando | Etapa 2 |
+| **M2** | Ambiente local sobe do zero com um comando | Etapa 2 — **04/09/2026** |
 | **M3** | Primeiro fluxo completo origem → consumo | Etapa 5 |
 | **M4** | Streaming em operação, com o *batch* intacto | Etapa 7 |
 | **M5** | Fase local concluída, testada e reproduzível | Etapa 12 |
@@ -96,14 +96,16 @@ flowchart LR
 
 ### Etapa 2 — Ambiente local reproduzível · **M2**
 
+*Concluída em 04/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Clonar o repositório e subir o ambiente com um comando. |
 | **Pré-requisito** | M1 |
 | **Entregas** | **E1**, **E11** (parcial) |
-| **Decisões** | **D10** ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) — aceita em 04/09/2026 |
-| **Artefatos** | `docker/` com `source_db`, `legacy_db` e `warehouse_db` · `.env.example` · `Makefile` · ambiente Python com versões fixadas |
-| **Critérios de conclusão** | Ambiente sobe do zero em máquina limpa · `make up`, `make down` e `make reset` conferidos · nenhum segredo versionado · dependências fixadas |
+| **Decisões** | **D10** ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) · ambiente Python ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md)) — aceitas em 04/09/2026 |
+| **Artefatos** | `docker/docker-compose.yml` com `source_db`, `legacy_db` e `warehouse_db` · `.env.example` · `Makefile` · `pyproject.toml`, `uv.lock` e `.python-version` |
+| **Critérios de conclusão** | Ambiente sobe do zero em máquina limpa ✓ · `make up`, `make down` e `make reset` conferidos ✓ · nenhum segredo versionado ✓ · dependências fixadas ✓ (imagem por *digest*, interpretador em série fechada, `uv.lock` versionado) |
 | **Riscos tratados** | **R6**, **R7**, **R11** |
 | **Conceitos** | Contêineres e isolamento · configuração por variáveis de ambiente · fixação de dependências · operação por terminal |
 

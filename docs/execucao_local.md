@@ -10,8 +10,8 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.2 |
-| Situação | **Nenhum comando implementado ainda.** Cada alvo passa a existir na etapa indicada |
+| Versão | 1.3 |
+| Situação | Alvos da **Etapa 2** implementados e conferidos; os demais nascem na etapa indicada |
 | Última revisão | 04/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
@@ -25,7 +25,8 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 | Requisito | Observação |
 |---|---|
 | Docker e Docker Compose | Todo o ambiente roda em contêineres |
-| Python 3.x | Versão exata fixada na Etapa 2. O código do projeto é instalado como pacote: `pip install -e .` ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
+| `uv` | Gerencia interpretador, dependências e ambiente ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md)). Instala o Python 3.11 sozinho — não é preciso ter Python antes |
+| Python 3.11 | Fixado por paridade com o Cloud Composer. `make install` cria o `.venv` e instala o pacote ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |
 | Disco livre | **Pelo menos 8 GB** — o volume de dados é baixo por desenho ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)); o espaço é para imagem, log e WAL |
 | Memória | **A restrição real do ambiente.** Airbyte, Airflow, Redpanda e Kafka Connect não precisam subir ao mesmo tempo; ver seção 5 |
@@ -38,10 +39,13 @@ máquina para executá-la.
 ## 2. Configuração
 
 ```bash
-cp .env.example .env      # preencher localmente; nunca versionar
+make env        # gera o .env com portas padrão e senhas aleatórias, permissão 600
+make install    # instala o Python 3.11 e o pacote no .venv
 ```
 
-O `.env.example` é versionado com as chaves e **sem** valores. Ver
+O `.env.example` é versionado com as chaves e **sem** valores, e serve para declarar quais chaves
+existem — não para ser copiado e preenchido à mão. `make env` recusa sobrescrever um `.env`
+existente, porque trocar as senhas torna os volumes já criados inacessíveis. Ver
 [Política de Governança de Dados](governanca_de_dados.md#9-tratamento-de-segredos).
 
 ---
@@ -81,6 +85,10 @@ O volume é expresso por **fator de escala** sobre um conjunto único de propor�
 
 | Comando | O que faz | Disponível na |
 |---|---|---|
+| `make help` | Lista os alvos já implementados | Etapa 2 |
+| `make ps` | Estado e portas dos contêineres | Etapa 2 |
+| `make logs` | Acompanha os logs; `SERVICE=source_db` filtra | Etapa 2 |
+| `make psql-source` · `make psql-legacy` · `make psql-warehouse` | Abre o `psql` no banco correspondente | Etapa 2 |
 | `make down` | Derruba os contêineres preservando os volumes | Etapa 2 |
 | `make reset` | Derruba e apaga os volumes — recomeço do zero | Etapa 2 |
 | `make test` | Testes de código Python (`pytest`) | Etapa 4 |

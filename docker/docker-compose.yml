@@ -1,0 +1,84 @@
+# Ambiente local do MVP — três instâncias PostgreSQL independentes.
+#
+# São três contêineres, e não um com três bancos, por duas razões:
+# a origem transacional roda com `wal_level=logical` para o CDC da Etapa 7
+# (ADR-0006, ADR-0020), configuração que não deve ser imposta ao armazém; e
+# instâncias separadas espelham o desenho da fase GCP, em que cada banco é uma
+# instância Cloud SQL própria (P4).
+#
+# Perfis: os serviços base sobem sempre. Streaming e orquestração entram nas
+# Etapas 7 e 5 com perfis próprios, para que nunca seja preciso subir tudo
+# ao mesmo tempo — mitigação do risco R11.
+
+name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}
+
+x-postgres-base: &postgres-base
+  # Fixado por tag E digest: o digest é o que garante a mesma imagem em
+  # qualquer máquina e em qualquer data (P2, R6). A tag existe para leitura.
+  image: postgres:16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+  restart: unless-stopped
+  stop_grace_period: 30s
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -q"]
+    interval: 5s
+    timeout: 5s
+    retries: 12
+    start_period: 10s
+
+services:
+  # Origem transacional. É a única com replicação lógica ligada: o Debezium lê
+  # o WAL dela na Etapa 7, e ligar isso agora evita reiniciar o banco depois.
+  source_db:
+    <<: *postgres-base
+    container_name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_source_db
+    environment:
+      POSTGRES_DB: ${SOURCE_DB_NAME}
+      POSTGRES_USER: ${SOURCE_DB_USER}
+      POSTGRES_PASSWORD: ${SOURCE_DB_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
+      - -c
+      - wal_keep_size=256MB
+    ports:
+      - "${SOURCE_DB_PORT}:5432"
+    volumes:
+      - source_db_data:/var/lib/postgresql/data
+
+  # Origem legada, deliberadamente defeituosa. Sem CDC: é lida por snapshot
+  # completo e imutável (ADR-0015).
+  legacy_db:
+    <<: *postgres-base
+    container_name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_legacy_db
+    environment:
+      POSTGRES_DB: ${LEGACY_DB_NAME}
+      POSTGRES_USER: ${LEGACY_DB_USER}
+      POSTGRES_PASSWORD: ${LEGACY_DB_PASSWORD}
+    ports:
+      - "${LEGACY_DB_PORT}:5432"
+    volumes:
+      - legacy_db_data:/var/lib/postgresql/data
+
+  # Armazém: os nove schemas do ADR-0008, ADR-0017 e ADR-0023. Os schemas
+  # nascem das migrações na Etapa 3 — aqui só existe o banco vazio.
+  warehouse_db:
+    <<: *postgres-base
+    container_name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_warehouse_db
+    environment:
+      POSTGRES_DB: ${WAREHOUSE_DB_NAME}
+      POSTGRES_USER: ${WAREHOUSE_DB_USER}
+      POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    ports:
+      - "${WAREHOUSE_DB_PORT}:5432"
+    volumes:
+      - warehouse_db_data:/var/lib/postgresql/data
+
+volumes:
+  source_db_data:
+  legacy_db_data:
+  warehouse_db_data:

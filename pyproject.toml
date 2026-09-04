@@ -1,0 +1,27 @@
+# Declaração do pacote Python do projeto (ADR-0012) e do ambiente (ADR-0026).
+# O `uv.lock` ao lado é a trava: ele, e não este arquivo, é o que garante que
+# duas máquinas instalem exatamente as mesmas versões.
+
+[project]
+name = "mvp-eng-dados-1"
+version = "0.1.0"
+description = "MVP de engenharia e governança de dados de ponta a ponta sobre um marketplace de varejo omnichannel sintético"
+readme = "README.md"
+authors = [{ name = "Douglas Alencar" }]
+
+# Fixado na série 3.11 por paridade com o Cloud Composer, que é o orquestrador
+# da fase GCP (ADR-0024, princípio P4). Não é ">=3.11": permitir 3.12 aqui
+# tornaria o ambiente local diferente do da nuvem sem que ninguém percebesse.
+requires-python = ">=3.11,<3.12"
+
+# Vazio por escopo, não por esquecimento: a Etapa 2 entrega o ambiente. As
+# dependências entram na etapa que as usa — SQLAlchemy e Alembic na Etapa 3
+# (ADR-0009, ADR-0010), e assim por diante.
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mvp_ed1"]

@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo, importados pelo dbt | Vazio — a partir da Etapa 5 |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 25 aceitos, 0 pendentes |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 26 aceitos, 0 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.1 — contrato, nada implementado |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**25 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
+**26 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -60,15 +60,18 @@ controle e auditoria · **SQLAlchemy e Alembic** · quatro níveis de classifica
 acesso · `src/` como pacote Python instalável · prefixo por tipo nos objetos de banco ·
 **volume por proporções e fator de escala**, com o alto volume reservado à fase GCP · views e
 tabelas por camada, com incremental como exceção justificada · chaves substitutas por *hash* e
-SCD tipo 2 por *snapshot* · Cloud Composer e Airbyte em contêiner na nuvem, em janela curta.
+SCD tipo 2 por *snapshot* · Cloud Composer e Airbyte em contêiner na nuvem, em janela curta · **`uv` e Python 3.11**.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 2 — Ambiente local reproduzível.** O Termo de Abertura está aprovado (**M0**) e as
-decisões fundamentais estão registradas em ADR (**M1**). Nenhum código escrito ainda, e
-[nada pendente](docs/pendencias.md) do lado do Owner.
+**Etapa 3 — Modelo e banco transacional.** Termo aprovado (**M0**), decisões registradas em ADR
+(**M1**) e o ambiente local subindo do zero com um comando (**M2**). Nada
+[pendente](docs/pendencias.md) do lado do Owner.
 
-Quando houver o que executar, o ponto de partida será
-[Execução Local](docs/execucao_local.md).
+O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
+
+```bash
+make env && make install && make up
+```
