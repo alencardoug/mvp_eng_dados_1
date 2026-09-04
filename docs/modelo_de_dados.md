@@ -578,6 +578,10 @@ classificação que impede somar saldo de estoque ao longo do tempo.
 | `fact_coupon_redemption` | 6.000 | Um uso de cupom em um pedido. | Transacional |
 | `fact_refund` | 1.400 | Um reembolso realizado. | Transacional |
 
+`fact_inventory_movement` carrega **`cogs_amount`**, o custo do produto vendido, registrado no
+instante da saída ([ADR-0030](adr/0030-cmv-do-livro-de-estoque.md)). É por ela que a margem é
+calculada, e não pelo custo de compra: o custo do movimento não muda quando o preço de compra muda.
+
 `fact_cart_event` é a décima fato, acrescentada pelo
 [ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md) quando as perguntas de negócio mostraram que o
 funil de conversão não tinha onde pousar. São até dois eventos por carrinho — a abertura e o

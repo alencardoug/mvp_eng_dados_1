@@ -37,7 +37,11 @@ def categorias(motor: Motor, dados: Dataset) -> None:
                     "id": identificador,
                     "code": f"CAT-{identificador:04d}",
                     "name": f"{nomes[i % len(nomes)]}{sufixo}",
-                    "parent_id": fonte.escolha(por_nivel[nivel - 1]) if nivel else None,
+                    # Pai por rodízio, não por sorteio: sorteando, uma raiz
+                    # pode ficar sem descendente com produto e sumir da
+                    # dimensão inteira — foi o que aconteceu com "Eletrônicos",
+                    # e o `min_rows` promete árvore equilibrada.
+                    "parent_id": por_nivel[nivel - 1][i % len(por_nivel[nivel - 1])] if nivel else None,
                     "depth": nivel,
                     "is_active": True,
                 }

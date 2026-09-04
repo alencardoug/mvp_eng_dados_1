@@ -159,3 +159,132 @@ models:
           - not_null
           - accepted_values:
               values: [created, converted, abandoned, expired]
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Etapa 6 — financeiro e estoque
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - name: dim_payment_method
+    columns:
+      - name: payment_method_key
+        data_tests: [unique, not_null]
+      - name: method_type
+        data_tests:
+          - accepted_values:
+              values: [credit_card, debit_card, pix, boleto, wallet, voucher]
+
+  - name: dim_supplier
+    description: Fornecedor. SCD tipo 1 nesta etapa — a divergência do §3.2 está declarada no modelo.
+    columns:
+      - name: supplier_key
+        data_tests: [unique, not_null]
+      - name: supplier_natural_key
+        data_tests: [unique, not_null]
+
+  - name: dim_warehouse
+    description: Armazém, com a **mesma** `dim_geography` do endereço de entrega.
+    columns:
+      - name: warehouse_key
+        data_tests: [unique, not_null]
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+
+  - name: fact_payment_transaction
+    description: >
+      **Grão: uma tentativa ou operação financeira.** A operação recusada fica —
+      "quantas tentativas foram precisas para receber" é a pergunta P09, e ela só
+      existe se a recusa estiver aqui.
+    columns:
+      - name: payment_transaction_key
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: payment_method_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_payment_method'), field: payment_method_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: transaction_type
+        data_tests:
+          - accepted_values:
+              values: [authorization, capture, void, refund]
+      - name: transaction_result
+        data_tests:
+          - accepted_values:
+              values: [succeeded, failed, pending]
+
+  - name: fact_refund
+    description: '**Grão: um reembolso realizado.**'
+    columns:
+      - name: refund_key
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: refund_amount
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between: {min_value: 0.01}
+
+  - name: fact_purchase_order_item
+    description: '**Grão: um item de uma ordem de compra.**'
+    columns:
+      - name: purchase_order_item_key
+        data_tests: [unique, not_null]
+      - name: supplier_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_supplier'), field: supplier_key}
+      - name: product_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_key}
+      - name: quantity_ordered
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
+
+  - name: fact_inventory_movement
+    description: >
+      **Grão: um movimento de um SKU em um armazém.** Única fato `incremental`
+      do projeto (ADR-0016), com as quatro proteções obrigatórias: `unique_key`,
+      filtro por tempo de evento com margem, `--full-refresh` no plano da Etapa
+      12, e o teste `incremental_confere_com_a_reconstrucao_completa`.
+    columns:
+      - name: movement_key
+        data_tests: [unique, not_null]
+      - name: movement_id
+        description: Chave do evento; é ela que torna o reprocessamento idempotente.
+        data_tests: [unique, not_null]
+      - name: idempotency_key
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: product_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_key}
+      - name: warehouse_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_warehouse'), field: warehouse_key}
+      - name: quantity_delta
+        description: '**Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.'
+        data_tests: [not_null]
+      - name: cogs_amount
+        description: '{{ doc("cost_of_goods_sold") }}'
+        data_tests: [not_null]
+      - name: movement_type
+        data_tests:
+          - accepted_values:
+              values: [purchase_receipt, customer_return, transfer_in, adjustment_in,
+                       sale_dispatch, supplier_return, transfer_out, adjustment_out]

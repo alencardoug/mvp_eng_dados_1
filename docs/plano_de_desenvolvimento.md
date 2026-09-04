@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.5 |
-| Etapa atual | **Etapa 6 — Corte 2: financeiro e estoque** (**M0** a **M3** concluídos) |
+| Versão | 2.6 |
+| Etapa atual | **Etapa 7 — Corte 3: streaming de estoque** (**M0** a **M3** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -157,12 +157,14 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Entregas** | **E5**, **E6**, **E7**, **E8**, **E10** (todas parciais) |
 | **Escopo** | Clientes, catálogo, carrinhos e pedidos · `fact_sales_order_item` e `fact_cart_event` · `dim_customer`, `dim_product`, `dim_date`, `dim_sales_channel`, `dim_geography` |
 | **Decisões** | **D20**, **D21** ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)), **D23** ([ADR-0016](adr/0016-materializacao-por-camada.md)), **D25** ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)), **D24**, **D27** ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) — aceitas em 04/09/2026 · a fato de carrinho ([ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md)) · **D30** ([ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md)) |
-| **Artefatos** | Conexões Airbyte declaradas em Terraform sobre `airbyte/streams.yml` · projeto dbt com 36 modelos, 2 *snapshots*, 1 *seed* e 166 objetos no `build` · DAG `corte_comercial` com uma tarefa por camada · 16 perguntas e 6 conceitos no [Glossário de Negócio](glossario_de_negocio/) |
+| **Artefatos** | Conexões Airbyte declaradas em Terraform sobre `airbyte/streams.yml` · projeto dbt com 36 modelos, 2 *snapshots*, 1 *seed* e 166 objetos no `build` · DAG do caminho frio com uma tarefa por camada · 16 perguntas e 6 conceitos no [Glossário de Negócio](glossario_de_negocio/) |
 | **Critérios de conclusão** | `make dbt-build` executa do zero e passa ✓ (166 objetos, 0 erros) · grão de `fact_sales_order_item` declarado por escrito ✓ (e provado por `unique` sobre a chave do grão) · contagens reconciliadas em todas as fronteiras ✓ (`oltp` → `raw` → `staging` → fato, exatas) · view de consumo responde a perguntas de negócio definidas ✓ (P01 a P07, com `contract: enforced`) · `dbt docs` mostra linhagem e glossário integrados ✓ (36 modelos, 127 testes e os 6 conceitos do glossário no manifesto) · **fluxo executado ponta a ponta pelo orquestrador** ✓ (oito tarefas verdes em 2 min 53 s) |
 | **Riscos tratados** | **R1**, **R3**, **R4** |
 | **Conceitos** | Ingestão com controle de estado · camadas dbt · grão e esquema estrela · SCD tipo 2 · dimensão conformada · view como contrato · linhagem |
 
 ### Etapa 6 — Corte 2: financeiro e estoque em *batch*
+
+*Concluída em 04/09/2026.*
 
 | | |
 |---|---|
@@ -170,7 +172,9 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Pré-requisito** | Etapa 5 |
 | **Entregas** | **E6**, **E7**, **E10** (parciais) |
 | **Escopo** | Pagamentos, transações, reembolsos, compras, recebimentos e movimentos de estoque · `fact_payment_transaction`, `fact_refund`, `fact_purchase_order_item`, `fact_inventory_movement` |
-| **Critérios de conclusão** | Invariantes 2 a 8 do [modelo](modelo_de_dados.md#4-invariantes-de-negócio) com teste correspondente · reconciliação financeira fecha · saldo de estoque reconstruído a partir dos movimentos confere com `inventory_balances` · valores monetários em decimal, nunca `float` |
+| **Decisões** | Origem do custo do produto vendido ([ADR-0030](adr/0030-cmv-do-livro-de-estoque.md)) — aceita em 04/09/2026 |
+| **Artefatos** | 15 fluxos novos no `airbyte/streams.yml`, com os **três** modos do ADR-0015 exercitados · 25 modelos de `staging` · 3 dimensões e 4 fatos novas · views P08 a P11 com contrato · 8 testes singulares para as invariantes que atravessam linhas |
+| **Critérios de conclusão** | Invariantes 2 a 8 com teste correspondente ✓ (uma por arquivo em `dbt/tests/`, com o motivo escrito de por que não são `CHECK`) · reconciliação financeira fecha ✓ (captura ≤ autorização e reembolso ≤ captura, zero violações) · saldo reconstruído dos movimentos confere com `inventory_balances` ✓ (**zero divergências** em 2.910 pares) · valores monetários em decimal ✓ (**zero colunas `float`** nas três camadas do armazém) |
 | **Riscos tratados** | **R5**, **R11** |
 | **Conceitos** | Reconciliação financeira · precisão decimal · livro-razão de eventos · dimensão degenerada |
 

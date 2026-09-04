@@ -21,8 +21,9 @@ versao: 1
 origem: retail
 schema: oltp
 
-# Etapa 5 — corte do núcleo comercial. Os demais fluxos entram na etapa que os
-# consome: ingerir tabela que nenhum modelo lê é volume sem consumidor.
+# Etapas 5 e 6 — núcleo comercial, financeiro e estoque. Os demais fluxos entram
+# na etapa que os consome: ingerir tabela que nenhum modelo lê é volume sem
+# consumidor.
 tabelas:
 
   # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
@@ -38,6 +39,29 @@ tabelas:
   brands:
     modo: full_refresh
     motivo: Cadastro pequeno e de baixa rotatividade.
+
+  payment_methods:
+    modo: full_refresh
+    motivo: Seis meios de pagamento. Domínio fechado, sem cursor que compense.
+  warehouses:
+    modo: full_refresh
+    motivo: Cinco armazéns que só mudam quando a operação abre ou fecha um centro.
+
+  # ── Livros de eventos: incremental por acréscimo ──────────────────────────
+  # Terceiro modo do ADR-0015, e o que o incremental faz melhor: tabela que só
+  # cresce, sem `UPDATE`, dispensa a lógica de deduplicação inteira. Ambas são
+  # `AppendOnlyMixin` no modelo — não têm `updated_at` nem `deleted_at`, porque
+  # corrigir um evento é inserir outro.
+  payment_transactions:
+    modo: append
+    cursor: created_at
+  inventory_movements:
+    modo: append
+    # `recorded_at` é o momento em que a origem registrou o evento, e é a coluna
+    # que o Modelo de Dados §5.2 indexa para leitura incremental. `occurred_at`
+    # seria errado: evento atrasado tem tempo de negócio antigo, e o cursor o
+    # deixaria para trás.
+    cursor: recorded_at
 
   # ── Mutáveis com `updated_at`: dedup + history ────────────────────────────
   customers:
@@ -69,6 +93,62 @@ tabelas:
     cursor: updated_at
     chave: [id]
   order_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+
+  # ── Financeiro (Etapa 6) ──────────────────────────────────────────────────
+  payments:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  refunds:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+
+  # ── Compras (Etapa 6) ─────────────────────────────────────────────────────
+  suppliers:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  purchase_orders:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  purchase_order_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  goods_receipts:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  goods_receipt_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+
+  # ── Logística — só o necessário para a invariante 5 ───────────────────────
+  # A fato de remessa é escopo da Etapa 8. Estas duas entram antes porque a
+  # invariante 5 — remessa não envia mais do que foi vendido — atravessa
+  # `shipment_items` e `order_items`, e é critério de conclusão da Etapa 6.
+  # Um teste é consumidor legítimo: não é volume sem uso.
+  shipments:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  shipment_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+
+  # ── Estoque (Etapa 6) ─────────────────────────────────────────────────────
+  inventory_balances:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  stock_reservations:
     modo: dedup_history
     cursor: updated_at
     chave: [id]

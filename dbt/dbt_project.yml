@@ -37,6 +37,13 @@ vars:
   active_customer_window_days: 180
   repeat_purchase_window_days: 90
 
+  # Margem de atraso da única fato incremental do projeto (ADR-0016). É o quanto
+  # de atraso entre `occurred_at` e a carga o filtro tolera: evento mais velho
+  # que isto não é recuperado pelo incremental, e depende do `--full-refresh`.
+  # Sete dias porque o produtor da Etapa 7 gera atraso na casa de minutos, e uma
+  # ordem de grandeza de folga é o que separa margem de aposta.
+  atraso_maximo_dias: 7
+
 models:
   mvp_ed1:
     +persist_docs:

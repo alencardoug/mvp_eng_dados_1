@@ -12,7 +12,7 @@
 |---|---|
 | Método | Perguntas antes do SQL ([ADR-0018](../adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
 | Quantidade | 16 |
-| Situação | Redigidas na Etapa 5; **P01 a P07** viram view nesta etapa |
+| Situação | **P01 a P11** com view construída; P12 a P16 nas Etapas 7 a 9 |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -138,12 +138,20 @@ gerados, ingeridos e limpos para não alimentar pergunta nenhuma.
 
 ## 3. Financeiro e estoque — Etapa 6
 
+Estas quatro viraram view na Etapa 6. A **P08** é a primeira que combina duas
+fatos: receita vem de `fact_sales_order_item` e custo de `fact_inventory_movement`,
+cada uma agregada ao seu grão e depois cruzadas na granularidade comum
+([ADR-0030](../adr/0030-cmv-do-livro-de-estoque.md)).
+
 ### P08 — Qual o lucro bruto e a margem por categoria e mês?
+
+Usa [lucro bruto](lucro_bruto.md) e
+[custo do produto vendido](custo_do_produto_vendido.md).
 
 | | |
 |---|---|
 | **Fatos** | `fact_sales_order_item` · `fact_purchase_order_item` |
-| **Medidas** | `net_revenue_amount` (aditiva) · `cost_of_goods_sold` (aditiva) · `gross_profit_amount` (aditiva) · `gross_margin` (**não aditiva**) |
+| **Medidas** | `net_revenue_amount` (aditiva) · `cost_of_goods_sold` (aditiva) · `gross_profit_amount` (aditiva) · `gross_margin_pct` (**não aditiva**) |
 | **Dimensões** | `dim_date` · `dim_category` · `dim_product` |
 | **View** | `gross_margin_by_category` |
 

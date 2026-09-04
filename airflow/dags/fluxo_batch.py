@@ -1,4 +1,11 @@
-"""DAG do corte comercial — `oltp` até as views de consumo.
+"""DAG do caminho frio — `oltp` até as views de consumo.
+
+Nasceu como `corte_comercial` na Etapa 5 e foi renomeada na Etapa 6, quando
+passou a construir também o financeiro e o estoque. O nome novo é o que ela vai
+continuar sendo: **o caminho de lote**, em oposição ao caminho quente do
+*streaming* que a Etapa 7 acrescenta. Cada corte vertical novo entra aqui sem
+mudar a forma da DAG — as tarefas são por camada, não por domínio, e é por isso
+que acrescentar domínio não acrescenta tarefa.
 
 O ADR-0003 foi buscar no Airflow três coisas: **dependência explícita,
 reexecução parcial e histórico**. Por isso esta DAG não é uma tarefa só
@@ -40,8 +47,8 @@ PADRAO = {
 
 
 @dag(
-    dag_id="corte_comercial",
-    description="oltp → raw → staging → trusted → analytics → consumption",
+    dag_id="fluxo_batch",
+    description="Caminho frio: oltp → raw → staging → trusted → analytics → consumption",
     # Disparo explícito, não agendado: na fase local a origem é regerada à mão,
     # e uma DAG que roda sozinha sincronizaria dado que ninguém pediu. O
     # agendamento entra na Etapa 12, quando o fluxo inteiro for validado junto.
@@ -50,9 +57,9 @@ PADRAO = {
     catchup=False,
     max_active_runs=1,
     default_args=PADRAO,
-    tags=["etapa-5", "comercial"],
+    tags=["batch", "armazem"],
 )
-def corte_comercial():
+def fluxo_batch():
     @task(task_id="sincronizar_oltp_para_raw")
     def sincronizar() -> dict:
         """Executa a sincronização do Airbyte e **espera** o resultado.
@@ -108,4 +115,4 @@ def corte_comercial():
     )
 
 
-corte_comercial()
+fluxo_batch()

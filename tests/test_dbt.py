@@ -53,18 +53,25 @@ def test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt() -> None:
 
 
 def test_todo_stream_tem_modo_e_o_modo_e_conhecido() -> None:
-    modos = {"full_refresh", "dedup_history", "append"}
     streams = _carregar(RAIZ / "airbyte/streams.yml")
     for nome, spec in streams["tabelas"].items():
-        assert spec.get("modo") in modos, f"{nome}: modo ausente ou desconhecido"
-        if spec["modo"] == "dedup_history":
+        modo = spec.get("modo")
+        if modo == "dedup_history":
+            # Precisa saber o que mudou e a quem a mudança pertence.
             assert spec.get("cursor"), f"{nome}: dedup_history exige cursor"
             assert spec.get("chave"), f"{nome}: dedup_history exige chave"
-        else:
+        elif modo == "append":
+            # Livro de eventos: só cresce, então basta saber por onde parou.
+            assert spec.get("cursor"), f"{nome}: append exige cursor"
+            assert not spec.get("chave"), f"{nome}: append não deduplica, e não usa chave"
+        elif modo == "full_refresh":
+            # Não ter cursor é a escolha, e escolha precisa de justificativa.
             assert spec.get("motivo"), f"{nome}: carga completa exige motivo escrito"
+        else:
+            raise AssertionError(f"{nome}: modo ausente ou desconhecido ({modo!r})")
 
 
-def test_toda_pergunta_da_etapa_5_tem_a_sua_view() -> None:
+def test_toda_pergunta_com_view_construida_existe_como_modelo() -> None:
     """A view declarada no Glossário existe em `consumption` — e vice-versa.
 
     O ADR-0018 diz que cada pergunta vira uma view nomeada por ela. Sem este
@@ -73,10 +80,10 @@ def test_toda_pergunta_da_etapa_5_tem_a_sua_view() -> None:
     perguntas = (RAIZ / "docs/glossario_de_negocio/perguntas_de_negocio.md").read_text(
         encoding="utf-8"
     )
-    # Só as perguntas da Etapa 5 viram view agora; as demais estão declaradas
-    # para as etapas seguintes e não devem existir ainda.
-    etapa_5 = perguntas.split("## 3. Financeiro e estoque")[0]
-    declaradas = set(re.findall(r"\*\*View\*\* \| `([a-z0-9_]+)`", etapa_5))
+    # As perguntas das Etapas 5 e 6 já viram view; as das Etapas 7 a 9 estão
+    # declaradas e não devem existir ainda.
+    construidas = perguntas.split("## 4. Estoque em tempo real")[0]
+    declaradas = set(re.findall(r"\*\*View\*\* \| `([a-z0-9_]+)`", construidas))
     existentes = {p.stem for p in (DBT / "models/consumption").glob("*.sql")}
 
     assert declaradas == existentes, (

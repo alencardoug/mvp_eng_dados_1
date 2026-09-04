@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 29 aceitos, 0 pendentes |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 30 aceitos, 0 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.5 — Etapas 2 a 4 conferidas |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**29 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
+**30 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -68,15 +68,15 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 6 — Corte 2: financeiro e estoque.** Termo aprovado (**M0**), decisões em ADR (**M1**),
-ambiente subindo do zero com um comando (**M2**) e o **primeiro fluxo completo origem → consumo**
-em operação (**M3**).
+**Etapa 7 — Corte 3: streaming de estoque.** Termo aprovado (**M0**), decisões em ADR (**M1**),
+ambiente subindo do zero com um comando (**M2**) e o **fluxo completo origem → consumo** em
+operação (**M3**).
 
-O corte comercial atravessa todas as camadas: `oltp` → Airbyte → `raw` → `staging` → `trusted` →
-`analytics` → `consumption`, orquestrado pelo Airflow. A DAG roda as oito tarefas em **2 min 53 s**;
-o `dbt build` constrói **166 objetos** — 36 modelos, 2 *snapshots* SCD tipo 2, 1 *seed* e 127 testes
-— sem erro; e as sete primeiras views respondem às perguntas de negócio com contrato aplicado. Nada
-[pendente](docs/pendencias.md) do lado do Owner.
+Dois cortes verticais entregues — comercial, financeiro e estoque. O armazém tem **27 fluxos de
+ingestão**, com os três modos de sincronização exercitados, e o `dbt build` constrói **259 objetos**
+sem erro: 53 modelos nas quatro camadas, 2 *snapshots* SCD tipo 2 e os testes de qualidade. As
+**onze primeiras perguntas de negócio** têm view com contrato aplicado. Tudo orquestrado pelo
+Airflow. Nada [pendente](docs/pendencias.md) do lado do Owner.
 
 Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
 — 225 bytes por linha —, geradas em 5,1 s e carregadas em 26 s. As doze

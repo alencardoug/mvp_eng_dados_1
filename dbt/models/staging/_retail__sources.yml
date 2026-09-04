@@ -3,10 +3,10 @@ version: 2
 sources:
   - name: retail
     description: >
-      Réplica das tabelas de `oltp` no schema `raw`, escrita pelo Airbyte. É a
-      única fonte que o corte comercial da Etapa 5 lê; os demais domínios entram
-      na etapa que os consome — ingerir tabela que nenhum modelo lê é volume sem
-      consumidor.
+      Réplica das tabelas de `oltp` no schema `raw`, escrita pelo Airbyte. Cobre
+      os cortes comercial (Etapa 5), financeiro e de estoque (Etapa 6); os
+      demais domínios entram na etapa que os consome — ingerir tabela que nenhum
+      modelo lê é volume sem consumidor.
     database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
     schema: raw
     loader: airbyte
@@ -37,3 +37,31 @@ sources:
         description: Maior tabela do projeto; ver Modelo de Dados §2.4.
       - name: orders
       - name: order_items
+
+      # ── Financeiro (Etapa 6) ────────────────────────────────────────────
+      - name: payment_methods
+      - name: payments
+      - name: refunds
+
+      # ── Compras (Etapa 6) ───────────────────────────────────────────────
+      - name: suppliers
+      - name: purchase_orders
+      - name: purchase_order_items
+      - name: goods_receipts
+      - name: goods_receipt_items
+
+      # ── Logística — só o que a invariante 5 exige (a fato é da Etapa 8) ──
+      - name: shipments
+      - name: shipment_items
+
+      # ── Estoque (Etapa 6) ───────────────────────────────────────────────
+      - name: warehouses
+      - name: inventory_balances
+      - name: stock_reservations
+
+      # ── Livros de eventos ───────────────────────────────────────────────
+      # Só crescem, e por isso são ingeridos por acréscimo. `inventory_movements`
+      # deixa de ser ingerido assim na Etapa 7, quando o CDC assume — está aqui
+      # como caminho de lote enquanto o caminho quente não existe.
+      - name: payment_transactions
+      - name: inventory_movements

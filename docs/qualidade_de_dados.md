@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.3 |
+| Versão | 1.4 |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -69,6 +69,12 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
 ## 3. Ingestão e camada `raw`
 
 - contagem de registros por tabela e por execução;
+- **deduplicação da entrega ao menos uma vez**: os fluxos em modo `append` releem a fronteira do
+  cursor e reescrevem linhas já entregues. `raw` é *at least once*; `staging` deduplica pela chave
+  e entrega exatamente uma vez, que é a mesma resposta que o
+  [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) dá ao *streaming*. Sem isso, nove
+  duplicatas dobraram uma captura e uma desalinhou um saldo — pouco o bastante para ninguém notar
+  sem teste;
 - controle de registros inseridos, alterados e removidos;
 - captura dos metadados de sincronização do Airbyte;
 - conferência de que cada tabela usa o modo declarado no critério de sincronização
@@ -102,7 +108,13 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
   colunas, tipos ou obrigatoriedade mudam;
 - para `fact_inventory_movement`, único modelo incremental do projeto
   ([ADR-0016](adr/0016-materializacao-por-camada.md)), **reconciliação contra a reconstrução
-  completa**: o resultado incremental e o `--full-refresh` precisam ser idênticos;
+  completa**: o resultado incremental e o `--full-refresh` precisam ser idênticos. Este teste já
+  pagou o próprio custo — pegou uma linha duplicada que o incremental herdara de uma carga anterior
+  e que o `staging` passara a remover;
+- as invariantes que **atravessam linhas** têm cada uma o seu teste singular em `dbt/tests/`, com o
+  motivo escrito de por que elas não são `CHECK`: a 2 compara pedido com a soma dos itens, a 3 e a 4
+  comparam eventos financeiros entre si, a 5 soma remessas do mesmo pedido, a 6 soma recebimentos,
+  a 7 exige origem no movimento e a 8 confere a **direção** da diferença de reserva;
 - reconciliação de pedidos, pagamentos, estoque e remessas;
 - testes de atualidade dos dados;
 - documentação de fontes, modelos e colunas;

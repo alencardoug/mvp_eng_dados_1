@@ -66,6 +66,7 @@ decisão.
 | [0027](0027-configuracao-do-gerador-em-yaml.md) | Declarar o gerador em YAML, com o piso derivado dos modelos | Aceita | Formato e piso da configuração |
 | [0028](0028-fato-de-carrinho-para-o-funil.md) | Acrescentar uma fato de carrinho para o funil de conversão | Aceita | Lacuna do funil de conversão |
 | [0029](0029-exclusao-logica-como-marca-na-dimensao.md) | Carregar a exclusão lógica como marca até a dimensão | Aceita | D30 |
+| [0030](0030-cmv-do-livro-de-estoque.md) | Tirar o custo do produto vendido do livro de estoque | Aceita | Origem do CMV |
 
 ---
 

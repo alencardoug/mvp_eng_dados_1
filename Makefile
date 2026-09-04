@@ -185,9 +185,13 @@ sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 desca
 		$(if $(filter 1,$(RESET)),.venv/bin/python -m mvp_ed1.airbyte reset &&) \
 		.venv/bin/python -m mvp_ed1.airbyte sync
 
-dbt-build: require-env require-venv ## Roda os modelos dbt e os testes de dados; RESET=1 refaz o histórico SCD
+dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 refaz histórico SCD e incrementais
+	@# `--full-refresh` junto com o descarte do histórico, e não por precaução:
+	@# refazer os snapshots troca **todas** as chaves substitutas, e a fato
+	@# incremental continuaria apontando para as antigas. O teste de
+	@# `relationships` pega — depois de 13.514 linhas órfãs.
 	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots &&) \
-		$(DBT) build $(DBT_ARGS)
+		$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
 
 airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, três contêineres)
 	@grep -q '^AIRFLOW_JWT_SECRET=' .env || { \
@@ -207,24 +211,24 @@ airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, tr
 airflow-down: require-env ## Derruba o Airflow; FORCE=1 apaga também o histórico de execuções
 	@$(COMPOSE_AIRFLOW) down $(if $(filter 1,$(FORCE)),-v)
 
-dag-run: require-env ## Dispara a DAG do corte comercial
+dag-run: require-env ## Dispara a DAG do caminho frio (fluxo_batch)
 	@# DAG nasce pausada no Airflow, e execução enfileirada em DAG pausada fica
 	@# `queued` para sempre — o disparo "funciona" e não faz nada. Espera o
 	@# processador de DAGs registrá-la antes de despausar: logo depois de um
 	@# `airflow-up`, ela ainda não existe no banco de metadados.
 	@for i in $$(seq 1 30); do \
 		$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
-			airflow dags unpause corte_comercial >/dev/null 2>&1 && break; \
+			airflow dags unpause fluxo_batch >/dev/null 2>&1 && break; \
 		sleep 2; \
 	done
-	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags trigger corte_comercial >/dev/null
-	@echo "DAG 'corte_comercial' disparada. Acompanhe em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2)"
+	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags trigger fluxo_batch >/dev/null
+	@echo "DAG 'fluxo_batch' disparada. Acompanhe em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2)"
 	@echo "ou por: make dag-status"
 
 dag-status: require-env ## Mostra o estado das tarefas da última execução da DAG
 	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
-		airflow tasks states-for-dag-run corte_comercial \
-		"$$($(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags list-runs corte_comercial -o plain 2>/dev/null | grep -oE 'manual__[0-9T:.+-]+' | head -1)" \
+		airflow tasks states-for-dag-run fluxo_batch \
+		"$$($(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags list-runs fluxo_batch -o plain 2>/dev/null | grep -oE 'manual__[0-9T:.+-]+' | head -1)" \
 		-o plain 2>/dev/null | grep -viE 'alembic|plugin'
 
 dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem

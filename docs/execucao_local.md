@@ -122,7 +122,7 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
 | `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
 | `make dag-status` | Estado das tarefas da última execução da DAG | Etapa 5 |
-| `make dag-run` | Despausa e dispara a DAG do corte comercial | Etapa 5 |
+| `make dag-run` | Despausa e dispara a DAG `fluxo_batch` do caminho frio | Etapa 5 |
 | `make stream-down` | Derruba Kafka Connect, mensageria e o *job* | Etapa 7 |
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
@@ -212,6 +212,18 @@ make sync-airbyte RESET=1
 `RESET=1` apaga o estado do cursor e o conteúdo de `raw` antes de sincronizar. Não é preciso em
 operação normal, quando cada alteração da origem move o seu próprio `updated_at`.
 
+### Um valor financeiro apareceu dobrado, ou um saldo não fecha
+
+O modo `append` do [ADR-0015](adr/0015-sincronizacao-e-exclusoes.md) é **entrega ao menos uma vez**:
+o Airbyte relê a fronteira do cursor e reescreve linhas já entregues. Em `raw` isso vira duplicata —
+foram 9 em `payment_transactions` e 1 em `inventory_movements` na segunda sincronização, o
+suficiente para dobrar uma captura.
+
+Não é defeito a corrigir na ingestão: é a garantia que o transporte oferece. Quem deduplica é o
+`staging`, pela chave do evento, e é essa a fronteira entre *at least once* e *exactly once*. Se um
+número financeiro estiver dobrado, confira primeiro se o modelo de `staging` da tabela em questão
+tem o `distinct on`.
+
 ### A DAG foi disparada, o Airflow diz `queued`, e nada acontece
 
 DAG nasce **pausada** no Airflow, e execução enfileirada em DAG pausada fica `queued` para sempre —
@@ -245,8 +257,11 @@ essa versão tem o conteúdo anterior. O modelo está certo; a premissa é que m
 make dbt-build RESET=1
 ```
 
-`RESET=1` descarta o schema `snapshots` antes de construir, e o histórico é refeito do zero. **Só
-em desenvolvimento**: em operação, o histórico é o ativo, e descartá-lo é perda de dado.
+`RESET=1` descarta o schema `snapshots` e constrói com `--full-refresh`. As duas coisas andam
+juntas por necessidade, não por precaução: refazer os *snapshots* gera **novas chaves substitutas**,
+e a fato incremental continuaria apontando para as antigas — foram 13.514 linhas órfãs até o teste
+de `relationships` pegar. **Só em desenvolvimento**: em operação o histórico é o ativo, e descartá-lo
+é perda de dado.
 
 A sequência completa depois de regerar a origem é:
 

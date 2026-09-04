@@ -219,3 +219,125 @@ models:
         data_type: numeric
       - name: abandoned_value_amount
         data_type: numeric
+
+  # ── Etapa 6: financeiro e estoque ─────────────────────────────────────────
+  - name: gross_margin_by_category
+    description: >
+      P08 — Lucro bruto e margem por categoria e mês. Receita e custo vêm de
+      fatos diferentes, combinadas por *drill across* na granularidade comum
+      (ADR-0030). Mês com custo e sem receita é o descasamento entre venda e
+      expedição, e aparece de propósito.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: root_category_name
+        data_type: text
+      - name: category_name
+        data_type: text
+      - name: net_revenue_amount
+        data_type: numeric
+      - name: cost_of_goods_sold
+        data_type: numeric
+      - name: gross_profit_amount
+        data_type: numeric
+      - name: gross_margin_pct
+        data_type: numeric
+      - name: unit_count
+        data_type: bigint
+      - name: dispatched_unit_count
+        data_type: bigint
+  - name: inventory_turnover_by_sku_and_warehouse
+    description: >
+      P11 — Giro por SKU e armazém. `quantity_on_hand` é **semiaditiva**:
+      soma por armazém e SKU, nunca ao longo do tempo — três meses somados
+      dariam um estoque que nunca existiu.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: quarter_number
+        data_type: integer
+      - name: year_quarter
+        data_type: text
+      - name: sku
+        data_type: text
+      - name: product_name
+        data_type: text
+      - name: category_name
+        data_type: text
+      - name: warehouse_name
+        data_type: text
+      - name: warehouse_region
+        data_type: text
+      - name: quantity_out
+        data_type: bigint
+      - name: cost_of_goods_sold
+        data_type: numeric
+      - name: quantity_on_hand
+        data_type: integer
+      - name: inventory_value_amount
+        data_type: numeric
+      - name: inventory_turnover
+        data_type: numeric
+  - name: payment_approval_rate_by_method
+    description: >
+      P09 — Taxa de aprovação por meio e parcelamento. O denominador é a
+      tentativa de autorização, não o pagamento: é o atrito que se quer ver.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: payment_method_name
+        data_type: text
+      - name: method_type
+        data_type: text
+      - name: installments
+        data_type: integer
+      - name: is_instalment_plan
+        data_type: boolean
+      - name: authorization_attempt_count
+        data_type: bigint
+      - name: approved_authorization_count
+        data_type: bigint
+      - name: approval_rate_pct
+        data_type: numeric
+      - name: authorized_amount
+        data_type: numeric
+      - name: captured_amount
+        data_type: numeric
+  - name: refund_rate_by_reason
+    description: >
+      P10 — Reembolsado como fração do capturado, por motivo e mês.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: payment_method_name
+        data_type: text
+      - name: refund_reason
+        data_type: text
+      - name: refund_count
+        data_type: bigint
+      - name: refunded_amount
+        data_type: numeric
+      - name: captured_amount
+        data_type: numeric
+      - name: refund_rate_pct
+        data_type: numeric
