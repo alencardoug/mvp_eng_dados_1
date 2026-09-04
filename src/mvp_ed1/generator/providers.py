@@ -178,10 +178,15 @@ class Provedores:
         return f"{_MARCAS[indice % len(_MARCAS)]} {fonte.escolha(('', 'Co.', 'Brasil', 'Design', 'Lab'))}".strip()
 
     def p_nome_de_produto(self, fonte: Fonte, linha: dict[str, Any], indice: int) -> str:
-        return (
-            f"{fonte.escolha(_CATEGORIAS_FOLHA)} {fonte.escolha(_LINHAS_DE_PRODUTO)} "
-            f"{fonte.escolha(_MATERIAIS)}"
-        )
+        """Nome coerente com a categoria em que o produto está.
+
+        Sortear o substantivo independentemente da categoria produzia
+        "Notebooks Premium Vidro" dentro de *Fones de ouvido* — e a §5 de Geração
+        de Dados exige afinidade entre produto, categoria e preço. O construtor
+        do catálogo deixa a categoria na linha; aqui ela é usada.
+        """
+        categoria = linha.get("__categoria") or fonte.escolha(_CATEGORIAS_FOLHA)
+        return f"{categoria} {fonte.escolha(_LINHAS_DE_PRODUTO)} {fonte.escolha(_MATERIAIS)}"
 
     def p_razao_social(self, fonte: Fonte, linha: dict[str, Any], indice: int) -> str:
         return f"{fonte.escolha(_MARCAS)} {fonte.escolha(('Indústria', 'Comércio', 'Distribuidora'))} Ltda"

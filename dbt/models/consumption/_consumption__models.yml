@@ -1,0 +1,221 @@
+version: 2
+
+# As views de consumo têm **contrato aplicado** (ADR-0018): coluna, tipo e
+# obrigatoriedade declarados aqui e verificados pela máquina a cada `build`.
+#
+# É atrito deliberado. Contrato que nada verifica é documentação — diverge do
+# modelo real na primeira alteração e ninguém fica sabendo. Com `enforced`, o
+# *build* quebra quando a forma muda, e a mudança quebrante precisa nascer como
+# nova versão da view em vez de quebrar quem consome.
+#
+# Cada view responde **uma** pergunta do Glossário de Negócio e é nomeada por
+# ela. Nas views de razão, numerador e denominador vão ao lado do resultado:
+# taxa não se soma, e quem reagregar precisa dos dois.
+
+models:
+  - name: monthly_revenue_by_channel_and_category
+    description: 'P01 — Receita líquida por mês, canal e categoria. {{ doc("net_revenue") }}'
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: sales_channel_name
+        data_type: text
+      - name: channel_type
+        data_type: text
+      - name: root_category_name
+        data_type: text
+      - name: category_name
+        data_type: text
+      - name: order_count
+        data_type: bigint
+      - name: unit_count
+        data_type: bigint
+      - name: gross_revenue_amount
+        data_type: numeric
+      - name: discount_amount
+        data_type: numeric
+      - name: net_revenue_amount
+        data_type: numeric
+
+  - name: average_order_value_by_channel_and_segment
+    description: 'P02 — Ticket médio por canal e segmento. {{ doc("average_order_value") }}'
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: sales_channel_name
+        data_type: text
+      - name: customer_segment_name
+        data_type: text
+      - name: order_count
+        data_type: bigint
+      - name: net_revenue_amount
+        data_type: numeric
+      - name: average_order_value
+        description: Não aditiva — razão entre as duas colunas anteriores.
+        data_type: numeric
+
+  - name: top_skus_by_revenue
+    description: P03 — Os 25 SKUs de maior receita e o peso de cada um na sua categoria.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: revenue_rank
+        data_type: bigint
+        constraints: [{type: not_null}]
+      - name: product_natural_key
+        data_type: bigint
+      - name: sku
+        data_type: text
+      - name: product_name
+        data_type: text
+      - name: category_name
+        data_type: text
+      - name: root_category_name
+        data_type: text
+      - name: brand_name
+        data_type: text
+      - name: is_deleted
+        description: SKU saiu do catálogo; a venda histórica dele continua contando (ADR-0029).
+        data_type: boolean
+      - name: unit_count
+        data_type: bigint
+      - name: net_revenue_amount
+        data_type: numeric
+      - name: category_net_revenue_amount
+        data_type: numeric
+      - name: category_revenue_share_pct
+        description: Não aditiva — só se soma dentro da mesma categoria.
+        data_type: numeric
+
+  - name: new_and_repeat_customers_by_month
+    description: 'P04 — Estreias por mês e recompra na janela. {{ doc("repeat_purchase") }}'
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: sales_channel_name
+        data_type: text
+      - name: customer_segment_name
+        data_type: text
+      - name: new_customer_count
+        data_type: bigint
+      - name: returning_customer_count
+        data_type: bigint
+      - name: repeat_purchase_rate_pct
+        description: Não aditiva.
+        data_type: numeric
+
+  - name: revenue_by_delivery_region
+    description: P05 — Receita e pedidos por estado e região de entrega, por trimestre.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: quarter_number
+        data_type: integer
+      - name: year_quarter
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: region
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state_name
+        data_type: text
+      - name: sales_channel_name
+        data_type: text
+      - name: order_count
+        data_type: bigint
+      - name: customer_version_count
+        data_type: bigint
+      - name: unit_count
+        data_type: bigint
+      - name: net_revenue_amount
+        data_type: numeric
+
+  - name: discount_share_by_channel
+    description: P06 — Desconto concedido como fração da receita bruta, por canal e mês.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: sales_channel_name
+        data_type: text
+      - name: channel_type
+        data_type: text
+      - name: root_category_name
+        data_type: text
+      - name: order_count
+        data_type: bigint
+      - name: gross_revenue_amount
+        data_type: numeric
+      - name: discount_amount
+        data_type: numeric
+      - name: net_revenue_amount
+        data_type: numeric
+      - name: discount_share_pct
+        description: Não aditiva.
+        data_type: numeric
+
+  - name: cart_conversion_rate_by_channel
+    description: 'P07 — Conversão de carrinho em pedido. {{ doc("cart_conversion_rate") }}'
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_month
+        description: Mês em que o **carrinho foi criado**, não em que converteu.
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: sales_channel_name
+        data_type: text
+      - name: channel_type
+        data_type: text
+      - name: cart_count
+        description: Carrinhos abertos — topo do funil.
+        data_type: bigint
+      - name: closed_cart_count
+        description: Denominador da conversão. Carrinho ainda aberto não entra.
+        data_type: bigint
+      - name: converted_cart_count
+        data_type: bigint
+      - name: abandoned_cart_count
+        description: '{{ doc("abandoned_cart") }}'
+        data_type: bigint
+      - name: cart_conversion_rate_pct
+        description: Não aditiva.
+        data_type: numeric
+      - name: cart_value_amount
+        data_type: numeric
+      - name: abandoned_value_amount
+        data_type: numeric

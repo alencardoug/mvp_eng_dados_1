@@ -12,7 +12,14 @@ renomeado as (
         id                                        as order_item_id,
         order_id,
         product_variant_id,
-        quantity,
+
+        -- ── Por que o `cast` ─────────────────────────────────────────────────
+        -- O Airbyte **alarga** o tipo: `integer` na origem chega como `bigint`
+        -- em `raw`. A diferença não é cosmética — em PostgreSQL `sum(integer)`
+        -- devolve `bigint`, mas `sum(bigint)` devolve `numeric`, e o contrato
+        -- da view de consumo quebra três camadas adiante com "data type
+        -- mismatch". Tipar de volta é literalmente o trabalho desta camada.
+        cast(quantity as integer)                 as quantity,
         unit_price,
         discount_amount,
         tax_amount,

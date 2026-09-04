@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.2 |
+| Versão | 1.3 |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -84,11 +84,18 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
 ## 4. Transformação e camada dimensional
 
 - testes nativos do dbt: `unique`, `not_null`, `relationships`, `accepted_values`;
+- **`not_null` + `relationships` em toda chave de fato** — é a salvaguarda estrutural que o
+  [ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md) exige. Se alguém filtrar membros
+  excluídos de uma dimensão, as linhas de fato correspondentes ficam sem par e o *build* quebra: o
+  erro silencioso vira falha alta. O que este teste **não** pega é o inverso — uma view que devia
+  mostrar só ativos e mostra todos passa em tudo. Isso fica para a revisão humana, e é custo
+  declarado no ADR;
 - testes de `dbt-expectations` para regras que os nativos não cobrem — faixas de valores,
   distribuição, cardinalidade, comparação entre colunas;
-- testes customizados para valores financeiros e para intervalos SCD que não podem se sobrepor —
-  vigências de uma mesma chave natural não podem ter interseção nem deixar lacuna
-  ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md));
+- teste próprio `vigencias_sem_sobreposicao` para os intervalos SCD tipo 2
+  ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)): duas versões válidas no mesmo instante fariam
+  o *join* temporal duplicar a linha de fato, e o resultado não seria uma falha — seria receita
+  maior;
 - teste de **grão** por fato: a chave declarada é única, o que prova que o grão é o que se afirma
   ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
 - verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando

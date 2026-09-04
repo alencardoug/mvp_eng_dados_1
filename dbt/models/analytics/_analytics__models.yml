@@ -1,0 +1,161 @@
+version: 2
+
+# Testes do datamart. Três famílias, e cada uma existe por um motivo diferente:
+#
+#   grão          prova que a fato é o que ela diz ser. `unique` sobre a chave
+#                 do grão é a única forma de a afirmação "uma linha por item de
+#                 pedido" deixar de ser intenção (ADR-0018).
+#   integridade   `not_null` + `relationships` em toda chave de dimensão. É a
+#                 salvaguarda estrutural que o ADR-0029 exige: se alguém filtrar
+#                 membros excluídos de uma dimensão, as linhas de fato
+#                 correspondentes ficam sem par e o *build* quebra.
+#   vigência      as SCD tipo 2 não podem ter vigências sobrepostas, senão o
+#                 *join* temporal duplica linha de fato (invariante 11).
+
+models:
+  # ── Dimensões ──────────────────────────────────────────────────────────────
+  - name: dim_date
+    description: Calendário do período simulado. Dimensão estática, gerada da série de datas.
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+      - name: full_date
+        data_tests: [unique, not_null]
+
+  - name: dim_customer
+    description: '{{ doc("active_customer") }}'
+    data_tests:
+      - vigencias_sem_sobreposicao:
+          chave_natural: customer_natural_key
+    columns:
+      - name: customer_key
+        description: Chave substituta da **versão** do cliente (ADR-0017).
+        data_tests: [unique, not_null]
+      - name: customer_natural_key
+        data_tests: [not_null]
+      - name: is_active
+        description: '{{ doc("active_customer") }}'
+      - name: is_repeat_buyer
+        description: '{{ doc("repeat_purchase") }}'
+      - name: is_deleted
+        description: Exclusão lógica na origem; a linha permanece na dimensão (ADR-0029).
+        data_tests: [not_null]
+
+  - name: dim_product
+    description: SKU com produto, categoria e marca. SCD tipo 2.
+    data_tests:
+      - vigencias_sem_sobreposicao:
+          chave_natural: product_natural_key
+    columns:
+      - name: product_key
+        data_tests: [unique, not_null]
+      - name: product_natural_key
+        data_tests: [not_null]
+      - name: is_deleted
+        data_tests: [not_null]
+
+  - name: dim_category
+    columns:
+      - name: category_key
+        data_tests: [unique, not_null]
+      - name: category_natural_key
+        data_tests: [unique, not_null]
+
+  - name: dim_brand
+    columns:
+      - name: brand_key
+        data_tests: [unique, not_null]
+
+  - name: dim_sales_channel
+    columns:
+      - name: sales_channel_key
+        data_tests: [unique, not_null]
+      - name: channel_type
+        data_tests:
+          - accepted_values:
+              values: [web, app, store]
+
+  - name: dim_geography
+    description: >
+      Geografia conformada — atende a venda aqui e a remessa na Etapa 8. Carrega
+      um membro "Desconhecido" para que a fato nunca fique com chave nula.
+    columns:
+      - name: geography_key
+        data_tests: [unique, not_null]
+      - name: region
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul, Desconhecido]
+
+  # ── Fatos ──────────────────────────────────────────────────────────────────
+  - name: fact_sales_order_item
+    description: >
+      **Grão: uma linha de item de pedido.** Um SKU comprado em um pedido.
+      Medidas todas aditivas; valores de nível de pedido não estão aqui, porque
+      somá-los no grão de item multiplicaria o frete pelo número de itens.
+    columns:
+      - name: order_item_key
+        description: Chave do grão. O `unique` abaixo é o que prova o grão declarado.
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: product_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_key}
+      - name: sales_channel_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: category_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_category'), field: category_key}
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: net_revenue_amount
+        description: '{{ doc("net_revenue") }}'
+        data_tests: [not_null]
+      - name: quantity
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
+
+  - name: fact_cart_event
+    description: >
+      **Grão: um evento de ciclo de vida de um carrinho** (ADR-0028). Até dois
+      por carrinho, a abertura e o desfecho. As medidas são contadores que valem
+      só na linha em que fazem sentido, de modo que toda soma esteja certa em
+      qualquer recorte.
+    columns:
+      - name: cart_event_key
+        data_tests: [unique, not_null]
+      - name: event_date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: cart_created_date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: sales_channel_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: customer_key
+        description: Nulo em sessão anônima — o carrinho existe, o cliente não foi identificado.
+        data_tests:
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [created, converted, abandoned, expired]

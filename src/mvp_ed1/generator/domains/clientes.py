@@ -45,8 +45,12 @@ def _enderecos(motor: Motor, dados: Dataset, clientes: list[dict]) -> None:
     esqueletos: list[dict] = []
     for cliente, quantidade in zip(clientes, por_cliente):
         principais: set[str] = set()
-        for _ in range(quantidade):
-            tipo = tipos[len(esqueletos)]
+        for ordem in range(quantidade):
+            # O primeiro endereço é sempre de entrega. Cliente de varejo que fez
+            # pedido tem para onde receber: sem esta regra, ~30% dos clientes
+            # ficavam só com endereço de cobrança e a chave de geografia da fato
+            # de venda saía nula para um quinto das linhas.
+            tipo = "shipping" if ordem == 0 else tipos[len(esqueletos)]
             # Um principal por tipo, e nunca excluído: é o que o índice parcial
             # `is_primary and deleted_at is null` exige do dado.
             primeiro = tipo not in principais

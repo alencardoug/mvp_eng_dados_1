@@ -65,31 +65,16 @@ decisão.
 | [0026](0026-uv-para-ambiente-e-dependencias.md) | Adotar `uv` para o ambiente e as dependências Python | Aceita | Ambiente e interpretador Python |
 | [0027](0027-configuracao-do-gerador-em-yaml.md) | Declarar o gerador em YAML, com o piso derivado dos modelos | Aceita | Formato e piso da configuração |
 | [0028](0028-fato-de-carrinho-para-o-funil.md) | Acrescentar uma fato de carrinho para o funil de conversão | Aceita | Lacuna do funil de conversão |
+| [0029](0029-exclusao-logica-como-marca-na-dimensao.md) | Carregar a exclusão lógica como marca até a dimensão | Aceita | D30 |
 
 ---
 
 ## 3. Decisões pendentes
 
-| # | Questão | Onde trava | Levantada em |
-|---|---|---|---|
-| **D30** | Exclusão lógica: `staging` **filtra** a linha excluída, ou **carrega a marca** até o datamart? | Etapa 5 — `trusted` e as dimensões | 04/09/2026 |
-
-### D30 — as duas leituras do ADR-0015
-
-O [ADR-0015](0015-sincronizacao-e-exclusoes.md) diz as duas coisas, em seções diferentes, e a
-implementação da Etapa 5 obrigou a escolher:
-
-- a **Decisão** diz que `deleted_at` "é preenchido e o incremental **o propaga até o datamart**" —
-  o que só faz sentido se o datamart souber da exclusão, isto é, se ela viajar como marca;
-- as **Consequências** dizem que "todo modelo de `staging` precisa **filtrá-la**".
-
-Não é detalhe de estilo. Filtrar em `staging` faz um SKU excluído sumir de `dim_product`, e o
-pedido histórico que o comprou passa a apontar para uma dimensão que não existe mais — o dado de
-ontem muda porque o cadastro mudou hoje. Carregar a marca mantém o *join* e deixa a exclusão
-visível como atributo, ao custo de todo modelo adiante precisar decidir se filtra.
-
-**O estado atual do código** é a leitura da *Decisão*: `staging` expõe `is_deleted` e não filtra.
-É reversível — o que muda com a resposta é `trusted` e as dimensões, ainda não escritos.
+**Nenhuma.** A decisão levantada e fechada em 04/09/2026 está registrada no
+[ADR-0029](0029-exclusao-logica-como-marca-na-dimensao.md): a exclusão lógica viaja como marca até a
+dimensão, e filtrar é decisão da pergunta. A medição que sustentou a escolha — 1,74% da receita do
+datamart desapareceria se `staging` filtrasse — está no contexto do ADR.
 
 O procedimento — registrar como pendência, devolver ao Owner, e só então implementar — está na
 seção 1.

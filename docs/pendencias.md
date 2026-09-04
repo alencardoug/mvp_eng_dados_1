@@ -12,28 +12,15 @@
 |---|---|
 | Etapa atual | Etapa 5 — Corte 1: núcleo comercial |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 |
+| Decisões pendentes | 0 |
 | Última revisão | 04/09/2026 |
 
 ---
 
-## 1. Esperando você
+## 1. Nada pendente
 
-### D30 — exclusão lógica: filtrar em `staging` ou carregar a marca?
-
-**Bloqueia:** `trusted` e as dimensões da Etapa 5. O `staging` já está escrito e é reversível.
-
-O [ADR-0015](adr/0015-sincronizacao-e-exclusoes.md) diz as duas coisas em seções diferentes — a
-Decisão manda propagar a exclusão até o datamart, as Consequências mandam filtrar em `staging`. A
-escolha muda o comportamento do dado histórico: filtrar faz um SKU excluído sumir da dimensão, e o
-pedido de ontem que o comprou perde a referência. O contexto completo e as duas leituras estão na
-[seção 3 do Registro de Decisões](adr/README.md#d30--as-duas-leituras-do-adr-0015).
-
----
-
-## 1.1 O que já foi resolvido
-
-**Não há mais nada esperando você.** Em 04/09/2026 o Termo de Abertura foi aprovado, as três aprovações
+**Não há nada esperando você.** A **D30** foi fechada em 04/09/2026 pelo
+[ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md). Em 04/09/2026 o Termo de Abertura foi aprovado, as três aprovações
 foram dadas, as dezoito decisões abertas foram fechadas em ADR e as três questões que não eram ADR
 foram resolvidas nos documentos que as tratam.
 

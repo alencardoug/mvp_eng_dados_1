@@ -61,7 +61,23 @@ resource "airbyte_destination" "raw" {
     database = var.warehouse_db_name
     username = var.warehouse_db_user
     password = var.warehouse_db_password
-    schema        = "raw"
+    schema   = "raw"
+
+    # ── Por que CASCADE, e por que ele é seguro aqui ─────────────────────────
+    # `full_refresh_overwrite` **derruba** a tabela de destino a cada carga, e as
+    # views de `staging` dependem dela: sem CASCADE a segunda sincronização
+    # falha com "cannot drop table because other objects depend on it".
+    #
+    # O que ele apaga são as views que o dbt recria no `dbt build` seguinte, não
+    # dado. O `raw` é declarado **descartável** pelo ADR-0008 justamente por
+    # isso: ele é réplica, e a fonte da verdade é `oltp`.
+    #
+    # A consequência precisa ser dita: a ordem `sync` → `dbt build` deixa de ser
+    # preferência e passa a ser obrigatória. Entre as duas, as views de
+    # `staging` não existem. É o orquestrador que garante a ordem — e é uma das
+    # razões de o ADR-0003 ter ido buscar um.
+    drop_cascade = true
+
     ssl_mode      = { mode = "disable" }
     tunnel_method = { tunnel_method = "NO_TUNNEL" }
   })

@@ -22,6 +22,21 @@ docs-paths: ["models", "../docs/glossario_de_negocio"]
 
 clean-targets: ["target", "dbt_packages"]
 
+vars:
+  # O "hoje" da simulação. Precisa ser igual ao `periodo.as_of_date` de
+  # `src/mvp_ed1/generator/geracao.yml`, e um teste do `pytest` confere que são —
+  # o dono do valor é o gerador, este é o espelho que o dbt consegue ler.
+  #
+  # Nenhum modelo usa `current_date`: a janela de "cliente ativo" contada do
+  # relógio do banco daria resultado diferente a cada execução sobre o mesmo
+  # dado, e a reprodutibilidade do projeto (P2) deixaria de existir.
+  as_of_date: '2026-09-01'
+  period_start: '2024-01-01'
+
+  # Janelas dos conceitos do Glossário de Negócio.
+  active_customer_window_days: 180
+  repeat_purchase_window_days: 90
+
 models:
   mvp_ed1:
     +persist_docs:

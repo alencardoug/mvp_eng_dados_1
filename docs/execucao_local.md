@@ -66,7 +66,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
 | 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
-| 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados | Etapa 5 |
+| 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados; `RESET=1` refaz o histórico SCD | Etapa 5 |
 | 7 | `make stream-up` | Sobe Redpanda, Kafka Connect com o conector Debezium e o *job* Beam | Etapa 7 |
 | 8 | `make stream-produce` | Executa o produtor de eventos de estoque | Etapa 7 |
 | 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
@@ -113,6 +113,7 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
 | `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração | Etapa 3 |
+| `make dbt-drop-snapshots` | **Destrói** o histórico SCD; só depois de regerar a origem | Etapa 5 |
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
 | `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |
 | `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
@@ -124,9 +125,10 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
 
-> `make reset`, `make seed-data FORCE=1`, `make test CARGA=1` e `make recover-restore` **destroem
-> estado**. Os três primeiros exigem a variável explícita; `recover-restore` só é executado mediante
-> decisão explícita do responsável técnico.
+> `make reset`, `make seed-data FORCE=1`, `make sync-airbyte RESET=1`, `make dbt-build RESET=1`,
+> `make dbt-drop-snapshots`, `make test CARGA=1` e `make recover-restore` **destroem estado**. Todos
+> exigem a variável explícita, exceto `dbt-drop-snapshots`, cujo nome já é o aviso;
+> `recover-restore` só é executado mediante decisão explícita do responsável técnico.
 
 ---
 
@@ -185,6 +187,62 @@ Três caminhos **não** funcionam, e estão registrados no próprio `values.yaml
 tentados de novo: `--low-resource-mode`, que é a resposta documentada do Airbyte;
 `global.jobs.resources`, que o chart marca como depreciada com a ressalva "replication is not
 consumed"; e alterar o ConfigMap à mão, que a instalação seguinte desfaz.
+
+### Regerei os dados e o `raw` continua com o conteúdo antigo
+
+Sintoma: `make seed-data FORCE=1` recarrega a origem, `make sync-airbyte` diz "concluída" com poucas
+linhas, e o datamart continua mostrando o dado anterior.
+
+É consequência direta da geração ser **determinística**. A mesma `seed` produz os mesmos
+`updated_at`, e `updated_at` é o cursor das oito tabelas em `dedup_history`
+([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)): o Airbyte olha para o cursor, não vê nada mais
+recente e não traz nada. O conteúdo mudou; o carimbo, não.
+
+É o mesmo defeito que em produção se chama "alguém alterou a linha sem tocar no `updated_at`" — só
+que aqui ele é produzido pela reprodutibilidade, que é uma virtude. Depois de **regerar** os dados,
+descarte o cursor:
+
+```bash
+make sync-airbyte RESET=1
+```
+
+`RESET=1` apaga o estado do cursor e o conteúdo de `raw` antes de sincronizar. Não é preciso em
+operação normal, quando cada alteração da origem move o seu próprio `updated_at`.
+
+### Regerei os dados e o datamart continua mostrando o conteúdo antigo
+
+Depois de `make sync-airbyte RESET=1` o `raw` está certo, mas a dimensão continua errada. A causa é
+o **histórico SCD**: o `dbt snapshot` guarda versões, e regerar a origem não apaga o que ele já
+guardou — ele passa a ser história de um dado que não existe mais.
+
+Pior, ele acerta ao errar: a venda de 2024 aponta corretamente para a versão que valia em 2024, e
+essa versão tem o conteúdo anterior. O modelo está certo; a premissa é que mudou.
+
+```bash
+make dbt-build RESET=1
+```
+
+`RESET=1` descarta o schema `snapshots` antes de construir, e o histórico é refeito do zero. **Só
+em desenvolvimento**: em operação, o histórico é o ativo, e descartá-lo é perda de dado.
+
+A sequência completa depois de regerar a origem é:
+
+```bash
+make seed-data FORCE=1 && make sync-airbyte RESET=1 && make dbt-build RESET=1
+```
+
+### A sincronização falha com "cannot drop table because other objects depend on it"
+
+O modo `full_refresh_overwrite` **derruba** a tabela de destino a cada carga, e as views de
+`staging` dependem dela. A primeira sincronização passa; a segunda falha.
+
+O tratamento está no Terraform do destino: `drop_cascade = true`. O que ele apaga são as views que
+o `dbt build` recria em seguida, não dado — o `raw` é declarado descartável pelo
+[ADR-0008](adr/0008-schemas-do-armazem.md), e a fonte da verdade é `oltp`.
+
+**A consequência precisa ser dita:** a ordem `sync-airbyte` → `dbt-build` deixa de ser preferência e
+passa a ser obrigatória. Entre as duas, as views de `staging` não existem. É uma das razões de o
+[ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) ter ido buscar um orquestrador.
 
 ### `make seed-data` recusa executar
 

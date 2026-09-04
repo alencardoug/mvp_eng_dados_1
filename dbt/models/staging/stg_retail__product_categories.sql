@@ -13,7 +13,7 @@ renomeado as (
         code                                      as product_category_code,
         name                                      as product_category_name,
         parent_id                                 as parent_product_category_id,
-        depth                                     as category_depth,
+        cast(depth as integer)                    as category_depth,
         is_active,
 
         -- Marcas de origem e de carga. `ingested_at` é o carimbo do Airbyte;

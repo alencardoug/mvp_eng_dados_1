@@ -12,7 +12,7 @@ renomeado as (
         id                                        as cart_item_id,
         cart_id,
         product_variant_id,
-        quantity,
+        cast(quantity as integer)                 as quantity,
         unit_price,
         added_at,
 

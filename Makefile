@@ -34,7 +34,7 @@ BASE := source_db legacy_db warehouse_db
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
         migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
-        dbt-build dbt-test dbt-docs \
+        dbt-build dbt-drop-snapshots dbt-test dbt-docs \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -174,11 +174,24 @@ airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão 
 		export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"; \
 		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false $(if $(filter 1,$(AUTO)),-auto-approve)
 
-sync-airbyte: require-env require-abctl ## Executa a sincronização oltp -> raw e espera terminar
-	@$(CREDENCIAIS); .venv/bin/python -m mvp_ed1.airbyte sync
+sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 descarta o cursor antes
+	@$(CREDENCIAIS); \
+		$(if $(filter 1,$(RESET)),.venv/bin/python -m mvp_ed1.airbyte reset &&) \
+		.venv/bin/python -m mvp_ed1.airbyte sync
 
-dbt-build: require-env require-venv ## Roda os modelos dbt e os testes de dados
-	@$(DBT) build $(DBT_ARGS)
+dbt-build: require-env require-venv ## Roda os modelos dbt e os testes de dados; RESET=1 refaz o histórico SCD
+	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots &&) \
+		$(DBT) build $(DBT_ARGS)
+
+dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem
+	@echo "descartando o schema 'snapshots' — o histórico SCD será refeito do zero"
+	@set -a; . ./.env; set +a; \
+		PGPASSWORD="$$WAREHOUSE_DB_PASSWORD" .venv/bin/python -c "\
+import os, sqlalchemy as sa; \
+from mvp_ed1.db import database_url, WAREHOUSE; \
+e = sa.create_engine(database_url(WAREHOUSE)); \
+c = e.connect(); c.execute(sa.text('drop schema if exists snapshots cascade')); c.commit(); \
+print('  schema snapshots descartado')"
 
 dbt-test: require-env require-venv ## Somente os testes de dados
 	@$(DBT) test $(DBT_ARGS)

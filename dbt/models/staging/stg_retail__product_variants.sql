@@ -16,7 +16,7 @@ renomeado as (
         color                                     as variant_color,
         package                                   as variant_package,
         barcode,
-        weight_grams,
+        cast(weight_grams as integer)             as weight_grams,
         is_active,
 
         -- Marcas de origem e de carga. `ingested_at` é o carimbo do Airbyte;

@@ -82,8 +82,8 @@ def conexao(nome: str, jwt: str) -> str:
     )
 
 
-def sincronizar(connection_id: str, jwt: str) -> dict:
-    return _chamar("/jobs", jwt, {"connectionId": connection_id, "jobType": "sync"})
+def sincronizar(connection_id: str, jwt: str, tipo: str = "sync") -> dict:
+    return _chamar("/jobs", jwt, {"connectionId": connection_id, "jobType": tipo})
 
 
 def acompanhar(job_id: int, jwt: str, intervalo: float = 15.0) -> dict:
@@ -115,7 +115,7 @@ def acompanhar(job_id: int, jwt: str, intervalo: float = 15.0) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.airbyte")
-    parser.add_argument("comando", choices=["sync", "status", "workspace"])
+    parser.add_argument("comando", choices=["sync", "reset", "status", "workspace"])
     parser.add_argument("--connection", default="oltp_para_raw")
     args = parser.parse_args(argv)
 
@@ -128,8 +128,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.comando == "status":
             print(f"{args.connection}: {connection_id}")
             return 0
-        print(f"sincronizando {args.connection} ({connection_id})")
-        job = acompanhar(sincronizar(connection_id, jwt)["jobId"], jwt)
+        # `reset` descarta o estado do cursor e o dado em `raw`, forçando a
+        # próxima carga a ser completa. É o que a recarga do gerador exige: a
+        # geração é determinística, então `updated_at` não muda entre execuções
+        # e o incremental **não enxerga** dado regerado.
+        tipo = "reset" if args.comando == "reset" else "sync"
+        print(f"{args.comando} de {args.connection} ({connection_id})")
+        job = acompanhar(sincronizar(connection_id, jwt, tipo)["jobId"], jwt)
     except AirbyteIndisponivel as erro:
         print(f"ERRO: {erro}", file=sys.stderr)
         return 2

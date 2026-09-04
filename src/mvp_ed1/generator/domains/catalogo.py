@@ -16,16 +16,6 @@ from mvp_ed1.generator.engine import Motor
 from mvp_ed1.generator.providers import ARVORE_DE_CATEGORIAS
 from mvp_ed1.generator.rng import preco, repartir
 
-#: Faixa de preço de tabela por SKU. Larga de propósito: uma faixa estreita
-#: torna toda análise de ticket médio uma reta.
-_PRECO_MINIMO = 9.90
-_PRECO_MAXIMO = 4800.00
-
-#: Margem bruta sobre o custo. É o que faz custo e preço serem coerentes entre
-#: si — e o que torna `unit_cost` `confidential` uma informação de verdade.
-_MARGEM = (1.25, 2.60)
-
-
 def categorias(motor: Motor, dados: Dataset) -> None:
     """Árvore de três níveis: `depth` é derivado do pai, nunca sorteado."""
     fonte = motor.fonte("product_categories")
@@ -76,13 +66,26 @@ def produtos(motor: Motor, dados: Dataset) -> None:
     folhas = [linha["id"] for linha in categorias_linhas if linha["depth"] == profundidade_maxima]
     marcas_ids = [linha["id"] for linha in dados["brands"]]
 
+    nome_da_categoria = {linha["id"]: linha["name"] for linha in categorias_linhas}
+
     fonte = motor.fonte("products")
     n = motor.linhas("products")
-    esqueletos = [
-        {"category_id": fonte.escolha(folhas), "brand_id": fonte.escolha(marcas_ids)}
-        for _ in range(n)
-    ]
+    esqueletos = []
+    for _ in range(n):
+        categoria = fonte.escolha(folhas)
+        esqueletos.append(
+            {
+                "category_id": categoria,
+                "brand_id": fonte.escolha(marcas_ids),
+                # O nome do produto sai da categoria dele (Geração §5).
+                "__categoria": nome_da_categoria[categoria],
+            }
+        )
     produtos_linhas = dados.guardar("products", motor.preencher("products", esqueletos))
+
+    processo = motor.config.tabelas["product_variants"].processo
+    preco_min, preco_max = processo["faixa_de_preco"]
+    margem_min, margem_max = processo["margem_sobre_o_custo"]
 
     fonte_v = motor.fonte("product_variants")
     total = motor.linhas("product_variants")
@@ -90,7 +93,7 @@ def produtos(motor: Motor, dados: Dataset) -> None:
 
     variantes: list[dict] = []
     for produto, quantidade in zip(produtos_linhas, por_produto):
-        base = fonte_v.decimal(_PRECO_MINIMO, _PRECO_MAXIMO, 4)
+        base = fonte_v.decimal(preco_min, preco_max, 4)
         for _ in range(quantidade):
             valor = preco(base * Decimal(str(fonte_v.rng.uniform(0.92, 1.12))))
             variantes.append(
@@ -98,7 +101,7 @@ def produtos(motor: Motor, dados: Dataset) -> None:
                     "product_id": produto["id"],
                     "is_active": produto["status"] == "active" and fonte_v.chance(0.94),
                     "__preco": valor,
-                    "__custo": preco(valor / Decimal(str(fonte_v.rng.uniform(*_MARGEM)))),
+                    "__custo": preco(valor / Decimal(str(fonte_v.rng.uniform(margem_min, margem_max)))),
                 }
             )
     dados.guardar("product_variants", motor.preencher("product_variants", variantes))

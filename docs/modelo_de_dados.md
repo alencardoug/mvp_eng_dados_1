@@ -591,6 +591,16 @@ materializadas por `dbt snapshot` no schema `snapshots`
 ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)). Cada fato referencia a versão **vigente no
 instante do evento**, não a versão corrente.
 
+Toda dimensão carrega `is_deleted` e **nunca perde membro** por exclusão na origem
+([ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md)): o SKU que saiu do catálogo hoje
+continua ali para que o pedido de 2024 que o comprou tenha a quem se juntar. Filtrar é decisão da
+pergunta, tomada na view que a responde.
+
+Uma armadilha da carga inicial, encontrada ao construir: o `dbt snapshot` marca `dbt_valid_from` no
+instante da **primeira execução**, e sem tratamento todo evento anterior a ela fica sem versão à
+qual se juntar — a fato sai vazia. A primeira versão de cada chave natural passa a valer desde
+`period_start`, que é a leitura correta: ela representa o que se sabia na carga inicial.
+
 | Tabela | Linhas | Conteúdo principal | Tratamento |
 |---|---:|---|---|
 | `dim_date` | 975 | Calendário de 01/01/2024 a 01/09/2026, inclusive. | Estática |

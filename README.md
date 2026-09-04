@@ -37,14 +37,14 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.0 — motor implementado |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de 21 falhas intencionais, limpeza, quarentena e empilhamento | v2.0 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v1.1 |
-| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.2 |
+| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.3 |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.1 — origem transacional **medida** |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.1 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D30** — exclusão lógica |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 28 aceitos, 1 pendente |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 29 aceitos, 0 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.5 — Etapas 2 a 4 conferidas |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**28 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
+**29 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -72,8 +72,11 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 em ADR (**M1**), ambiente subindo do zero com um comando (**M2**), **banco transacional de 40
 tabelas** criado por migrações reversíveis e **gerador de dados sintéticos** entregue.
 
-Uma decisão [espera você](docs/pendencias.md) — **D30**, a leitura do ADR-0015 sobre exclusão
-lógica —, e ela não bloqueia a ingestão.
+O fluxo **origem → consumo** está de pé: `oltp` → Airbyte → `raw` → `staging` → `trusted` →
+`analytics` → `consumption`. O `dbt build` roda **166 objetos** — 29 modelos, 2 *snapshots* SCD
+tipo 2, 1 *seed* e os testes — sem erro, e as sete primeiras views respondem às perguntas de
+negócio com contrato aplicado. Falta a DAG do Airflow para fechar o marco **M3**. Nada
+[pendente](docs/pendencias.md) do lado do Owner.
 
 Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
 — 225 bytes por linha —, geradas em 5,1 s e carregadas em 26 s. As doze

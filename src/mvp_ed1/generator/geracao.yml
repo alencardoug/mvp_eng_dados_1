@@ -189,6 +189,14 @@ tabelas:
   product_variants:
     referencia: 6000
     origem: declarativa
+    processo:
+      # Preço de tabela do SKU. Larga de propósito: faixa estreita torna toda
+      # análise de ticket médio uma reta. Mexer aqui muda receita, margem e
+      # valor de carrinho abandonado no datamart inteiro.
+      faixa_de_preco: [9.90, 4800.00]
+      # Margem bruta sobre o custo — é o que faz custo e preço serem coerentes
+      # entre si, e o que torna `unit_cost` uma informação de verdade.
+      margem_sobre_o_custo: [1.25, 2.60]
     colunas:
       sku: {sequencia: "SKU-{n:07d}"}
       size: {valores: [PP, P, M, G, GG, Único, "38", "40", "42"], nulo: 0.25}
