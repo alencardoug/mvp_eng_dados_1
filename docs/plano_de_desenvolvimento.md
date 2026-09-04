@@ -148,7 +148,7 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 
 ### Etapa 5 — Corte 1: núcleo comercial · **M3**
 
-*Em curso. Bloqueada pela decisão **D31** — o Airbyte não agenda replicação nesta máquina.*
+*Em curso.*
 
 | | |
 |---|---|
@@ -156,7 +156,7 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Pré-requisito** | Etapa 4 |
 | **Entregas** | **E5**, **E6**, **E7**, **E8**, **E10** (todas parciais) |
 | **Escopo** | Clientes, catálogo, carrinhos e pedidos · `fact_sales_order_item` e `fact_cart_event` · `dim_customer`, `dim_product`, `dim_date`, `dim_sales_channel`, `dim_geography` |
-| **Decisões** | **D20**, **D21** ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)), **D23** ([ADR-0016](adr/0016-materializacao-por-camada.md)), **D25** ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)), **D24**, **D27** ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) — aceitas em 04/09/2026 · a fato de carrinho ([ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md)) · **abertas: D30 e D31** |
+| **Decisões** | **D20**, **D21** ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)), **D23** ([ADR-0016](adr/0016-materializacao-por-camada.md)), **D25** ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)), **D24**, **D27** ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) — aceitas em 04/09/2026 · a fato de carrinho ([ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md)) · **aberta: D30** |
 | **Artefatos** | Conexões Airbyte · projeto dbt com modelos, `.yml` e testes · DAG do Airflow · primeiras definições no [Glossário de Negócio](glossario_de_negocio/) |
 | **Critérios de conclusão** | `make dbt-build` executa do zero e passa · grão de `fact_sales_order_item` declarado por escrito · contagens reconciliadas em todas as fronteiras · view de consumo responde a perguntas de negócio definidas · `dbt docs` mostra linhagem e glossário integrados |
 | **Riscos tratados** | **R1**, **R3**, **R4** |

@@ -72,33 +72,7 @@ decisão.
 
 | # | Questão | Onde trava | Levantada em |
 |---|---|---|---|
-| **D31** | O Airbyte OSS não agenda replicação em máquina de 4 CPUs. Como a ingestão segue? | Etapa 5 — **bloqueia a etapa inteira** | 04/09/2026 |
 | **D30** | Exclusão lógica: `staging` **filtra** a linha excluída, ou **carrega a marca** até o datamart? | Etapa 5 — `trusted` e as dimensões | 04/09/2026 |
-
-### D31 — o Airbyte não cabe nesta máquina
-
-Fato medido, não hipótese: o *pod* de replicação do Airbyte 2.2.0 pede **4 CPUs** (2 orquestrador +
-1 por conector) e a máquina tem 4, com 1,1 já reservado pela plataforma. O Kubernetes responde
-`Insufficient cpu`, o job fica `Pending` e a interface mostra "running" — falha silenciosa.
-
-Três remédios foram tentados e **nenhum** alterou o pedido do *pod*: `--low-resource-mode`, que é a
-resposta documentada do Airbyte para máquina apertada; as variáveis genéricas
-`JOB_MAIN_CONTAINER_CPU_REQUEST` e `REPLICATION_ORCHESTRATOR_CPU_REQUEST`; e
-`CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED=false`. O resto da ingestão **funciona**: a conexão
-com a origem, a descoberta de schema e a verificação do destino passam.
-
-Isto atinge a premissa do [ADR-0003](0003-stack-airbyte-dbt-airflow.md), que escolheu o Airbyte
-sabendo que ele é pesado e mitigou o custo com "subir apenas o subconjunto necessário" — mitigação
-que não ajuda quando **um único job excede a máquina inteira**.
-
-As saídas, para o Owner escolher:
-
-| Saída | O que custa |
-|---|---|
-| Máquina com mais CPUs para a fase local | Nada muda no projeto; muda o pré-requisito de hardware, que passa a ser 8 CPUs e precisa ser dito no documento de Execução Local |
-| Continuar procurando o parâmetro que reduz o pedido | Pode não existir na versão 2.2.0; já custou uma sessão |
-| Fixar uma versão anterior do Airbyte, que usava `docker-compose` | Volta a um caminho descontinuado pelo próprio Airbyte, sem correção nem atualização |
-| Reabrir o ADR-0003 na parte de ingestão | Recusado uma vez com argumento que continua válido — dois caminhos de ingestão entre as fases, contra o **P4** |
 
 ### D30 — as duas leituras do ADR-0015
 

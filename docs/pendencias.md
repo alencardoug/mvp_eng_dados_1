@@ -12,25 +12,12 @@
 |---|---|
 | Etapa atual | Etapa 5 — Corte 1: núcleo comercial |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 2 |
+| Decisões pendentes | 1 |
 | Última revisão | 04/09/2026 |
 
 ---
 
 ## 1. Esperando você
-
-### D31 — o Airbyte não cabe nesta máquina · **bloqueia a Etapa 5**
-
-**Bloqueia:** a ingestão inteira, e com ela todo o resto da etapa.
-
-O *pod* de replicação pede 4 CPUs e a máquina tem 4, com 1,1 já em uso pela plataforma do próprio
-Airbyte. Ele nunca é agendado, e a interface mostra "running" enquanto nada acontece. Os três
-remédios documentados foram tentados e nenhum funcionou; o resto da ingestão está de pé e conferido
-— origem, descoberta de schema e destino passam.
-
-As saídas e o que cada uma custa estão na
-[seção 3 do Registro de Decisões](adr/README.md#d31--o-airbyte-não-cabe-nesta-máquina). A mais
-barata é a máquina: nada no projeto muda, só o pré-requisito de hardware.
 
 ### D30 — exclusão lógica: filtrar em `staging` ou carregar a marca?
 

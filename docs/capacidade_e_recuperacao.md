@@ -12,8 +12,8 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.1 |
-| Situação | Vigente. A origem transacional foi **medida** na Etapa 4; as demais camadas, não |
+| Versão | 2.2 |
+| Situação | Vigente. Origem transacional (Etapa 4) e ingestão (Etapa 5) **medidas**; as demais camadas, não |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -82,9 +82,37 @@ do número, e muda a cada execução.
 *Ainda não medidos:* `legacy_db`, `warehouse_db`, tempo do pipeline completo e tamanho das camadas
 analíticas. Eles não existem ainda (**P5**).
 
-### 2.2 A restrição real passou a ser memória
+### 2.2 Medido na Etapa 5 — ingestão `oltp` → `raw`
 
-Com o disco fora de questão, o limite do ambiente local é **memória**, não armazenamento. O
+Primeira sincronização completa do corte comercial, doze tabelas, em máquina de 4 CPUs com o
+dimensionamento de [`airbyte/values.yaml`](../airbyte/values.yaml).
+
+| Medida | Valor |
+|---|---:|
+| Linhas ingeridas | 165.553 |
+| Bytes transferidos | 41,2 MB |
+| **Tempo da sincronização** | **2 min 6 s** |
+| Reconciliação `raw` ↔ `staging` | 12 de 12 tabelas exatas |
+| `dbt build` da camada `staging` | 12 modelos + 69 testes em 5,0 s |
+
+As contagens em `raw` batem exatamente com a origem em todas as tabelas, incluindo as 110.000 linhas
+de `cart_items`. As linhas com exclusão lógica atravessam como marca e são contáveis: 6 clientes,
+8 SKUs, 2 produtos e 1 endereço.
+
+### 2.3 A restrição real passou a ser memória — e, na Etapa 5, CPU
+
+**Correção do que estava escrito aqui.** Até a Etapa 5, este documento afirmava que a restrição do
+ambiente local era memória. A ingestão mostrou que é **CPU**: o *pod* de replicação do Airbyte pede
+4 CPUs por padrão, a máquina tem 4, e a plataforma já segura 1,1 — o job nunca é agendado. Memória
+nunca chegou a ser o limite.
+
+O tratamento está em [`airbyte/values.yaml`](../airbyte/values.yaml): pedidos de 100m por
+contêiner, limites altos. Pedido é reserva do agendador, limite é teto — baixar o pedido não torna
+a carga mais lenta em máquina ociosa.
+
+#### Memória
+
+Com o disco fora de questão, a memória é o segundo limite do ambiente local. O
 [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) adotou Kafka Connect, que custa cerca de 1 GB
 de RAM a mais que a alternativa autônoma — custo aceito por **P10**.
 
@@ -92,7 +120,7 @@ Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o sub
 etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
 final da Etapa 12.
 
-### 2.3 Custo da janela na nuvem
+### 2.4 Custo da janela na nuvem
 
 O [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) escolheu Cloud Composer e Airbyte em contêiner,
 que cobram por hora ligada. A contenção é temporal, não técnica: os dois existem **apenas durante a

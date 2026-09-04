@@ -1,53 +1,81 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # Dimensionamento dos *jobs* do Airbyte para uma máquina de 4 CPUs.
 #
-# O Airbyte pede "4 CPUs e 8 GB" para a plataforma, e é exatamente esse o
-# tamanho da máquina de desenvolvimento deste projeto. O que a documentação não
-# diz é que o *pod* de replicação pede, por padrão, **mais 4 CPUs** — 2 para o
-# orquestrador e 1 para cada conector. Com a plataforma já segurando 1,1, ele
-# nunca é agendável: o Kubernetes responde `Insufficient cpu` e o job fica
-# `Pending` para sempre, com a interface mostrando "running".
+# ── O problema ────────────────────────────────────────────────────────────────
+# O Airbyte pede "4 CPUs e 8 GB" para a plataforma, e é exatamente o tamanho da
+# máquina de desenvolvimento deste projeto. O que a documentação não diz é que o
+# *pod* de replicação pede, por padrão, **outros 4 CPUs**: 2 para o orquestrador
+# e 1 para cada conector. Com a plataforma já segurando 1,1, ele nunca é
+# agendável — o Kubernetes responde `Insufficient cpu`, o job fica `Pending`
+# para sempre e a interface mostra "running". Falha silenciosa.
 #
-# `--low-resource-mode` **não** resolve: ele zera as variáveis genéricas, mas
-# `CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED` continua ligado e os padrões
-# por conector passam por cima delas. Desligá-lo é o que faz as variáveis abaixo
-# valerem.
+# ── O que **não** resolve ─────────────────────────────────────────────────────
+# Três caminhos foram testados e nenhum alcança a replicação:
 #
-# Os pedidos ficam baixos e os **limites** continuam altos: pedido é o que o
-# agendador reserva, limite é o teto. Baixar o pedido não torna a carga mais
-# lenta em máquina ociosa — apenas deixa de exigir garantia que a máquina não
-# tem para dar.
+#   * `abctl local install --low-resource-mode`, que é a resposta documentada do
+#     Airbyte para máquina apertada;
+#   * `global.jobs.resources`, que o próprio chart marca como **depreciada** com
+#     a ressalva "replication is not consumed";
+#   * mexer no ConfigMap com o Helm por cima, que a próxima instalação desfaz.
+#
+# ── O que resolve ─────────────────────────────────────────────────────────────
+# `global.workloads.resources`, abaixo. `useConnectorResourceDefaults: false` é
+# o que faz os valores valerem: com ele ligado, os padrões por conector passam
+# por cima de tudo.
+#
+# **Pedido não é limite.** O pedido é o que o agendador reserva; o limite é o
+# teto. Baixar o pedido não torna a carga mais lenta em máquina ociosa — apenas
+# deixa de exigir garantia que a máquina não tem para dar. Os limites continuam
+# altos de propósito.
 #
 # Uso: `make airbyte-up`, que passa este arquivo ao `abctl`.
-#
-# Situação: os valores foram aplicados e conferidos nesta máquina por alteração
-# direta do ConfigMap; a via por `values.yaml` é a forma reproduzível deles e
-# ainda **não** foi exercitada em instalação do zero (**P5**).
 # ══════════════════════════════════════════════════════════════════════════════
 
 global:
-  env_vars:
-    # Sem isto, os padrões por conector sobrepõem tudo que vem abaixo.
-    CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED: "false"
+  workloads:
+    resources:
+      # Sem isto, os padrões por conector sobrepõem tudo que vem abaixo.
+      useConnectorResourceDefaults: false
 
-    # Conectores de origem e destino.
-    JOB_MAIN_CONTAINER_CPU_REQUEST: "100m"
-    JOB_MAIN_CONTAINER_MEMORY_REQUEST: "512Mi"
-    JOB_MAIN_CONTAINER_CPU_LIMIT: "2"
-    JOB_MAIN_CONTAINER_MEMORY_LIMIT: "2Gi"
+      # Conectores de origem e destino dentro do pod de replicação.
+      mainContainer:
+        cpu:
+          request: 100m
+          limit: "2"
+        memory:
+          request: 512Mi
+          limit: 2Gi
 
-    # Orquestrador da replicação — é ele que pedia 2 CPUs sozinho.
-    REPLICATION_ORCHESTRATOR_CPU_REQUEST: "100m"
-    REPLICATION_ORCHESTRATOR_MEMORY_REQUEST: "512Mi"
-    REPLICATION_ORCHESTRATOR_CPU_LIMIT: "2"
-    REPLICATION_ORCHESTRATOR_MEMORY_LIMIT: "2Gi"
+      # Orquestrador da replicação — era ele que pedia 2 CPUs sozinho.
+      replication:
+        cpu:
+          request: 100m
+          limit: "2"
+        memory:
+          request: 512Mi
+          limit: 2Gi
 
-    # Sidecar que carrega configuração e recolhe log.
-    SIDECAR_MAIN_CONTAINER_CPU_REQUEST: "50m"
-    SIDECAR_MAIN_CONTAINER_MEMORY_REQUEST: "128Mi"
+      # Sidecar que carrega configuração e recolhe log.
+      sidecar:
+        cpu:
+          request: 50m
+          limit: "1"
+        memory:
+          request: 128Mi
+          limit: 512Mi
 
-    # Verificação de conexão e descoberta de schema: rápidas e pequenas.
-    CHECK_JOB_MAIN_CONTAINER_CPU_REQUEST: "50m"
-    CHECK_JOB_MAIN_CONTAINER_MEMORY_REQUEST: "256Mi"
-    DISCOVER_JOB_MAIN_CONTAINER_CPU_REQUEST: "50m"
-    DISCOVER_JOB_MAIN_CONTAINER_MEMORY_REQUEST: "256Mi"
+      # Verificação de conexão e descoberta de schema: rápidas e pequenas.
+      check:
+        cpu:
+          request: 50m
+          limit: "1"
+        memory:
+          request: 256Mi
+          limit: 1Gi
+      discover:
+        cpu:
+          request: 50m
+          limit: "1"
+        memory:
+          request: 256Mi
+          limit: 1Gi

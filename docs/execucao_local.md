@@ -177,9 +177,14 @@ docker exec airbyte-abctl-control-plane \
 orquestrador e 1 para cada conector —, e a plataforma já segura 1,1 dos 4 da máquina. O Kubernetes
 não agenda, o Airbyte não avisa, e o job fica vivo sem executar.
 
-**Não há solução conhecida nesta máquina.** `--low-resource-mode`, as variáveis genéricas de
-recurso e `CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED=false` foram testados e não alteram o
-pedido do *pod* de replicação. É a decisão pendente **D31**.
+**Solução:** `make airbyte-up`, que passa [`airbyte/values.yaml`](../airbyte/values.yaml) ao
+`abctl`. Ele fixa `global.workloads.resources` com pedidos de 100m por contêiner, e o *pod* passa a
+pedir 300m em vez de 4 CPUs.
+
+Três caminhos **não** funcionam, e estão registrados no próprio `values.yaml` para não serem
+tentados de novo: `--low-resource-mode`, que é a resposta documentada do Airbyte;
+`global.jobs.resources`, que o chart marca como depreciada com a ressalva "replication is not
+consumed"; e alterar o ConfigMap à mão, que a instalação seguinte desfaz.
 
 ### `make seed-data` recusa executar
 
