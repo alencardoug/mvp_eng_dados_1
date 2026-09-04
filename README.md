@@ -68,14 +68,14 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 5 — Corte 1: núcleo comercial, em curso.** Termo aprovado (**M0**), decisões registradas
-em ADR (**M1**), ambiente subindo do zero com um comando (**M2**), **banco transacional de 40
-tabelas** criado por migrações reversíveis e **gerador de dados sintéticos** entregue.
+**Etapa 6 — Corte 2: financeiro e estoque.** Termo aprovado (**M0**), decisões em ADR (**M1**),
+ambiente subindo do zero com um comando (**M2**) e o **primeiro fluxo completo origem → consumo**
+em operação (**M3**).
 
-O fluxo **origem → consumo** está de pé: `oltp` → Airbyte → `raw` → `staging` → `trusted` →
-`analytics` → `consumption`. O `dbt build` roda **166 objetos** — 29 modelos, 2 *snapshots* SCD
-tipo 2, 1 *seed* e os testes — sem erro, e as sete primeiras views respondem às perguntas de
-negócio com contrato aplicado. Falta a DAG do Airflow para fechar o marco **M3**. Nada
+O corte comercial atravessa todas as camadas: `oltp` → Airbyte → `raw` → `staging` → `trusted` →
+`analytics` → `consumption`, orquestrado pelo Airflow. A DAG roda as oito tarefas em **2 min 53 s**;
+o `dbt build` constrói **166 objetos** — 36 modelos, 2 *snapshots* SCD tipo 2, 1 *seed* e 127 testes
+— sem erro; e as sete primeiras views respondem às perguntas de negócio com contrato aplicado. Nada
 [pendente](docs/pendencias.md) do lado do Owner.
 
 Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
@@ -88,4 +88,5 @@ O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
 
 ```bash
 make env && make install && make up && make migrate && make seed-data
+make tools && make airbyte-up && make airbyte-config && make airflow-up && make dag-run
 ```

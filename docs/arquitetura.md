@@ -235,6 +235,9 @@ mvp_ed1/
 │   ├── glossario_de_negocio/     # blocos {% docs %} importados pelo dbt
 │   └── adr/
 ├── docker/                       # (Etapa 2) composição do ambiente local
+│   ├── docker-compose.yml        #           os três bancos
+│   ├── docker-compose.airflow.yml #          (Etapa 5) orquestrador, sobe à parte
+│   └── airflow.Dockerfile        #           (Etapa 5) dependências da DAG
 ├── airbyte/                      # (Etapa 5) ingestão como código
 │   ├── streams.yml               #           modo de sincronização por tabela (ADR-0015)
 │   ├── values.yaml               #           dimensionamento dos jobs no cluster local
@@ -258,7 +261,8 @@ mvp_ed1/
 │   ├── dbt_project.yml           #           camada = schema, materialização por ADR-0016
 │   ├── profiles.yml              #           conexão por variável de ambiente, sem segredo
 │   └── models/{staging,trusted,analytics,consumption}/
-├── airflow/                      # (Etapa 5) DAGs
+├── airflow/                      # (Etapa 5) orquestração
+│   └── dags/                     #           uma tarefa por camada, não um `dbt build` só
 ├── terraform/                    # (Etapa 13) infraestrutura GCP
 ├── tests/                        # (Etapa 4) testes de código Python
 ├── .tools/                       # (Etapa 5) abctl e Terraform fixados; fora do Git

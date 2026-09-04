@@ -12,7 +12,7 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.2 |
+| Versão | 2.3 |
 | Situação | Vigente. Origem transacional (Etapa 4) e ingestão (Etapa 5) **medidas**; as demais camadas, não |
 | Última revisão | 04/09/2026 |
 
@@ -99,7 +99,23 @@ As contagens em `raw` batem exatamente com a origem em todas as tabelas, incluin
 de `cart_items`. As linhas com exclusão lógica atravessam como marca e são contáveis: 6 clientes,
 8 SKUs, 2 produtos e 1 endereço.
 
-### 2.3 A restrição real passou a ser memória — e, na Etapa 5, CPU
+### 2.3 Medido na Etapa 5 — fluxo completo pelo orquestrador
+
+A DAG `corte_comercial` executada de ponta a ponta, oito tarefas, em máquina de 4 CPUs com Airbyte
+e Airflow simultaneamente de pé.
+
+| Tarefa | Tempo |
+|---|---:|
+| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s |
+| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s |
+| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s |
+| `dbt_docs` | 13 s |
+| **Total da execução** | **2 min 53 s** |
+
+Memória com tudo de pé — três bancos, cluster do Airbyte e os quatro contêineres do Airflow —:
+cerca de **6 GB**. É o número a usar para dimensionar a máquina da fase local.
+
+### 2.4 A restrição real passou a ser memória — e, na Etapa 5, CPU
 
 **Correção do que estava escrito aqui.** Até a Etapa 5, este documento afirmava que a restrição do
 ambiente local era memória. A ingestão mostrou que é **CPU**: o *pod* de replicação do Airbyte pede
@@ -120,7 +136,7 @@ Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o sub
 etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
 final da Etapa 12.
 
-### 2.4 Custo da janela na nuvem
+### 2.5 Custo da janela na nuvem
 
 O [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) escolheu Cloud Composer e Airbyte em contêiner,
 que cobram por hora ligada. A contenção é temporal, não técnica: os dois existem **apenas durante a

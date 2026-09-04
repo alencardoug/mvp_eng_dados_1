@@ -31,7 +31,7 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 | Python 3.11 | Fixado por paridade com o Cloud Composer. `make install` cria o `.venv` e instala o pacote ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |
 | Disco livre | **Pelo menos 8 GB** — o volume de dados é baixo por desenho ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)); o espaço é para imagem, log e WAL |
-| Memória | **A restrição real do ambiente.** Airbyte, Airflow, Redpanda e Kafka Connect não precisam subir ao mesmo tempo; ver seção 5 |
+| Memória | Airbyte, Airflow, Redpanda e Kafka Connect não precisam subir ao mesmo tempo; ver seção 5. Com o Airbyte e o Airflow juntos, contar com **cerca de 6 GB** |
 
 Nenhum serviço de nuvem é necessário na fase local, e nenhuma credencial de nuvem deve existir na
 máquina para executá-la.
@@ -119,8 +119,10 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
 | `make test` | Testes de código Python (`pytest`); `CARGA=1` inclui a que escreve no banco | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
-| `make airflow-up` | Sobe o Airflow | Etapa 5 |
-| `make dag-run` | Dispara a DAG do fluxo completo | Etapa 5 |
+| `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
+| `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
+| `make dag-status` | Estado das tarefas da última execução da DAG | Etapa 5 |
+| `make dag-run` | Despausa e dispara a DAG do corte comercial | Etapa 5 |
 | `make stream-down` | Derruba Kafka Connect, mensageria e o *job* | Etapa 7 |
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
@@ -140,6 +142,7 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Cenário | O que precisa estar de pé |
 |---|---|
 | Desenvolver modelos dbt | `make up` + dados já carregados |
+| Rodar o fluxo pelo orquestrador | `make up` + `make airbyte-up` + `make airflow-up` |
 | Ajustar o gerador | `make up` apenas — ou nada, com `DRY_RUN=1` |
 | Trabalhar no streaming | `make up` + `make stream-up` |
 | Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
@@ -208,6 +211,26 @@ make sync-airbyte RESET=1
 
 `RESET=1` apaga o estado do cursor e o conteúdo de `raw` antes de sincronizar. Não é preciso em
 operação normal, quando cada alteração da origem move o seu próprio `updated_at`.
+
+### A DAG foi disparada, o Airflow diz `queued`, e nada acontece
+
+DAG nasce **pausada** no Airflow, e execução enfileirada em DAG pausada fica `queued` para sempre —
+o disparo "funciona" e não faz nada. `make dag-run` despausa antes de disparar, e espera a DAG ser
+registrada: logo depois de um `make airflow-up` ela ainda não existe no banco de metadados.
+
+Se acontecer mesmo assim, confirme com `airflow dags list` que a coluna `is_paused` está em `False`.
+
+### `Permission denied` ou `Connection refused` nas tarefas da DAG
+
+Dois erros que apareceram construindo, com causas diferentes e não óbvias:
+
+- **`Permission denied: '/opt/mvp_ed1/.env'`** — o contêiner não monta o repositório inteiro, só os
+  diretórios de que precisa. O `.env` fica de fora **por desenho**: least privilege, e ele tem
+  permissão 600 de outro usuário. Se aparecer, alguém acrescentou uma montagem ampla demais.
+- **`httpx.ConnectError: Connection refused`** — no Airflow 3 a tarefa não fala com o banco de
+  metadados: fala com o *api-server* pela API de execução. O padrão aponta para `localhost:8080`,
+  que dentro do contêiner do *scheduler* não é ninguém. O compose declara
+  `AIRFLOW__CORE__EXECUTION_API_SERVER_URL`; sem ela, toda tarefa morre sem dizer que era isso.
 
 ### Regerei os dados e o datamart continua mostrando o conteúdo antigo
 

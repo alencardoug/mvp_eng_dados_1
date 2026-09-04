@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.4 |
-| Etapa atual | **Etapa 5 — Corte 1: núcleo comercial** (**M0**, **M1** e **M2** concluídos) |
+| Versão | 2.5 |
+| Etapa atual | **Etapa 6 — Corte 2: financeiro e estoque** (**M0** a **M3** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -45,7 +45,7 @@
 | **M0** | Termo de Abertura aprovado e documentação-base estável | Etapa 0 — **04/09/2026** |
 | **M1** | Decisões fundamentais registradas em ADR | Etapa 1 — **04/09/2026** |
 | **M2** | Ambiente local sobe do zero com um comando | Etapa 2 — **04/09/2026** |
-| **M3** | Primeiro fluxo completo origem → consumo | Etapa 5 |
+| **M3** | Primeiro fluxo completo origem → consumo | Etapa 5 — **04/09/2026** |
 | **M4** | Streaming em operação, com o *batch* intacto | Etapa 7 |
 | **M5** | Fase local concluída, testada e reproduzível | Etapa 12 |
 | **M6** | Fluxo replicado no GCP por Terraform | Etapa 13 |
@@ -148,7 +148,7 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 
 ### Etapa 5 — Corte 1: núcleo comercial · **M3**
 
-*Em curso.*
+*Concluída em 04/09/2026.*
 
 | | |
 |---|---|
@@ -157,8 +157,8 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Entregas** | **E5**, **E6**, **E7**, **E8**, **E10** (todas parciais) |
 | **Escopo** | Clientes, catálogo, carrinhos e pedidos · `fact_sales_order_item` e `fact_cart_event` · `dim_customer`, `dim_product`, `dim_date`, `dim_sales_channel`, `dim_geography` |
 | **Decisões** | **D20**, **D21** ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)), **D23** ([ADR-0016](adr/0016-materializacao-por-camada.md)), **D25** ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)), **D24**, **D27** ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) — aceitas em 04/09/2026 · a fato de carrinho ([ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md)) · **D30** ([ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md)) |
-| **Artefatos** | Conexões Airbyte declaradas em Terraform sobre `airbyte/streams.yml` · projeto dbt com 29 modelos, 2 *snapshots*, 1 *seed* e 166 objetos no `build` · DAG do Airflow · 16 perguntas e 6 conceitos no [Glossário de Negócio](glossario_de_negocio/) |
-| **Critérios de conclusão** | `make dbt-build` executa do zero e passa ✓ (166 objetos, 0 erros) · grão de `fact_sales_order_item` declarado por escrito ✓ (e provado por `unique` sobre a chave do grão) · contagens reconciliadas em todas as fronteiras ✓ (`oltp` → `raw` → `staging` → fato, exatas) · view de consumo responde a perguntas de negócio definidas ✓ (P01 a P07, com `contract: enforced`) · `dbt docs` mostra linhagem e glossário integrados — **pendente**, junto da DAG do Airflow |
+| **Artefatos** | Conexões Airbyte declaradas em Terraform sobre `airbyte/streams.yml` · projeto dbt com 36 modelos, 2 *snapshots*, 1 *seed* e 166 objetos no `build` · DAG `corte_comercial` com uma tarefa por camada · 16 perguntas e 6 conceitos no [Glossário de Negócio](glossario_de_negocio/) |
+| **Critérios de conclusão** | `make dbt-build` executa do zero e passa ✓ (166 objetos, 0 erros) · grão de `fact_sales_order_item` declarado por escrito ✓ (e provado por `unique` sobre a chave do grão) · contagens reconciliadas em todas as fronteiras ✓ (`oltp` → `raw` → `staging` → fato, exatas) · view de consumo responde a perguntas de negócio definidas ✓ (P01 a P07, com `contract: enforced`) · `dbt docs` mostra linhagem e glossário integrados ✓ (36 modelos, 127 testes e os 6 conceitos do glossário no manifesto) · **fluxo executado ponta a ponta pelo orquestrador** ✓ (oito tarefas verdes em 2 min 53 s) |
 | **Riscos tratados** | **R1**, **R3**, **R4** |
 | **Conceitos** | Ingestão com controle de estado · camadas dbt · grão e esquema estrela · SCD tipo 2 · dimensão conformada · view como contrato · linhagem |
 

@@ -1,0 +1,124 @@
+# Airflow local — sobe separado dos bancos, de propósito.
+#
+# O risco R11 é memória, e o tratamento declarado é subir só o subconjunto
+# necessário a cada etapa (Execução Local §5). Por isso `make airflow-up` é um
+# alvo próprio: `make up` não arrasta o orquestrador junto.
+#
+# `LocalExecutor` em vez de `CeleryExecutor`: três contêineres em vez de seis,
+# e nenhum ganho de paralelismo que se justifique com uma DAG em uma máquina.
+# O que o ADR-0003 foi buscar no Airflow — dependência explícita, reexecução
+# parcial e histórico — o `LocalExecutor` entrega igual.
+
+x-airflow-comum: &airflow-comum
+  build:
+    context: ..
+    dockerfile: docker/airflow.Dockerfile
+  image: mvp_ed1/airflow:3.2.2
+  environment: &airflow-ambiente
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/mvp_ed1/airflow/dags
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db:5432/airflow
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?defina AIRFLOW_JWT_SECRET}
+
+    # No Airflow 3 a tarefa **não** fala com o banco de metadados: ela fala com
+    # o api-server pela API de execução. O padrão aponta para `localhost:8080`,
+    # que dentro do contêiner do scheduler não é ninguém — e a tarefa morre com
+    # `Connection refused` sem dizer que era isso.
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow_apiserver:8080/execution/
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?defina AIRFLOW_FERNET_KEY}
+
+    # ── Como o contêiner alcança o resto ─────────────────────────────────────
+    # O armazém e o Airbyte estão fora desta composição: o primeiro em outra, o
+    # segundo em um cluster Kubernetes próprio. Os dois são alcançados pelo
+    # gateway do host, que é o único endereço comum às três redes.
+    WAREHOUSE_DB_HOST: host.docker.internal
+    WAREHOUSE_DB_PORT: ${WAREHOUSE_DB_PORT}
+    WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
+    WAREHOUSE_DB_USER: ${WAREHOUSE_DB_USER}
+    WAREHOUSE_DB_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    AIRBYTE_URL: http://host.docker.internal:8000/api/public/v1
+    AIRBYTE_CLIENT_ID: ${AIRBYTE_CLIENT_ID:-}
+    AIRBYTE_CLIENT_SECRET: ${AIRBYTE_CLIENT_SECRET:-}
+  volumes:
+    # ── Montagem por diretório, não o repositório inteiro ────────────────────
+    # Montar `..` inteiro colocaria o `.env` dentro do contêiner. Ele é 600 e
+    # pertence a outro usuário, então o `dbt` morria com `Permission denied` ao
+    # varrer o diretório — e, pior, o segredo estaria lá para ser lido se a
+    # permissão fosse outra. Least privilege resolve os dois de uma vez.
+    #
+    # `dbt/` é o único com escrita: é onde `target/` e `logs/` são gerados.
+    - ../dbt:/opt/mvp_ed1/dbt
+    - ../src:/opt/mvp_ed1/src:ro
+    - ../airflow:/opt/mvp_ed1/airflow:ro
+    - ../airbyte:/opt/mvp_ed1/airbyte:ro
+    - ../docs/glossario_de_negocio:/opt/mvp_ed1/docs/glossario_de_negocio:ro
+    - airflow_logs:/opt/airflow/logs
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  # O uid do host, não o 50000 da imagem: o `dbt` escreve em `dbt/target` e
+  # `dbt/logs`, que pertencem a quem clonou o repositório.
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    airflow_db:
+      condition: service_healthy
+
+services:
+  airflow_db:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      retries: 12
+    restart: unless-stopped
+
+  airflow_init:
+    <<: *airflow-comum
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --password admin
+                 --firstname Data --lastname Custodian --role Admin
+                 --email admin@example.com || true"
+    restart: "no"
+
+  airflow_apiserver:
+    <<: *airflow-comum
+    command: api-server
+    ports:
+      - "${AIRFLOW_PORT:-8081}:8080"
+    depends_on:
+      airflow_db:
+        condition: service_healthy
+      airflow_init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow_scheduler:
+    <<: *airflow-comum
+    command: scheduler
+    depends_on:
+      airflow_db:
+        condition: service_healthy
+      airflow_init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow_dag_processor:
+    <<: *airflow-comum
+    command: dag-processor
+    depends_on:
+      airflow_db:
+        condition: service_healthy
+      airflow_init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  airflow_db_data:
+  airflow_logs:

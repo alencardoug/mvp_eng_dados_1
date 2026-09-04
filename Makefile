@@ -7,6 +7,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml
+COMPOSE_AIRFLOW := docker compose --env-file .env -f docker/docker-compose.airflow.yml
 # O .env é carregado em cada receita: `make` roda um shell novo por linha.
 ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
 # O gerador lê a conexão do ambiente, nunca de argumento (mvp_ed1/db.py).
@@ -34,7 +35,7 @@ BASE := source_db legacy_db warehouse_db
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
         migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
-        dbt-build dbt-drop-snapshots dbt-test dbt-docs \
+        dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -81,6 +82,11 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "WAREHOUSE_DB_USER=mvp_warehouse"; \
 		echo "WAREHOUSE_DB_PASSWORD=$$(pw)"; \
 		echo "WAREHOUSE_DB_PORT=5434"; \
+		echo ""; \
+		echo "# Airflow (Etapa 5) — porta e segredos do orquestrador."; \
+		echo "AIRFLOW_PORT=8081"; \
+		echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
+		echo "AIRFLOW_FERNET_KEY=$$(pw)"; \
 	} > .env
 	@chmod 600 .env
 	@echo "'.env' criado com senhas aleatórias e permissão 600."
@@ -182,6 +188,44 @@ sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 desca
 dbt-build: require-env require-venv ## Roda os modelos dbt e os testes de dados; RESET=1 refaz o histórico SCD
 	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots &&) \
 		$(DBT) build $(DBT_ARGS)
+
+airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, três contêineres)
+	@grep -q '^AIRFLOW_JWT_SECRET=' .env || { \
+		echo "acrescentando os segredos do Airflow ao .env"; \
+		pw() { LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; }; \
+		{ echo ""; echo "# Airflow (Etapa 5) — acrescentado por 'make airflow-up'."; \
+		  echo "AIRFLOW_PORT=8081"; \
+		  echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
+		  echo "AIRFLOW_FERNET_KEY=$$(pw)"; } >> .env; }
+	@$(CREDENCIAIS); \
+		AIRFLOW_UID="$$(id -u)" \
+		AIRBYTE_CLIENT_ID="$$AIRBYTE_CLIENT_ID" AIRBYTE_CLIENT_SECRET="$$AIRBYTE_CLIENT_SECRET" \
+		$(COMPOSE_AIRFLOW) up -d --build --wait airflow_apiserver airflow_scheduler airflow_dag_processor
+	@echo ""
+	@echo "Airflow em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2) — admin / admin."
+
+airflow-down: require-env ## Derruba o Airflow; FORCE=1 apaga também o histórico de execuções
+	@$(COMPOSE_AIRFLOW) down $(if $(filter 1,$(FORCE)),-v)
+
+dag-run: require-env ## Dispara a DAG do corte comercial
+	@# DAG nasce pausada no Airflow, e execução enfileirada em DAG pausada fica
+	@# `queued` para sempre — o disparo "funciona" e não faz nada. Espera o
+	@# processador de DAGs registrá-la antes de despausar: logo depois de um
+	@# `airflow-up`, ela ainda não existe no banco de metadados.
+	@for i in $$(seq 1 30); do \
+		$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
+			airflow dags unpause corte_comercial >/dev/null 2>&1 && break; \
+		sleep 2; \
+	done
+	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags trigger corte_comercial >/dev/null
+	@echo "DAG 'corte_comercial' disparada. Acompanhe em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2)"
+	@echo "ou por: make dag-status"
+
+dag-status: require-env ## Mostra o estado das tarefas da última execução da DAG
+	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
+		airflow tasks states-for-dag-run corte_comercial \
+		"$$($(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags list-runs corte_comercial -o plain 2>/dev/null | grep -oE 'manual__[0-9T:.+-]+' | head -1)" \
+		-o plain 2>/dev/null | grep -viE 'alembic|plugin'
 
 dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem
 	@echo "descartando o schema 'snapshots' — o histórico SCD será refeito do zero"
