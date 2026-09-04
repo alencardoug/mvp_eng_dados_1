@@ -122,6 +122,11 @@ cobertura é um teste; a de proporção, outro.
 **Valores planejados iniciais** — ponto de partida da Etapa 4, a ajustar quando a geração real
 existir. Nenhum deles foi medido (**P5**).
 
+A regra que liga os dois documentos: estes valores são **um décimo** das contagens de referência do
+[Modelo de Dados](modelo_de_dados.md), e a razão entre tabelas é preservada. Dividir uma tabela por
+outro fator quebraria a proporção — 400 mil carrinhos para 35 mil pedidos são 91% de abandono; 4 mil
+para 3,5 mil seriam 12%, que é outro negócio.
+
 | Parâmetro | Fator 1 (`dev`) |
 |---|---:|
 | `as_of_date` | `2026-09-01` na versão atual; explícita a cada execução |
@@ -132,8 +137,8 @@ existir. Nenhum deles foi medido (**P5**).
 | `product_variant_count` | 600 |
 | `supplier_count` | 30 |
 | `purchase_order_count` | 400 |
-| `cart_count` | 4.000 |
-| `cart_item_count` | 11.000 |
+| `cart_count` | 40.000 |
+| `cart_item_count` | 110.000 |
 | `order_count` | 3.500 |
 | `warehouse_count` | 5 |
 | `inventory_movement_seed_count` | 12.000 |

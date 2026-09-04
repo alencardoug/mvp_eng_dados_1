@@ -10,7 +10,7 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.3 |
+| Versão | 1.4 |
 | Situação | Alvos da **Etapa 2** implementados e conferidos; os demais nascem na etapa indicada |
 | Última revisão | 04/09/2026 |
 
@@ -57,7 +57,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | # | Comando | O que faz | Disponível na |
 |---|---|---|---|
 | 1 | `make up` | Sobe os contêineres base: `source_db`, `legacy_db`, `warehouse_db` | Etapa 2 |
-| 2 | `make migrate` | Aplica as migrações Alembic do zero | Etapa 3 |
+| 2 | `make migrate` | Aplica as migrações Alembic até a última revisão | Etapa 3 |
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
@@ -91,6 +91,10 @@ O volume é expresso por **fator de escala** sobre um conjunto único de propor�
 | `make psql-source` · `make psql-legacy` · `make psql-warehouse` | Abre o `psql` no banco correspondente | Etapa 2 |
 | `make down` | Derruba os contêineres preservando os volumes | Etapa 2 |
 | `make reset` | Derruba e apaga os volumes — recomeço do zero | Etapa 2 |
+| `make migrate-down` | Desfaz migrações; `TO=base` derruba tudo | Etapa 3 |
+| `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
+| `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
+| `make catalog` | Regenera dicionário e diagrama ER a partir dos modelos | Etapa 3 |
 | `make test` | Testes de código Python (`pytest`) | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow | Etapa 5 |

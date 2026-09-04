@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 3 — Modelo e banco transacional |
+| Etapa atual | Etapa 4 — Gerador de dados sintéticos |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
 | Última revisão | 04/09/2026 |

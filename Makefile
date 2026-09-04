@@ -7,9 +7,12 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml
+# O .env é carregado em cada receita: `make` roda um shell novo por linha.
+ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
 BASE := source_db legacy_db warehouse_db
 
-.PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse require-env
+.PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
+        migrate migrate-down migrate-new migrate-status catalog require-env require-venv
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis (Etapa 2):"
@@ -17,6 +20,12 @@ help: ## Lista os alvos disponíveis
 		| awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Contrato completo da operação: docs/execucao_local.md"
+
+require-venv:
+	@test -x .venv/bin/alembic || { \
+		echo "ERRO: ambiente Python ausente. Rode 'make install'."; \
+		exit 1; \
+	}
 
 require-env:
 	@test -f .env || { \
@@ -74,6 +83,25 @@ reset: require-env ## DESTRÓI estado: derruba e apaga os volumes
 	fi
 	$(COMPOSE) down -v
 	@echo "Volumes apagados. O próximo 'make up' começa do zero."
+
+migrate: require-env require-venv ## Aplica as migrações Alembic até a última
+	@$(ALEMBIC) upgrade head
+
+migrate-down: require-env require-venv ## Desfaz migrações; TO=base derruba tudo, padrão -1
+	@$(ALEMBIC) downgrade $(or $(TO),-1)
+
+migrate-new: require-env require-venv ## Gera rascunho de migração; exige M="mensagem"
+	@test -n '$(M)' || { echo 'ERRO: use make migrate-new M="o que mudou"'; exit 1; }
+	@$(ALEMBIC) revision --autogenerate -m '$(M)'
+	@echo ""
+	@echo "RASCUNHO gerado. Revise antes de aplicar: o autogenerate não detecta"
+	@echo "renomeação, conversão de tipo nem mudança de constraint (ADR-0010)."
+
+catalog: require-venv ## Regenera dicionário de dados e diagrama ER a partir dos modelos
+	@.venv/bin/python -m mvp_ed1.models.export
+
+migrate-status: require-env require-venv ## Mostra a revisão aplicada no banco
+	@$(ALEMBIC) current --verbose
 
 ps: require-env ## Mostra o estado dos contêineres
 	@$(COMPOSE) ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'

@@ -17,10 +17,12 @@
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
 | Última revisão | 04/09/2026 |
 
-As contagens de linhas são **exemplos de proporção**, não resultados medidos e não compromissos de
-tamanho: elas ilustram a relação entre as tabelas, e o volume efetivo é o produto dessa proporção
-pelo fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)). Os valores
-em fator 1 estão em [Geração de Dados](geracao_de_dados.md).
+As contagens de linhas são a **proporção de referência**, não resultados medidos e não compromissos
+de tamanho: elas fixam a razão entre as tabelas, que é o que dá realismo ao domínio. O volume
+efetivo é essa proporção multiplicada pelo fator de escala
+([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) — e no fator `dev` corresponde a
+**um décimo** dos números abaixo. Os absolutos estão em
+[Geração de Dados](geracao_de_dados.md).
 
 Os nomes seguem o prefixo por tipo fixado no
 [ADR-0013](adr/0013-nomenclatura-por-prefixo-de-tipo.md); toda tabela mutável carrega `deleted_at`
@@ -135,12 +137,413 @@ justamente o que se quer exercitar.
 | `support_tickets` | 4.000 | Solicitações associadas a clientes, pedidos ou entregas. |
 | `ticket_events` | 18.000 | Interações, atribuições e mudanças de estado do chamado. |
 
-**Total da origem principal:** aproximadamente **2.526.495 linhas** após o seed, podendo alcançar
-**2.576.495** com o lote máximo de streaming.
+**Total na proporção de referência:** aproximadamente **2,53 milhões de linhas** — cerca de
+**253 mil** no fator `dev`, que é o padrão local.
 
-`cart_items` ultrapassa deliberadamente 1 milhão de linhas: o volume decorre de cerca de 400 mil
-carrinhos com abandono, expiração e múltiplas alterações antes da conversão. As demais proporções
-preservam coerência entre pedidos, itens, pagamentos, estoque e entregas.
+`cart_items` é a maior tabela por construção: cerca de 400 mil carrinhos com abandono, expiração e
+múltiplas alterações antes da conversão produzem uma razão de aproximadamente 11 itens por pedido
+convertido. É essa razão, e não o número absoluto, que precisa sobreviver a qualquer fator.
+
+### 2.10 Desvios deliberados da 3FN
+
+A terceira forma normal é a **referência**, não um dogma. O modelo se afasta dela em seis pontos, e
+cada um tem motivo declarado. Desvio sem justificativa escrita é erro de modelagem; com
+justificativa, é decisão.
+
+| Onde | O desvio | Por que |
+|---|---|---|
+| `orders` — `subtotal_amount`, `discount_amount`, `shipping_amount`, `tax_amount`, `total_amount` | Valores deriváveis de `order_items` | São o preço **acordado no momento da compra**. Recalculá-los depois faria o total de um pedido antigo mudar quando uma lista de preços fosse corrigida — o pedido deixaria de ser um fato. A `CHECK` `total_reconcilia` impede que os cinco divirjam entre si |
+| `order_items` — `total_amount` | Derivável de `quantity × unit_price − discount + tax` | O arredondamento para duas casas é **decisão de negócio**, não consequência aritmética. Guardar o resultado registra qual arredondamento foi aplicado; a `CHECK` tolera um centavo de diferença por isso |
+| `orders` — `status` | Derivável do último registro de `order_status_history` | Toda consulta operacional filtra por estado. Derivar exigiria uma subconsulta correlacionada em toda leitura. O histórico continua sendo a fonte da verdade — o campo é projeção |
+| `inventory_balances` — `quantity_on_hand` | Derivável da soma de `inventory_movements` | É o mesmo padrão que o [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) adota no *streaming*: eventos imutáveis como fonte, saldo como projeção. Somar 120 mil movimentos a cada consulta de disponibilidade é inviável em qualquer escala |
+| `product_categories` — `depth` | Derivável de percorrer `parent_id` até a raiz | Evita consulta recursiva em toda navegação de catálogo. A `CHECK` limita a profundidade a três níveis, o que torna o valor verificável |
+| `cart_items` e `order_items` — `unit_price` | Parece cópia de `product_prices` | **Não é desvio.** É um fato pontual no tempo: o preço praticado naquela transação. `product_prices` diz quanto custava; `order_items` diz quanto foi cobrado, e os dois podem legitimamente divergir |
+
+Os três primeiros são **denormalização por imutabilidade do fato**; o quarto e o quinto, por
+**custo de leitura**. Nenhum deles introduz risco de divergência silenciosa: os três primeiros têm
+`CHECK` dentro da linha, e os dois últimos são reconciliados por teste de qualidade.
+
+---
+
+### 2.11 Diagrama entidade-relacionamento
+
+<!-- gerado a partir dos modelos; não editar à mão -->
+
+Um diagrama por domínio, **gerado** a partir dos modelos. Cada entidade mostra
+apenas as chaves: a lista completa de campos vive no
+[Dicionário de Dados](dicionario_de_dados.md), que é o dono desse conteúdo.
+
+Relações que cruzam domínios aparecem no diagrama do domínio que **contém a
+chave estrangeira**, com a tabela referenciada em cinza.
+
+#### `clientes`
+
+```mermaid
+erDiagram
+    customer_segments ||..o{ customers : "segment_id"
+    customers ||--o{ customer_addresses : "customer_id"
+    customers ||--o{ customer_contacts : "customer_id"
+    customers ||--o{ customer_preferences : "customer_id"
+    customer_segments {
+        bigint id PK
+        varchar_32 code UK
+    }
+    customers {
+        bigint id PK
+        varchar_32 customer_code UK
+        bigint segment_id FK
+        varchar_32 document UK
+    }
+    customer_addresses {
+        bigint id PK
+        bigint customer_id FK
+    }
+    customer_contacts {
+        bigint id PK
+        bigint customer_id FK
+    }
+    customer_preferences {
+        bigint id PK
+        bigint customer_id FK
+    }
+```
+
+#### `catalogo`
+
+```mermaid
+erDiagram
+    product_categories ||..o{ product_categories : "parent_id"
+    sales_channels ||..o{ price_lists : "sales_channel_id"
+    brands ||..o{ products : "brand_id"
+    product_categories ||--o{ products : "category_id"
+    products ||--o{ product_variants : "product_id"
+    price_lists ||--o{ product_prices : "price_list_id"
+    product_variants ||--o{ product_prices : "product_variant_id"
+    brands {
+        bigint id PK
+        varchar_32 code UK
+    }
+    product_categories {
+        bigint id PK
+        varchar_32 code UK
+        bigint parent_id FK
+    }
+    price_lists {
+        bigint id PK
+        varchar_32 code UK
+        bigint sales_channel_id FK
+    }
+    products {
+        bigint id PK
+        varchar_32 product_code UK
+        bigint category_id FK
+        bigint brand_id FK
+    }
+    product_variants {
+        bigint id PK
+        bigint product_id FK
+        varchar_40 sku UK
+        varchar_32 barcode UK
+    }
+    product_prices {
+        bigint id PK
+        bigint price_list_id FK
+        bigint product_variant_id FK
+    }
+    sales_channels {
+        bigint id PK "domínio vendas"
+    }
+```
+
+#### `compras`
+
+```mermaid
+erDiagram
+    suppliers ||--o{ purchase_orders : "supplier_id"
+    purchase_orders ||--o{ goods_receipts : "purchase_order_id"
+    warehouses ||--o{ goods_receipts : "warehouse_id"
+    product_variants ||--o{ purchase_order_items : "product_variant_id"
+    purchase_orders ||--o{ purchase_order_items : "purchase_order_id"
+    goods_receipts ||--o{ goods_receipt_items : "goods_receipt_id"
+    purchase_order_items ||--o{ goods_receipt_items : "purchase_order_item_id"
+    suppliers {
+        bigint id PK
+        varchar_32 supplier_code UK
+        varchar_32 document UK
+    }
+    purchase_orders {
+        bigint id PK
+        varchar_32 po_number UK
+        bigint supplier_id FK
+    }
+    goods_receipts {
+        bigint id PK
+        varchar_32 receipt_number UK
+        bigint purchase_order_id FK
+        bigint warehouse_id FK
+    }
+    purchase_order_items {
+        bigint id PK
+        bigint purchase_order_id FK
+        bigint product_variant_id FK
+    }
+    goods_receipt_items {
+        bigint id PK
+        bigint goods_receipt_id FK
+        bigint purchase_order_item_id FK
+    }
+    product_variants {
+        bigint id PK "domínio catalogo"
+    }
+    warehouses {
+        bigint id PK "domínio estoque"
+    }
+```
+
+#### `vendas`
+
+```mermaid
+erDiagram
+    customers ||..o{ carts : "customer_id"
+    sales_channels ||--o{ carts : "sales_channel_id"
+    carts ||--o{ cart_items : "cart_id"
+    product_variants ||--o{ cart_items : "product_variant_id"
+    carts ||..o{ orders : "cart_id"
+    customers ||--o{ orders : "customer_id"
+    sales_channels ||--o{ orders : "sales_channel_id"
+    orders ||--o{ order_items : "order_id"
+    product_variants ||--o{ order_items : "product_variant_id"
+    orders ||--o{ order_status_history : "order_id"
+    sales_channels {
+        bigint id PK
+        varchar_32 code UK
+    }
+    carts {
+        bigint id PK
+        varchar_40 cart_code UK
+        bigint customer_id FK
+        bigint sales_channel_id FK
+    }
+    cart_items {
+        bigint id PK
+        bigint cart_id FK
+        bigint product_variant_id FK
+    }
+    orders {
+        bigint id PK
+        varchar_32 order_number UK
+        bigint customer_id FK
+        bigint sales_channel_id FK
+        bigint cart_id FK
+    }
+    order_items {
+        bigint id PK
+        bigint order_id FK
+        bigint product_variant_id FK
+    }
+    order_status_history {
+        bigint id PK
+        bigint order_id FK
+    }
+    customers {
+        bigint id PK "domínio clientes"
+    }
+    product_variants {
+        bigint id PK "domínio catalogo"
+    }
+```
+
+#### `pagamentos`
+
+```mermaid
+erDiagram
+    orders ||--o{ payments : "order_id"
+    payment_methods ||--o{ payments : "payment_method_id"
+    payments ||--o{ payment_transactions : "payment_id"
+    payment_transactions ||--o{ refunds : "payment_transaction_id"
+    payment_methods {
+        bigint id PK
+        varchar_32 code UK
+    }
+    payments {
+        bigint id PK
+        varchar_40 payment_code UK
+        bigint order_id FK
+        bigint payment_method_id FK
+    }
+    payment_transactions {
+        bigint id PK
+        varchar_40 transaction_code UK
+        bigint payment_id FK
+    }
+    refunds {
+        bigint id PK
+        varchar_40 refund_code UK
+        bigint payment_transaction_id FK
+    }
+    orders {
+        bigint id PK "domínio vendas"
+    }
+```
+
+#### `estoque`
+
+```mermaid
+erDiagram
+    product_variants ||--o{ inventory_balances : "product_variant_id"
+    warehouses ||--o{ inventory_balances : "warehouse_id"
+    product_variants ||--o{ inventory_movements : "product_variant_id"
+    warehouses ||--o{ inventory_movements : "warehouse_id"
+    carts ||..o{ stock_reservations : "cart_id"
+    orders ||..o{ stock_reservations : "order_id"
+    product_variants ||--o{ stock_reservations : "product_variant_id"
+    warehouses ||--o{ stock_reservations : "warehouse_id"
+    warehouses {
+        bigint id PK
+        varchar_32 code UK
+    }
+    inventory_balances {
+        bigint id PK
+        bigint warehouse_id FK
+        bigint product_variant_id FK
+    }
+    inventory_movements {
+        uuid movement_id PK
+        bigint event_sequence UK
+        bigint warehouse_id FK
+        bigint product_variant_id FK
+    }
+    stock_reservations {
+        bigint id PK
+        varchar_40 reservation_code UK
+        bigint warehouse_id FK
+        bigint product_variant_id FK
+        bigint cart_id FK
+        bigint order_id FK
+    }
+    carts {
+        bigint id PK "domínio vendas"
+    }
+    orders {
+        bigint id PK "domínio vendas"
+    }
+    product_variants {
+        bigint id PK "domínio catalogo"
+    }
+```
+
+#### `logistica`
+
+```mermaid
+erDiagram
+    carriers ||--o{ shipments : "carrier_id"
+    orders ||--o{ shipments : "order_id"
+    warehouses ||--o{ shipments : "warehouse_id"
+    shipments ||--o{ delivery_events : "shipment_id"
+    order_items ||--o{ shipment_items : "order_item_id"
+    shipments ||--o{ shipment_items : "shipment_id"
+    carriers {
+        bigint id PK
+        varchar_32 code UK
+    }
+    shipments {
+        bigint id PK
+        varchar_40 shipment_code UK
+        bigint order_id FK
+        bigint carrier_id FK
+        bigint warehouse_id FK
+    }
+    delivery_events {
+        bigint id PK
+        bigint shipment_id FK
+    }
+    shipment_items {
+        bigint id PK
+        bigint shipment_id FK
+        bigint order_item_id FK
+    }
+    order_items {
+        bigint id PK "domínio vendas"
+    }
+    orders {
+        bigint id PK "domínio vendas"
+    }
+    warehouses {
+        bigint id PK "domínio estoque"
+    }
+```
+
+#### `marketing`
+
+```mermaid
+erDiagram
+    campaigns ||--o{ coupons : "campaign_id"
+    coupons ||--o{ coupon_redemptions : "coupon_id"
+    customers ||--o{ coupon_redemptions : "customer_id"
+    orders ||--o{ coupon_redemptions : "order_id"
+    campaigns {
+        bigint id PK
+        varchar_32 code UK
+    }
+    coupons {
+        bigint id PK
+        varchar_32 code UK
+        bigint campaign_id FK
+    }
+    coupon_redemptions {
+        bigint id PK
+        bigint coupon_id FK
+        bigint customer_id FK
+        bigint order_id FK
+    }
+    customers {
+        bigint id PK "domínio clientes"
+    }
+    orders {
+        bigint id PK "domínio vendas"
+    }
+```
+
+#### `atendimento`
+
+```mermaid
+erDiagram
+    support_agents ||..o{ support_tickets : "assigned_agent_id"
+    customers ||--o{ support_tickets : "customer_id"
+    orders ||..o{ support_tickets : "order_id"
+    shipments ||..o{ support_tickets : "shipment_id"
+    support_agents ||..o{ ticket_events : "agent_id"
+    support_tickets ||--o{ ticket_events : "ticket_id"
+    support_agents {
+        bigint id PK
+        varchar_32 agent_code UK
+        varchar_160 email UK
+    }
+    support_tickets {
+        bigint id PK
+        varchar_32 ticket_number UK
+        bigint customer_id FK
+        bigint order_id FK
+        bigint shipment_id FK
+        bigint assigned_agent_id FK
+    }
+    ticket_events {
+        bigint id PK
+        bigint ticket_id FK
+        bigint agent_id FK
+    }
+    customers {
+        bigint id PK "domínio clientes"
+    }
+    orders {
+        bigint id PK "domínio vendas"
+    }
+    shipments {
+        bigint id PK "domínio logistica"
+    }
+```
+
+<!-- fim do trecho gerado -->
 
 ---
 

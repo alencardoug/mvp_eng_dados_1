@@ -66,12 +66,12 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 3 — Modelo e banco transacional.** Termo aprovado (**M0**), decisões registradas em ADR
-(**M1**) e o ambiente local subindo do zero com um comando (**M2**). Nada
-[pendente](docs/pendencias.md) do lado do Owner.
+**Etapa 4 — Gerador de dados sintéticos.** Termo aprovado (**M0**), decisões registradas em ADR
+(**M1**), ambiente subindo do zero com um comando (**M2**) e o **banco transacional de 40 tabelas**
+criado por migrações reversíveis. Nada [pendente](docs/pendencias.md) do lado do Owner.
 
 O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
 
 ```bash
-make env && make install && make up
+make env && make install && make up && make migrate
 ```

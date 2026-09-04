@@ -14,10 +14,14 @@ authors = [{ name = "Douglas Alencar" }]
 # tornaria o ambiente local diferente do da nuvem sem que ninguém percebesse.
 requires-python = ">=3.11,<3.12"
 
-# Vazio por escopo, não por esquecimento: a Etapa 2 entrega o ambiente. As
-# dependências entram na etapa que as usa — SQLAlchemy e Alembic na Etapa 3
-# (ADR-0009, ADR-0010), e assim por diante.
-dependencies = []
+# Cada dependência entra na etapa que a usa, e nenhuma entra sem ADR que a
+# justifique. O driver `psycopg` é detalhe de implementação do ADR-0009, não
+# escolha de arquitetura: o SQLAlchemy é a fronteira.
+dependencies = [
+    "SQLAlchemy>=2.0,<3.0",   # ADR-0009 — modelos como fonte de verdade do schema
+    "alembic>=1.13,<2.0",     # ADR-0010 — migrações derivadas dos modelos
+    "psycopg[binary]>=3.2,<4.0",
+]
 
 [build-system]
 requires = ["hatchling"]

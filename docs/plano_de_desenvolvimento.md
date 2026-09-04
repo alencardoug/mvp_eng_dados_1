@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.2 |
-| Etapa atual | **Etapa 3 — Modelo e banco transacional** (**M0**, **M1** e **M2** concluídos) |
+| Versão | 2.3 |
+| Etapa atual | **Etapa 4 — Gerador de dados sintéticos** (**M0**, **M1** e **M2** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -111,14 +111,16 @@ flowchart LR
 
 ### Etapa 3 — Modelo e banco transacional
 
+*Concluída em 04/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Um banco transacional que um sistema real poderia usar: normalizado, íntegro e versionado. |
 | **Pré-requisito** | Etapa 2 |
 | **Entregas** | **E3** |
 | **Decisões** | **D13** ([ADR-0013](adr/0013-nomenclatura-por-prefixo-de-tipo.md)) — aceita em 04/09/2026 |
-| **Artefatos** | Modelos SQLAlchemy das 40 tabelas em `src/` · `db/migrations/` geradas por Alembic a partir deles · diagrama entidade-relacionamento · dicionário preenchido para o schema `oltp` |
-| **Critérios de conclusão** | Migrações aplicáveis do zero e reversíveis — a descida **executada**, não apenas gerada ([ADR-0010](adr/0010-alembic-para-migracoes.md)) · 3FN como referência, com desvios justificados por escrito · chaves, *constraints* e índices declarados · `inventory_movements` conforme o [contrato de evento](modelo_de_dados.md#5-contrato-do-evento-de-estoque) · todo campo classificado |
+| **Artefatos** | Modelos SQLAlchemy das 40 tabelas em `src/mvp_ed1/models/` · `db/migrations/` derivadas deles · diagrama ER e dicionário **gerados** dos modelos por `make catalog` |
+| **Critérios de conclusão** | Migrações aplicáveis do zero e reversíveis — descida **executada** ✓ (subida → descida → subida, 40 tabelas → 0 → 40) · 3FN como referência, com [seis desvios justificados](modelo_de_dados.md) ✓ · chaves, *constraints* e índices declarados ✓ (59 índices, `CHECK` em toda enumeração) · `inventory_movements` conforme o [contrato de evento](modelo_de_dados.md#5-contrato-do-evento-de-estoque) ✓ · todo campo classificado ✓ (418 campos, conferido por asserção) |
 | **Riscos tratados** | **R4**, **R6** |
 | **Conceitos** | Normalização · integridade referencial · *constraints* e índices · migração reversível · livro de eventos *append-only* |
 

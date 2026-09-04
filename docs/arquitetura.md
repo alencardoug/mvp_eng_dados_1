@@ -12,7 +12,7 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.2 |
+| Versão | 2.3 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
 | Última revisão | 04/09/2026 |
 
@@ -217,6 +217,7 @@ mvp_ed1/
 ├── CLAUDE.md                     # convenções de trabalho e desenvolvimento assistido
 ├── Abertura_de_projeto.md        # Termo de Abertura
 ├── Makefile                      # (Etapa 2) interface de operação
+├── alembic.ini                   # (Etapa 3) configuração das migrações, sem credencial
 ├── docs/
 │   ├── arquitetura.md
 │   ├── plano_de_desenvolvimento.md
@@ -235,13 +236,14 @@ mvp_ed1/
 │   └── adr/
 ├── docker/                       # (Etapa 2) composição do ambiente local
 ├── db/                           # (Etapa 3) migrações Alembic e seeds
-│   ├── migrations/
+│   ├── migrations/               # env.py + versions/ derivadas dos modelos
 │   └── seeds/
 ├── pyproject.toml                # (Etapa 2) pacote, interpretador e dependências
 ├── uv.lock                       # (Etapa 2) trava de versões — versionado
 ├── .python-version               # (Etapa 2) interpretador declarado: 3.11
 ├── src/
 │   └── mvp_ed1/                  # (Etapa 2) pacote instalável, importado por caminho absoluto
+│       ├── models/               # (Etapa 3) as 40 tabelas — fonte de verdade do schema
 │       ├── generator/            # (Etapa 4) motor de geração + configuração declarativa
 │       ├── legacy/               # (Etapa 4) gerador da origem legada
 │       └── streaming/            # (Etapa 4) produtor e pipeline Beam
