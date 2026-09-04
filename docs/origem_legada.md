@@ -12,8 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `generate_legacy_database.py` (proposto) |
-| Versão | 1.0 |
-| Última revisão | 01/09/2026 |
+| Versão | 2.0 |
+| Catálogo de falhas | 21 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -63,19 +64,67 @@ quantidade de **registros falhos**.
 
 ### 3.1 Catálogo de falhas obrigatórias
 
-| Campo lógico | Valores legados | Tratamento esperado |
-|---|---|---|
-| `quantity` | `8`, `oito`, `8.0`, `8,0` | Converter para inteiro quando a equivalência for inequívoca. |
-| `quantity` | `8.5`, `oito caixas`, vazio | Rejeitar: não há regra determinística válida para o grão. |
-| `birth_date` | `21/03/1990`, `1990.03.21` | Interpretar pelo formato conhecido e normalizar para ISO. |
-| `birth_date` | `13/13/2013`, `01/1800` | Rejeitar: data impossível, incompleta ou fora da regra de negócio. |
-| `amount` | `1.234,56`, `1234.56`, `R$ 1.234,56` | Normalizar *locale* e moeda antes da conversão decimal. |
-| `boolean_value` | `sim`, `não`, `S`, `N`, `1`, `0` | Mapear somente valores previstos no dicionário de conversão. |
-| Chaves e textos | Espaços, caixa inconsistente, duplicatas, referências órfãs | Padronizar quando seguro; rejeitar duplicidade ou órfão sem resolução inequívoca. |
+Este catálogo é a **fonte da verdade** do tratamento do legado
+([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)). Dele saem três coisas geradas —
+o injetor de falhas do gerador, as regras de limpeza e os testes — e é por isso que injetar e tratar
+não podem divergir: são o mesmo arquivo.
 
-Outras falhas cobrem e-mails malformados, estados desconhecidos, valores monetários
-inconsistentes, quantidades negativas, datas futuras indevidas, totais que não reconciliam e
-codificações textuais divergentes.
+Cada tipo tem **código estável**, usado como motivo de rejeição no schema `quarantine`. O código
+nunca é reaproveitado.
+
+**Numéricos e monetários**
+
+| Código | Campo lógico | Valor legado | Tratamento |
+|---|---|---|---|
+| `NUM_TEXT_EQUIV` | `quantity` | `8`, `oito`, `8.0`, `8,0` | Converter: a equivalência é inequívoca |
+| `NUM_AMBIGUOUS` | `quantity` | `8.5`, `oito caixas`, vazio | Rejeitar: não há regra determinística válida para o grão |
+| `NUM_OUT_OF_RANGE` | `quantity` | Negativo onde não cabe, ou acima do limite físico | Rejeitar |
+| `MONEY_LOCALE` | `amount` | `1.234,56`, `1234.56`, `R$ 1.234,56` | Normalizar *locale* e moeda antes da conversão decimal |
+| `MONEY_NEGATIVE` | `amount` | Valor negativo em campo que não admite estorno | Rejeitar |
+
+**Datas e tempo**
+
+| Código | Campo lógico | Valor legado | Tratamento |
+|---|---|---|---|
+| `DATE_FORMAT_KNOWN` | `birth_date` | `21/03/1990`, `1990.03.21` | Interpretar pelo formato conhecido e normalizar para ISO |
+| `DATE_IMPOSSIBLE` | `birth_date` | `13/13/2013`, `01/1800` | Rejeitar: data impossível, incompleta ou fora da regra de negócio |
+| `DATE_FUTURE` | Datas de fato consumado | Nascimento ou pedido no futuro | Rejeitar |
+| `DATE_TZ_MISSING` | *Timestamp* de evento | Sem fuso horário | Aplicar o fuso declarado da origem; rejeitar se a origem não o declara |
+
+**Texto e codificação**
+
+| Código | Campo lógico | Valor legado | Tratamento |
+|---|---|---|---|
+| `TEXT_ENCODING` | Qualquer texto | `JosÃ©`, `SÃ£o Paulo` | Reparar quando o par de codificações é conhecido; rejeitar se ambíguo |
+| `TEXT_WHITESPACE_CASE` | Chaves e textos | Espaços à volta, caixa inconsistente | Padronizar |
+| `TEXT_TRUNCATED` | Texto longo | Cortado no limite da coluna legada | Rejeitar: o que foi perdido não se restaura |
+| `TEXT_DELIMITER` | Qualquer texto | Delimitador dentro do campo, deslocando as colunas | Rejeitar a **linha inteira** — as demais colunas também estão erradas |
+| `NULL_DISGUISED` | Qualquer campo | `NULL`, `N/A`, `-`, `#N/D`, texto vazio | Converter para nulo real |
+
+**Domínios, booleanos e formatos**
+
+| Código | Campo lógico | Valor legado | Tratamento |
+|---|---|---|---|
+| `BOOL_VARIANT` | `boolean_value` | `sim`, `não`, `S`, `N`, `1`, `0` | Mapear somente valores previstos no dicionário de conversão |
+| `ENUM_UNKNOWN` | Estado ou status | Valor fora do domínio conhecido | Rejeitar |
+| `EMAIL_MALFORMED` | `email` | Sem `@`, com espaço, domínio inválido | Rejeitar |
+
+**Integridade e consistência**
+
+| Código | Campo lógico | Valor legado | Tratamento |
+|---|---|---|---|
+| `FK_ORPHAN` | Chave estrangeira | Referência a chave que não existe | Rejeitar |
+| `DUP_EXACT` | Registro inteiro | Duplicata idêntica | Deduplicar, mantendo uma ocorrência |
+| `DUP_PARTIAL` | Chave natural | Mesma chave, atributos divergentes | Rejeitar: não há critério de desempate seguro |
+| `TOTAL_MISMATCH` | Total do pedido | Total ≠ soma dos itens | Rejeitar |
+
+A separação entre **converter** e **rejeitar** é o problema central desta origem, e o critério é
+único: converte-se quando existe **uma** interpretação possível; rejeita-se quando existe mais de
+uma. `oito` → 8 converte; `oito caixas` não, porque o grão é desconhecido.
+
+O piso de cobertura do [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) exige que
+**todos os 21 tipos estejam representados em qualquer escala** — um tipo sem registro gerado é um
+tratamento sem teste.
 
 ### 3.2 Manifesto de falhas
 
@@ -121,8 +170,11 @@ Regras invioláveis:
 
 ## 6. Empilhamento e reconciliação
 
-Somente `accepted` e `corrected` são empilhados aos dados principais na camada `trusted`, usando
-uma chave de procedência que impede colisão entre origens (decisão pendente **D15**).
+Somente `accepted` e `corrected` são empilhados aos dados principais na camada `trusted`. A colisão
+entre origens é impedida por **`source_system` como coluna explícita**, com a chave substituta
+derivada do *hash* de (`source_system`, chave natural) —
+[ADR-0021](adr/0021-procedencia-no-empilhamento.md). A procedência permanece legível em todas as
+camadas, o que torna "quantos registros vieram do legado?" uma cláusula `WHERE`.
 
 A reconciliação é obrigatória e deve fechar exatamente:
 
@@ -132,6 +184,12 @@ stacked_rows   = accepted_rows + corrected_rows
 ```
 
 Reprocessar o mesmo `snapshot_id` não pode duplicar registros: o tratamento é idempotente.
+
+**Exclusões.** Diferente da origem principal, que pratica *soft delete*, o legado **apaga
+fisicamente** — é o comportamento verossímil de um sistema antigo. A ausência é detectada por
+comparação contra o *snapshot* anterior, que é possível porque `raw_legacy` é imutável e retido
+([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)). Registro que desaparece sem explicação é
+divergência de reconciliação, nunca resultado.
 
 ---
 

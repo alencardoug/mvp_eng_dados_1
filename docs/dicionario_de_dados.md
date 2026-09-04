@@ -12,9 +12,9 @@
 |---|---|
 | Fonte de verdade | Arquivos `.yml` do projeto dbt |
 | Este documento | Índice navegável e registro do que ainda não está no dbt |
-| Versão | 1.0 |
+| Versão | 1.1 |
 | Situação | **Vazio** — preenchido a partir da Etapa 3 |
-| Última revisão | 01/09/2026 |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -64,6 +64,17 @@ make dbt-docs      # gera e serve o site com dicionário, linhagem e glossário 
 
 A coluna **Classificação** usa exclusivamente os níveis da
 [política](governanca_de_dados.md#4-classificação-de-sensibilidade).
+
+### 3.1 Campos técnicos padrão
+
+Alguns campos aparecem em muitas tabelas por decisão de arquitetura, e são descritos **uma vez**
+aqui em vez de repetidos em cada objeto:
+
+| Campo | Onde aparece | Tipo | Classificação | Origem |
+|---|---|---|---|---|
+| `source_system` | Toda tabela que recebe mais de uma origem, de `raw` a `analytics` | Texto, domínio restrito | Interno | [ADR-0021](adr/0021-procedencia-no-empilhamento.md) |
+| `deleted_at` | Toda tabela transacional mutável | `timestamptz`, nulo quando ativo | Interno | [ADR-0015](adr/0015-sincronizacao-e-exclusoes.md) |
+| `valid_from` / `valid_to` | As sete dimensões SCD tipo 2 | `timestamptz` | Interno | [ADR-0017](adr/0017-chaves-substitutas-e-scd.md) |
 
 ---
 

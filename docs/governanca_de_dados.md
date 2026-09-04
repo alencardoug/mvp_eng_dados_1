@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.1 |
+| Versão | 2.2 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 03/09/2026 |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -117,9 +117,13 @@ O trabalho já está codificado; a migração consome os mesmos arquivos:
    caminho pode ser um pacote de código aberto do ecossistema dbt (por exemplo,
    `dbt-google-data-catalog`) ou um script próprio chamando a API do GCP — a escolha é feita na
    Etapa 13, com a avaliação do pacote antes de escrever código.
-2. **Políticas de acesso** — o Terraform provisiona *policy tags* no BigQuery; a coluna marcada
-   como `sensitivity: "personal"` recebe automaticamente a *tag* correspondente, e apenas
-   identidades autorizadas pelo IAM conseguem executar `SELECT` sobre ela.
+2. **Políticas de acesso** — o Terraform provisiona a taxonomia de *policy tags* no BigQuery, e um
+   **fluxo automatizado** vincula cada *tag* à coluna correspondente a partir do YAML de
+   classificação, disparado quando esse YAML muda
+   ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)). A coluna marcada como
+   `sensitivity: "personal"` recebe a *tag*, e apenas identidades autorizadas pelo IAM conseguem
+   executar `SELECT` sobre ela. A autenticação do fluxo usa **federação de identidade**: nenhuma
+   chave de conta de serviço é armazenada como segredo.
 
 A classificação deixa de ser documental e passa a ser **controle efetivo**, sem que nenhuma
 descrição precise ser reescrita.
@@ -151,6 +155,11 @@ são *roles* do PostgreSQL; na fase GCP, contas de serviço e grupos IAM por dat
 | `streamer` | `analytics` | — | Conta de serviço do Dataflow |
 | `analyst` | — | `consumption` apenas | Grupo IAM no dataset das views |
 | `auditor` | — | `quarantine` | Grupo IAM de auditoria |
+
+`governance` e `snapshots` não aparecem na tabela porque não são camadas de fluxo: `governance` é
+escrito pelo Airflow e pelo dbt e lido pelo `auditor`
+([ADR-0023](adr/0023-escopo-do-schema-governance.md)); `snapshots` é mantido exclusivamente pelo dbt
+([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)) e não é lido por ninguém fora do pipeline.
 
 Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `staging`, `trusted` ou
 `analytics`. O contrato de consumo é a view, e o schema `consumption`

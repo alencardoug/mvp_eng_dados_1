@@ -11,10 +11,10 @@
 | Campo | Informação |
 |---|---|
 | Escopo | Um único domínio: `inventory_movements` |
-| Decisão | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
-| Versão | 1.0 |
-| Situação | Proposta — transporte e semântica de entrega dependem de confirmação em ADR |
-| Última revisão | 01/09/2026 |
+| Decisões | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) |
+| Versão | 1.1 |
+| Situação | Vigente — materialização, entrega, cursor e implantação fixados por ADR |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -39,7 +39,7 @@ em *batch*.
 
 ```mermaid
 flowchart LR
-    OLTP[("source_db<br/>inventory_movements")] -->|log de transações| CDC["CDC<br/>Debezium"]
+    OLTP[("source_db<br/>inventory_movements")] -->|log de transações| CDC["CDC<br/>Debezium sobre<br/>Kafka Connect"]
     CDC --> BUS["Mensageria<br/>Redpanda"]
     BUS --> BEAM["Apache Beam<br/>DirectRunner"]
     BEAM --> SINK[("analytics<br/>saldo em tempo real")]
@@ -49,10 +49,10 @@ flowchart LR
 
 | Camada | Fase local | Fase GCP |
 |---|---|---|
-| Captura (CDC) | **Debezium** lendo o log de transações do PostgreSQL | **Datastream** lendo o log do Cloud SQL |
+| Captura (CDC) | **Debezium** como conector do **Kafka Connect**, lendo o log de transações do PostgreSQL ([ADR-0020](adr/0020-debezium-sobre-kafka-connect.md)) | **Datastream** lendo o log do Cloud SQL |
 | Transporte | **Redpanda** — compatível com Kafka e muito mais leve para rodar em Docker | **Pub/Sub** |
 | Processamento | **Apache Beam (Python)** com `DirectRunner` | **O mesmo código Beam** no **Dataflow** |
-| Destino | `inventory_balances_realtime` no `warehouse_db` | Tabela equivalente no BigQuery via *streaming inserts* |
+| Destino | Tabela de **deltas imutáveis** no `warehouse_db`, com o saldo como view sobre ela ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)) | Tabela equivalente no BigQuery via *streaming inserts* |
 
 A escolha do Apache Beam é o que sustenta a paridade (**P4**): o mesmo código de pipeline roda
 localmente no `DirectRunner` e, na nuvem, distribuído no Dataflow. Trocam-se as pontas — origem e
@@ -122,7 +122,19 @@ armazém colunar como o BigQuery. O desenho é outro:
    do streaming, entregando o saldo atualizado.
 
 O resultado é um exemplo concreto de caminho quente e caminho frio convivendo sob um mesmo contrato
-de consumo. A materialização exata da tabela de saldo e da view é decisão pendente (**D16**).
+de consumo.
+
+A forma foi fixada pelo [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md):
+
+- **a tabela de deltas é imutável** — nada é sobrescrito, e todo saldo é explicável movimento a
+  movimento;
+- **a entrega é *at-least-once* com escrita idempotente** por chave de evento: duplicata reescreve o
+  mesmo registro em vez de somar duas vezes;
+- **janela fixa de um minuto por tempo de evento**, com *allowed lateness* inicial de cinco minutos
+  — número **não medido**, a calibrar na Etapa 7 (**P5**);
+- **o cursor vive nos tópicos internos do Redpanda**, gerido pelo conector: nenhuma tabela
+  participa da recuperação. A consequência operacional de restaurar o banco está em
+  [Capacidade e Recuperação](capacidade_e_recuperacao.md#32-o-cursor-de-cdc-não-está-no-pacote--e-por-quê).
 
 ---
 
@@ -154,16 +166,18 @@ o cursor de CDC; o consumidor parte do evento seguinte. A sobreposição entre *
 
 ---
 
-## 7. Decisões pendentes deste fluxo
+## 7. Decisões deste fluxo
 
-| ID | Questão |
-|---|---|
-| **D16** | Materialização da tabela de saldo em tempo real e da view unificada |
-| **D17** | Semântica de entrega alvo, meta de latência e tamanho da janela |
-| **D18** | Como o cursor de CDC é armazenado e recuperado entre execuções |
-| **D29** | Forma de implantação do Debezium: Kafka Connect ou Debezium Server autônomo |
+Nenhuma pendente. As quatro foram fechadas em 04/09/2026:
 
-Todas estão registradas em [decisões pendentes](adr/README.md).
+| ID | Questão | ADR |
+|---|---|---|
+| **D16** | Materialização do saldo e da view unificada | [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) |
+| **D17** | Semântica de entrega, latência e janela | [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) |
+| **D18** | Cursor de CDC | [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) |
+| **D29** | Forma de implantação do Debezium | [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) |
+
+O único número ainda **não medido** é o *allowed lateness*, calibrado na Etapa 7.
 
 ---
 

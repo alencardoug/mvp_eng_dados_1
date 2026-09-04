@@ -4,8 +4,8 @@
 |---|---|
 | **Projeto** | MVP — Engenharia e Governança de Dados de Referência (`mvp_eng_dados_1`) |
 | **Repositório** | `github.com/alencardoug/mvp_eng_dados_1` (pasta local: `mvp_ed1`) |
-| **Versão** | 1.1 — rascunho para aprovação |
-| **Data** | 01/09/2026 |
+| **Versão** | 1.2 — **aprovada** |
+| **Data** | 04/09/2026 |
 | **Owner principal** | Douglas Alencar |
 | **Natureza** | MVP técnico de engenharia de dados, evolutivo, público |
 | **Documentação** | Mapa completo dos artefatos no [README](README.md) |
@@ -19,11 +19,15 @@ replicado no Google Cloud Platform, preservando as mesmas boas práticas.
 
 Projetos de engenharia de dados costumam ser apresentados como diagramas ou trechos de pipeline,
 sem um caminho completo, reproduzível e governado do transacional até o consumo. Este MVP
-constitui uma **referência prática e auditável** desse caminho, e serve simultaneamente ao objetivo
-do Owner de **dominar engenharia de dados em profundidade**. A solução é tratada como produto de
+constitui uma **referência prática e auditável** desse caminho. A solução é tratada como produto de
 engenharia: versionada, documentada, testada e evoluída de forma controlada.
 
 ## 2. Objetivo
+
+Os dados são sintéticos e as duas origens são simuladas; **o padrão de execução não é simulado**. A
+analogia é o simulador de voo: ele é conduzido com a disciplina do voo real justamente porque vai
+virar voo — não com a tolerância de um experimento. Toda escolha é a que um ambiente corporativo
+faria (**P10**), e o resultado é avaliado como produto de engenharia, não como exercício.
 
 Construir e publicar um MVP capaz de:
 
@@ -48,9 +52,14 @@ Detalhamento técnico em [Arquitetura](docs/arquitetura.md) e
 
 ## 4. Fora do escopo
 
-BI e dashboards finais · data lake e formatos colunares distribuídos · CI/CD de infraestrutura ·
-fontes externas reais ou origens além das duas previstas · otimização de performance em larga
-escala · multi-tenant · operação continuada na nuvem após a replicação.
+BI e dashboards finais · data lake e formatos colunares distribuídos · fontes externas reais ou
+origens além das duas previstas · otimização de performance em larga escala · multi-tenant ·
+operação continuada na nuvem após a replicação.
+
+**CI/CD** permanece fora do escopo, com **uma exceção declarada**: a aplicação automática das
+*policy tags* no BigQuery a partir do YAML de classificação, na Etapa 13. A exceção existe porque
+governança aplicada à mão não é governança verificável, e é limitada a esse fluxo — a autenticação
+usa federação de identidade, sem credencial longeva no repositório.
 
 ## 5. Entregas principais
 
@@ -75,18 +84,24 @@ escala · multi-tenant · operação continuada na nuvem após a replicação.
 
 O Owner é responsável por escopo, decisões e aprovação · todos os dados são sintéticos · a fase
 local precede e condiciona a fase GCP · o ambiente local usa contêineres e custa próximo de zero ·
+o volume local é reduzido de propósito, e o trabalho com alto volume pertence à fase GCP ·
 o Claude Code atua como ferramenta de desenvolvimento assistido, sem poder de aprovação e com
 revisão obrigatória do Owner · o repositório é público.
 
 ## 8. Restrições
 
-Evitar custos recorrentes desnecessários · evitar complexidade sem valor demonstrável · não
-introduzir serviço de nuvem antes da fase GCP · não adicionar ferramenta apenas para ampliar a
-stack · manter paridade conceitual entre local e GCP · respeitar o orçamento de 4 GB do ambiente
-local · observar integralmente a [Política de Governança de Dados](docs/governanca_de_dados.md),
-que define dados permitidos, dados proibidos e tratamento de segredos.
+Evitar custos recorrentes desnecessários · não introduzir serviço de nuvem antes da fase GCP ·
+não adicionar ferramenta apenas para ampliar a *stack* · manter paridade conceitual entre local e
+GCP · dimensionar o ambiente local pela **cobertura** — todas as tabelas, todos os casos de borda —
+e não pelo volume · observar integralmente a
+[Política de Governança de Dados](docs/governanca_de_dados.md), que define dados permitidos, dados
+proibidos e tratamento de segredos.
 
-O projeto é governado pelos [Princípios](docs/principios.md) **P1**–**P9**; os riscos e seus
+Complexidade sem valor demonstrável continua vedada — com a ressalva de que **fidelidade à prática
+de produção é valor demonstrável** (**P10**): o projeto existe para enfrentar os desafios comuns de
+um ambiente real, e a alternativa mais simples não vence só por ser mais simples.
+
+O projeto é governado pelos [Princípios](docs/principios.md) **P1**–**P10**; os riscos e seus
 tratamentos estão no [Registro de Riscos](docs/riscos.md).
 
 ## 9. Papéis e responsabilidades
@@ -105,12 +120,15 @@ por avaliação de valor, custo, risco e aderência a este Termo.
 
 ## 11. Aprovação
 
-**Situação: pendente de aprovação formal.** Decisão solicitada: *autorizar o início e a execução da
-fase local (pré-GCP) do projeto, conforme escopo, princípios, premissas, restrições e critérios
-estabelecidos neste Termo.* Esta e as demais pendências do Owner estão reunidas em
+**Situação: aprovado em 04/09/2026 por Douglas Alencar, Owner principal.** Decisão tomada:
+*autorizar o início e a execução da fase local (pré-GCP) do projeto, conforme escopo, princípios,
+premissas, restrições e critérios estabelecidos neste Termo.*
+
+A aprovação fecha o marco **M0**. As pendências remanescentes do Owner seguem reunidas em
 [Pendências](docs/pendencias.md).
 
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 01/09/2026 | Redação inicial |
 | 1.1 | 01/09/2026 | Detalhamento redistribuído para artefatos específicos; inclusão do objetivo de aprendizado, da origem legada e do fluxo de streaming no escopo |
+| 1.2 | 04/09/2026 | Orçamento de 4 GB substituído por critério de cobertura (alto volume passa à fase GCP); exceção de CI/CD para *policy tags*; princípio **P10** incorporado às restrições; objetivo de aprendizado retirado do Termo — o estudo do resultado é atividade posterior à entrega, não parte dela |

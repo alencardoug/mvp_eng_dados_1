@@ -15,8 +15,8 @@ MVP de engenharia e governança de dados de ponta a ponta, sobre um marketplace 
 *omnichannel* sintético: PostgreSQL → Airbyte → dbt → datamart dimensional → views, orquestrado por
 Airflow, com um fluxo de streaming de estoque (Debezium → Redpanda → Beam) e replicação futura no
 GCP por Terraform. Todos os dados são sintéticos. A fase local precede e condiciona a fase GCP.
-O objetivo declarado do Owner inclui **aprender engenharia de dados em profundidade** — explicar o
-porquê faz parte da entrega.
+O padrão de execução é o de um ambiente corporativo real: o dado é simulado, a engenharia não
+(**P10**). O foco é construir — o estudo do resultado é atividade posterior à entrega.
 
 ---
 
@@ -47,7 +47,7 @@ padrão externo é gerado em inglês.
 - Valores monetários em tipo decimal; **nunca `float`**.
 - *Timestamps* de evento sempre com fuso horário (`timestamptz`).
 
-O padrão de afixos está sujeito à decisão **D13**; até que o ADR exista, vale o descrito acima.
+O padrão de afixos está fixado pelo [ADR-0013](docs/adr/0013-nomenclatura-por-prefixo-de-tipo.md).
 
 ---
 
@@ -78,6 +78,13 @@ consegue revisar de verdade. As regras abaixo existem para manter a revisão vi�
 **Preferir sempre geração orientada a artefato declarativo.** Configuração do gerador, `.yml` do
 dbt, arquivo de conector — não dezenas de scripts equivalentes. O que se revisa é a declaração, não
 a repetição.
+
+**Revisão integral do declarativo, amostragem no derivado.** O Owner revisa 100% do que é
+declaração — configuração do gerador, `.yml` do dbt, modelos SQLAlchemy, catálogo de falhas do
+legado, ADRs — e por amostragem o que nasce dela: migrações geradas, testes repetitivos,
+documentação de coluna. É o que torna **R14** administrável: se a declaração está correta e a
+geração é determinística, o derivado herda a correção. O corolário é que **erro em declaração é
+bloqueante**; erro em derivado é sintoma, e se corrige na declaração — nunca no arquivo gerado.
 
 **Nunca decidir sozinho o que exige ADR.** Escolha de ferramenta, mudança de camada, alteração de
 modelagem central ou de tratamento de dados são decisão do Owner. Na dúvida, propor e registrar
@@ -114,8 +121,9 @@ Antes de considerar uma entrega concluída:
 - [ ] reconciliação entre camadas conferida;
 - [ ] catálogo, dicionário e linhagem atualizados na mesma entrega;
 - [ ] campos novos classificados quanto à sensibilidade;
-- [ ] tamanho medido e dentro do orçamento de 4 GB;
+- [ ] cobertura conferida — todas as tabelas populadas e todos os casos de borda representados;
 - [ ] revisão de segredos e de `.gitignore`;
+- [ ] revisão feita conforme a §5 — integral no declarativo, por amostragem no derivado;
 - [ ] documentação revisada, sem duplicar o que já existe em outro artefato;
 - [ ] decisões relevantes registradas em ADR;
 - [ ] critérios de conclusão da etapa, no [plano](docs/plano_de_desenvolvimento.md), satisfeitos.

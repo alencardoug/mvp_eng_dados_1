@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.1 |
+| Versão | 1.2 |
 | Situação | **Nenhum comando implementado ainda.** Cada alvo passa a existir na etapa indicada |
-| Última revisão | 03/09/2026 |
+| Última revisão | 04/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -25,10 +25,10 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 | Requisito | Observação |
 |---|---|
 | Docker e Docker Compose | Todo o ambiente roda em contêineres |
-| Python 3.x | Versão exata fixada na Etapa 2 |
+| Python 3.x | Versão exata fixada na Etapa 2. O código do projeto é instalado como pacote: `pip install -e .` ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |
-| Disco livre | **Pelo menos 8 GB** — os dados cabem em 4 GB, o resto é imagem, log e WAL |
-| Memória | Airbyte, Airflow e a mensageria não precisam subir ao mesmo tempo; ver seção 5 |
+| Disco livre | **Pelo menos 8 GB** — o volume de dados é baixo por desenho ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)); o espaço é para imagem, log e WAL |
+| Memória | **A restrição real do ambiente.** Airbyte, Airflow, Redpanda e Kafka Connect não precisam subir ao mesmo tempo; ver seção 5 |
 
 Nenhum serviço de nuvem é necessário na fase local, e nenhuma credencial de nuvem deve existir na
 máquina para executá-la.
@@ -58,20 +58,22 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
 | 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados | Etapa 5 |
-| 7 | `make stream-up` | Sobe CDC, mensageria e o *job* Beam | Etapa 7 |
+| 7 | `make stream-up` | Sobe Redpanda, Kafka Connect com o conector Debezium e o *job* Beam | Etapa 7 |
 | 8 | `make stream-produce` | Executa o produtor de eventos de estoque | Etapa 7 |
 | 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
-| 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice | Etapa 4 |
+| 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
 | 11 | `make check` | Verificação completa: testes, reconciliações e revisão de segredos | Etapa 12 |
 
 Parâmetros de execução — perfil de volume, `seed` e `as_of_date` — são passados por variável de
 ambiente ou por argumento do alvo, nunca editados no código.
 
 ```bash
-make seed-data PROFILE=smoke        # padrão de desenvolvimento, em todas as etapas
-make seed-data PROFILE=demo         # medição única, ao fim da Etapa 4
-make seed-data PROFILE=demo_4gb     # validação final e portfólio, na Etapa 12
+make seed-data                      # fator `dev`, padrão em todas as etapas
+make seed-data SCALE=10             # fator maior, quando houver motivo declarado
 ```
+
+O volume é expresso por **fator de escala** sobre um conjunto único de proporções
+([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)). Não há perfis de tamanho.
 
 ---
 
@@ -85,7 +87,7 @@ make seed-data PROFILE=demo_4gb     # validação final e portfólio, na Etapa 1
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow | Etapa 5 |
 | `make dag-run` | Dispara a DAG do fluxo completo | Etapa 5 |
-| `make stream-down` | Derruba CDC, mensageria e o *job* | Etapa 7 |
+| `make stream-down` | Derruba Kafka Connect, mensageria e o *job* | Etapa 7 |
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
 
@@ -104,7 +106,7 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Desenvolver modelos dbt | `make up` + dados já carregados |
 | Ajustar o gerador | `make up` apenas |
 | Trabalhar no streaming | `make up` + `make stream-up` |
-| Execução completa de validação | Tudo, com o perfil `demo_4gb` |
+| Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
 
 ---
 

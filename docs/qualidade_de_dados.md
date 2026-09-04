@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.0 |
-| Última revisão | 01/09/2026 |
+| Versão | 1.1 |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -51,8 +51,13 @@ regra vive no banco, não em um teste posterior.
 - contagem de registros por tabela e por execução;
 - controle de registros inseridos, alterados e removidos;
 - captura dos metadados de sincronização do Airbyte;
-- estratégia explícita de carga completa contra incremental por tabela (decisão pendente **D20**);
-- tratamento documentado de exclusões na origem e de atualizações tardias (**D21**).
+- conferência de que cada tabela usa o modo declarado no critério de sincronização
+  ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)) — tabela sem modo declarado é falha de *build*,
+  não escolha implícita;
+- para as tabelas incrementais, teste de **atualização tardia**: um registro com `updated_at`
+  anterior ao último cursor precisa entrar na carga seguinte;
+- para a origem transacional, propagação de `deleted_at` até o datamart;
+- para a origem legada, detecção de exclusão física por comparação com o *snapshot* anterior.
 
 ---
 
@@ -61,7 +66,16 @@ regra vive no banco, não em um teste posterior.
 - testes nativos do dbt: `unique`, `not_null`, `relationships`, `accepted_values`;
 - testes de `dbt-expectations` para regras que os nativos não cobrem — faixas de valores,
   distribuição, cardinalidade, comparação entre colunas;
-- testes customizados para valores financeiros e para intervalos SCD que não podem se sobrepor;
+- testes customizados para valores financeiros e para intervalos SCD que não podem se sobrepor —
+  vigências de uma mesma chave natural não podem ter interseção nem deixar lacuna
+  ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md));
+- teste de **grão** por fato: a chave declarada é única, o que prova que o grão é o que se afirma
+  ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
+- verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando
+  colunas, tipos ou obrigatoriedade mudam;
+- para `fact_inventory_movement`, único modelo incremental do projeto
+  ([ADR-0016](adr/0016-materializacao-por-camada.md)), **reconciliação contra a reconstrução
+  completa**: o resultado incremental e o `--full-refresh` precisam ser idênticos;
 - reconciliação de pedidos, pagamentos, estoque e remessas;
 - testes de atualidade dos dados;
 - documentação de fontes, modelos e colunas;
@@ -79,7 +93,11 @@ menos um teste correspondente. Uma invariante sem teste é uma invariante que n�
   entrada da transformação;
 - preservação de valor original, valor tratado e regra aplicada;
 - idempotência: reprocessar o mesmo `snapshot_id` não duplica registros;
-- chave composta de procedência, impedindo colisão entre origens;
+- `source_system` preenchido e dentro do domínio declarado em toda tabela empilhada
+  ([ADR-0021](adr/0021-procedencia-no-empilhamento.md));
+- cobertura do catálogo: **cada um dos 21 tipos de falha** tem ao menos um registro gerado e um
+  resultado esperado ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — tipo sem
+  registro é tratamento sem teste;
 - reconciliação entre extraídos, aceitos, corrigidos, rejeitados e empilhados;
 - bloqueio do empilhamento quando a regra de correção for ambígua;
 - relatório de qualidade por tabela, coluna, tipo de erro e resultado do tratamento.
@@ -89,6 +107,9 @@ menos um teste correspondente. Uma invariante sem teste é uma invariante que n�
 ## 6. Streaming de estoque
 
 - unicidade de `movement_id` e de `idempotency_key`;
+- **duplicata injetada deliberadamente**: reenviar o mesmo evento não pode alterar o saldo. É o
+  teste que transforma a idempotência do [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)
+  de intenção em garantia;
 - sequência sem duplicidade por armazém/SKU;
 - validação do sinal da quantidade conforme `movement_type`;
 - reconciliação de `inventory_balances` com o saldo inicial somado a `quantity_delta`;

@@ -6,19 +6,26 @@
 >
 > **O que não vive aqui:** como os dados são gerados (ver [Geração de Dados](geracao_de_dados.md));
 > a definição campo a campo e a classificação (ver
-> [Dicionário de Dados](dicionario_de_dados.md)); o orçamento de armazenamento (ver
+> [Dicionário de Dados](dicionario_de_dados.md)); o dimensionamento do ambiente (ver
 > [Capacidade e Recuperação](capacidade_e_recuperacao.md)); os testes (ver
 > [Qualidade de Dados](qualidade_de_dados.md)).
 
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.1 |
-| Situação | Proposta — materializações e chaves substitutas dependem de ADR |
-| Última revisão | 03/09/2026 |
+| Versão | 1.2 |
+| Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
+| Última revisão | 04/09/2026 |
 
-As contagens de linhas são **metas de geração** do perfil `demo_4gb`, não resultados medidos. O
-perfil é definido em [Geração de Dados](geracao_de_dados.md).
+As contagens de linhas são **exemplos de proporção**, não resultados medidos e não compromissos de
+tamanho: elas ilustram a relação entre as tabelas, e o volume efetivo é o produto dessa proporção
+pelo fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)). Os valores
+em fator 1 estão em [Geração de Dados](geracao_de_dados.md).
+
+Os nomes seguem o prefixo por tipo fixado no
+[ADR-0013](adr/0013-nomenclatura-por-prefixo-de-tipo.md); toda tabela mutável carrega `deleted_at`
+([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)) e toda tabela empilhada carrega `source_system`
+([ADR-0021](adr/0021-procedencia-no-empilhamento.md)).
 
 ---
 
@@ -145,6 +152,11 @@ banco.
 
 ### 3.1 Tabelas fato — 9
 
+Os **atributos e as medidas** de cada fato não estão fixados aqui: são derivados das perguntas de
+negócio, conforme o [ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md). Cada
+medida, quando declarada, é classificada como **aditiva**, **semiaditiva** ou **não aditiva** — a
+classificação que impede somar saldo de estoque ao longo do tempo.
+
 | Tabela | Linhas | Grão | Tipo |
 |---|---:|---|---|
 | `fact_sales_order_item` | 75.000 | Uma linha de item de pedido. | Transacional |
@@ -158,6 +170,11 @@ banco.
 | `fact_support_ticket_event` | 18.000 | Uma interação ou mudança de estado de chamado. | Transacional |
 
 ### 3.2 Dimensões — 17
+
+A chave substituta é o *hash* determinístico da chave natural, e as sete dimensões SCD tipo 2 são
+materializadas por `dbt snapshot` no schema `snapshots`
+([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)). Cada fato referencia a versão **vigente no
+instante do evento**, não a versão corrente.
 
 | Tabela | Linhas | Conteúdo principal | Tratamento |
 |---|---:|---|---|
@@ -253,8 +270,7 @@ já publicado. É esse contrato que torna possível o
 - índice em `(recorded_at, event_sequence)` para leitura incremental;
 - índice em `(source_type, source_id)` para linhagem e reconciliação;
 - índice parcial em `correlation_id` quando preenchido;
-- limite de tamanho para `metadata`, evitando que JSON arbitrário comprometa o orçamento de
-  armazenamento.
+- limite de tamanho para `metadata`, evitando que JSON arbitrário cresça sem controle.
 
 ### 5.3 Tipos de evento
 
@@ -281,18 +297,18 @@ já publicado. É esse contrato que torna possível o
 O `warehouse_db` concentra as camadas analíticas, fixadas em
 [ADR-0008](adr/0008-schemas-do-armazem.md).
 
-| Camada | Materialização proposta | Objetos estimados |
+| Camada | Materialização ([ADR-0016](adr/0016-materializacao-por-camada.md)) | Objetos estimados |
 |---|---|---:|
 | `raw` | Réplicas geradas pelo Airbyte a partir de `oltp` | Até 40 |
 | `raw_legacy` | Réplica do *snapshot* imutável de `legacy` | Até 40 |
-| `staging` | Views dbt das duas origens | Até 80 |
-| `trusted` | Views ou modelos intermediários dbt | Variável |
-| `analytics` | Tabelas dimensionais | 26 |
-| `consumption` | Views de consumo sobre `analytics` | A definir (**D27**) |
-| `quarantine` | Registro genérico de rejeições do tratamento legado | 1 |
-| `governance` | Objetos de catálogo e controle — existe apenas se **D14** aprovar | A definir |
+| `staging` | `view` | Até 80 |
+| `trusted` | `table` | Variável |
+| `analytics` | `table`, com `fact_inventory_movement` em `incremental` | 26 |
+| `consumption` | `view`, uma por pergunta de negócio, com `contract: enforced` | Uma por pergunta ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
+| `snapshots` | `dbt snapshot` das sete dimensões SCD tipo 2 | 7 |
+| `quarantine` | Registro genérico de rejeições, com motivo do catálogo do legado | 1 |
+| `governance` | Log de execução, reconciliação, quarentena e classificação aplicada ([ADR-0023](adr/0023-escopo-do-schema-governance.md)) | 4 conjuntos |
 
 Somando origens e armazém, o projeto prevê **até 187 tabelas persistidas conhecidas**. A contagem
-não inclui views, tabelas internas do Airbyte, artefatos técnicos do dbt nem objetos adicionais do
-schema `governance`. O número físico final depende das materializações aprovadas e está sujeito ao
-[orçamento de armazenamento](capacidade_e_recuperacao.md).
+não inclui views, tabelas internas do Airbyte nem artefatos técnicos do dbt — e, como `staging` e
+`consumption` são views, o número físico é menor que o inventário sugere.

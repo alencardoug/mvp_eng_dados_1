@@ -12,10 +12,10 @@
 | Campo | Informação |
 |---|---|
 | Ferramenta | Python + `Faker` ([ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)) |
-| Perfil padrão de desenvolvimento | `smoke` |
-| Perfil de validação | `demo_4gb` |
-| Versão | 1.1 |
-| Última revisão | 03/09/2026 |
+| Volume | Proporções + fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) |
+| Fator padrão | `dev` (1) |
+| Versão | 2.0 |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -75,21 +75,37 @@ A ordem respeita as dependências referenciais e a causalidade dos eventos:
 
 ---
 
-## 4. Parâmetros e perfis
+## 4. Parâmetros, proporções e fator de escala
 
-O gerador é totalmente parametrizado. São **três perfis**, cada um com um papel distinto:
+O [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) fixou como o volume é expresso:
+**um único conjunto de proporções entre as tabelas, um fator de escala que multiplica tudo, e um
+piso por tabela que garante cobertura em qualquer escala.** Não há mais perfis de tamanho —
+`smoke`, `demo` e `demo_4gb` foram aposentados.
 
-| Perfil | Quando roda | Para quê |
+| Nome | Fator | Quando roda |
 |---|---|---|
-| `smoke` | Padrão de todas as etapas | Desenvolver e testar em segundos. É o perfil do dia a dia, das Etapas 3 a 11. |
-| `demo` | Uma vez, ao fim da Etapa 4 | Medir bytes por linha e crescimento de índice, e calibrar **D26** por extrapolação. Cerca de 10% do `demo_4gb`. |
-| `demo_4gb` | Etapa 12 | Validação final e portfólio, onde os critérios de sucesso do Termo são verificados. |
+| `dev` | 1 | Padrão em **todas** as etapas locais |
+| `cloud` | a definir na Etapa 13, por medição | Fase GCP |
 
-Não é preciso gerar 1,1 milhão de linhas para conhecer a largura de uma linha: a medição é feita
-numa fração do volume e extrapolada, com erro pequeno e direção conhecida. Um quarto perfil,
-`scale` (estresse, fora do orçamento local), permanece previsto mas sem uso planejado.
+### 4.1 O piso de cobertura
 
-Parâmetros gerais:
+O piso é o que torna o ambiente local suficiente sem ser grande. Independentemente do fator, a
+geração precisa produzir:
+
+- toda tabela populada — nenhuma das 40 vazia;
+- todo valor de enumeração presente ao menos uma vez;
+- todo tipo de falha do [catálogo do legado](origem_legada.md) representado
+  ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md));
+- toda invariante de negócio do [Modelo de Dados](modelo_de_dados.md#4-invariantes-de-negócio)
+  exercida ao menos uma vez, incluindo os casos que devem falhar.
+
+**Piso e fator interagem, e isso precisa ser dito.** Em fator 1, o piso domina em várias tabelas
+pequenas, e a proporção efetiva entre elas deixa de ser a proporção declarada. Isso é intencional —
+cobertura vence realismo de proporção quando os dois competem —, mas significa que
+**proporções só são fiéis a partir do fator em que o piso deixa de ser o limite**. A verificação de
+cobertura é um teste; a de proporção, outro.
+
+### 4.2 Parâmetros gerais
 
 - `seed`;
 - período inicial e final;
@@ -98,42 +114,39 @@ Parâmetros gerais:
 - probabilidades de abandono, falha, cancelamento, devolução e atraso;
 - proporção de alterações cadastrais para SCD;
 - moeda e localidade;
-- perfil de volume;
+- **fator de escala**;
 - opção de geração de casos inválidos em ambiente isolado de teste.
 
-### 4.1 Perfil `demo_4gb`
+### 4.3 Entidades principais em fator 1
 
-Valores iniciais — **limites planejados**, a confrontar com a medição real:
+**Valores planejados iniciais** — ponto de partida da Etapa 4, a ajustar quando a geração real
+existir. Nenhum deles foi medido (**P5**).
 
-| Parâmetro | Valor inicial |
+| Parâmetro | Fator 1 (`dev`) |
 |---|---:|
 | `as_of_date` | `2026-09-01` na versão atual; explícita a cada execução |
 | `period_start` | `2024-01-01` |
 | `period_end` | `as_of_date` |
-| `customer_count` | 15.000 |
-| `product_count` | 3.000 |
-| `product_variant_count` | 6.000 |
-| `supplier_count` | 300 |
-| `purchase_order_count` | 4.000 |
-| `cart_count` | 400.000 |
-| `cart_item_count` | 1.100.000 |
-| `cart_item_min_count` | 1.000.001 |
-| `order_count` | 35.000 |
+| `customer_count` | 1.500 |
+| `product_count` | 300 |
+| `product_variant_count` | 600 |
+| `supplier_count` | 30 |
+| `purchase_order_count` | 400 |
+| `cart_count` | 4.000 |
+| `cart_item_count` | 11.000 |
+| `order_count` | 3.500 |
 | `warehouse_count` | 5 |
-| `inventory_movement_seed_count` | 120.000 |
-| `inventory_movement_stream_max_count` | 50.000 |
+| `inventory_movement_seed_count` | 12.000 |
+| `inventory_movement_stream_max_count` | 5.000 |
 | `stream_events_per_second` | Configurável |
 | `stream_seed` | Explícita e independente da `seed` principal |
-| `legacy_faulty_row_count` | Aproximadamente 100 |
-| `max_persisted_size_bytes` | 4.000.000.000 |
-| `size_warning_threshold_bytes` | 3.700.000.000 |
+| `legacy_faulty_row_count` | Ao menos um por tipo do catálogo, mínimo de 100 |
 
 As demais tabelas são dimensionadas por **proporções configuráveis** derivadas dessas entidades
-principais — as metas por tabela estão no [Modelo de Dados](modelo_de_dados.md).
+principais — as proporções estão no [Modelo de Dados](modelo_de_dados.md).
 
-Volumes, percentuais e orçamento de bytes devem ser recalibrados após a medição de tempo, largura
-real das linhas, índices e capacidade do ambiente local. A documentação sempre distingue **valores
-planejados** de **resultados observados** (princípio **P5**).
+O `legacy_faulty_row_count` é o único parâmetro cujo piso é qualitativo: ele não pode ficar abaixo
+do número de tipos declarados no catálogo, porque um tipo sem registro é um tratamento sem teste.
 
 ---
 

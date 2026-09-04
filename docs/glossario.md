@@ -7,8 +7,8 @@
 > [Glossário de Negócio](glossario_de_negocio/)); nomes de tabelas (ver
 > [Modelo de Dados](modelo_de_dados.md)).
 
-Este glossário existe porque o projeto tem também um objetivo de aprendizado: cada termo aparece
-aqui na primeira vez que é usado em algum documento.
+Este glossário existe para que nenhum documento use um termo técnico sem definição acessível: cada
+termo entra aqui na primeira vez que é usado.
 
 ---
 

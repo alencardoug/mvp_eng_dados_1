@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.1 |
-| Situação | Componentes e camadas decididos; itens marcados como *pendente* dependem de ADR |
-| Última revisão | 03/09/2026 |
+| Versão | 2.2 |
+| Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -74,8 +74,11 @@ acompanham cada camada desde a sua criação (princípio **P3**), em vez de sere
 ## 2. Camadas de dados
 
 Os schemas e a separação entre estágio do fluxo e schema estão fixados em
-[ADR-0008](adr/0008-schemas-do-armazem.md). As contagens de objetos e as
-materializações propostas estão no [Modelo de Dados](modelo_de_dados.md#6-camadas-no-armazém).
+[ADR-0008](adr/0008-schemas-do-armazem.md), com `governance` acrescentado pelo
+[ADR-0023](adr/0023-escopo-do-schema-governance.md) e `snapshots` pelo
+[ADR-0017](adr/0017-chaves-substitutas-e-scd.md) — **nove ao todo**. A materialização de cada camada
+está no [ADR-0016](adr/0016-materializacao-por-camada.md); as contagens de objetos, no
+[Modelo de Dados](modelo_de_dados.md#6-camadas-no-armazém).
 
 | Camada | Conteúdo | Transformações permitidas | Consumidor |
 |---|---|---|---|
@@ -86,7 +89,8 @@ materializações propostas estão no [Modelo de Dados](modelo_de_dados.md#6-cam
 | `analytics` | Modelagem dimensional | Agregação, conformação de dimensões, SCD | `consumption` |
 | `consumption` | Views de consumo — contratos estáveis de leitura | Somente seleção e apresentação | Perfil de análise |
 | `quarantine` | Registros rejeitados com código e motivo | Nenhuma — é destino, não passagem | Auditoria |
-| `governance` | Objetos de catálogo e controle — existe apenas se **D14** aprovar | — | Governança |
+| `governance` | Log de execução, reconciliação, índice de quarentena e classificação aplicada | Nenhuma — é registro, não passagem | Governança e auditoria |
+| `snapshots` | Destino dos `dbt snapshot` que historizam as dimensões SCD tipo 2 | Nenhuma — mantido pelo dbt | Apenas o pipeline |
 
 Regras válidas para todas as camadas:
 
@@ -94,7 +98,9 @@ Regras válidas para todas as camadas:
 - toda tabela carrega metadados de carga (identificador de lote e *timestamp*);
 - a reconstrução de qualquer camada a partir da anterior é **idempotente**;
 - nenhuma camada é editada manualmente; correções nascem de código versionado;
-- nenhum registro é descartado em silêncio — o que não passa vai para `quarantine` com motivo.
+- nenhum registro é descartado em silêncio — o que não passa vai para `quarantine` com motivo;
+- `governance` e `snapshots` ficam **fora do fluxo**: nenhum modelo de `analytics` ou `consumption`
+  lê de `governance`, sob pena de a auditoria virar entrada do que ela audita.
 
 ---
 
@@ -107,7 +113,7 @@ Regras válidas para todas as camadas:
 | Ingestão | **Airbyte** | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Transformação, testes, documentação e linhagem | **dbt** | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Orquestração | **Airflow** | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Captura de mudanças | **Debezium** | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
+| Captura de mudanças | **Debezium** sobre **Kafka Connect** | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) |
 | Transporte de eventos | **Redpanda** | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Processamento contínuo | **Apache Beam** com `DirectRunner` | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Interface de operação | `Makefile` + comandos de terminal | Firmada |
@@ -136,8 +142,8 @@ alvos, não o modo de operar. Os comandos concretos vivem em [Execução Local](
 | Transporte de eventos | Pub/Sub | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Processamento contínuo | Dataflow (mesmo código Beam) | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Transformação | dbt, com adaptação de dialeto | Firmada |
-| Orquestração | Airflow — serviço de execução pendente (**D22**) | Parcial |
-| Ingestão *batch* | Airbyte, conforme viabilidade (**D11**) | Pendente |
+| Orquestração | **Cloud Composer**, em janela curta | [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) |
+| Ingestão *batch* | **Airbyte em contêiner**, provisionado por Terraform, em janela curta | [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) |
 | Catálogo corporativo | Dataplex, alimentado pelo `manifest.json` do dbt | [ADR-0007](adr/0007-catalogo-como-codigo.md) |
 
 Boas práticas previstas no BigQuery: **um dataset por camada**, **particionamento** por data de
@@ -163,16 +169,16 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Conceito | Fase local | Fase GCP |
 |---|---|---|
 | Origem transacional | PostgreSQL em contêiner | Cloud SQL for PostgreSQL |
-| Camada de dados | Schema no `warehouse_db` | Dataset no BigQuery |
+| Camada de dados | Schema no `warehouse_db` (nove) | Dataset no BigQuery |
 | Fato / dimensão | Tabela no schema `analytics` | Tabela particionada e clusterizada |
 | View de consumo | View no schema `consumption` | *Authorized view* em dataset próprio |
-| Ingestão *batch* | Airbyte local | Airbyte gerenciado ou serviço equivalente (**D11**) |
+| Ingestão *batch* | Airbyte local | Airbyte em contêiner, por Terraform ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)) |
 | Transformação | dbt | dbt, com adaptação de dialeto |
-| Orquestração | Airflow local | Airflow em serviço gerenciado (**D22**) |
-| Captura de mudanças | Debezium | Datastream |
+| Orquestração | Airflow local | Cloud Composer ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)) |
+| Captura de mudanças | Debezium sobre Kafka Connect | Datastream |
 | Transporte de eventos | Redpanda | Pub/Sub |
 | Processamento contínuo | Beam / `DirectRunner` | Beam / Dataflow |
-| Controle de acesso | *Roles* e *grants* do PostgreSQL | IAM por dataset + *policy tags* |
+| Controle de acesso | *Roles* e *grants* do PostgreSQL | IAM por dataset + *policy tags*, aplicadas a partir do YAML por fluxo automatizado ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) |
 | Catálogo e linhagem | `.yml` do dbt + `dbt docs` | Os mesmos `.yml` publicados no Dataplex |
 | Versionamento de schema | Migrações versionadas | As mesmas migrações + DDL versionado |
 | Infraestrutura | Docker Compose | Terraform |
@@ -201,7 +207,7 @@ As regras sobre a natureza dos dados e sobre segredos são política de governan
 
 ## 7. Organização do repositório
 
-Estrutura proposta — a confirmar em **D10**. Diretórios marcados nascem na etapa indicada no
+Estrutura fixada pelo [ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md). Diretórios marcados nascem na etapa indicada no
 [Plano de Desenvolvimento](plano_de_desenvolvimento.md).
 
 ```text
@@ -230,7 +236,8 @@ mvp_ed1/
 ├── db/                           # (Etapa 3) migrações Alembic e seeds
 │   ├── migrations/
 │   └── seeds/
-├── src/                          # (Etapa 4) código Python
+├── pyproject.toml                # (Etapa 2) pacote instalável: `pip install -e .`
+├── src/                          # (Etapa 4) código Python, importável como pacote
 │   ├── generator/                # motor de geração + configuração declarativa
 │   ├── legacy/                   # gerador da origem legada
 │   └── streaming/                # produtor e pipeline Beam

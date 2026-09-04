@@ -11,8 +11,8 @@
 |---|---|
 | Domínio | Marketplace de varejo *omnichannel* |
 | Consumido por | dbt, via blocos `{% docs %}` |
-| Situação | **Vazio** — preenchido a partir da Etapa 5 |
-| Última revisão | 01/09/2026 |
+| Situação | **Vazio** — preenchido a partir da Etapa 5, começando pelas perguntas de negócio |
+| Última revisão | 04/09/2026 |
 
 ---
 
@@ -76,3 +76,22 @@ Nenhum conceito foi definido ainda. Os que a modelagem já exige:
 | Recompra pós-atendimento | `fact_support_ticket_event` | 9 |
 
 Cada definição é escrita na etapa em que o modelo correspondente é construído — nunca depois.
+
+---
+
+## 4. Perguntas de negócio
+
+O [ADR-0018](../adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md) fixou o método: **as
+perguntas vêm antes do primeiro modelo de `analytics`.** São elas que determinam quais medidas cada
+fato carrega e quais views de consumo existem — e não o contrário.
+
+*Nenhuma escrita ainda.* De 12 a 15 perguntas concretas são redigidas no início da Etapa 5, aqui,
+porque usam o vocabulário que este glossário define. Cada uma resulta em:
+
+- as **medidas** que o fato precisa carregar, classificadas como aditiva, semiaditiva ou não
+  aditiva;
+- as **dimensões conformadas** que a atendem;
+- uma **view de consumo** nomeada pela pergunta, com `contract: enforced`.
+
+Uma pergunta é concreta quando nomeia a métrica, o recorte e o período — *"qual a margem por
+categoria e canal no trimestre?"* é pergunta; *"analisar vendas"* não é.

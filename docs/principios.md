@@ -1,7 +1,7 @@
 # Princípios do Projeto
 
-> **O que vive aqui:** as nove regras que governam toda decisão do projeto. São referenciadas por
-> identificador (**P1**–**P9**) em todos os demais documentos.
+> **O que vive aqui:** as dez regras que governam toda decisão do projeto. São referenciadas por
+> identificador (**P1**–**P10**) em todos os demais documentos.
 >
 > **O que não vive aqui:** o objetivo e o escopo (ver [Termo de Abertura](../Abertura_de_projeto.md));
 > as decisões concretas que aplicam estes princípios (ver [Registro de Decisões](adr/README.md)).
@@ -23,6 +23,7 @@ porquê.
 | **P7** | **Privacidade por desenho** | Somente dados sintéticos — e ainda assim classificados e controlados como se fossem reais. Ver [Política de Governança de Dados](governanca_de_dados.md). |
 | **P8** | **Documentação como fonte de verdade** | Decisões relevantes vivem no repositório, versionadas junto do código. Um assunto tem um único dono documental; duplicação é defeito. |
 | **P9** | **Idioma** | Documentos em português; código, objetos de banco e identificadores em inglês. Detalhes em [`CLAUDE.md`](../CLAUDE.md). |
+| **P10** | **Fidelidade à prática de produção** | Diante de alternativas, vence a que um ambiente produtivo real adotaria — ainda que custe mais processo, memória ou tempo. O objetivo do projeto é enfrentar os desafios comuns de produção, não contorná-los com atalhos que o volume baixo do ambiente local permitiria. |
 
 ---
 
@@ -36,5 +37,14 @@ streaming ([ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md)).
 A regra de desempate é simples: **P4 prevalece quando a alternativa mais simples criaria dois
 caminhos diferentes entre as fases**, porque nesse caso a simplicidade é aparente — ela apenas
 adia o custo para a migração. Fora disso, prevalece **P6**.
+
+O segundo caso é **P10** contra **P6**: a prática de produção quase sempre pede mais peças do que a
+simplicidade gostaria. Foi o que ocorreu ao escolher Kafka Connect em vez do Debezium Server
+autônomo, e Cloud Composer em vez de orquestração nativa mais barata.
+
+A regra de desempate: **P10 prevalece quando a alternativa mais simples só é viável porque o
+ambiente local é pequeno** — ou seja, quando a simplicidade não sobreviveria ao volume real. Fora
+disso, prevalece **P6**. O que **P10 não autoriza** é componente sem problema declarado: ele ordena
+alternativas para um problema que existe, não cria motivo para ampliar a *stack*.
 
 O desempate é registrado em ADR, nunca decidido em silêncio.

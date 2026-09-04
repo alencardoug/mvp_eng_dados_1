@@ -1,96 +1,83 @@
 # Capacidade e Recuperação
 
-> **O que vive aqui:** o orçamento de armazenamento do ambiente local, como ele é medido e
-> imposto, e o único ponto de recuperação do projeto.
+> **O que vive aqui:** como o ambiente local é dimensionado, o que é medido, e o único ponto de
+> recuperação do projeto.
 >
-> **O que não vive aqui:** os parâmetros do gerador (ver
-> [Geração de Dados](geracao_de_dados.md)); as metas de linhas por tabela (ver
+> **O que não vive aqui:** o fator de escala e os parâmetros do gerador (ver
+> [Geração de Dados](geracao_de_dados.md)); as contagens por tabela (ver
 > [Modelo de Dados](modelo_de_dados.md)); o *snapshot* imutável do legado, que tem outra finalidade
 > (ver [Origem Legada](origem_legada.md#4-snapshot-imutável)).
 
 | Campo | Informação |
 |---|---|
-| Limite planejado | **4 GB decimais** (`4.000.000.000` bytes) |
+| Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 1.1 |
-| Situação | Planejado — a recalibrar com a medição do perfil `demo`, na Etapa 4 |
-| Última revisão | 03/09/2026 |
+| Versão | 2.0 |
+| Situação | Vigente. Nenhum número deste documento foi medido ainda (**P5**) |
+| Última revisão | 04/09/2026 |
 
 ---
 
-## 1. Orçamento do perfil `demo_4gb`
+## 1. O ambiente local é dimensionado por cobertura
 
-O perfil foi dimensionado para permanecer abaixo do limite mesmo com a multiplicação de linhas
-entre camadas.
+O orçamento de 4 GB foi **aposentado em 04/09/2026**. Ele nunca foi medido, e a premissa que o
+sustentava — trabalhar volume alto localmente — mudou: o volume alto pertence à fase GCP.
 
-| Componente | Linhas físicas | Orçamento máximo |
-|---|---:|---:|
-| `oltp`, incluindo índices | 2.526.495 a 2.576.495 | 750 MiB |
-| `raw`, incluindo metadados do Airbyte | 2.526.495 a 2.576.495 | 1.650 MiB |
-| `analytics`, incluindo índices | 569.820 a 619.820 | 350 MiB |
-| Snapshot, tratamento e quarentena do legado | ~100 registros falhos e seus resultados | 50 MiB |
-| Metadados persistidos de Airbyte, dbt e governança | Variável | 200 MiB |
-| Ponto de recuperação comprimido | `source_db` + `legacy_db` | 450 MiB |
-| **Meta ocupada** | **5,62 mi no seed; até 5,77 mi após o streaming, mais o legado** | **Até 3.450 MiB** |
-| **Reserva até o limite** | — | **~365 MiB** |
+O ambiente local não é dimensionado por tamanho. É dimensionado pelo que precisa **exercitar**, e o
+[ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) fixa o piso que garante isso em
+qualquer escala:
 
-Como a largura real das linhas e a compressão só serão conhecidas após a implementação, a faixa
-esperada é de **3,4 a 3,9 GB** — nunca acima do limite configurado.
+- toda tabela populada — nenhuma das 40 vazia;
+- todo valor de enumeração presente ao menos uma vez;
+- todo tipo de falha do [catálogo do legado](origem_legada.md) representado;
+- toda invariante de negócio do [Modelo de Dados](modelo_de_dados.md#4-invariantes-de-negócio)
+  exercida ao menos uma vez, incluindo os casos que devem falhar.
 
-### 1.1 Condições de validade
+**Consequência prática:** não há limite de bytes, não há alerta de 3,7 GB e não há bloqueio em
+4 GB. Tamanho deixou de ser restrição e passou a ser observação.
 
-O orçamento só se sustenta se:
+## 2. O que continua sendo medido
 
-- `staging` usar **views**;
-- modelos intermediários de `trusted` usarem views ou materialização `ephemeral` sempre que
-  possível;
-- existir **somente uma cópia persistida** dos dados brutos de cada origem;
-- o banco principal **não** gerar *snapshots* periódicos nem fatos *snapshot*, além do único ponto
-  de recuperação aprovado;
-- o legado mantiver somente o *snapshot* imutável aprovado e as saídas de tratamento
-  correspondentes;
-- índices forem criados por necessidade de consulta e integridade, não em todas as colunas;
-- textos livres de atendimento tiverem tamanho máximo e não carregarem anexos;
-- cargas completas antigas e tabelas temporárias forem removidas de forma controlada após o
-  sucesso da execução.
+Sem limite, a medição continua — por dois motivos. O primeiro é o princípio **P5**: o projeto
+distingue planejado de medido, e não pode afirmar tamanho que não conferiu. O segundo é que a fase
+GCP precisa de números reais para calibrar o fator `cloud`.
 
-### 1.2 O que está fora do limite
+Ao final de cada etapa, registra-se:
 
-Imagens Docker, logs, arquivos temporários e WAL transitório **não** entram nos 4 GB. A execução
-local deve reservar **pelo menos 8 GB de disco** para operar com segurança — e mais folga se
-Airbyte, Airflow e a mensageria estiverem ativos simultaneamente.
+- tamanho por banco, schema, tabela e índice, via `pg_database_size`, `pg_total_relation_size` e
+  `pg_indexes_size`;
+- linhas por tabela, conferidas contra as proporções declaradas;
+- tempo de execução do pipeline completo.
 
----
+Nada disso interrompe execução. Os valores alimentam a definição do fator `cloud`, na Etapa 13, e a
+tabela de reconciliação do schema `governance`
+([ADR-0023](adr/0023-escopo-do-schema-governance.md)).
 
-## 2. Controle automático do limite
+### 2.1 A restrição real passou a ser memória
 
-O pipeline **mede**, não presume:
+Com o disco fora de questão, o limite do ambiente local é **memória**, não armazenamento. O
+[ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) adotou Kafka Connect, que custa cerca de 1 GB
+de RAM a mais que a alternativa autônoma — custo aceito por **P10**.
 
-- emitir alerta ao alcançar `3.700.000.000` bytes;
-- impedir novas expansões ao alcançar `4.000.000.000` bytes;
-- registrar tamanho por banco, schema, tabela e índice ao final de cada etapa;
-- estimar previamente a expansão das tabelas de eventos antes de materializá-las;
-- validar o tamanho do *snapshot* candidato somado aos bancos antes de promovê-lo;
-- ao precisar reduzir, reduzir primeiro outros eventos de alta cardinalidade, **preservando
-  `cart_items` acima de 1 milhão de linhas**;
-- interromper o produtor de streaming ao atingir 50.000 novos movimentos ou o limite de
-  armazenamento — o que ocorrer primeiro;
-- **falhar explicitamente** se uma mudança de schema ou de materialização romper o orçamento.
+Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o subconjunto necessário à
+etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
+final da Etapa 12.
 
-As medições usam `pg_database_size`, `pg_total_relation_size` e `pg_indexes_size`. O tamanho dos
-arquivos do ponto de recuperação também é somado ao total persistido.
+### 2.2 Custo da janela na nuvem
 
-Os valores deste documento são recalibrados a partir da medição do perfil `demo`, ao fim da
-Etapa 4 — bytes por linha e crescimento de índice medidos numa fração do volume e extrapolados —,
-e conferidos contra a execução real do `demo_4gb` na Etapa 12. A documentação distingue sempre o
-**planejado** do **medido** (**P5**).
+O [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) escolheu Cloud Composer e Airbyte em contêiner,
+que cobram por hora ligada. A contenção é temporal, não técnica: os dois existem **apenas durante a
+janela de demonstração da Etapa 13**, criados e destruídos pelo mesmo Terraform.
+
+O custo estimado é registrado antes de subir e o custo real depois — planejado e medido, rotulados
+como tais. É o tratamento do risco **R9**.
 
 ---
 
 ## 3. Ponto único de recuperação
 
-Após uma execução ponta a ponta aprovada, o projeto mantém **um único *snapshot* lógico last known
-good**, em formato customizado e comprimido do `pg_dump`. Ele permite restaurar uma fonte degradada
+Após uma execução ponta a ponta aprovada, o projeto mantém **um único *snapshot* lógico *last known
+good***, em formato customizado e comprimido do `pg_dump`. Ele permite restaurar uma fonte degradada
 e reconstruir as demais camadas.
 
 ### 3.1 Conteúdo do pacote
@@ -99,12 +86,27 @@ e reconstruir as demais camadas.
 - `legacy_db.dump`;
 - *checksums* dos arquivos;
 - `seed`, `as_of_date` e versão das migrações;
-- último `event_sequence` e cursor de CDC confirmado;
+- último `event_sequence` emitido;
 - *commit* Git correspondente ao código aprovado;
 - manifesto com contagens e tamanhos por tabela;
 - instruções testadas de restauração e de reconstrução do `warehouse_db`.
 
-### 3.2 Regras
+### 3.2 O cursor de CDC não está no pacote — e por quê
+
+O [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) colocou *offsets*, histórico de
+schema e status nos tópicos internos do Redpanda, geridos pelo conector. Guardar uma cópia no pacote
+criaria duas verdades sobre a mesma posição.
+
+Há uma consequência operacional que não é óbvia: **restaurar `source_db` de um dump invalida o
+cursor do conector.** A posição de WAL gravada nos tópicos internos aponta para um ponto do log que
+o banco restaurado não tem. O procedimento correto após uma restauração é **descartar o estado do
+conector e deixá-lo refazer o *snapshot* inicial** — não tentar retomar de onde parou.
+
+Como o destino do *streaming* é idempotente por chave de evento
+([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), refazer o *snapshot* reprocessa
+eventos já vistos sem duplicar saldo. É essa propriedade que torna a recuperação segura.
+
+### 3.3 Regras
 
 - O `warehouse_db` **não** entra no pacote: é refeito por Airbyte, dbt e Airflow a partir das duas
   fontes restauradas. Incluí-lo duplicaria armazenamento sem ganho.

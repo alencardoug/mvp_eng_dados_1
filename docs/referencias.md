@@ -1,7 +1,6 @@
 # Referências
 
-> **O que vive aqui:** as fontes externas que sustentam as decisões do projeto e apoiam o objetivo
-> de aprendizado.
+> **O que vive aqui:** as fontes externas que sustentam as decisões do projeto.
 >
 > **O que não vive aqui:** as decisões em si (ver [Registro de Decisões](adr/README.md)); a
 > definição dos termos (ver [Glossário Técnico](glossario.md)).
