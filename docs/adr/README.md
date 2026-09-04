@@ -64,13 +64,58 @@ decisão.
 | [0025](0025-policy-tags-por-fluxo-automatizado.md) | Aplicar as policy tags por fluxo automatizado | Aceita | Q1 |
 | [0026](0026-uv-para-ambiente-e-dependencias.md) | Adotar `uv` para o ambiente e as dependências Python | Aceita | Ambiente e interpretador Python |
 | [0027](0027-configuracao-do-gerador-em-yaml.md) | Declarar o gerador em YAML, com o piso derivado dos modelos | Aceita | Formato e piso da configuração |
+| [0028](0028-fato-de-carrinho-para-o-funil.md) | Acrescentar uma fato de carrinho para o funil de conversão | Aceita | Lacuna do funil de conversão |
 
 ---
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** As dezoito decisões que estavam abertas foram fechadas em 04/09/2026, junto da
-aprovação do Termo de Abertura, e estão registradas na tabela da seção 2.
+| # | Questão | Onde trava | Levantada em |
+|---|---|---|---|
+| **D31** | O Airbyte OSS não agenda replicação em máquina de 4 CPUs. Como a ingestão segue? | Etapa 5 — **bloqueia a etapa inteira** | 04/09/2026 |
+| **D30** | Exclusão lógica: `staging` **filtra** a linha excluída, ou **carrega a marca** até o datamart? | Etapa 5 — `trusted` e as dimensões | 04/09/2026 |
 
-Esta tabela volta a existir quando uma nova questão for levantada. O procedimento — registrar como
-pendência, devolver ao Owner, e só então implementar — está na seção 1.
+### D31 — o Airbyte não cabe nesta máquina
+
+Fato medido, não hipótese: o *pod* de replicação do Airbyte 2.2.0 pede **4 CPUs** (2 orquestrador +
+1 por conector) e a máquina tem 4, com 1,1 já reservado pela plataforma. O Kubernetes responde
+`Insufficient cpu`, o job fica `Pending` e a interface mostra "running" — falha silenciosa.
+
+Três remédios foram tentados e **nenhum** alterou o pedido do *pod*: `--low-resource-mode`, que é a
+resposta documentada do Airbyte para máquina apertada; as variáveis genéricas
+`JOB_MAIN_CONTAINER_CPU_REQUEST` e `REPLICATION_ORCHESTRATOR_CPU_REQUEST`; e
+`CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED=false`. O resto da ingestão **funciona**: a conexão
+com a origem, a descoberta de schema e a verificação do destino passam.
+
+Isto atinge a premissa do [ADR-0003](0003-stack-airbyte-dbt-airflow.md), que escolheu o Airbyte
+sabendo que ele é pesado e mitigou o custo com "subir apenas o subconjunto necessário" — mitigação
+que não ajuda quando **um único job excede a máquina inteira**.
+
+As saídas, para o Owner escolher:
+
+| Saída | O que custa |
+|---|---|
+| Máquina com mais CPUs para a fase local | Nada muda no projeto; muda o pré-requisito de hardware, que passa a ser 8 CPUs e precisa ser dito no documento de Execução Local |
+| Continuar procurando o parâmetro que reduz o pedido | Pode não existir na versão 2.2.0; já custou uma sessão |
+| Fixar uma versão anterior do Airbyte, que usava `docker-compose` | Volta a um caminho descontinuado pelo próprio Airbyte, sem correção nem atualização |
+| Reabrir o ADR-0003 na parte de ingestão | Recusado uma vez com argumento que continua válido — dois caminhos de ingestão entre as fases, contra o **P4** |
+
+### D30 — as duas leituras do ADR-0015
+
+O [ADR-0015](0015-sincronizacao-e-exclusoes.md) diz as duas coisas, em seções diferentes, e a
+implementação da Etapa 5 obrigou a escolher:
+
+- a **Decisão** diz que `deleted_at` "é preenchido e o incremental **o propaga até o datamart**" —
+  o que só faz sentido se o datamart souber da exclusão, isto é, se ela viajar como marca;
+- as **Consequências** dizem que "todo modelo de `staging` precisa **filtrá-la**".
+
+Não é detalhe de estilo. Filtrar em `staging` faz um SKU excluído sumir de `dim_product`, e o
+pedido histórico que o comprou passa a apontar para uma dimensão que não existe mais — o dado de
+ontem muda porque o cadastro mudou hoje. Carregar a marca mantém o *join* e deixa a exclusão
+visível como atributo, ao custo de todo modelo adiante precisar decidir se filtra.
+
+**O estado atual do código** é a leitura da *Decisão*: `staging` expõe `is_deleted` e não filtra.
+É reversível — o que muda com a resposta é `trusted` e as dimensões, ainda não escritos.
+
+O procedimento — registrar como pendência, devolver ao Owner, e só então implementar — está na
+seção 1.

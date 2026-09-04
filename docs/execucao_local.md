@@ -26,6 +26,8 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 |---|---|
 | Docker e Docker Compose | Todo o ambiente roda em contêineres |
 | `uv` | Gerencia interpretador, dependências e ambiente ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md)). Instala o Python 3.11 sozinho — não é preciso ter Python antes |
+| `abctl` e Terraform | Baixados por `make tools` nas versões fixadas no `Makefile`, para `.tools/`. Não precisam existir na máquina antes |
+| **CPU** | **A restrição descoberta na Etapa 5.** Quatro núcleos é o mínimo documentado do Airbyte para a *plataforma* — o *pod* de replicação pede outros quatro. Ver seção 6 |
 | Python 3.11 | Fixado por paridade com o Cloud Composer. `make install` cria o `.venv` e instala o pacote ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |
 | Disco livre | **Pelo menos 8 GB** — o volume de dados é baixo por desenho ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)); o espaço é para imagem, log e WAL |
@@ -61,6 +63,8 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
 | 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
+| 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
+| 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
 | 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados | Etapa 5 |
 | 7 | `make stream-up` | Sobe Redpanda, Kafka Connect com o conector Debezium e o *job* Beam | Etapa 7 |
@@ -109,6 +113,9 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
 | `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração | Etapa 3 |
+| `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
+| `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |
+| `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
 | `make test` | Testes de código Python (`pytest`); `CARGA=1` inclui a que escreve no banco | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow | Etapa 5 |
@@ -153,6 +160,26 @@ medição que vá para documento, comece do zero:
 ```bash
 make reset FORCE=1 && make up && make migrate && make seed-data
 ```
+
+### A sincronização do Airbyte fica `running` para sempre e não move linha
+
+Sintoma: `make sync-airbyte` imprime `running · 0 linhas` indefinidamente, a interface mostra o job
+ativo, e `raw` continua vazio.
+
+Diagnóstico:
+
+```bash
+docker exec airbyte-abctl-control-plane \
+  kubectl get pods -n airbyte-abctl | grep replication
+```
+
+`Pending` com o evento `Insufficient cpu` é o caso: o *pod* de replicação pede **4 CPUs** — 2 para o
+orquestrador e 1 para cada conector —, e a plataforma já segura 1,1 dos 4 da máquina. O Kubernetes
+não agenda, o Airbyte não avisa, e o job fica vivo sem executar.
+
+**Não há solução conhecida nesta máquina.** `--low-resource-mode`, as variáveis genéricas de
+recurso e `CONNECTOR_SPECIFIC_RESOURCE_DEFAULTS_ENABLED=false` foram testados e não alteram o
+pedido do *pod* de replicação. É a decisão pendente **D31**.
 
 ### `make seed-data` recusa executar
 

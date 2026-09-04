@@ -12,21 +12,47 @@
 |---|---|
 | Etapa atual | Etapa 5 — Corte 1: núcleo comercial |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 0 |
+| Decisões pendentes | 2 |
 | Última revisão | 04/09/2026 |
 
 ---
 
-## 1. Nada pendente
+## 1. Esperando você
 
-**Não há nada esperando você.** Em 04/09/2026 o Termo de Abertura foi aprovado, as três aprovações
+### D31 — o Airbyte não cabe nesta máquina · **bloqueia a Etapa 5**
+
+**Bloqueia:** a ingestão inteira, e com ela todo o resto da etapa.
+
+O *pod* de replicação pede 4 CPUs e a máquina tem 4, com 1,1 já em uso pela plataforma do próprio
+Airbyte. Ele nunca é agendado, e a interface mostra "running" enquanto nada acontece. Os três
+remédios documentados foram tentados e nenhum funcionou; o resto da ingestão está de pé e conferido
+— origem, descoberta de schema e destino passam.
+
+As saídas e o que cada uma custa estão na
+[seção 3 do Registro de Decisões](adr/README.md#d31--o-airbyte-não-cabe-nesta-máquina). A mais
+barata é a máquina: nada no projeto muda, só o pré-requisito de hardware.
+
+### D30 — exclusão lógica: filtrar em `staging` ou carregar a marca?
+
+**Bloqueia:** `trusted` e as dimensões da Etapa 5. O `staging` já está escrito e é reversível.
+
+O [ADR-0015](adr/0015-sincronizacao-e-exclusoes.md) diz as duas coisas em seções diferentes — a
+Decisão manda propagar a exclusão até o datamart, as Consequências mandam filtrar em `staging`. A
+escolha muda o comportamento do dado histórico: filtrar faz um SKU excluído sumir da dimensão, e o
+pedido de ontem que o comprou perde a referência. O contexto completo e as duas leituras estão na
+[seção 3 do Registro de Decisões](adr/README.md#d30--as-duas-leituras-do-adr-0015).
+
+---
+
+## 1.1 O que já foi resolvido
+
+**Não há mais nada esperando você.** Em 04/09/2026 o Termo de Abertura foi aprovado, as três aprovações
 foram dadas, as dezoito decisões abertas foram fechadas em ADR e as três questões que não eram ADR
 foram resolvidas nos documentos que as tratam.
 
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas) e **M2** (ambiente reproduzível)
-estão fechados, e as Etapas 3 e 4 foram entregues. O trabalho segue na **Etapa 5** sem depender de
-você — a próxima vez que este documento tiver conteúdo será quando surgir uma escolha que o
-[`CLAUDE.md`](../CLAUDE.md) §5 proíbe o assistente de tomar sozinho.
+estão fechados, e as Etapas 3 e 4 foram entregues. A Etapa 5 está em curso; **D30**, acima, é a
+única coisa que depende de você.
 
 ## 2. Onde cada item foi parar
 

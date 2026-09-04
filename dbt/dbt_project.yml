@@ -1,0 +1,49 @@
+# Projeto dbt do armazém (ADR-0003).
+#
+# A camada é o **schema**, nunca o prefixo do nome (ADR-0013), e a
+# materialização de cada camada está fixada pelo ADR-0016 — não é escolha por
+# modelo. Um modelo que precise fugir do padrão declara a exceção no próprio
+# arquivo, e a exceção precisa de motivo escrito.
+
+name: mvp_ed1
+version: 1.0.0
+config-version: 2
+profile: mvp_ed1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+
+# O glossário de negócio é importado como documentação: a definição do conceito
+# e a coluna que o implementa ficam navegáveis juntas no `dbt docs`.
+docs-paths: ["models", "../docs/glossario_de_negocio"]
+
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  mvp_ed1:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: staging
+      +materialized: view
+    trusted:
+      +schema: trusted
+      +materialized: table
+    analytics:
+      +schema: analytics
+      +materialized: table
+    consumption:
+      +schema: consumption
+      +materialized: view
+
+snapshots:
+  mvp_ed1:
+    +target_schema: snapshots
+
+seeds:
+  mvp_ed1:
+    +schema: trusted

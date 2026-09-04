@@ -227,6 +227,10 @@ def _montar_itens(
                 # Tolerância de um centavo na `CHECK`: `unit_price` tem quatro
                 # casas e o total tem duas, então arredondar é obrigatório.
                 "total_amount": dinheiro(bruto - desconto + imposto),
+                # Item de pedido é imutável depois de emitido: apagá-lo
+                # logicamente faria `orders.subtotal_amount` deixar de bater com
+                # a soma dos itens que ainda existem.
+                "deleted_at": None,
                 "__momento": feito_em,
                 "__bruto": bruto,
                 "__variante": variante,

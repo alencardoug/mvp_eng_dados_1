@@ -552,13 +552,13 @@ erDiagram
 
 ---
 
-## 3. Modelo dimensional — 26 tabelas em `analytics`
+## 3. Modelo dimensional — 27 tabelas em `analytics`
 
 Não há fatos do tipo *snapshot*: todo processo é representado por eventos transacionais. As
 métricas de estado ao longo do tempo são derivadas dos eventos, não de fotografias periódicas do
 banco.
 
-### 3.1 Tabelas fato — 9
+### 3.1 Tabelas fato — 10
 
 Os **atributos e as medidas** de cada fato não estão fixados aqui: são derivados das perguntas de
 negócio, conforme o [ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md). Cada
@@ -567,15 +567,22 @@ classificação que impede somar saldo de estoque ao longo do tempo.
 
 | Tabela | Linhas | Grão | Tipo |
 |---|---:|---|---|
-| `fact_sales_order_item` | 75.000 | Uma linha de item de pedido. | Transacional |
-| `fact_payment_transaction` | 52.500 | Uma tentativa ou operação financeira. | Transacional |
-| `fact_refund` | 1.400 | Um reembolso realizado. | Transacional |
-| `fact_purchase_order_item` | 16.000 | Um item de uma ordem de compra. | Transacional |
-| `fact_inventory_movement` | 120.000 no seed; até 170.000 após o streaming | Uma movimentação de SKU em um armazém. | Transacional |
-| `fact_shipment_item` | 78.000 | Um item de pedido em uma remessa. | Transacional |
+| `fact_cart_event` | ~778.000 | Um evento de ciclo de vida de um carrinho. | Transacional |
 | `fact_order_status_event` | 175.000 | Uma mudança de estado de um pedido. | Transacional |
-| `fact_coupon_redemption` | 6.000 | Um uso de cupom em um pedido. | Transacional |
+| `fact_inventory_movement` | 120.000 na carga inicial; cresce com o *streaming* | Uma movimentação de SKU em um armazém. | Transacional |
+| `fact_shipment_item` | 78.000 | Um item de pedido em uma remessa. | Transacional |
+| `fact_sales_order_item` | 75.000 | Uma linha de item de pedido. | Transacional |
+| `fact_payment_transaction` | 71.500 | Uma tentativa ou operação financeira. | Transacional |
 | `fact_support_ticket_event` | 18.000 | Uma interação ou mudança de estado de chamado. | Transacional |
+| `fact_purchase_order_item` | 16.000 | Um item de uma ordem de compra. | Transacional |
+| `fact_coupon_redemption` | 6.000 | Um uso de cupom em um pedido. | Transacional |
+| `fact_refund` | 1.400 | Um reembolso realizado. | Transacional |
+
+`fact_cart_event` é a décima fato, acrescentada pelo
+[ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md) quando as perguntas de negócio mostraram que o
+funil de conversão não tinha onde pousar. São até dois eventos por carrinho — a abertura e o
+desfecho —, e é por isso que ela passa a ser a maior tabela de `analytics`: `carts` é a segunda
+maior tabela da origem.
 
 ### 3.2 Dimensões — 17
 
@@ -589,7 +596,7 @@ instante do evento**, não a versão corrente.
 | `dim_date` | 975 | Calendário de 01/01/2024 a 01/09/2026, inclusive. | Estática |
 | `dim_time` | 1.440 | Hora, minuto e faixas do dia. | Estática |
 | `dim_customer` | 16.500 | Perfil, segmento e estado do cliente. | SCD tipo 2 |
-| `dim_geography` | 1.500 | Cidade, estado, região e país. | Conformada |
+| `dim_geography` | 22 | Cidade, estado, região e país. | Conformada |
 | `dim_product` | 6.600 | SKU, produto e atributos da variante. | SCD tipo 2 |
 | `dim_category` | 88 | Hierarquia comercial de categorias. | SCD tipo 2 quando aplicável |
 | `dim_brand` | 180 | Marca do produto. | SCD tipo 1 |
@@ -601,14 +608,22 @@ instante do evento**, não a versão corrente.
 | `dim_coupon` | 198 | Regra e tipo de desconto. | SCD tipo 2 |
 | `dim_payment_method` | 6 | Meio e modalidade de pagamento. | SCD tipo 1 |
 | `dim_currency` | 1 | Moeda e código ISO. | Estática |
-| `dim_support_category` | 12 | Motivo e categoria do chamado. | Derivada e conformada |
+| `dim_support_category` | 6 | Motivo e categoria do chamado. | Derivada e conformada |
 | `dim_support_agent` | 46 | Agente, equipe e período de atuação. | SCD tipo 2 |
 
 Identificadores operacionais como `order_number`, `ticket_number` e `tracking_number` são mantidos
 nas respectivas fatos como **dimensões degeneradas**.
 
-**Totais:** aproximadamente **541.900 linhas nas fatos** após o seed (até **591.900** com o lote
-máximo de streaming) e **27.920 linhas nas dimensões**.
+**Totais:** aproximadamente **1,34 milhão de linhas nas fatos** e **26.400 nas dimensões**, na
+proporção de referência — um décimo disso no fator `dev`.
+
+Duas contagens desta seção foram corrigidas contra a geração real da Etapa 4, e é assim que elas
+devem ser lidas: `dim_geography` cai de 1.500 para **22**, porque o gerador produz endereços sobre
+22 localidades coerentes entre cidade, UF e CEP, cobrindo **14 unidades federativas e as cinco
+regiões**. É o critério do [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) em ação:
+o ambiente é dimensionado por **cobertura**, e uma dimensão que já contém todas as regiões não fica
+melhor com mais linhas. `dim_support_category` cai de 12 para **6**, que é o número de categorias
+que o modelo transacional aceita.
 
 Históricos SCD representam mudanças de atributos de negócio — não são cópias de segurança nem
 fotografias integrais do banco.

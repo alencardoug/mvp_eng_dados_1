@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: retail
+    description: >
+      Réplica das tabelas de `oltp` no schema `raw`, escrita pelo Airbyte. É a
+      única fonte que o corte comercial da Etapa 5 lê; os demais domínios entram
+      na etapa que os consome — ingerir tabela que nenhum modelo lê é volume sem
+      consumidor.
+    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    schema: raw
+    loader: airbyte
+
+    # O Airbyte escreve estas quatro colunas em toda tabela. `_airbyte_extracted_at`
+    # é o carimbo da carga — não confundir com `updated_at`, que é o tempo de
+    # negócio e o cursor declarado em `airbyte/streams.yml` (ADR-0015).
+    freshness:
+      warn_after: { count: 24, period: hour }
+      error_after: { count: 72, period: hour }
+    loaded_at_field: _airbyte_extracted_at
+
+    tables:
+      # ── Domínio fechado: carga completa ──────────────────────────────────
+      - name: customer_segments
+      - name: sales_channels
+      - name: product_categories
+      - name: brands
+        freshness: null
+
+      # ── Mutáveis com cursor: dedup + history ─────────────────────────────
+      - name: customers
+      - name: customer_addresses
+      - name: products
+      - name: product_variants
+      - name: carts
+      - name: cart_items
+        description: Maior tabela do projeto; ver Modelo de Dados §2.4.
+      - name: orders
+      - name: order_items

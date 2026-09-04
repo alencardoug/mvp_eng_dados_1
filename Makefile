@@ -11,11 +11,31 @@ COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml
 ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
 # O gerador lê a conexão do ambiente, nunca de argumento (mvp_ed1/db.py).
 GERADOR := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.generator.cli
+
+# Ferramentas externas, fixadas em .tools/ e ignoradas pelo Git. A versão vive
+# aqui, não na máquina de quem clona: o projeto fixa imagem por digest e
+# interpretador por série, e ferramenta de linha de comando não é exceção.
+ABCTL_VERSION := v0.30.4
+TERRAFORM_VERSION := 1.16.1
+ABCTL := DO_NOT_TRACK=1 .tools/abctl
+TERRAFORM := .tools/terraform -chdir=airbyte
+
+# O dbt lê a conexão do ambiente (dbt/profiles.yml) e os perfis do próprio
+# diretório do projeto, nunca de ~/.dbt.
+DBT := set -a; . ./.env; set +a; cd dbt && DBT_PROFILES_DIR=. ../.venv/bin/dbt
+
+# Credenciais do Airbyte no momento da execução; nunca gravadas em arquivo.
+CREDENCIAIS = eval "$$($(ABCTL) local credentials 2>/dev/null \
+	| sed 's/\x1b\[[0-9;]*m//g' \
+	| sed -n 's/.*Client-Id: \(\S*\).*/AIRBYTE_CLIENT_ID=\1/p; s/.*Client-Secret: \(\S*\).*/AIRBYTE_CLIENT_SECRET=\1/p' \
+	| sed 's/^/export /')" 
 BASE := source_db legacy_db warehouse_db
 
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
         migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
-        require-env require-venv
+        tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
+        dbt-build dbt-test dbt-docs \
+        require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis:"
@@ -114,6 +134,57 @@ seed-plan: require-venv ## Mostra o plano de volume das 40 tabelas, sem tocar no
 
 size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
 	@$(GERADOR) size-report
+
+tools: ## Baixa abctl e Terraform fixados para .tools/ (fora do Git)
+	@mkdir -p .tools
+	@test -x .tools/abctl || { \
+		echo "baixando abctl $(ABCTL_VERSION)"; \
+		curl -sSL "https://github.com/airbytehq/abctl/releases/download/$(ABCTL_VERSION)/abctl-$(ABCTL_VERSION)-linux-amd64.tar.gz" \
+			| tar -xz -C .tools --strip-components=1 abctl-$(ABCTL_VERSION)-linux-amd64/abctl; \
+		chmod +x .tools/abctl; }
+	@test -x .tools/terraform || { \
+		echo "baixando Terraform $(TERRAFORM_VERSION)"; \
+		curl -sSL "https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/terraform_$(TERRAFORM_VERSION)_linux_amd64.zip" -o /tmp/tf.zip; \
+		unzip -oq /tmp/tf.zip -d .tools && rm -f /tmp/tf.zip; }
+	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1
+
+require-abctl:
+	@test -x .tools/abctl || { echo "ERRO: abctl ausente. Rode 'make tools'."; exit 1; }
+
+require-terraform:
+	@test -x .tools/terraform || { echo "ERRO: Terraform ausente. Rode 'make tools'."; exit 1; }
+
+airbyte-up: require-abctl ## Sobe o Airbyte local (cluster próprio; ~9 GB de imagens na primeira vez)
+	@$(ABCTL) local install --values airbyte/values.yaml
+	@echo ""
+	@echo "Interface em http://localhost:8000 — credenciais em 'make airbyte-credentials'."
+
+airbyte-down: require-abctl ## Derruba o Airbyte, preservando os dados dele
+	@$(ABCTL) local uninstall
+
+airbyte-credentials: require-abctl ## Mostra as credenciais do Airbyte local
+	@$(ABCTL) local credentials
+
+airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão a partir do Terraform
+	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
+		export TF_VAR_airbyte_client_id="$$AIRBYTE_CLIENT_ID"; \
+		export TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET"; \
+		export TF_VAR_airbyte_workspace_id="$${AIRBYTE_WORKSPACE_ID:-$$(.venv/bin/python -m mvp_ed1.airbyte workspace)}"; \
+		export TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" TF_VAR_source_db_password="$$SOURCE_DB_PASSWORD"; \
+		export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"; \
+		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false $(if $(filter 1,$(AUTO)),-auto-approve)
+
+sync-airbyte: require-env require-abctl ## Executa a sincronização oltp -> raw e espera terminar
+	@$(CREDENCIAIS); .venv/bin/python -m mvp_ed1.airbyte sync
+
+dbt-build: require-env require-venv ## Roda os modelos dbt e os testes de dados
+	@$(DBT) build $(DBT_ARGS)
+
+dbt-test: require-env require-venv ## Somente os testes de dados
+	@$(DBT) test $(DBT_ARGS)
+
+dbt-docs: require-env require-venv ## Gera e serve o catálogo com dicionário, linhagem e glossário
+	@$(DBT) docs generate && $(DBT) docs serve
 
 test: require-venv ## Testes de código Python (pytest); CARGA=1 inclui a que escreve no banco
 	@set -a; [ -f .env ] && . ./.env; set +a; \

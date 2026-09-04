@@ -41,10 +41,10 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.1 — origem transacional **medida** |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.1 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
-| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo, importados pelo dbt | Vazio — a partir da Etapa 5 |
+| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 27 aceitos, 0 pendentes |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D31** e **D30** |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 28 aceitos, 2 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.5 — Etapas 2 a 4 conferidas |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**27 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
+**28 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -68,10 +68,12 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 5 — Corte 1: núcleo comercial.** Termo aprovado (**M0**), decisões registradas em ADR
-(**M1**), ambiente subindo do zero com um comando (**M2**), **banco transacional de 40 tabelas**
-criado por migrações reversíveis e **gerador de dados sintéticos** entregue. Nada
-[pendente](docs/pendencias.md) do lado do Owner.
+**Etapa 5 — Corte 1: núcleo comercial, em curso.** Termo aprovado (**M0**), decisões registradas
+em ADR (**M1**), ambiente subindo do zero com um comando (**M2**), **banco transacional de 40
+tabelas** criado por migrações reversíveis e **gerador de dados sintéticos** entregue.
+
+Duas decisões [esperam você](docs/pendencias.md), e a primeira **bloqueia a etapa**: o *pod* de
+replicação do Airbyte pede 4 CPUs em uma máquina de 4, e não é agendado.
 
 Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
 — 225 bytes por linha —, geradas em 5,1 s e carregadas em 26 s. As doze

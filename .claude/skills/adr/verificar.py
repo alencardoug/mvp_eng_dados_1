@@ -10,7 +10,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-docs = [p for p in sorted(ROOT.rglob("*.md")) if ".git" not in p.parts]
+# Só o que é do projeto: pacote dbt de terceiro e artefato de build têm links
+# próprios, quebrados ou não, e não são responsabilidade deste repositório.
+IGNORADOS = {".git", ".venv", ".tools", ".terraform", "dbt_packages", "target", "node_modules"}
+docs = [
+    p for p in sorted(ROOT.rglob("*.md"))
+    if not IGNORADOS & set(p.parts)
+]
 texts = {p: p.read_text(encoding="utf-8") for p in docs}
 problems = []
 
@@ -44,8 +50,11 @@ for d in sorted(resolvidas & set(re.findall(r"\bD\d{2}\b", pendentes))):
 n_adr = len(adr_numbers) - 1  # 0000-template não conta
 n_pend = len(set(re.findall(r"\*\*(D\d{2})\*\*", pendentes)))
 readme = texts[ROOT / "README.md"]
-if f"{n_adr} aceitos, {n_pend} pendentes" not in readme:
-    problems.append(f"README desatualizado — esperado '{n_adr} aceitos, {n_pend} pendentes'")
+# Concordância de número: "1 pendente", não "1 pendentes". O README é lido por
+# gente, e o verificador não deve forçar um erro de português nele.
+esperado = f"{n_adr} aceitos, {n_pend} pendente" + ("" if n_pend == 1 else "s")
+if esperado not in readme:
+    problems.append(f"README desatualizado — esperado {esperado!r}")
 header = texts[ROOT / "docs/pendencias.md"]
 if f"| Decisões pendentes | {n_pend} |" not in header:
     problems.append(f"pendencias.md desatualizado — esperado {n_pend} decisões pendentes")

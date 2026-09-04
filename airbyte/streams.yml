@@ -1,0 +1,74 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Critério de sincronização por tabela — o "arquivo de configuração versionado"
+# que o ADR-0015 exige. É a **única** declaração do modo de cada tabela: o
+# Terraform lê daqui, e um teste confere que a conexão no Airbyte bate com o que
+# está escrito. Tabela sem modo declarado é falha de build, não escolha
+# implícita (Qualidade de Dados §3).
+#
+# A regra do ADR-0015, aplicada linha a linha:
+#
+#   append            tabela de evento, só cresce, sem UPDATE
+#   dedup_history     tem `updated_at` confiável e sofre UPDATE
+#   full_refresh      estável, pequena, sem cursor que valha a pena
+#
+# `cursor` é a coluna que o incremental usa para saber o que mudou, e `chave` é
+# a chave primária que o `dedup_history` usa para casar versões da mesma linha.
+# ══════════════════════════════════════════════════════════════════════════════
+
+versao: 1
+
+# Nome da origem nos modelos de staging: `stg_<origem>__<tabela>` (ADR-0013).
+origem: retail
+schema: oltp
+
+# Etapa 5 — corte do núcleo comercial. Os demais fluxos entram na etapa que os
+# consome: ingerir tabela que nenhum modelo lê é volume sem consumidor.
+tabelas:
+
+  # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
+  customer_segments:
+    modo: full_refresh
+    motivo: Oito linhas que quase nunca mudam; cursor aqui é cerimônia sem ganho.
+  sales_channels:
+    modo: full_refresh
+    motivo: Três linhas. Carga completa é mais barata que a lógica de estado.
+  product_categories:
+    modo: full_refresh
+    motivo: Hierarquia pequena, e uma recategorização mexe em vários nós de uma vez — carga completa evita reconstruir a árvore a partir de deltas.
+  brands:
+    modo: full_refresh
+    motivo: Cadastro pequeno e de baixa rotatividade.
+
+  # ── Mutáveis com `updated_at`: dedup + history ────────────────────────────
+  customers:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  customer_addresses:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  products:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  product_variants:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  carts:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  cart_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  orders:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  order_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]

@@ -1,0 +1,211 @@
+version: 2
+
+# Testes da camada `staging`. Não há descrição de coluna aqui: o dono desse
+# conteúdo é o Dicionário de Dados, gerado dos modelos SQLAlchemy por
+# `make catalog`. Repetir a descrição em YAML criaria a segunda cópia que o
+# princípio **P8** proíbe, e ela divergiria na primeira alteração de modelo.
+#
+# O que vive aqui é o que o dicionário não sabe: a **chave** de cada modelo, as
+# relações que precisam fechar e os valores que cada enumeração aceita depois da
+# renomeação.
+
+models:
+  # ── Domínio fechado ────────────────────────────────────────────────────────
+  - name: stg_retail__customer_segments
+    description: Segmentos comerciais de cliente, um por linha.
+    columns:
+      - name: customer_segment_id
+        data_tests: [unique, not_null]
+      - name: customer_segment_code
+        data_tests: [unique, not_null]
+
+  - name: stg_retail__sales_channels
+    description: Canais de venda. Dimensão conformada de `dim_sales_channel`.
+    columns:
+      - name: sales_channel_id
+        data_tests: [unique, not_null]
+      - name: channel_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [web, app, store]
+
+  - name: stg_retail__product_categories
+    description: Hierarquia de categorias, com profundidade derivada do pai.
+    columns:
+      - name: product_category_id
+        data_tests: [unique, not_null]
+      - name: parent_product_category_id
+        data_tests:
+          - relationships:
+              to: ref('stg_retail__product_categories')
+              field: product_category_id
+      - name: category_depth
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 3
+
+  - name: stg_retail__brands
+    description: Marcas do catálogo.
+    columns:
+      - name: brand_id
+        data_tests: [unique, not_null]
+
+  # ── Mutáveis com cursor ────────────────────────────────────────────────────
+  - name: stg_retail__customers
+    description: >
+      Cadastro de clientes. `is_deleted` carrega a exclusão lógica até o
+      datamart, conforme o ADR-0015 — a linha não some, ela fica marcada.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: customer_code
+        data_tests: [unique, not_null]
+      - name: customer_segment_id
+        data_tests:
+          - relationships:
+              to: ref('stg_retail__customer_segments')
+              field: customer_segment_id
+      - name: customer_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [active, inactive, blocked, pending]
+
+  - name: stg_retail__customer_addresses
+    description: Endereços com vigência; alimenta `dim_geography`.
+    columns:
+      - name: customer_address_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__customers')
+              field: customer_id
+      - name: address_type
+        data_tests:
+          - accepted_values:
+              values: [billing, shipping]
+      - name: state
+        data_tests:
+          - dbt_expectations.expect_column_value_lengths_to_equal:
+              value: 2
+
+  - name: stg_retail__products
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+      - name: product_code
+        data_tests: [unique, not_null]
+      - name: product_category_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__product_categories')
+              field: product_category_id
+      - name: product_status
+        data_tests:
+          - accepted_values:
+              values: [draft, active, discontinued]
+
+  - name: stg_retail__product_variants
+    description: SKUs. Grão de produto de `fact_sales_order_item`.
+    columns:
+      - name: product_variant_id
+        data_tests: [unique, not_null]
+      - name: sku
+        data_tests: [unique, not_null]
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__products')
+              field: product_id
+
+  - name: stg_retail__carts
+    description: Carrinhos. Origem de `fact_cart_event` (ADR-0028).
+    columns:
+      - name: cart_id
+        data_tests: [unique, not_null]
+      - name: cart_code
+        data_tests: [unique, not_null]
+      - name: cart_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [open, converted, abandoned, expired]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              to: ref('stg_retail__customers')
+              field: customer_id
+
+  - name: stg_retail__cart_items
+    description: Maior tabela do projeto. Dá o valor do carrinho abandonado.
+    columns:
+      - name: cart_item_id
+        data_tests: [unique, not_null]
+      - name: cart_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__carts')
+              field: cart_id
+      - name: quantity
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+  - name: stg_retail__orders
+    description: Cabeçalho do pedido. `order_total_amount` viaja como dimensão degenerada.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: order_number
+        data_tests: [unique, not_null]
+      - name: cart_id
+        description: Único quando preenchido — um carrinho converte em no máximo um pedido.
+        data_tests:
+          - unique
+          - relationships:
+              to: ref('stg_retail__carts')
+              field: cart_id
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__customers')
+              field: customer_id
+      - name: order_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+
+  - name: stg_retail__order_items
+    description: >
+      Grão comercial do pedido, e o grão de `fact_sales_order_item`. Nunca
+      recebe exclusão lógica: item de pedido emitido é imutável, e apagá-lo
+      faria `subtotal_amount` deixar de bater com a soma dos itens.
+    columns:
+      - name: order_item_id
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__orders')
+              field: order_id
+      - name: product_variant_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__product_variants')
+              field: product_variant_id
+      - name: is_deleted
+        data_tests:
+          - accepted_values:
+              values: [false]
+              quote: false

@@ -38,3 +38,16 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+.tools/
+
+# Terraform — o cache do provider e o estado ficam fora; o `.terraform.lock.hcl`
+# é versionado de propósito: ele é a trava de versão do provider, e o projeto
+# fixa imagem por digest e dependência por lock (ADR-0026).
+.terraform/
+terraform.tfstate*
+dbt/.user.yml

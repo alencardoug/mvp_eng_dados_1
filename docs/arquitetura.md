@@ -235,6 +235,10 @@ mvp_ed1/
 │   ├── glossario_de_negocio/     # blocos {% docs %} importados pelo dbt
 │   └── adr/
 ├── docker/                       # (Etapa 2) composição do ambiente local
+├── airbyte/                      # (Etapa 5) ingestão como código
+│   ├── streams.yml               #           modo de sincronização por tabela (ADR-0015)
+│   ├── values.yaml               #           dimensionamento dos jobs no cluster local
+│   └── *.tf                      #           fonte, destino e conexão (ADR-0004)
 ├── db/                           # (Etapa 3) migrações Alembic e seeds
 │   ├── migrations/               # env.py + versions/ derivadas dos modelos
 │   └── seeds/
@@ -251,9 +255,13 @@ mvp_ed1/
 │       ├── legacy/               # (Etapa 10) gerador da origem legada
 │       └── streaming/            # (Etapa 7) produtor e pipeline Beam
 ├── dbt/                          # (Etapa 5) projeto dbt: modelos, testes, .yml
+│   ├── dbt_project.yml           #           camada = schema, materialização por ADR-0016
+│   ├── profiles.yml              #           conexão por variável de ambiente, sem segredo
+│   └── models/{staging,trusted,analytics,consumption}/
 ├── airflow/                      # (Etapa 5) DAGs
 ├── terraform/                    # (Etapa 13) infraestrutura GCP
 ├── tests/                        # (Etapa 4) testes de código Python
+├── .tools/                       # (Etapa 5) abctl e Terraform fixados; fora do Git
 └── data/                         # artefatos locais, ignorados pelo Git
 ```
 

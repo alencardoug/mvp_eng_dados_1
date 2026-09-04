@@ -58,6 +58,10 @@ def _ordens(motor: Motor, dados: Dataset) -> list[dict]:
                 "expected_at": emitida + _dias(fonte, minimo, maximo),
                 "status": "draft",
                 "total_amount": Decimal("0"),
+                # Documento comercial emitido não é apagado logicamente: ele é
+                # cancelado por estado. Exclusão lógica em linha de documento
+                # deixaria o total do cabeçalho sem os itens que o formaram.
+                "deleted_at": None,
                 "__destino": destinos[indice],
             }
         )
@@ -90,6 +94,7 @@ def _itens(motor: Motor, dados: Dataset, ordens_linhas: list[dict]) -> list[dict
                     "quantity_ordered": pedida,
                     "unit_cost": custo,
                     "total_cost": dinheiro(custo * pedida),
+                    "deleted_at": None,
                     "__momento": ordem["ordered_at"],
                 }
             )
@@ -153,6 +158,7 @@ def _recebimentos(
                 "warehouse_id": armazem["id"],
                 "received_at": recebido_em,
                 "status": estado,
+                "deleted_at": None,
             }
             recebimentos.append(recebimento)
 
@@ -170,6 +176,7 @@ def _recebimentos(
                         "purchase_order_item_id": item["id"],
                         "quantity_received": quantidade,
                         "unit_cost": item["unit_cost"],
+                        "deleted_at": None,
                         "__momento": recebido_em,
                         "__warehouse_id": armazem["id"],
                         "__product_variant_id": item["product_variant_id"],
