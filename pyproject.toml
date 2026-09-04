@@ -21,6 +21,19 @@ dependencies = [
     "SQLAlchemy>=2.0,<3.0",   # ADR-0009 — modelos como fonte de verdade do schema
     "alembic>=1.13,<2.0",     # ADR-0010 — migrações derivadas dos modelos
     "psycopg[binary]>=3.2,<4.0",
+    "Faker>=30,<38",          # ADR-0005 — valores sintáticos do gerador
+    "PyYAML>=6.0,<7.0",       # Etapa 4 — o artefato declarativo do gerador é YAML
+]
+
+# Os testes de código são `pytest` (Qualidade de Dados §1); testes de dados são
+# do dbt, e nascem na Etapa 5.
+[dependency-groups]
+dev = ["pytest>=8.0,<9.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integracao: exige PostgreSQL de pé; pulado quando o ambiente não responde",
 ]
 
 [build-system]

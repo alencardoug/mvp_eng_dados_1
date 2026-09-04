@@ -10,8 +10,8 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.4 |
-| Situação | Alvos da **Etapa 2** implementados e conferidos; os demais nascem na etapa indicada |
+| Versão | 1.5 |
+| Situação | Alvos das Etapas **2 a 4** implementados e conferidos; os demais nascem na etapa indicada |
 | Última revisão | 04/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
@@ -59,6 +59,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 1 | `make up` | Sobe os contêineres base: `source_db`, `legacy_db`, `warehouse_db` | Etapa 2 |
 | 2 | `make migrate` | Aplica as migrações Alembic até a última revisão | Etapa 3 |
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
+| 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
 | 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados | Etapa 5 |
@@ -68,16 +69,29 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
 | 11 | `make check` | Verificação completa: testes, reconciliações e revisão de segredos | Etapa 12 |
 
-Parâmetros de execução — perfil de volume, `seed` e `as_of_date` — são passados por variável de
-ambiente ou por argumento do alvo, nunca editados no código.
+### 3.1 Parâmetros do gerador
+
+Passados por variável do alvo, nunca editados no código. O padrão de todos vem da
+[configuração do gerador](../src/mvp_ed1/generator/geracao.yml).
 
 ```bash
 make seed-data                      # fator `dev`, padrão em todas as etapas
 make seed-data SCALE=10             # fator maior, quando houver motivo declarado
+make seed-data SEED=42 AS_OF=2026-06-30   # outra semente e outra data de corte
+make seed-data DRY_RUN=1            # gera e mede em memória, sem escrever no banco
+make seed-data FORCE=1              # trunca as 40 tabelas antes de carregar
 ```
 
 O volume é expresso por **fator de escala** sobre um conjunto único de proporções
 ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)). Não há perfis de tamanho.
+
+**`make seed-data` recusa carregar sobre dados existentes.** É o mesmo contrato de `make env` e
+`make reset`: comando que destrói estado não destrói sozinho. `FORCE=1` autoriza o truncamento das
+40 tabelas antes da carga.
+
+A mesma `SEED` com a mesma `AS_OF` recria exatamente os mesmos dados
+([ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)) — inclusive as chaves
+primárias, porque o gerador as atribui e o `COPY` as escreve.
 
 ---
 
@@ -94,8 +108,8 @@ O volume é expresso por **fator de escala** sobre um conjunto único de propor�
 | `make migrate-down` | Desfaz migrações; `TO=base` derruba tudo | Etapa 3 |
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
-| `make catalog` | Regenera dicionário e diagrama ER a partir dos modelos | Etapa 3 |
-| `make test` | Testes de código Python (`pytest`) | Etapa 4 |
+| `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração | Etapa 3 |
+| `make test` | Testes de código Python (`pytest`); `CARGA=1` inclui a que escreve no banco | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow | Etapa 5 |
 | `make dag-run` | Dispara a DAG do fluxo completo | Etapa 5 |
@@ -103,8 +117,9 @@ O volume é expresso por **fator de escala** sobre um conjunto único de propor�
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
 
-> `make reset` e `make recover-restore` **destroem estado**. `recover-restore` só é executado
-> mediante decisão explícita do responsável técnico.
+> `make reset`, `make seed-data FORCE=1`, `make test CARGA=1` e `make recover-restore` **destroem
+> estado**. Os três primeiros exigem a variável explícita; `recover-restore` só é executado mediante
+> decisão explícita do responsável técnico.
 
 ---
 
@@ -116,7 +131,7 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Cenário | O que precisa estar de pé |
 |---|---|
 | Desenvolver modelos dbt | `make up` + dados já carregados |
-| Ajustar o gerador | `make up` apenas |
+| Ajustar o gerador | `make up` apenas — ou nada, com `DRY_RUN=1` |
 | Trabalhar no streaming | `make up` + `make stream-up` |
 | Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
 
@@ -124,5 +139,22 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 
 ## 6. Solução de problemas
 
-*Vazio.* Será preenchido com os problemas realmente encontrados, e não com hipóteses — princípio
-**P5** (verdade por padrão).
+Preenchido com os problemas **realmente encontrados**, e não com hipóteses — princípio **P5**.
+
+### `make size-report` acusa tamanho maior do que a carga justifica
+
+Uma carga que falha no meio deixa tuplas mortas: o `COPY` desfaz a transação, mas o espaço só volta
+com `VACUUM`. Uma execução seguinte escreve por cima disso, e o relatório soma as duas. Foi o que
+aconteceu na primeira medição da Etapa 4 — 86 MB onde havia 55.
+
+`make seed-data FORCE=1` trunca antes de carregar, e `TRUNCATE` devolve o espaço na hora. Para uma
+medição que vá para documento, comece do zero:
+
+```bash
+make reset FORCE=1 && make up && make migrate && make seed-data
+```
+
+### `make seed-data` recusa executar
+
+Mensagem `N tabelas já contêm dados`. É o comportamento pretendido — ver
+[seção 3.1](#31-parâmetros-do-gerador). Use `FORCE=1` se realmente quiser descartar a carga atual.

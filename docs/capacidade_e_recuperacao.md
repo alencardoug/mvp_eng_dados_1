@@ -12,8 +12,8 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.0 |
-| Situação | Vigente. Nenhum número deste documento foi medido ainda (**P5**) |
+| Versão | 2.1 |
+| Situação | Vigente. A origem transacional foi **medida** na Etapa 4; as demais camadas, não |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -53,7 +53,36 @@ Nada disso interrompe execução. Os valores alimentam a definição do fator `c
 tabela de reconciliação do schema `governance`
 ([ADR-0023](adr/0023-escopo-do-schema-governance.md)).
 
-### 2.1 A restrição real passou a ser memória
+### 2.1 Medido na Etapa 4 — origem transacional
+
+Primeira medição real do projeto. Ambiente limpo: `make reset` → `make up` → `make migrate` →
+`make seed-data`, sem carga anterior no volume — a distinção importa, porque uma carga sobre tuplas
+mortas de uma execução abortada mediu 86 MB onde havia 55.
+
+| Medida | Valor |
+|---|---:|
+| Linhas carregadas em `oltp`, fator `dev` | 253.414 |
+| Tamanho do schema `oltp` (dados + índices) | 54,5 MB |
+| Tamanho do `source_db`, com catálogo e WAL | 63,1 MB |
+| Soma dos três bancos, dois deles vazios | 77,8 MB |
+| **Média por linha, incluindo índices** | **225 bytes** |
+| Tempo de geração em memória | 5,1 s |
+| Tempo de carga por `COPY` | 26,0 s |
+| **Tempo total de `make seed-data`** | **31,1 s** |
+
+Bytes por linha varia mais de uma ordem de grandeza entre as tabelas, e a média esconde isso: 154
+bytes em `cart_items` e 528 em `inventory_movements`, que carrega três `uuid`, um `jsonb` e seis
+índices. Nas tabelas de domínio fechado o número perde sentido — `sales_channels` marca 13 kB por
+linha porque três linhas pagam o custo fixo de oito páginas de índice. **Para projetar volume, use
+as tabelas grandes; a média serve para comparar execuções, não para extrapolar.**
+
+O detalhe por tabela e por índice não é copiado para cá: ele sai de `make size-report`, que é o dono
+do número, e muda a cada execução.
+
+*Ainda não medidos:* `legacy_db`, `warehouse_db`, tempo do pipeline completo e tamanho das camadas
+analíticas. Eles não existem ainda (**P5**).
+
+### 2.2 A restrição real passou a ser memória
 
 Com o disco fora de questão, o limite do ambiente local é **memória**, não armazenamento. O
 [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) adotou Kafka Connect, que custa cerca de 1 GB
@@ -63,7 +92,7 @@ Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o sub
 etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
 final da Etapa 12.
 
-### 2.2 Custo da janela na nuvem
+### 2.3 Custo da janela na nuvem
 
 O [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) escolheu Cloud Composer e Airbyte em contêiner,
 que cobram por hora ligada. A contenção é temporal, não técnica: os dois existem **apenas durante a

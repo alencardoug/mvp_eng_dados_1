@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.1 |
+| Versão | 1.2 |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -43,6 +43,26 @@ uma execução interrompida.
 
 Boa parte destes controles é declarada no próprio schema: quando o banco pode garantir a regra, a
 regra vive no banco, não em um teste posterior.
+
+### 2.1 O gerador, e por que o banco é o teste dele
+
+A carga por `COPY` da [Etapa 4](../src/mvp_ed1/generator/) atravessa toda `CHECK`, toda unicidade e
+toda chave estrangeira do modelo. Uma linha incoerente não entra: a execução para. Escrever um teste
+Python que repita essas mesmas regras seria manter duas opiniões sobre a mesma restrição — e a
+segunda opinião estaria sempre atrasada em relação ao modelo.
+
+O que o `pytest` cobre é o que o banco **não** consegue dizer:
+
+| Família | O que verifica |
+|---|---|
+| Configuração | A declaração do gerador confere com os modelos: tabela ausente, coluna inexistente, peso que esquece um valor de enumeração, piso sem motivo |
+| Determinismo | A mesma `seed` com a mesma `as_of_date` produz o mesmo conjunto, comparado por impressão digital; sementes diferentes produzem conjuntos diferentes |
+| Cobertura | As 40 tabelas populadas, todo valor de enumeração presente, proporção dentro da tolerância declarada — e o mesmo em um fator vinte vezes menor, que é o que prova que a garantia é do piso e não do volume |
+| Invariantes | As doze do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: sete delas atravessam linhas e passariam pela carga sem serem notadas |
+| Privacidade | Nenhum e-mail fora de `example.com`, nenhum documento com aparência de válido ([Geração §7](geracao_de_dados.md#7-privacidade-dos-dados-sintéticos)) |
+
+A suíte roda em `make test` e não depende de banco de pé, exceto a carga, que exige autorização
+explícita — um teste não pode ser mais permissivo que o comando que ele testa.
 
 ---
 

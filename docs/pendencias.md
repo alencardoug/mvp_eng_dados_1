@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 4 — Gerador de dados sintéticos |
+| Etapa atual | Etapa 5 — Corte 1: núcleo comercial |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
 | Última revisão | 04/09/2026 |
@@ -23,9 +23,10 @@
 foram dadas, as dezoito decisões abertas foram fechadas em ADR e as três questões que não eram ADR
 foram resolvidas nos documentos que as tratam.
 
-Os marcos **M0** (Termo aprovado) e **M1** (decisões registradas) estão fechados. O trabalho segue
-na **Etapa 2** sem depender de você — a próxima vez que este documento tiver conteúdo será quando
-surgir uma escolha que o [`CLAUDE.md`](../CLAUDE.md) §5 proíbe o assistente de tomar sozinho.
+Os marcos **M0** (Termo aprovado), **M1** (decisões registradas) e **M2** (ambiente reproduzível)
+estão fechados, e as Etapas 3 e 4 foram entregues. O trabalho segue na **Etapa 5** sem depender de
+você — a próxima vez que este documento tiver conteúdo será quando surgir uma escolha que o
+[`CLAUDE.md`](../CLAUDE.md) §5 proíbe o assistente de tomar sozinho.
 
 ## 2. Onde cada item foi parar
 
@@ -44,6 +45,11 @@ Registro de encerramento, para que nenhuma decisão pareça ter sumido.
 As dezoito foram fechadas em quatorze ADRs temáticos, **0012** a **0025**. A correspondência está na
 seção 2 do [Registro de Decisões](adr/README.md), coluna *Resolve*.
 
+Depois delas, duas escolhas novas surgiram durante a construção e foram decididas por você na hora,
+com as alternativas na mesa: o ambiente Python ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md))
+e o formato e o piso da configuração do gerador
+([ADR-0027](adr/0027-configuracao-do-gerador-em-yaml.md)).
+
 ### Questões que não eram ADR
 
 | # | Questão | Resultado |
@@ -55,8 +61,8 @@ seção 2 do [Registro de Decisões](adr/README.md), coluna *Resolve*.
 
 ## 3. Do lado do assistente
 
-Nada pendente. Os quatorze ADRs foram registrados com os índices e os documentos afetados
-atualizados na mesma entrega. O trabalho prossegue na Etapa 2.
+Nada pendente. Cada ADR foi registrado com os índices e os documentos afetados atualizados na mesma
+entrega. O trabalho prossegue na Etapa 5.
 
 ---
 

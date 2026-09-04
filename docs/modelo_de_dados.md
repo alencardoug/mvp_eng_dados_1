@@ -49,13 +49,15 @@ justamente o que se quer exercitar.
 
 ## 2. Modelo transacional — 40 tabelas em 9 domínios
 
+<!-- gerado a partir dos modelos; não editar à mão -->
+
 ### 2.1 Clientes — 5 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `customers` | 15.000 | Cadastro principal do cliente e estado do relacionamento. |
-| `customer_addresses` | 21.000 | Endereços de cobrança e entrega, com vigência e indicação de endereço principal. |
 | `customer_contacts` | 24.000 | E-mails e telefones sintéticos associados ao cliente. |
+| `customer_addresses` | 21.000 | Endereços de cobrança e entrega, com vigência e indicação de principal. |
+| `customers` | 15.000 | Cadastro principal do cliente e estado do relacionamento. |
 | `customer_preferences` | 15.000 | Preferências de comunicação, idioma e consentimentos simulados. |
 | `customer_segments` | 8 | Segmentos comerciais associáveis ao cadastro do cliente. |
 
@@ -63,86 +65,89 @@ justamente o que se quer exercitar.
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `products` | 3.000 | Produto conceitual vendido pelo marketplace. |
-| `product_categories` | 80 | Hierarquia de categorias e subcategorias. |
-| `brands` | 180 | Marcas associadas aos produtos. |
-| `product_variants` | 6.000 | SKUs e variações de tamanho, cor ou embalagem. |
-| `price_lists` | 5 | Listas de preço por canal, moeda e período de vigência. |
 | `product_prices` | 12.000 | Preço de cada SKU em uma lista e intervalo de vigência. |
+| `product_variants` | 6.000 | SKUs e variações de tamanho, cor ou embalagem. |
+| `products` | 3.000 | Produto conceitual vendido pelo marketplace. |
+| `brands` | 180 | Marcas associadas aos produtos. |
+| `product_categories` | 80 | Hierarquia de categorias e subcategorias do catálogo. |
+| `price_lists` | 5 | Listas de preço por canal, moeda e período de vigência. |
 
 ### 2.3 Fornecedores e compras — 5 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `suppliers` | 300 | Cadastro sintético dos fornecedores. |
-| `purchase_orders` | 4.000 | Cabeçalho das ordens de compra. |
 | `purchase_order_items` | 16.000 | Produtos, quantidades e custos solicitados ao fornecedor. |
+| `goods_receipt_items` | 15.200 | Quantidades efetivamente recebidas por item da ordem de compra. |
+| `purchase_orders` | 4.000 | Cabeçalho das ordens de compra enviadas a fornecedores. |
 | `goods_receipts` | 3.800 | Registro do recebimento físico de uma ordem de compra. |
-| `goods_receipt_items` | 15.200 | Quantidades efetivamente recebidas por item da ordem. |
+| `suppliers` | 300 | Cadastro sintético dos fornecedores. |
 
 ### 2.4 Vendas — 6 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `sales_channels` | 3 | Canais como web, aplicativo e loja. |
-| `carts` | 400.000 | Carrinhos abertos, convertidos, abandonados ou expirados. |
 | `cart_items` | **1.100.000** | Produtos e quantidades incluídos nos carrinhos; maior tabela do projeto. |
-| `orders` | 35.000 | Cabeçalho do pedido, cliente, canal, valores e estado atual. |
-| `order_items` | 75.000 | Grão comercial do pedido: um SKU comprado em uma linha. |
+| `carts` | 400.000 | Carrinhos abertos, convertidos, abandonados ou expirados. |
 | `order_status_history` | 175.000 | Histórico temporal das mudanças de estado do pedido. |
+| `order_items` | 75.000 | Grão comercial do pedido: um SKU comprado em uma linha. |
+| `orders` | 35.000 | Cabeçalho do pedido: cliente, canal, valores e estado atual. |
+| `sales_channels` | 3 | Canais de venda como web, aplicativo e loja física. |
 
 ### 2.5 Pagamentos — 4 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `payment_methods` | 6 | Tipos de pagamento aceitos, sem armazenar credenciais reais. |
+| `payment_transactions` | 71.500 | Tentativas, autorizações, capturas e falhas do pagamento. |
 | `payments` | 36.750 | Intenção de pagamento associada ao pedido. |
-| `payment_transactions` | 52.500 | Tentativas, autorizações, capturas e falhas do pagamento. |
 | `refunds` | 1.400 | Reembolsos totais ou parciais de transações capturadas. |
+| `payment_methods` | 6 | Tipos de pagamento aceitos, sem armazenar credenciais. |
 
 ### 2.6 Estoque — 4 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `warehouses` | 5 | Centros de distribuição ou locais de estoque. |
-| `inventory_balances` | 25.000 | Saldo atual de cada SKU por armazém. |
-| `inventory_movements` | 120.000 no seed; até 170.000 após o streaming | Livro *append-only* de entradas, saídas, ajustes e transferências. |
+| `inventory_movements` | 120.000 | Livro append-only de entradas, saídas, ajustes e transferências. |
 | `stock_reservations` | 42.000 | Reserva de quantidade para carrinhos ou pedidos. |
-
-`inventory_movements` é a tabela que alimenta o fluxo de streaming — seu contrato de evento está na
-[seção 5](#5-contrato-do-evento-de-estoque).
+| `inventory_balances` | 25.000 | Saldo atual de cada SKU por armazém. |
+| `warehouses` | 5 | Centros de distribuição ou locais de estoque. |
 
 ### 2.7 Logística — 4 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `carriers` | 8 | Transportadoras sintéticas. |
-| `shipments` | 37.000 | Remessas criadas para atender pedidos. |
-| `shipment_items` | 78.000 | Quantidades de itens de pedido incluídas em cada remessa. |
 | `delivery_events` | 185.000 | Eventos de coleta, trânsito, tentativa e entrega. |
+| `shipment_items` | 78.000 | Quantidades de itens de pedido incluídas em cada remessa. |
+| `shipments` | 37.000 | Remessas criadas para atender pedidos. |
+| `carriers` | 8 | Transportadoras sintéticas e suas modalidades. |
 
 ### 2.8 Marketing — 3 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `campaigns` | 28 | Campanhas e seus períodos de vigência. |
-| `coupons` | 180 | Cupons, regras de desconto e limites de utilização. |
 | `coupon_redemptions` | 6.000 | Uso efetivo de cupons por cliente e pedido. |
+| `coupons` | 180 | Cupons, regras de desconto e limites de utilização. |
+| `campaigns` | 28 | Campanhas de marketing e seus períodos de vigência. |
 
 ### 2.9 Atendimento — 3 tabelas
 
 | Tabela | Linhas | Finalidade |
 |---|---:|---|
-| `support_agents` | 42 | Agentes sintéticos e suas equipes de atendimento. |
-| `support_tickets` | 4.000 | Solicitações associadas a clientes, pedidos ou entregas. |
 | `ticket_events` | 18.000 | Interações, atribuições e mudanças de estado do chamado. |
+| `support_tickets` | 4.000 | Solicitações associadas a clientes, pedidos ou entregas. |
+| `support_agents` | 42 | Agentes sintéticos e suas equipes de atendimento. |
 
-**Total na proporção de referência:** aproximadamente **2,53 milhões de linhas** — cerca de
-**253 mil** no fator `dev`, que é o padrão local.
+**Total na proporção de referência:** 2.545.495 linhas — 254.604 no fator `dev`, que é o padrão local.
 
-`cart_items` é a maior tabela por construção: cerca de 400 mil carrinhos com abandono, expiração e
-múltiplas alterações antes da conversão produzem uma razão de aproximadamente 11 itens por pedido
-convertido. É essa razão, e não o número absoluto, que precisa sobreviver a qualquer fator.
+<!-- fim do trecho gerado -->
+
+`cart_items` é a maior tabela por construção: carrinhos com abandono, expiração e múltiplas
+alterações antes da conversão produzem cerca de 2,7 itens por carrinho e 31 itens de carrinho por
+pedido convertido. É essa razão, e não o número absoluto, que precisa sobreviver a qualquer fator.
+
+`inventory_movements` alimenta o fluxo de streaming — o contrato do evento está na
+[seção 5](#5-contrato-do-evento-de-estoque) —, e é a única tabela que cresce **além** da proporção
+declarada: o produtor da [Etapa 7](streaming.md) acrescenta eventos ao livro depois da carga
+inicial.
 
 ### 2.10 Desvios deliberados da 3FN
 

@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.3 |
-| Etapa atual | **Etapa 4 — Gerador de dados sintéticos** (**M0**, **M1** e **M2** concluídos) |
+| Versão | 2.4 |
+| Etapa atual | **Etapa 5 — Corte 1: núcleo comercial** (**M0**, **M1** e **M2** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -126,14 +126,16 @@ flowchart LR
 
 ### Etapa 4 — Gerador de dados sintéticos
 
+*Concluída em 04/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Gerar volume transacional realista, parametrizável e determinístico. |
 | **Pré-requisito** | Etapa 3 |
 | **Entregas** | **E4** |
-| **Decisões** | **D26** ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) — aceita em 04/09/2026 |
-| **Artefatos** | Motor em `src/generator/` · configuração declarativa das 40 tabelas com proporções, fator de escala e piso · `make size-report` |
-| **Critérios de conclusão** | Mesma `seed` e mesma `as_of_date` produzem exatamente os mesmos dados · volume configurável sem alterar código · geração respeita todas as *constraints* e as [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) · cobertura conferida por teste: toda tabela populada, todo valor de enumeração presente e toda invariante exercida · bytes por linha e tempo de geração **medidos** em fator 1 e registrados |
+| **Decisões** | **D26** ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) · formato e piso da configuração ([ADR-0027](adr/0027-configuracao-do-gerador-em-yaml.md)) — aceitas em 04/09/2026 |
+| **Artefatos** | Motor em `src/mvp_ed1/generator/` com nove construtores de domínio · configuração declarativa das 40 tabelas em `geracao.yml` · `make seed-data`, `make seed-plan`, `make size-report` e `make test` · 56 testes em `tests/` |
+| **Critérios de conclusão** | Mesma `seed` e mesma `as_of_date` produzem exatamente os mesmos dados ✓ (comparado por impressão digital do conjunto) · volume configurável sem alterar código ✓ (`SCALE`, `SEED` e `AS_OF` no alvo; a seção 2 do [Modelo de Dados](modelo_de_dados.md) passou a ser **gerada** da configuração) · geração respeita todas as *constraints* e as [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) ✓ (carga por `COPY` conferida pelo banco; as doze invariantes verificadas em SQL e em `pytest`) · cobertura conferida por teste ✓ (40 tabelas populadas e todo valor de enumeração presente, também no fator 0,05) · bytes por linha e tempo **medidos** em fator 1 e registrados ✓ ([Capacidade §2.1](capacidade_e_recuperacao.md#21-medido-na-etapa-4--origem-transacional)) |
 | **Riscos tratados** | **R5**, **R6**, **R11**, **R14** |
 | **Conceitos** | Determinismo por semente · modelagem de distribuições · integridade referencial na geração · medição de capacidade |
 

@@ -243,10 +243,13 @@ mvp_ed1/
 ├── .python-version               # (Etapa 2) interpretador declarado: 3.11
 ├── src/
 │   └── mvp_ed1/                  # (Etapa 2) pacote instalável, importado por caminho absoluto
+│       ├── db.py                 # (Etapa 4) URL de conexão a partir do ambiente
 │       ├── models/               # (Etapa 3) as 40 tabelas — fonte de verdade do schema
-│       ├── generator/            # (Etapa 4) motor de geração + configuração declarativa
-│       ├── legacy/               # (Etapa 4) gerador da origem legada
-│       └── streaming/            # (Etapa 4) produtor e pipeline Beam
+│       ├── generator/            # (Etapa 4) motor, configuração declarativa e construtores
+│       │   ├── geracao.yml       #           a declaração: proporções, piso, provedores
+│       │   └── domains/          #           um construtor por domínio do modelo
+│       ├── legacy/               # (Etapa 10) gerador da origem legada
+│       └── streaming/            # (Etapa 7) produtor e pipeline Beam
 ├── dbt/                          # (Etapa 5) projeto dbt: modelos, testes, .yml
 ├── airflow/                      # (Etapa 5) DAGs
 ├── terraform/                    # (Etapa 13) infraestrutura GCP

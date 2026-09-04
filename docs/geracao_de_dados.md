@@ -14,7 +14,9 @@
 | Ferramenta | Python + `Faker` ([ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)) |
 | Volume | Proporções + fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) |
 | Fator padrão | `dev` (1) |
-| Versão | 2.0 |
+| Declaração | [`src/mvp_ed1/generator/geracao.yml`](../src/mvp_ed1/generator/geracao.yml) |
+| Versão | 3.0 |
+| Situação | Motor da origem principal **implementado e medido** (Etapa 4) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -26,9 +28,9 @@ na legada: escrever e manter 80 geradores manuais seria caro e frágil.
 
 O desenho é o inverso:
 
-1. Um **motor genérico** em Python lê um arquivo de configuração declarativo (JSON ou YAML) que
-   descreve a modelagem: tabelas, colunas, tipos, chaves estrangeiras, cardinalidades e regras de
-   distribuição.
+1. Um **motor genérico** em Python lê um arquivo de configuração declarativo em **YAML**
+   ([ADR-0027](adr/0027-configuracao-do-gerador-em-yaml.md)) que descreve o que os modelos não
+   dizem: quantas linhas, com que proporção, com que piso e com que distribuição.
 2. O motor usa o `Faker` dinamicamente conforme o tipo declarado, respeitando a ordem de
    dependência entre tabelas.
 3. Regras que o `Faker` não representa — sazonalidade, afinidade produto/categoria/preço,
@@ -38,6 +40,36 @@ O desenho é o inverso:
 **Consequência prática:** mudar uma regra de negócio ou acrescentar um domínio é editar
 configuração, não milhares de linhas de Python. É também o que torna a revisão humana viável — o
 Owner revisa um arquivo declarativo, não código gerado em massa.
+
+### 1.1 O que é declaração e o que é processo
+
+A implementação da Etapa 4 tornou explícita uma fronteira que o [ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)
+já previa ao reservar "provedores próprios" — e que vale dizer por escrito, porque ela é o limite do
+que a configuração alcança:
+
+| O motor sabe | De onde vem |
+|---|---|
+| Que colunas existem, de que tipo, obrigatórias, com que chave estrangeira | **Dos modelos** SQLAlchemy ([ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md)) — a configuração é *conferida* contra eles, nunca os repete |
+| Quantas linhas cada tabela tem, com que distribuição e que valor cada coluna recebe | **Do YAML** — proporção, fator, piso, provedor por coluna |
+| Que um pedido nasce de um carrinho, que a captura não excede a autorização, que o saldo não fica negativo | **Dos construtores de domínio**, um por domínio do modelo |
+
+As 40 tabelas se dividem em duas origens, declaradas linha a linha no YAML:
+
+- **`origem: declarativa`** — o motor preenche coluna a coluna a partir da declaração. São as
+  tabelas de referência e as entidades mestres.
+- **`origem: processo`** — a contagem e o conteúdo caem do processo de negócio que as produz. São
+  as tabelas de evento e as derivadas.
+
+Os dois caminhos passam pelo mesmo preenchimento: o construtor monta o **esqueleto** da linha — de
+quem ela é filha, que data veio antes de qual — e o motor completa o resto. Nenhum construtor
+escreve um nome de pessoa; nenhuma declaração decide um estado de pedido.
+
+**Por que a causalidade não é declarativa.** Uma tabela de configuração consegue dizer "3.500
+pedidos, 2,1 itens cada". Não consegue dizer que o total do pedido reconcilia itens, desconto,
+frete e imposto com igualdade exata em `numeric(14,2)`. As doze
+[invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) são regra de geração e
+critério de teste ao mesmo tempo, e é por isso que elas vivem em código — pequeno, por domínio, e
+revisado por amostragem como o [`CLAUDE.md`](../CLAUDE.md) §5 manda.
 
 ---
 
@@ -53,8 +85,12 @@ Owner revisa um arquivo declarativo, não código gerado em massa.
 - Permitir que o banco seja recriado integralmente a partir das migrações e da configuração.
 - Emitir mudanças temporais em lotes reproduzíveis, para que cargas incrementais construam
   históricos SCD sem *snapshot* integral.
-- Validar a contagem prevista **antes** de inserir, usar inserção em lotes e interromper expansões
-  opcionais quando o limite de armazenamento estiver em risco.
+- Validar a configuração contra os modelos **antes** de gerar a primeira linha: coluna que não
+  existe, peso que esquece um valor de enumeração ou piso sem motivo bloqueiam a execução inteira.
+- Escrever por `COPY` na conexão bruta, não pelo *unit of work*
+  ([ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md), fronteira 1) — e deixar que o banco
+  reprove o que estiver errado: toda `CHECK`, unicidade e chave estrangeira do modelo é conferida
+  na carga.
 
 ---
 
@@ -66,12 +102,29 @@ A ordem respeita as dependências referenciais e a causalidade dos eventos:
 2. **Entidades mestres** — clientes, produtos, SKUs, fornecedores, armazéns, transportadoras e
    agentes.
 3. **Preços, campanhas e cupons**, com intervalos de vigência.
-4. **Ordens de compra, recebimentos e formação do estoque inicial.**
-5. **Carrinhos, pedidos e itens.**
-6. **Reservas, pagamentos, movimentações de estoque e remessas.**
-7. **Eventos de entrega, cancelamentos, devoluções e reembolsos.**
-8. **Chamados de atendimento**, vinculados a eventos já existentes.
-9. **Mudanças históricas** para cenários SCD, sem *snapshot* integral do banco principal.
+4. **Ordens de compra e recebimentos.**
+5. **Carrinhos, pedidos, itens e histórico de estado.**
+6. **Pagamentos, transações e reembolsos**, seguindo o estado de cada pedido.
+7. **Remessas, itens de remessa e eventos de entrega.**
+8. **Livro de estoque, reservas e saldo** — nesta ordem, e depois de tudo que move estoque.
+9. **Chamados de atendimento**, vinculados a fatos já existentes.
+
+O passo 8 é o que mais depende da ordem. `inventory_movements` é livro de eventos: os movimentos
+não são sorteados, são **montados** do que já aconteceu — o recebimento que entrou, a remessa que
+saiu, a devolução que voltou —, acrescidos da formação do estoque inicial, das transferências e dos
+ajustes. Só depois o livro é percorrido em ordem de acontecimento, e o saldo existe como projeção
+dele ([Modelo de Dados §2.10](modelo_de_dados.md#210-desvios-deliberados-da-3fn)).
+
+Duas consequências desse percurso, e nenhuma delas seria possível sorteando movimentos:
+
+- **o saldo nunca fica negativo** — quando a expedição não tem lastro, entra antes dela um ajuste de
+  entrada com motivo documentado, que é o que uma operação real faz ao descobrir divergência de
+  inventário;
+- **`aggregate_version` é sequencial e sem lacuna** dentro de cada par armazém/SKU, que é o que a
+  `UNIQUE (warehouse_id, product_variant_id, aggregate_version)` do modelo exige e o que o
+  consumidor do *streaming* vai usar para ordenar.
+
+Mudanças históricas para cenários SCD nascem na Etapa 5, junto com as dimensões que as consomem.
 
 ---
 
@@ -99,6 +152,20 @@ geração precisa produzir:
 - toda invariante de negócio do [Modelo de Dados](modelo_de_dados.md#4-invariantes-de-negócio)
   exercida ao menos uma vez, incluindo os casos que devem falhar.
 
+**O piso não é reescrito: é derivado.** O motor lê as `CHECK` de enumeração dos próprios modelos e
+já sabe que `carriers` precisa de ao menos três linhas — uma por modalidade — e `payment_methods`
+de seis. Onde a cobertura exige mais do que enumeração, a configuração declara `min_rows` **com o
+motivo escrito na linha**; é o caso de `product_categories`, que precisa de 24 linhas para que a
+hierarquia chegue mesmo ao terceiro nível. Piso sem motivo é recusado na carga da configuração.
+
+Duas garantias de construção sustentam isso, e nenhuma delas depende de sorte:
+
+- as **primeiras linhas** de toda coluna enumerada recebem, uma a uma, cada valor que o modelo
+  aceita — com peso 1 em 10 e oito linhas, um valor sumiria em 43% das sementes;
+- valor que o domínio torna **impossível** é dispensado por declaração, não por omissão:
+  `order_status_history.from_status` nunca vale `cancelled` nem `returned`, porque não existe
+  transição saindo de um estado terminal. A dispensa está no YAML, com o motivo, e é revisada.
+
 **Piso e fator interagem, e isso precisa ser dito.** Em fator 1, o piso domina em várias tabelas
 pequenas, e a proporção efetiva entre elas deixa de ser a proporção declarada. Isso é intencional —
 cobertura vence realismo de proporção quando os dois competem —, mas significa que
@@ -117,41 +184,52 @@ cobertura é um teste; a de proporção, outro.
 - **fator de escala**;
 - opção de geração de casos inválidos em ambiente isolado de teste.
 
-### 4.3 Entidades principais em fator 1
+### 4.3 Onde os números vivem
 
-**Valores planejados iniciais** — ponto de partida da Etapa 4, a ajustar quando a geração real
-existir. Nenhum deles foi medido (**P5**).
+**Os valores estão em [`geracao.yml`](../src/mvp_ed1/generator/geracao.yml), e só ali.** Repeti-los
+aqui criaria a segunda declaração que o [ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md)
+existe para impedir — e a cópia divergiria no primeiro ajuste. O arquivo declara, por tabela: a
+proporção de referência, o piso quando ele é estrutural, a origem — declarativa ou processo — e o
+provedor de cada coluna que o tipo sozinho não determina.
 
-A regra que liga os dois documentos: estes valores são **um décimo** das contagens de referência do
-[Modelo de Dados](modelo_de_dados.md), e a razão entre tabelas é preservada. Dividir uma tabela por
-outro fator quebraria a proporção — 400 mil carrinhos para 35 mil pedidos são 91% de abandono; 4 mil
-para 3,5 mil seriam 12%, que é outro negócio.
+A regra que liga a configuração ao [Modelo de Dados](modelo_de_dados.md): a proporção declarada é a
+de referência, e **o fator 1 corresponde a um décimo dela**. Dividir uma tabela por outro fator
+quebraria a razão entre elas — 400 mil carrinhos para 35 mil pedidos são 91% de abandono; 4 mil para
+3,5 mil seriam 12%, que é outro negócio. Por isso o divisor é único e está declarado uma vez.
 
-| Parâmetro | Fator 1 (`dev`) |
-|---|---:|
-| `as_of_date` | `2026-09-01` na versão atual; explícita a cada execução |
-| `period_start` | `2024-01-01` |
-| `period_end` | `as_of_date` |
-| `customer_count` | 1.500 |
-| `product_count` | 300 |
-| `product_variant_count` | 600 |
-| `supplier_count` | 30 |
-| `purchase_order_count` | 400 |
-| `cart_count` | 40.000 |
-| `cart_item_count` | 110.000 |
-| `order_count` | 3.500 |
-| `warehouse_count` | 5 |
-| `inventory_movement_seed_count` | 12.000 |
-| `inventory_movement_stream_max_count` | 5.000 |
-| `stream_events_per_second` | Configurável |
-| `stream_seed` | Explícita e independente da `seed` principal |
-| `legacy_faulty_row_count` | Ao menos um por tipo do catálogo, mínimo de 100 |
+Consequência direta: a seção 2 do [Modelo de Dados](modelo_de_dados.md#2-modelo-transacional--40-tabelas-em-9-domínios)
+é **gerada** por `make catalog` a partir dos modelos e desta configuração. O documento não guarda
+contagem própria.
 
-As demais tabelas são dimensionadas por **proporções configuráveis** derivadas dessas entidades
-principais — as proporções estão no [Modelo de Dados](modelo_de_dados.md).
+```bash
+make seed-plan            # as 40 tabelas, o piso e a origem de cada uma
+```
+
+#### Tabelas de processo não caem exatamente na proporção
+
+A contagem de uma tabela de `origem: processo` é consequência: quantos pedidos chegaram a
+`delivered`, quantas remessas foram divididas, quantas expedições precisaram de ajuste de
+inventário. A configuração declara a **tolerância** — quanto essa consequência pode se afastar da
+referência antes de virar desvio de modelagem — e um teste a cobra a cada execução.
+
+Um número foi corrigido pela geração real, como esta seção previa: `payment_transactions` passou de
+52.500 para 71.500 na proporção de referência. Toda intenção de pagamento tem uma autorização e 90%
+dos pedidos chegam a capturado; 1,43 transações por pagamento era aritmeticamente incompatível com
+a distribuição de estados declarada em `orders`.
+
+#### Parâmetros que ainda não existem
+
+Estes pertencem a etapas seguintes e **não** estão na configuração do gerador da origem principal:
+
+| Parâmetro | Nasce na |
+|---|---|
+| `inventory_movement_stream_max_count`, `stream_events_per_second`, `stream_seed` | Etapa 7 — [produtor de eventos](#6-produtor-de-eventos-de-estoque) |
+| `legacy_faulty_row_count` | Etapa 10 — [Origem Legada](origem_legada.md) |
 
 O `legacy_faulty_row_count` é o único parâmetro cujo piso é qualitativo: ele não pode ficar abaixo
 do número de tipos declarados no catálogo, porque um tipo sem registro é um tratamento sem teste.
+
+---
 
 ---
 
@@ -178,13 +256,25 @@ sazonalidade.
 Todas as [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) valem para os dados
 gerados: elas são simultaneamente regra de geração e critério de teste.
 
+**O que já vale e o que ainda não.** Depois da Etapa 4, a lista acima está implementada com uma
+exceção declarada: o **histórico de atributos para dimensões SCD** ainda não é gerado. Ele nasce na
+Etapa 5, junto com as dimensões que o consomem — antes disso não haveria contra o que validá-lo. O
+`updated_at` de toda tabela mutável já é cursor de carga incremental
+([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)), e a exclusão lógica já existe no dado, em
+fração pequena, para que a propagação de `deleted_at` tenha o que propagar.
+
 ---
 
 ## 6. Produtor de eventos de estoque
 
-O seed principal cria 120.000 movimentos históricos coerentes entre `period_start` e `as_of_date`.
-Um **produtor Python separado** acrescenta até 50.000 eventos, alimentando o
-[fluxo de streaming](streaming.md).
+A carga inicial cria os movimentos históricos coerentes entre `period_start` e `as_of_date` — na
+proporção declarada para `inventory_movements`, como toda tabela. Um **produtor Python separado**,
+que nasce na Etapa 7, acrescenta eventos ao livro depois disso, alimentando o
+[fluxo de streaming](streaming.md); o teto dele é proporcional ao mesmo fator de escala.
+
+> Até 04/09/2026 esta seção citava 120.000 e 50.000 como absolutos. São a **proporção de
+> referência**, não o fator 1: o [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)
+> passou por aqui e não atualizou os dois números.
 
 O produtor:
 
@@ -232,3 +322,10 @@ são:
 - não copiar amostras de bases externas;
 - incluir metadados de execução que comprovem a origem sintética;
 - manter segredos e configurações locais fora do versionamento.
+
+**Como isso ficou implementado.** Documento de pessoa e de empresa saem em formato reconhecível com
+o sufixo `-SIN` no lugar do dígito verificador: nenhum CPF ou CNPJ real tem letra, então a colisão
+com pessoa real é impossível por construção — e é por isso que o gerador **não** usa `faker.cpf()`,
+que produz documento aritmeticamente válido. Todo e-mail termina em `example.com`. Cidade, UF e CEP
+são coerentes entre si, sobre geografia real, com o endereço sintético construído por cima. As três
+regras são cobradas por teste, não por convenção.

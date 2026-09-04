@@ -1,8 +1,9 @@
-"""Gera dicionário de dados e diagrama ER a partir dos modelos.
+"""Gera o catálogo a partir dos modelos: dicionário, inventário e diagrama ER.
 
-Nada aqui é escrito à mão em dois lugares: os modelos são a fonte de verdade
-(ADR-0009), e dicionário e diagrama são derivados deles. Se divergirem, é
-porque alguém editou o derivado — e o comando reescreve por cima.
+Nada aqui é escrito à mão em dois lugares. Os modelos são a fonte de verdade do
+schema (ADR-0009) e a configuração do gerador é a fonte de verdade do volume
+(ADR-0014); dicionário, inventário e diagrama são derivados dos dois. Se
+divergirem, é porque alguém editou o derivado — e o comando reescreve por cima.
 
 Uso: ``python -m mvp_ed1.models.export`` (ou ``make catalog``).
 """
@@ -17,9 +18,10 @@ from pathlib import Path
 from sqlalchemy import Table
 from sqlalchemy.dialects import postgresql
 
-_PG = postgresql.dialect()
-
+from mvp_ed1.generator.config import padrao as configuracao_do_gerador
 from mvp_ed1.models import DOMAINS, Base, validate_metadata
+
+_PG = postgresql.dialect()
 
 INICIO = "<!-- gerado a partir dos modelos; não editar à mão -->"
 FIM = "<!-- fim do trecho gerado -->"
@@ -27,6 +29,18 @@ FIM = "<!-- fim do trecho gerado -->"
 ROOT = Path(__file__).resolve().parents[3]
 DICIONARIO = ROOT / "docs/dicionario_de_dados.md"
 MODELO = ROOT / "docs/modelo_de_dados.md"
+
+#: Ordinal de cada domínio na seção 2 do Modelo de Dados.
+_TITULOS = {
+    "clientes": "Clientes", "catalogo": "Catálogo e preços", "compras": "Fornecedores e compras",
+    "vendas": "Vendas", "pagamentos": "Pagamentos", "estoque": "Estoque",
+    "logistica": "Logística", "marketing": "Marketing", "atendimento": "Atendimento",
+}
+
+
+def _numero(valor: int) -> str:
+    """Milhar com ponto, como o resto do documento escreve."""
+    return f"{valor:,}".replace(",", ".")
 
 
 def _por_dominio() -> dict[str, list[Table]]:
@@ -109,6 +123,45 @@ def dicionario_markdown() -> str:
     return "\n".join(linhas)
 
 
+def inventario_markdown() -> str:
+    """Seção 2 do Modelo de Dados, a partir dos modelos e da configuração.
+
+    A finalidade de cada tabela vem do metadado do modelo e a contagem, da
+    proporção declarada no gerador. Escrever as duas à mão aqui manteria três
+    cópias do mesmo fato — e é o gerador, não o documento, que decide volume.
+    """
+    config = configuracao_do_gerador()
+    agrupado = _por_dominio()
+    linhas: list[str] = [""]
+    total = 0
+
+    for indice, dominio in enumerate(DOMAINS, start=1):
+        tabelas = agrupado.get(dominio, [])
+        if not tabelas:
+            continue
+        linhas.append(f"### 2.{indice} {_TITULOS[dominio]} — {len(tabelas)} tabelas")
+        linhas.append("")
+        linhas.append("| Tabela | Linhas | Finalidade |")
+        linhas.append("|---|---:|---|")
+        for table in sorted(tabelas, key=lambda t: config.tabelas[t.name].referencia, reverse=True):
+            referencia = config.tabelas[table.name].referencia
+            total += referencia
+            destaque = "**" if referencia >= 1_000_000 else ""
+            linhas.append(
+                f"| `{table.name}` | {destaque}{_numero(referencia)}{destaque} | "
+                f"{table.info['description']} |"
+            )
+        linhas.append("")
+
+    fator_um = sum(config.plano().values())
+    linhas += [
+        f"**Total na proporção de referência:** {_numero(total)} linhas — "
+        f"{_numero(fator_um)} no fator `dev`, que é o padrão local.",
+        "",
+    ]
+    return "\n".join(linhas)
+
+
 def diagrama_markdown() -> str:
     agrupado = _por_dominio()
     linhas: list[str] = [
@@ -157,13 +210,25 @@ def diagrama_markdown() -> str:
     return "\n".join(linhas)
 
 
-def _substituir(caminho: Path, conteudo: str) -> None:
+def _substituir(caminho: Path, conteudo: str, ocorrencia: int = 0) -> None:
+    """Reescreve o n-ésimo trecho entre marcadores do arquivo.
+
+    Um documento pode ter mais de um trecho gerado — o Modelo de Dados tem dois,
+    o inventário e o diagrama —, e trocar a ordem deles aqui trocaria o conteúdo
+    de lugar sem que nada reclamasse.
+    """
     texto = caminho.read_text(encoding="utf-8")
     padrao = re.compile(re.escape(INICIO) + r".*?" + re.escape(FIM), re.DOTALL)
-    if not padrao.search(texto):
-        raise SystemExit(f"marcadores ausentes em {caminho.name}: {INICIO} … {FIM}")
-    caminho.write_text(padrao.sub(f"{INICIO}\n{conteudo}\n{FIM}", texto), encoding="utf-8")
-    print(f"  {caminho.relative_to(ROOT)} atualizado")
+    trechos = list(padrao.finditer(texto))
+    if len(trechos) <= ocorrencia:
+        raise SystemExit(
+            f"{caminho.name}: esperado ao menos {ocorrencia + 1} trecho(s) entre "
+            f"{INICIO} … {FIM}, encontrado(s) {len(trechos)}"
+        )
+    trecho = trechos[ocorrencia]
+    atualizado = texto[: trecho.start()] + f"{INICIO}\n{conteudo}\n{FIM}" + texto[trecho.end():]
+    caminho.write_text(atualizado, encoding="utf-8")
+    print(f"  {caminho.relative_to(ROOT)} atualizado (trecho {ocorrencia + 1})")
 
 
 def main() -> int:
@@ -174,7 +239,8 @@ def main() -> int:
             print(f"  - {p}", file=sys.stderr)
         return 1
     _substituir(DICIONARIO, dicionario_markdown())
-    _substituir(MODELO, diagrama_markdown())
+    _substituir(MODELO, inventario_markdown(), ocorrencia=0)
+    _substituir(MODELO, diagrama_markdown(), ocorrencia=1)
     print(
         f"  {len(Base.metadata.tables)} tabelas e "
         f"{sum(len(t.columns) for t in Base.metadata.tables.values())} campos classificados"

@@ -1,0 +1,537 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Configuração do gerador de dados sintéticos — origem principal (`oltp`).
+#
+# Este arquivo é a **declaração** do ADR-0005: o motor é genérico e não sabe
+# nada sobre varejo; o que ele sabe está aqui. É também o artefato revisado
+# integralmente pelo Owner (`CLAUDE.md` §5) — por isso cada número que não é
+# óbvio traz o motivo na própria linha, e não em documento paralelo.
+#
+# O que este arquivo NÃO declara: coluna, tipo, obrigatoriedade, chave
+# estrangeira e unicidade. Isso vive nos modelos SQLAlchemy, que são a fonte de
+# verdade do schema (ADR-0009); o motor lê de lá e valida esta configuração
+# contra eles. Repetir aqui criaria a segunda declaração que o ADR-0009 existe
+# para impedir.
+#
+# ── Vocabulário de `colunas` ─────────────────────────────────────────────────
+#   faker: <provedor>     chama `Faker("pt_BR").<provedor>()`
+#   provedor: <nome>      provedor próprio do projeto (ver `providers.py`)
+#   sequencia: "X-{n:05d}"  valor determinístico pela posição; garante unicidade
+#   pesos: {a: 7, b: 3}   distribuição sobre uma enumeração declarada no modelo
+#   valores: [a, b, c]    lista fixa, sorteada uniformemente
+#   ciclo: true           com `valores`: a n-ésima linha leva o n-ésimo valor,
+#                         sem sorteio — é o que alinha nome, tipo e cidade na
+#                         mesma linha de uma tabela de domínio fechado
+#   faixa: [min, max]     inteiro ou decimal, uniforme e inclusivo
+#   casas: 2              casas decimais quando `faixa` é decimal
+#   nulo: 0.3             probabilidade de nulo; só em coluna que aceita nulo
+#   constante: BR         mesmo valor em todas as linhas
+#
+# Coluna não declarada é preenchida pelo motor a partir do **tipo** do modelo —
+# e, se ela for enumerada por `CHECK`, a partir dos valores que o modelo aceita.
+# Coluna com `server_default` e não declarada recebe o próprio padrão.
+# ══════════════════════════════════════════════════════════════════════════════
+
+versao: 1
+localidade: pt_BR
+
+# Semente padrão. Trocá-la troca todos os dados; a mesma semente com a mesma
+# `as_of_date` recria exatamente o mesmo banco (ADR-0005).
+seed: 20260904
+
+periodo:
+  # `as_of_date` é o "hoje" da simulação: nenhum evento ocorre depois dela.
+  as_of_date: 2026-09-01
+  period_start: 2024-01-01
+  # Brasil sem horário de verão desde 2019: UTC-3 é exato em todo o período, e
+  # um deslocamento fixo é determinístico sem depender da base de fusos do SO.
+  utc_offset_horas: -3
+
+# Fração das linhas de tabelas mutáveis marcadas como excluídas logicamente.
+# A origem transacional nunca apaga fisicamente (ADR-0015); sem nenhuma linha
+# com `deleted_at` preenchido, a propagação da exclusão até o datamart não tem
+# o que propagar, e o teste dela passa por vacuidade.
+exclusao_logica: 0.008
+
+# As tabelas de `origem: processo` não caem exatamente na proporção declarada:
+# a contagem delas é consequência do processo — quantos pedidos chegaram a
+# `delivered`, quantas remessas foram divididas. A tolerância abaixo é o quanto
+# essa consequência pode se afastar da referência antes de ser considerada
+# desvio de modelagem, e não flutuação.
+tolerancia_processo: 0.25
+
+escala:
+  # A proporção de referência é a do Modelo de Dados §2. O fator 1 (`dev`)
+  # corresponde a **um décimo** dela — Geração de Dados §4.3 —, e é esse décimo
+  # que o divisor abaixo expressa. Mudar o fator muda todas as tabelas juntas;
+  # mudar uma `referencia` isolada quebra a razão entre elas, que é o que dá
+  # realismo ao domínio (ADR-0014).
+  divisor_da_referencia: 10
+  padrao: dev
+  fatores:
+    dev: 1
+    # `cloud`: definido na Etapa 13, por medição. Declará-lo agora seria número
+    # não medido com aparência de compromisso (P5).
+
+# ── Sazonalidade ─────────────────────────────────────────────────────────────
+# Peso relativo de cada mês na distribuição temporal dos eventos comerciais.
+# Novembro e dezembro concentram; janeiro e fevereiro esvaziam. Sem isto os
+# eventos ficam uniformes no tempo e a dimensão de data não tem o que mostrar.
+sazonalidade:
+  pesos_por_mes: [70, 65, 80, 85, 95, 90, 95, 100, 100, 110, 180, 160]
+  # Hora do dia: madrugada vazia, pico à noite. Índice é a hora local (0–23).
+  pesos_por_hora: [2, 1, 1, 1, 1, 2, 4, 8, 14, 20, 24, 26, 24, 22, 24, 26, 28, 32, 38, 44, 46, 38, 24, 10]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tabelas — 40, na ordem dos domínios do Modelo de Dados §2.
+#
+#   referencia  linhas na proporção de referência (Modelo de Dados §2)
+#   min_rows    piso estrutural, quando a cobertura exige mais do que as
+#               enumerações do modelo já exigem sozinhas; sempre com `motivo`
+#   origem      `declarativa` (o motor preenche coluna a coluna) ou
+#               `processo` (a contagem cai do processo de negócio que a produz)
+#   cobertura_dispensada  valores de enumeração que o domínio torna
+#               impossíveis, por coluna e com o motivo escrito. É a única
+#               forma de o piso do ADR-0014 abrir exceção — e ela é revisada,
+#               não presumida
+#   momento     coluna que carrega o tempo de negócio da linha; `created_at`
+#               passa a acompanhá-la, e `updated_at` vira cursor de carga
+#               incremental de verdade em vez de ruído (ADR-0015)
+# ══════════════════════════════════════════════════════════════════════════════
+tabelas:
+
+  # ── Clientes ───────────────────────────────────────────────────────────────
+  customer_segments:
+    referencia: 8
+    min_rows: 8
+    motivo: Domínio fechado. Oito linhas cabem em qualquer escala, e reduzi-las empobrece a dimensão sem economizar nada.
+    origem: declarativa
+    colunas:
+      code: {sequencia: "SEG-{n:02d}"}
+      name: {valores: [Consumidor final, Pequeno varejo, Atacado, Corporativo, Assinante, Revenda, Institucional, Inativo], ciclo: true}
+      description: {provedor: frase_curta}
+      is_active: {pesos: {true: 7, false: 1}}
+
+  customers:
+    referencia: 15000
+    momento: registered_at
+    origem: declarativa
+    colunas:
+      customer_code: {sequencia: "CUS-{n:07d}"}
+      segment_id: {nulo: 0.05}
+      first_name: {faker: first_name}
+      last_name: {faker: last_name}
+      # Documento deliberadamente inválido como CPF: a governança proíbe gerar
+      # documento nacional válido que possa coincidir com pessoa real (§7).
+      document: {provedor: documento_pessoa}
+      birth_date: {provedor: data_de_nascimento, nulo: 0.12}
+      status: {pesos: {active: 76, inactive: 15, blocked: 4, pending: 5}}
+      registered_at: {provedor: momento_no_periodo}
+
+  customer_addresses:
+    referencia: 21000
+    momento: valid_from
+    origem: declarativa
+    colunas:
+      address_type: {pesos: {shipping: 7, billing: 3}}
+      street: {faker: street_name}
+      number: {faker: building_number, nulo: 0.05}
+      complement: {provedor: complemento, nulo: 0.6}
+      district: {faker: bairro, nulo: 0.1}
+      city: {provedor: cidade}
+      state: {provedor: uf}
+      postal_code: {provedor: cep}
+      country: {constante: BR}
+
+  customer_contacts:
+    referencia: 24000
+    origem: declarativa
+    colunas:
+      contact_type: {pesos: {email: 5, mobile: 4, phone: 1}}
+      # E-mail ou telefone conforme o tipo da própria linha: contato do tipo
+      # `email` com um número de telefone dentro é o defeito que a limpeza da
+      # origem legada deveria encontrar, não algo que a origem boa produz.
+      contact_value: {provedor: contato}
+      is_verified: {pesos: {true: 8, false: 2}}
+
+  customer_preferences:
+    referencia: 15000
+    origem: processo
+    nota: Uma linha por cliente — a coluna `customer_id` é única no modelo.
+
+  # ── Catálogo e preços ──────────────────────────────────────────────────────
+  product_categories:
+    referencia: 80
+    min_rows: 24
+    motivo: Hierarquia de três níveis com ramificação real — 4 raízes, 8 intermediárias e 12 folhas. Com menos, `depth` nunca chega a 2 e a navegação recursiva fica sem o que exercitar.
+    origem: processo
+    nota: A profundidade e o `parent_id` saem da montagem da árvore, não de sorteio.
+
+  brands:
+    referencia: 180
+    origem: declarativa
+    colunas:
+      code: {sequencia: "BRD-{n:04d}"}
+      name: {provedor: nome_de_marca}
+      country: {valores: [BR, BR, BR, US, CN, DE, JP], nulo: 0.08}
+
+  products:
+    referencia: 3000
+    momento: launched_at
+    origem: declarativa
+    colunas:
+      product_code: {sequencia: "PRD-{n:06d}"}
+      name: {provedor: nome_de_produto}
+      description: {provedor: frase_curta, nulo: 0.15}
+      status: {pesos: {active: 84, discontinued: 11, draft: 5}}
+      brand_id: {nulo: 0.07}
+      launched_at: {provedor: momento_no_periodo, nulo: 0.1}
+
+  product_variants:
+    referencia: 6000
+    origem: declarativa
+    colunas:
+      sku: {sequencia: "SKU-{n:07d}"}
+      size: {valores: [PP, P, M, G, GG, Único, "38", "40", "42"], nulo: 0.25}
+      color: {valores: [Preto, Branco, Azul, Vermelho, Verde, Cinza, Bege, Rosa], nulo: 0.2}
+      package: {valores: [Unidade, Caixa com 6, Caixa com 12, Pacote, Fardo], nulo: 0.4}
+      barcode: {sequencia: "789{n:010d}"}
+      weight_grams: {faixa: [50, 12000]}
+      is_active: {pesos: {true: 9, false: 1}}
+
+  price_lists:
+    referencia: 5
+    momento: valid_from
+    min_rows: 5
+    motivo: Domínio fechado — uma lista por canal, mais a lista geral e uma lista encerrada que exercita vigência fechada.
+    origem: processo
+
+  product_prices:
+    referencia: 12000
+    momento: valid_from
+    origem: processo
+    nota: Preço por SKU e vigência; o processo garante que as vigências de um mesmo par lista/SKU não se sobreponham.
+
+  # ── Fornecedores e compras ─────────────────────────────────────────────────
+  suppliers:
+    referencia: 300
+    origem: declarativa
+    colunas:
+      supplier_code: {sequencia: "SUP-{n:05d}"}
+      legal_name: {provedor: razao_social}
+      trade_name: {provedor: nome_fantasia, nulo: 0.2}
+      document: {provedor: documento_empresa}
+      contact_email: {provedor: email, nulo: 0.1}
+      country: {valores: [BR, BR, BR, BR, CN, US]}
+      payment_terms_days: {valores: [0, 7, 14, 21, 28, 30, 45, 60, 90]}
+      is_active: {pesos: {true: 9, false: 1}}
+
+  purchase_orders:
+    referencia: 4000
+    momento: ordered_at
+    origem: processo
+    nota: Estado e datas saem da máquina de estados da compra; `total_amount` é a soma dos itens.
+    processo:
+      # Destino pretendido de cada ordem. O estado gravado não vem daqui: ele é
+      # recalculado do que foi efetivamente recebido, para que `received` nunca
+      # apareça em ordem sem recebimento — invariante 6 vista do outro lado.
+      destino:
+        received: 60
+        partially_received: 15
+        placed: 12
+        draft: 8
+        cancelled: 5
+      prazo_prometido_dias: [7, 45]
+    colunas:
+      po_number: {sequencia: "PO-{n:07d}"}
+
+  purchase_order_items:
+    referencia: 16000
+    origem: processo
+    processo:
+      itens_por_ordem: [1, 8]
+      # Compra entra em lote e venda sai em unidades: é essa assimetria que
+      # mantém o saldo positivo sem precisar de conserto.
+      quantidade_por_item: [40, 500]
+
+  goods_receipts:
+    referencia: 3800
+    momento: received_at
+    origem: processo
+    nota: Nem toda ordem é recebida — as canceladas e as ainda em aberto não geram recebimento.
+    processo:
+      estado: {completed: 88, pending: 8, rejected: 4}
+      prazo_de_recebimento_dias: [2, 60]
+    colunas:
+      receipt_number: {sequencia: "GR-{n:07d}"}
+
+  goods_receipt_items:
+    referencia: 15200
+    origem: processo
+    nota: Invariante 6 — a quantidade recebida não supera a solicitada.
+    processo:
+      # Fração recebida quando a ordem fica parcialmente recebida.
+      fracao_parcial: [0.3, 0.85]
+
+  # ── Vendas ─────────────────────────────────────────────────────────────────
+  sales_channels:
+    referencia: 3
+    origem: declarativa
+    colunas:
+      code: {sequencia: "CH-{n:02d}"}
+      name: {valores: [Loja online, Aplicativo, Loja física], ciclo: true}
+      channel_type: {valores: [web, app, store], ciclo: true}
+
+  carts:
+    referencia: 400000
+    origem: processo
+    nota: A conversão é o que liga carrinho a pedido; abandono e expiração são a maioria por construção.
+    processo:
+      # Quantos carrinhos convertem sai do número de pedidos, não de uma taxa
+      # própria: a taxa de conversão do domínio é *consequência* da proporção
+      # entre `carts` e `orders`, e declará-la de novo aqui seria a segunda
+      # verdade sobre o mesmo número.
+      # Dos carrinhos não convertidos: o resto expira, e uma fatia fica aberta.
+      taxa_de_abandono: 0.72
+      taxa_em_aberto: 0.06
+      sessao_anonima: 0.18
+      validade_dias: 14
+    colunas:
+      cart_code: {sequencia: "CRT-{n:08d}"}
+
+  cart_items:
+    referencia: 1100000
+    momento: added_at
+    origem: processo
+    processo:
+      itens_por_carrinho: [1, 6]
+      quantidade_por_item: [1, 4]
+
+  orders:
+    referencia: 35000
+    momento: placed_at
+    origem: processo
+    processo:
+      # Pedidos sem carrinho: venda direta em loja física.
+      venda_direta: 0.1
+      frete_faixa: [0.0, 89.9]
+      frete_gratis: 0.22
+      aliquota_de_imposto: 0.12
+      desconto_de_item: 0.18
+      # Distribuição do estado final. Todo estado do modelo precisa aparecer;
+      # os pesos decidem quanto de cada um, não se ele existe.
+      estado_final:
+        delivered: 72
+        shipped: 6
+        picking: 4
+        paid: 5
+        pending: 4
+        cancelled: 6
+        returned: 3
+    colunas:
+      order_number: {sequencia: "ORD-{n:07d}"}
+
+  order_items:
+    referencia: 75000
+    origem: processo
+    processo:
+      itens_por_pedido: [1, 5]
+
+  order_status_history:
+    referencia: 175000
+    origem: processo
+    nota: Uma linha por transição percorrida até o estado final; invariante 9.
+    cobertura_dispensada:
+      # `cancelled` e `returned` são terminais: não existe transição *saindo*
+      # deles, então nunca aparecem como estado de origem. Aparecem como
+      # destino, e é lá que a cobertura os encontra.
+      from_status: [cancelled, returned]
+
+  # ── Pagamentos ─────────────────────────────────────────────────────────────
+  payment_methods:
+    referencia: 6
+    origem: declarativa
+    colunas:
+      code: {sequencia: "PM-{n:02d}"}
+      name: {valores: [Cartão de crédito, Cartão de débito, Pix, Boleto bancário, Carteira digital, Vale-compra], ciclo: true}
+      method_type: {valores: [credit_card, debit_card, pix, boleto, wallet, voucher], ciclo: true}
+
+  payments:
+    referencia: 36750
+    origem: processo
+    processo:
+      # Fração dos pedidos em que a primeira tentativa falha e uma segunda
+      # intenção de pagamento é criada. É a origem das 1,05 intenções/pedido.
+      nova_tentativa_apos_falha: 0.05
+      parcelas_pesos: {1: 60, 2: 12, 3: 10, 4: 6, 6: 7, 10: 3, 12: 2}
+    colunas:
+      payment_code: {sequencia: "PAY-{n:08d}"}
+
+  payment_transactions:
+    # Ajustado de 52.500 pela geração real da Etapa 4, como Geração de Dados
+    # §4.3 previa. Todo pagamento tem uma autorização e 90% dos pedidos chegam
+    # a capturado: 1,43 transações por pagamento era aritmeticamente
+    # incompatível com a distribuição de estados declarada em `orders`.
+    referencia: 71500
+    origem: processo
+    nota: Autorização, captura, estorno e reembolso; invariante 3 — captura nunca excede o autorizado.
+    colunas:
+      transaction_code: {sequencia: "TRX-{n:08d}"}
+      gateway_response_code: {valores: ["00", "05", "51", "57", "91", "GW-OK", "GW-TIMEOUT"]}
+
+  refunds:
+    referencia: 1400
+    origem: processo
+    nota: Invariante 4 — a soma dos reembolsos nunca excede o valor capturado.
+    processo:
+      reembolso_parcial: 0.35
+    colunas:
+      refund_code: {sequencia: "REF-{n:07d}"}
+      reason: {provedor: motivo_de_reembolso, nulo: 0.1}
+      status: {pesos: {completed: 88, requested: 8, rejected: 4}}
+
+  # ── Estoque ────────────────────────────────────────────────────────────────
+  warehouses:
+    referencia: 5
+    min_rows: 5
+    motivo: Domínio fechado. Cinco armazéns são o que torna a transferência entre eles possível sem inventar geografia.
+    origem: declarativa
+    colunas:
+      code: {sequencia: "WH-{n:02d}"}
+      name: {valores: [CD São Paulo, CD Extrema, CD Recife, CD Canoas, CD Goiânia], ciclo: true}
+      city: {valores: [São Paulo, Extrema, Recife, Canoas, Goiânia], ciclo: true}
+      state: {valores: [SP, MG, PE, RS, GO], ciclo: true}
+      country: {constante: BR}
+      capacity_units: {faixa: [40000, 500000]}
+
+  inventory_balances:
+    referencia: 25000
+    origem: processo
+    nota: Projeção do livro de eventos — `quantity_on_hand` é a soma dos deltas do par armazém/SKU, nunca um sorteio.
+
+  inventory_movements:
+    referencia: 120000
+    origem: processo
+    nota: Livro append-only. Montado dos eventos já gerados — recebimento, expedição, devolução — e só depois versionado por agregado.
+    processo:
+      # Formação do estoque inicial (Geração de Dados §3, passo 4): uma entrada
+      # por par armazém/SKU no começo do período. É o que dá ao saldo a
+      # cobertura que o recebimento de compras sozinho não alcança — 1.520
+      # itens recebidos não conseguem estocar 2.500 pares distintos. Abaixo de
+      # 1 porque recebimento, transferência e ajuste também abrem pares novos.
+      cobertura_de_saldo: 0.70
+      # Movimentos que não vêm de compra nem de venda, em fração do total.
+      transferencias: 0.05
+      ajustes: 0.05
+      devolucao_a_fornecedor: 0.007
+      # Atraso entre o momento de negócio e o registro na origem: é o que dá ao
+      # CDC da Etapa 7 algo além de `recorded_at = occurred_at`.
+      atraso_de_registro_segundos: [0, 900]
+
+  stock_reservations:
+    referencia: 42000
+    origem: processo
+    processo:
+      validade_horas: 48
+      origem_carrinho: 0.6
+    colunas:
+      reservation_code: {sequencia: "RSV-{n:08d}"}
+
+  # ── Logística ──────────────────────────────────────────────────────────────
+  carriers:
+    referencia: 8
+    min_rows: 8
+    motivo: Domínio fechado. Com menos de oito, a dimensão de transportadora fica sem variedade e o prazo prometido perde o contraste entre modalidades.
+    origem: declarativa
+    colunas:
+      code: {sequencia: "CAR-{n:02d}"}
+      name: {provedor: nome_de_transportadora}
+      service_level: {pesos: {standard: 6, express: 3, same_day: 1}}
+      tracking_url_template: {constante: "https://example.com/rastreio/{codigo}", nulo: 0.25}
+
+  shipments:
+    referencia: 37000
+    origem: processo
+    processo:
+      # Pedidos partidos em mais de uma remessa: é o caso que a Etapa 8 precisa
+      # encontrar pronto no dado.
+      remessa_dividida: 0.22
+      prazo_prometido_dias: {standard: [4, 9], express: [2, 4], same_day: [0, 1]}
+      atraso_na_entrega: 0.14
+      extravio: 0.004
+    colunas:
+      shipment_code: {sequencia: "SHP-{n:08d}"}
+      tracking_code: {sequencia: "BR{n:09d}SY"}
+
+  shipment_items:
+    referencia: 78000
+    origem: processo
+    nota: Invariante 5 — a soma enviada de um item nunca supera a quantidade vendida.
+
+  delivery_events:
+    referencia: 185000
+    origem: processo
+    processo:
+      tentativa_frustrada: 0.12
+
+  # ── Marketing ──────────────────────────────────────────────────────────────
+  campaigns:
+    referencia: 28
+    momento: valid_from
+    min_rows: 8
+    motivo: Duas campanhas por objetivo, para que campanha vigente e campanha encerrada coexistam em qualquer escala — sem isso a vigência do cupom nunca é testada contra uma campanha fechada.
+    origem: declarativa
+    colunas:
+      code: {sequencia: "CMP-{n:03d}"}
+      name: {provedor: nome_de_campanha}
+      budget_amount: {faixa: [5000, 400000], casas: 2, nulo: 0.2}
+
+  coupons:
+    referencia: 180
+    momento: valid_from
+    origem: declarativa
+    colunas:
+      code: {provedor: codigo_de_cupom}
+      discount_type: {pesos: {percentage: 7, fixed: 3}}
+      # Limite alto de propósito: com teto baixo os primeiros pedidos esgotam
+      # os cupons vigentes e a tabela de resgate encolhe para um quinto da
+      # proporção declarada — o limite passaria a decidir o volume.
+      max_redemptions: {faixa: [200, 5000], nulo: 0.3}
+
+  coupon_redemptions:
+    referencia: 6000
+    origem: processo
+    nota: Invariante 12 — o cupom só é usado dentro da vigência e acima do valor mínimo.
+
+  # ── Atendimento ────────────────────────────────────────────────────────────
+  support_agents:
+    referencia: 42
+    momento: hired_at
+    min_rows: 6
+    motivo: Menos de seis agentes deixa equipes de um só, e a reatribuição de chamado — que é o que `ticket_events.assigned` registra — deixa de existir no dado.
+    origem: declarativa
+    colunas:
+      agent_code: {sequencia: "AGT-{n:04d}"}
+      first_name: {faker: first_name}
+      last_name: {faker: last_name}
+      email: {provedor: email_corporativo}
+      team: {valores: [Entregas, Pagamentos, Produtos, Devoluções, Cadastro]}
+      hired_at: {provedor: momento_no_periodo}
+      is_active: {pesos: {true: 9, false: 1}}
+
+  support_tickets:
+    referencia: 4000
+    momento: opened_at
+    origem: processo
+    nota: Chamado nasce de um fato — atraso, falha de pagamento, cancelamento ou devolução —, não de sorteio livre.
+    processo:
+      sem_pedido_associado: 0.15
+    colunas:
+      ticket_number: {sequencia: "TCK-{n:06d}"}
+      subject: {provedor: assunto_de_chamado}
+      priority: {pesos: {low: 2, normal: 6, high: 2, urgent: 1}}
+
+  ticket_events:
+    referencia: 18000
+    origem: processo
+    colunas:
+      message: {provedor: mensagem_de_chamado, nulo: 0.35}

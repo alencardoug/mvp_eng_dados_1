@@ -9,13 +9,16 @@ SHELL := /bin/bash
 COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml
 # O .env é carregado em cada receita: `make` roda um shell novo por linha.
 ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
+# O gerador lê a conexão do ambiente, nunca de argumento (mvp_ed1/db.py).
+GERADOR := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.generator.cli
 BASE := source_db legacy_db warehouse_db
 
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
-        migrate migrate-down migrate-new migrate-status catalog require-env require-venv
+        migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
+        require-env require-venv
 
 help: ## Lista os alvos disponíveis
-	@echo "Alvos disponíveis (Etapa 2):"
+	@echo "Alvos disponíveis:"
 	@grep -hE '^[a-z][a-zA-Z_-]*:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -97,8 +100,24 @@ migrate-new: require-env require-venv ## Gera rascunho de migração; exige M="m
 	@echo "RASCUNHO gerado. Revise antes de aplicar: o autogenerate não detecta"
 	@echo "renomeação, conversão de tipo nem mudança de constraint (ADR-0010)."
 
-catalog: require-venv ## Regenera dicionário de dados e diagrama ER a partir dos modelos
+catalog: require-venv ## Regenera dicionário, inventário e diagrama ER dos modelos e da configuração
 	@.venv/bin/python -m mvp_ed1.models.export
+
+seed-data: require-env require-venv ## Gera e carrega os dados sintéticos; SCALE, SEED, AS_OF, FORCE=1
+	@$(GERADOR) seed \
+		$(if $(SCALE),--scale $(SCALE)) $(if $(SEED),--seed $(SEED)) \
+		$(if $(AS_OF),--as-of $(AS_OF)) $(if $(filter 1,$(FORCE)),--force) \
+		$(if $(filter 1,$(DRY_RUN)),--dry-run)
+
+seed-plan: require-venv ## Mostra o plano de volume das 40 tabelas, sem tocar no banco
+	@.venv/bin/python -m mvp_ed1.generator.cli plan $(if $(SCALE),--scale $(SCALE))
+
+size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
+	@$(GERADOR) size-report
+
+test: require-venv ## Testes de código Python (pytest); CARGA=1 inclui a que escreve no banco
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+		MVP_TESTE_CARGA=$(if $(filter 1,$(CARGA)),1,0) .venv/bin/pytest -q
 
 migrate-status: require-env require-venv ## Mostra a revisão aplicada no banco
 	@$(ALEMBIC) current --verbose

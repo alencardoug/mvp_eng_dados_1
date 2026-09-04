@@ -63,6 +63,7 @@ decisão.
 | [0024](0024-airbyte-e-airflow-no-gcp.md) | Replicar Airbyte e Airflow no GCP preservando a paridade | Aceita | D11, D22 |
 | [0025](0025-policy-tags-por-fluxo-automatizado.md) | Aplicar as policy tags por fluxo automatizado | Aceita | Q1 |
 | [0026](0026-uv-para-ambiente-e-dependencias.md) | Adotar `uv` para o ambiente e as dependências Python | Aceita | Ambiente e interpretador Python |
+| [0027](0027-configuracao-do-gerador-em-yaml.md) | Declarar o gerador em YAML, com o piso derivado dos modelos | Aceita | Formato e piso da configuração |
 
 ---
 
