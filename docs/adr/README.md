@@ -73,12 +73,21 @@ decisão.
 | [0034](0034-entrega-do-livro-de-eventos.md) | Tirar a data de entrega do livro de eventos, não da coluna da remessa | Aceita | Procedência da data de entrega |
 | [0035](0035-aposentar-dimensoes-sem-pergunta.md) | Aposentar `dim_time` e `dim_currency`, que nenhuma pergunta recorta | Aceita | Escopo do inventário dimensional |
 | [0036](0036-recompra-ancorada-no-pedido.md) | Ancorar a recompra pós-atendimento no pedido | Aceita | Âncora da janela de P16 |
+| [0037](0037-reter-capturas-do-legado-por-acrescimo.md) | Reter as capturas do legado com um quarto modo de sincronização | Aceita | Retenção do *snapshot* legado |
+| [0038](0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) | Fechar as equações com quarentena de excedente e rejeição em cascata | Aceita | Duplicata exata e filho de pai rejeitado |
+| [0039](0039-alcance-da-procedencia.md) | Aplicar a procedência onde as duas origens se encontram | Aceita | Alcance do `source_system` |
 
 ---
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** A última foi a D31 — a remessa que nascia sem item —, fechada em 05/09/2026: o
+**Nenhuma.** As três lacunas de contrato que a Etapa 10 levantou na abertura foram fechadas no mesmo
+dia, por interrogatório: como o legado retém as capturas
+([ADR-0037](0037-reter-capturas-do-legado-por-acrescimo.md)), o que acontece com a duplicata exata e
+com o filho de um pai rejeitado ([ADR-0038](0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)),
+e onde a procedência passa a existir ([ADR-0039](0039-alcance-da-procedencia.md)).
+
+Antes delas, a última pendência numerada foi a D31 — a remessa que nascia sem item —, fechada em 05/09/2026: o
 Owner autorizou corrigir o gerador e re-medir, a correção foi executada e revalidada, e o aceite
 está registrado nas [Pendências](../pendencias.md). O conserto **não** exigiu ADR novo, e nenhum
 ADR aceito foi reescrito — a re-medição foi registrada como execução nova, ao lado das históricas.

@@ -46,6 +46,13 @@ nova, ao lado das históricas.
 
 ## 2. O que já foi fechado
 
+As três lacunas de contrato que a Etapa 10 levantou na abertura foram fechadas em 05/09/2026, por
+interrogatório: como o legado retém as capturas
+([ADR-0037](adr/0037-reter-capturas-do-legado-por-acrescimo.md)), o que acontece com a duplicata
+exata e com o filho de um pai rejeitado
+([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)), e onde a procedência passa
+a existir ([ADR-0039](adr/0039-alcance-da-procedencia.md)).
+
 As decisões de abertura das Etapas 8 e 9 foram fechadas
 no mesmo dia em que foram levantadas, em 05/09/2026: o grão em que a entrega é medida
 ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)), a procedência da data realizada

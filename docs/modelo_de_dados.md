@@ -13,7 +13,7 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.6 |
+| Versão | 1.7 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
 | Última revisão | 05/09/2026 |
 
@@ -655,6 +655,14 @@ o evento cujo autor é o **cliente**; e `dim_sales_channel`, o chamado que não 
 O contrário — **nulo de propósito** — vale onde a ausência é um fato, e não uma junção que falhou:
 `fact_cart_event.customer_key` em sessão anônima, e `fact_shipment_item.delivered_date_key` enquanto
 a remessa não chega. A regra que separa os dois casos é essa, e é ela que decide qual usar.
+
+**Nem toda dimensão carrega procedência** ([ADR-0039](adr/0039-alcance-da-procedencia.md)).
+`source_system` existe em toda tabela que recebe registros de mais de um sistema, e entra na chave
+substituta dessas; nas demais, não existe. O critério é uma pergunta só: *a identidade desta linha
+vem de um sistema que a cadastrou?* Se vem, a procedência é parte dela. Se a linha nasce de uma
+*seed*, de uma série gerada ou de uma derivação do próprio armazém, não vem — e acrescentar origem
+ali criaria duplicata onde deve haver conformação. `dim_date` com uma linha "do legado" e outra "da
+origem principal" para o mesmo dia seria a conformação morrendo onde ela é a razão de existir.
 
 `dim_support_category` é a única dimensão **derivada** do modelo: a origem não tem tabela para ela —
 a lista vive no `CHECK` de `support_tickets.category` —, e nome de exibição e agrupamento não cabem

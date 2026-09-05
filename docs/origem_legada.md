@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `generate_legacy_database.py` (proposto) |
-| Versão | 2.0 |
-| Catálogo de falhas | 21 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) |
-| Última revisão | 04/09/2026 |
+| Versão | 2.1 |
+| Catálogo de falhas | 22 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -117,14 +117,31 @@ nunca é reaproveitado.
 | `DUP_EXACT` | Registro inteiro | Duplicata idêntica | Deduplicar, mantendo uma ocorrência |
 | `DUP_PARTIAL` | Chave natural | Mesma chave, atributos divergentes | Rejeitar: não há critério de desempate seguro |
 | `TOTAL_MISMATCH` | Total do pedido | Total ≠ soma dos itens | Rejeitar |
+| `PARENT_REJECTED` | Registro filho | Íntegro, mas o pai foi rejeitado | Rejeitar em cascata, com vínculo ao pai |
 
 A separação entre **converter** e **rejeitar** é o problema central desta origem, e o critério é
 único: converte-se quando existe **uma** interpretação possível; rejeita-se quando existe mais de
 uma. `oito` → 8 converte; `oito caixas` não, porque o grão é desconhecido.
 
+**`PARENT_REJECTED` é o único código que não descreve defeito do próprio registro**
+([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)). Ele existe porque o item
+íntegro de um pedido que não fecha não pode ser empilhado — produziria receita sem pedido — nem
+descartado em silêncio. É derivado: depende do resultado de outro registro, e por isso os pais são
+classificados antes dos filhos.
+
+### 3.1.1 Precedência quando a mesma ocorrência tem várias falhas
+
+Uma linha pode carregar mais de um defeito, e **todos os achados são registrados**. O que não se
+multiplica é a ocorrência: ela é contada uma vez, e classificada uma vez, pela regra:
+
+1. qualquer falha irrecuperável → `rejected`;
+2. senão, houve conversão → `corrected`;
+3. senão → `accepted`.
+
 O piso de cobertura do [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) exige que
-**todos os 21 tipos estejam representados em qualquer escala** — um tipo sem registro gerado é um
-tratamento sem teste.
+**todos os 22 tipos estejam representados em qualquer escala** — um tipo sem registro gerado é um
+tratamento sem teste. `PARENT_REJECTED` só aparece quando existe pai rejeitado com filho íntegro, e
+a geração garante esse caso de propósito.
 
 ### 3.2 Manifesto de falhas
 
@@ -138,9 +155,21 @@ O manifesto é o **oráculo dos testes**. A transformação nunca o consulta par
 
 ## 4. Snapshot imutável
 
-O Airbyte realiza uma carga `full refresh` identificada por `snapshot_id`, `snapshot_at` e
-`source_system`. O conteúdo original permanece **imutável** em `raw_legacy`, preservando
-exatamente o valor recebido antes de qualquer limpeza.
+O Airbyte realiza uma carga completa **por acréscimo** — `full_refresh_append`, o quarto modo de
+sincronização, criado para este caso pelo
+[ADR-0037](adr/0037-reter-capturas-do-legado-por-acrescimo.md). Cada captura é identificada por
+`snapshot_id`, `snapshot_at` e `source_system`, e **nenhuma sobrescreve a anterior**.
+
+A distinção importa mais do que parece. O modo `full_refresh` da origem principal é
+`full_refresh_overwrite`: ele derruba a tabela de destino a cada carga. Copiá-lo para cá deixaria
+sempre uma única fotografia, e a detecção de exclusão física — que o
+[ADR-0015](adr/0015-sincronizacao-e-exclusoes.md) escolheu como o tratamento do legado — não teria
+contra o que comparar. Imutabilidade aqui é propriedade da **ingestão**, não de um passo posterior
+que pode não rodar.
+
+O conteúdo original permanece **imutável** em `raw_legacy`, preservando exatamente o valor recebido
+antes de qualquer limpeza. Reter não é acumular sem limite: o descarte de capturas antigas é decisão
+futura, e enquanto ela não vier nenhuma captura é apagada.
 
 Diferente do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação), cuja
 finalidade é restaurar o ambiente, este *snapshot* existe para **linhagem, auditoria e
@@ -156,7 +185,17 @@ O dbt classifica cada registro legado em exatamente uma saída:
 |---|---|---|
 | `accepted` | Válido, sem necessidade de correção | Empilhado em `trusted` |
 | `corrected` | Corrigido por regra determinística, com valor original, valor final e regra aplicada registrados | Empilhado em `trusted` |
-| `rejected` | Não consertável com segurança | Schema `quarantine`, com código e descrição do motivo |
+| `rejected` | Não consertável com segurança, excedente de duplicata, ou filho de pai rejeitado | Schema `quarantine`, com código e descrição do motivo |
+
+**`rejected` tem três origens diferentes**, e a reconciliação as discrimina
+([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)): defeito do próprio
+registro, **excedente de duplicata exata** e **cascata de pai rejeitado**. Sem discriminar, o número
+fecha e não informa — e o legado parece pior do que é, porque um defeito raro no pai custa muitas
+linhas.
+
+A duplicata exata elege uma **ocorrência canônica** por regra determinística — a de menor
+identificador físico dentro da captura —, que segue como `accepted` ou `corrected`; cada excedente é
+uma linha `rejected` com o código `DUP_EXACT` e o vínculo à canônica.
 
 Regras invioláveis:
 
@@ -175,6 +214,16 @@ entre origens é impedida por **`source_system` como coluna explícita**, com a 
 derivada do *hash* de (`source_system`, chave natural) —
 [ADR-0021](adr/0021-procedencia-no-empilhamento.md). A procedência permanece legível em todas as
 camadas, o que torna "quantos registros vieram do legado?" uma cláusula `WHERE`.
+
+O domínio é **declarado e fechado**: `retail` para a origem transacional e `legacy` para a antiga.
+Caminho de ingestão **não** é sistema de origem — Airbyte e Beam transportam o mesmo `retail`, e
+representá-los como origens distintas faria a reconciliação entre os dois caminhos do estoque
+comparar uma coisa com ela mesma sob outro nome.
+
+O alcance está no [ADR-0039](adr/0039-alcance-da-procedencia.md): `source_system` existe em toda
+tabela que recebe registros de mais de um sistema, e **só nelas**. Dimensão que nasce de uma *seed*
+ou de uma série gerada — `dim_date`, `dim_geography`, `dim_support_category` — não recebe: acrescentar
+origem ali criaria duplicata onde deve haver conformação.
 
 A reconciliação é obrigatória e deve fechar exatamente:
 
