@@ -11,8 +11,8 @@
 |---|---|
 | Domínio | Marketplace de varejo *omnichannel* |
 | Consumido por | dbt, via blocos `docs … enddocs` |
-| Situação | 16 perguntas de negócio e 6 conceitos escritos na Etapa 5 |
-| Última revisão | 04/09/2026 |
+| Situação | 16 perguntas de negócio; 14 conceitos escritos até a Etapa 8 |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -76,7 +76,9 @@ O diretório é declarado em `docs-paths` no `dbt_project.yml`.
 | [Giro de estoque](giro_de_estoque.md) | View de consumo de P11 | 6 | **Escrito** |
 | [Ruptura de estoque](ruptura_de_estoque.md) | View de consumo de P12 | 7 | **Escrito** |
 | [Cobertura de estoque](cobertura_de_estoque.md) | View de consumo de P12 | 7 | **Escrito** |
-| Prazo de entrega prometido e realizado | `fact_shipment_item`, `delivery_events` | 8 | A escrever |
+| [Entrega no prazo](entrega_no_prazo.md) | View de consumo de P13, `fact_shipment_item` | 8 | **Escrito** |
+| [Prazo prometido](entrega_no_prazo.md) | `shipments`, `dim_carrier` | 8 | **Escrito** |
+| [Ciclo de entrega](ciclo_de_entrega.md) | View de consumo de P14 | 8 | **Escrito** |
 | Churn | `dim_customer` | 9 | A escrever |
 | Recompra pós-atendimento | `fact_support_ticket_event` | 9 | A escrever |
 

@@ -1,0 +1,10 @@
+from_status,to_status,is_initial,description
+,pending,true,Pedido criado e ainda não pago
+pending,paid,false,Pagamento aprovado
+pending,cancelled,false,Cancelado antes do pagamento
+paid,picking,false,Entrou em separação no armazém
+paid,cancelled,false,Cancelado depois de pago e antes da separação
+picking,shipped,false,Despachado do armazém
+picking,cancelled,false,Cancelado durante a separação
+shipped,delivered,false,Entregue ao cliente
+delivered,returned,false,Devolvido dentro do prazo de arrependimento

@@ -12,8 +12,8 @@
 |---|---|
 | Método | Perguntas antes do SQL ([ADR-0018](../adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
 | Quantidade | 16 |
-| Situação | **P01 a P11** com view construída; P12 a P16 nas Etapas 7 a 9 |
-| Última revisão | 04/09/2026 |
+| Situação | **P01 a P14** com view construída; P15 e P16 na Etapa 9 |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -211,6 +211,18 @@ corte por tempo — que perderia justamente o evento atrasado.
 ---
 
 ## 5. Entrega e logística — Etapa 8
+
+Estas duas viraram view na Etapa 8, e são o par que mais exige atenção da lista: **medem coisas
+diferentes e não se cruzam**. P13 conta **remessas** — é nelas que vivem transportadora, modalidade
+e a promessa de prazo — e P14 conta **pedidos**, fechando na última remessa a chegar. Um pedido
+dividido em duas caixas aparece duas vezes lá e uma vez aqui; um pedido com uma caixa entregue e
+outra extraviada aparece lá e **não** aparece aqui.
+
+A separação é decisão registrada ([ADR-0033](../adr/0033-entrega-medida-em-dois-graos.md)), e os
+dois conceitos correspondentes — [entrega no prazo](entrega_no_prazo.md) e
+[ciclo de entrega](ciclo_de_entrega.md) — dizem cada um, na própria definição, que o outro existe e
+em que grão vive. A data de chegada das duas vem do livro `delivery_events`, não da coluna da
+remessa ([ADR-0034](../adr/0034-entrega-do-livro-de-eventos.md)).
 
 ### P13 — Qual a fração de entregas dentro do prazo prometido, por transportadora e modalidade, mês a mês?
 

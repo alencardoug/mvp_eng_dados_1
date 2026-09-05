@@ -103,10 +103,10 @@ def test_toda_pergunta_com_view_construida_existe_como_modelo() -> None:
     perguntas = (RAIZ / "docs/glossario_de_negocio/perguntas_de_negocio.md").read_text(
         encoding="utf-8"
     )
-    # As perguntas até a Etapa 7 já viraram view; as das Etapas 8 e 9 estão
+    # As perguntas até a Etapa 8 já viraram view; as da Etapa 9 estão
     # declaradas e não devem existir ainda. A fronteira anda uma seção por
     # etapa, e mover esta linha é parte de entregar a etapa.
-    construidas = perguntas.split("## 5. Entrega e logística")[0]
+    construidas = perguntas.split("## 6. Relacionamento e atendimento")[0]
     declaradas = set(re.findall(r"\*\*View\*\* \| `([a-z0-9_]+)`", construidas))
     existentes = {p.stem for p in (DBT / "models/consumption").glob("*.sql")}
 
@@ -124,3 +124,37 @@ def test_toda_view_de_consumo_tem_contrato_aplicado() -> None:
     }
     existentes = {p.stem for p in (DBT / "models/consumption").glob("*.sql")}
     assert existentes == com_contrato
+
+
+def test_transicoes_declaradas_batem_com_os_caminhos_do_gerador() -> None:
+    """A *seed* e o gerador declaram a mesma máquina de estados.
+
+    A regra do que é transição legal vive na *seed* `order_status_transitions`,
+    porque é lá que ela é revisável. Quem **produz** as transições é o gerador,
+    a partir de `CAMINHOS` e `_CANCELAMENTO`. São dois artefatos dizendo a mesma
+    coisa, e é o par que precisa concordar: uma regra que o gerador nunca produz
+    é regra morta, e um caminho que a regra não permite quebraria a invariante 9
+    no primeiro `dbt build`.
+
+    Mesmo arranjo do espelho de `as_of_date` e do ponto de reposição, pelo mesmo
+    motivo: dois lugares precisam do valor e só um pode ser o dono.
+    """
+    from mvp_ed1.generator.domains.vendas import _CANCELAMENTO, CAMINHOS
+
+    linhas = (DBT / "seeds/order_status_transitions.csv").read_text(encoding="utf-8")
+    declaradas = {
+        (linha.split(",")[0] or None, linha.split(",")[1])
+        for linha in linhas.strip().splitlines()[1:]
+    }
+
+    produzidas = set()
+    for caminho in list(CAMINHOS.values()) + [c + ("cancelled",) for c in _CANCELAMENTO]:
+        anterior = None
+        for estado in caminho:
+            produzidas.add((anterior, estado))
+            anterior = estado
+
+    assert declaradas == produzidas, (
+        f"declaradas e nunca produzidas: {sorted(declaradas - produzidas)}; "
+        f"produzidas e não declaradas: {sorted(produzidas - declaradas)}"
+    )

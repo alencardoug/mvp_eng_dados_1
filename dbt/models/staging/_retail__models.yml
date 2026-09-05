@@ -209,3 +209,62 @@ models:
           - accepted_values:
               values: [false]
               quote: false
+
+  # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
+  - name: stg_retail__carriers
+    description: >
+      Transportadoras contratadas. A modalidade (`service_level`) é o que fixa a
+      promessa de prazo no despacho.
+    columns:
+      - name: carrier_id
+        data_tests: [unique, not_null]
+      - name: carrier_code
+        data_tests: [unique, not_null]
+      - name: service_level
+        data_tests:
+          - not_null
+          - accepted_values: {values: [standard, express, same_day]}
+
+  - name: stg_retail__delivery_events
+    description: >
+      Livro da entrega. **Fonte** da data de entrega realizada (ADR-0034), e não
+      rastro descritivo ao lado de `shipments.delivered_at`.
+    columns:
+      - name: delivery_event_id
+        description: Único depois da deduplicação de entrega ao menos uma vez.
+        data_tests: [unique, not_null]
+      - name: shipment_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__shipments')
+              field: shipment_id
+      - name: delivery_event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [picked_up, in_transit, out_for_delivery, delivery_attempt,
+                       delivered, returned]
+      - name: occurred_at
+        data_tests: [not_null]
+
+  - name: stg_retail__order_status_history
+    description: >
+      Transições de estado do pedido, uma linha por mudança. Grão de
+      `fact_order_status_event`.
+    columns:
+      - name: order_status_event_id
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__orders')
+              field: order_id
+      - name: to_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+      - name: changed_at
+        data_tests: [not_null]

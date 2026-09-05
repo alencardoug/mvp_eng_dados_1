@@ -85,6 +85,11 @@ models:
     consumption:
       +schema: consumption
       +materialized: view
+    # Destino, não passagem (ADR-0008): tabela porque é evidência de auditoria e
+    # precisa sobreviver à queda do modelo que a produziu.
+    quarantine:
+      +schema: quarantine
+      +materialized: table
 
 snapshots:
   mvp_ed1:

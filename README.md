@@ -43,8 +43,8 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 34 aceitos, 0 pendentes |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D31** — a remessa que nasce sem item |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 34 aceitos, 1 pendente |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.6 — Etapas 2 a 7 conferidas |
@@ -69,16 +69,18 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 8 — Corte 4: entrega e logística.** Termo aprovado (**M0**), decisões em ADR (**M1**),
-ambiente subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação
-(**M3**) e **streaming em operação com o *batch* intacto** (**M4**).
+**Etapa 9 — Corte 5: relacionamento e histórico.** Termo aprovado (**M0**), decisões em ADR
+(**M1**), ambiente subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em
+operação (**M3**) e **streaming em operação com o *batch* intacto** (**M4**).
 
-Três cortes verticais entregues — comercial, financeiro e estoque, e agora o caminho quente. O
-armazém tem **27 fluxos de ingestão em lote** mais o **CDC de `inventory_movements`**, e o
-`dbt build` constrói **262 objetos** sem erro: 54 modelos nas quatro camadas, 2 *snapshots* SCD tipo
-2 e os testes de qualidade. As **doze primeiras perguntas de negócio** têm view com contrato
-aplicado, e a décima segunda é a única cuja resposta muda entre duas leituras sem ninguém rodar
-nada. Nada [pendente](docs/pendencias.md) do lado do Owner.
+Quatro cortes verticais entregues — comercial, financeiro e estoque, o caminho quente e agora
+entrega e logística. O armazém tem **30 fluxos de ingestão em lote** mais o **CDC de
+`inventory_movements`**, e o `dbt build` constrói **350 objetos** — 349 verdes e **um aviso**, que
+é a D31 mostrando as 91 remessas sem item a cada execução —, dos quais **259 testes de qualidade**.
+As **catorze primeiras perguntas de negócio** têm view com contrato aplicado. A DAG
+`fluxo_batch` roda **nove tarefas** de ponta a ponta em **3 min 25 s** — a nona é a `quarantine`,
+que estreou como camada na Etapa 8. Uma decisão [pendente](docs/pendencias.md): a **D31**, sobre a
+remessa que nasce sem item.
 
 O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
 carga completa do Airbyte —, com sobreposição total e de propósito: **15.446 movimentos distintos,

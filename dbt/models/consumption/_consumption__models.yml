@@ -395,3 +395,90 @@ models:
         data_type: numeric
       - name: last_movement_at
         data_type: timestamp with time zone
+
+  # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
+  # As duas medem entrega e **não se cruzam**: a primeira conta remessas, a
+  # segunda conta pedidos (ADR-0033). O contrato de cada uma declara o grão no
+  # nome das colunas, e a descrição diz qual população cada uma contém.
+  - name: on_time_delivery_rate_by_carrier
+    description: >
+      P13 — Fração de entregas dentro do prazo prometido, por transportadora e
+      modalidade, mês a mês. **Grão da remessa**: pedido dividido conta duas
+      vezes, de propósito.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: carrier_name
+        data_type: text
+      - name: service_level
+        description: '{{ doc("promised_lead_time") }}'
+        data_type: text
+      - name: warehouse_name
+        data_type: text
+      - name: warehouse_region
+        data_type: text
+      - name: delivered_count
+        description: Denominador — remessas **entregues**, não despachadas.
+        data_type: bigint
+      - name: on_time_count
+        data_type: bigint
+      - name: late_count
+        data_type: bigint
+      - name: split_order_shipment_count
+        data_type: bigint
+      - name: on_time_rate
+        description: '{{ doc("on_time_delivery") }}'
+        data_type: numeric
+      - name: avg_delay_days_when_late
+        description: '**Não aditiva** — média sobre as atrasadas; positivo é atraso.'
+        data_type: numeric
+      - name: avg_transit_days
+        data_type: numeric
+      - name: failed_attempt_count
+        data_type: numeric
+
+  - name: order_to_delivery_time_by_region
+    description: >
+      P14 — Tempo médio entre pedido e entrega, por região e modalidade.
+      **Grão do pedido**: fecha na última remessa a chegar, e pedido com remessa
+      em aberto ou extraviada fica de fora.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: region
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: service_level
+        description: Modalidade da remessa que **fechou** o ciclo.
+        data_type: text
+      - name: carrier_name
+        data_type: text
+      - name: order_count
+        data_type: bigint
+      - name: split_order_count
+        data_type: bigint
+      - name: shipment_count
+        data_type: numeric
+      - name: avg_order_to_delivery_days
+        description: '{{ doc("order_to_delivery_cycle") }}'
+        data_type: numeric
+      - name: median_order_to_delivery_days
+        description: A mediana ao lado da média separa operação lenta de operação irregular.
+        data_type: numeric
+      - name: max_order_to_delivery_days
+        data_type: numeric

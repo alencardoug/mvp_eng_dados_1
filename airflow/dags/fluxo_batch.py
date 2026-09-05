@@ -96,6 +96,11 @@ def fluxo_batch():
     semear = camada("seed", "", comando="seed")
     staging = camada("staging", "--select staging")
     trusted = camada("trusted", "--select trusted")
+    # A quarentena sai de `trusted` e não alimenta ninguém — é destino, não
+    # passagem (ADR-0008). Roda aqui porque o teste que a confere só tem o que
+    # ler depois que ela existe, e porque uma rejeição descoberta tarde é uma
+    # rejeição que já contaminou o relatório.
+    quarentena = camada("quarantine", "--select quarantine")
     # `snapshot` no meio: lê `trusted`, é lido por `analytics`.
     snapshots = camada("snapshots", "", comando="snapshot")
     analytics = camada("analytics", "--select analytics")
@@ -108,6 +113,7 @@ def fluxo_batch():
         >> semear
         >> staging
         >> trusted
+        >> quarentena
         >> snapshots
         >> analytics
         >> consumption

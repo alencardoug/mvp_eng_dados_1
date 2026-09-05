@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.5 |
-| Última revisão | 04/09/2026 |
+| Versão | 1.6 |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -114,7 +114,9 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
 - as invariantes que **atravessam linhas** têm cada uma o seu teste singular em `dbt/tests/`, com o
   motivo escrito de por que elas não são `CHECK`: a 2 compara pedido com a soma dos itens, a 3 e a 4
   comparam eventos financeiros entre si, a 5 soma remessas do mesmo pedido, a 6 soma recebimentos,
-  a 7 exige origem no movimento e a 8 confere a **direção** da diferença de reserva;
+  a 7 exige origem no movimento, a 8 confere a **direção** da diferença de reserva, a 9 confronta
+  cada transição observada com a lista de transições legais, e a 10 percorre a causalidade do ciclo
+  — pedido, despacho, coleta, entrega e devolução — nomeando na falha **qual** elo saiu de ordem;
 - reconciliação de pedidos, pagamentos, estoque e remessas;
 - testes de atualidade dos dados;
 - documentação de fontes, modelos e colunas;
@@ -122,6 +124,36 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
 
 Cada uma das doze [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) tem pelo
 menos um teste correspondente. Uma invariante sem teste é uma invariante que não existe.
+
+### 4.1 A regra da máquina de estados vive fora do modelo
+
+A invariante 9 depende de saber **quais pares de estados são legais**, e essa lista não está em
+`case` dentro de modelo: está na *seed* `order_status_transitions`. Regra escondida em SQL é regra
+que ninguém revisa; em artefato declarativo, cabe numa olhada — é a §5 do
+[`CLAUDE.md`](../CLAUDE.md) aplicada ao teste, e não só ao modelo.
+
+Quem **produz** as transições é o gerador, a partir dos seus caminhos de estado. São dois artefatos
+declarando a mesma máquina, e o `pytest` `test_transicoes_declaradas_batem_com_os_caminhos_do_gerador`
+confere que concordam: regra que o gerador nunca produz é regra morta, e caminho que a regra não
+permite quebraria a invariante 9 no primeiro `build`.
+
+### 4.2 A entrega, e a primeira quarentena fora do legado
+
+A data de entrega vem do livro `delivery_events`; `shipments.delivered_at` é conferência
+([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)). Três testes sustentam o arranjo:
+
+| Teste | O que prova |
+|---|---|
+| `entrega_projetada_tem_evento_no_livro` | A coluna e o livro não divergem — e quando divergirem, a remessa está em `quarantine.rejected_shipment_deliveries`, com código e motivo, não descartada |
+| `pedido_dividido_fecha_na_ultima_remessa` | O ciclo de entrega do pedido nunca é menor que a chegada de qualquer remessa dele, e só é declarado fechado quando **todas** chegaram ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)) |
+| `invariante_10_causalidade_das_datas` | Nenhuma etapa do ciclo antecede a anterior, incluindo a promessa de prazo, que é feita **no** despacho |
+
+`quarantine.rejected_shipment_deliveries` é o primeiro morador do schema `quarantine`, que até a
+Etapa 8 existia declarado e vazio — o tratamento do legado, que o povoaria, é da Etapa 10. Ele chega
+antes porque o ADR-0034 criou a primeira rejeição possível fora do legado, e a regra 4 do
+[`CLAUDE.md`](../CLAUDE.md) não admite que ela seja descartada em silêncio. O código de rejeição
+segue a convenção do [catálogo de falhas do legado](origem_legada.md#31-catálogo-de-falhas-obrigatórias):
+`UPPER_SNAKE`, estável e nunca reaproveitado.
 
 ---
 
@@ -192,6 +224,7 @@ no caminho.
 | `oltp` → `raw` | Contagem por tabela e por lote |
 | `raw_legacy` → tratamento | `extraídos = aceitos + corrigidos + rejeitados` |
 | `staging` → `trusted` | Contagem e regras aplicadas, com rejeições rastreáveis |
+| Livro de entrega ↔ coluna da remessa | Toda remessa que a origem projeta como entregue tem evento `delivered`; a que não tem fica em `quarantine` com motivo ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)) |
 | `trusted` → `analytics` | Grão declarado e medidas somadas |
 | *Batch* + streaming → view de saldo | O saldo da view é a soma dos deltas que a fato absorveu mais os que ela ainda não contém, sem interseção — a fronteira é a ausência do `movement_id` na fato ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) |
 | CDC ↔ carga completa | Todo movimento chega pelos dois caminhos; o que chega só pelo lote é lacuna do CDC |

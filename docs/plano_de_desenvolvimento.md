@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.6 |
-| Etapa atual | **Etapa 8 — Corte 4: entrega e logística** (**M0** a **M4** concluídos) |
-| Última revisão | 04/09/2026 |
+| Versão | 2.7 |
+| Etapa atual | **Etapa 9 — Corte 5: relacionamento e histórico** (**M0** a **M4** concluídos) |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -195,14 +195,18 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 
 ### Etapa 8 — Corte 4: entrega e logística
 
+*Concluída em 05/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Modelar o ciclo pós-venda e os eventos de estado. |
 | **Pré-requisito** | Etapa 6 |
 | **Entregas** | **E6**, **E7**, **E10** (parciais) |
+| **Decisões** | Grão da medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)) · procedência da data realizada ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)) |
 | **Escopo** | Remessas, itens de remessa, eventos de entrega e histórico de estado do pedido · `fact_shipment_item`, `fact_order_status_event` · `dim_carrier`, `dim_warehouse` |
-| **Critérios de conclusão** | Transições de estado validadas · causalidade de datas testada · pedido dividido em mais de uma remessa tratado corretamente · prazo prometido e realizado definidos no glossário |
-| **Conceitos** | Máquina de estados em dados · fato de evento de estado · causalidade temporal |
+| **Artefatos** | Três fluxos de ingestão novos — `carriers`, `delivery_events`, `order_status_history` · cinco modelos em `trusted` · `dim_carrier`, `fact_shipment_item` (7.329 linhas), `fact_order_status_event` (15.694) · views `on_time_delivery_rate_by_carrier` e `order_to_delivery_time_by_region` · *seed* `order_status_transitions` · schema `quarantine` com o primeiro morador |
+| **Critérios de conclusão** | Transições de estado validadas ✓ (9 pares observados, 9 declarados na *seed*, e um `pytest` confere a *seed* contra os caminhos do gerador) · causalidade de datas testada ✓ (invariante 10, seis elos, 0 violações) · pedido dividido em mais de uma remessa tratado corretamente ✓ (637 pedidos divididos; o ciclo nunca é menor que a chegada de qualquer remessa do pedido) · prazo prometido e realizado definidos no glossário ✓ ([entrega no prazo](glossario_de_negocio/entrega_no_prazo.md) na remessa, [ciclo de entrega](glossario_de_negocio/ciclo_de_entrega.md) no pedido) |
+| **Conceitos** | Máquina de estados em dados · fato de evento de estado · causalidade temporal · papéis de data na mesma dimensão · regra em artefato declarativo · quarentena como destino |
 
 ### Etapa 9 — Corte 5: relacionamento e histórico
 

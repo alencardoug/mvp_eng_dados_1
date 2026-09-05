@@ -21,3 +21,29 @@ seeds:
           - not_null
           - accepted_values:
               values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul]
+
+  - name: order_status_transitions
+    description: >
+      As transições legais da máquina de estados do pedido — de qual estado para
+      qual, e qual delas é a criação. É **regra**, não dado observado: o teste
+      `transicao_de_estado_e_declarada` confronta o que aconteceu na origem com
+      o que está aqui, e um `pytest` confere que esta lista e os caminhos do
+      gerador declaram a mesma máquina.
+
+      Está em *seed* e não em `case` dentro de modelo porque regra escondida em
+      SQL é regra que ninguém revisa. Aqui ela cabe numa olhada.
+    config:
+      column_types:
+        from_status: varchar(16)
+        to_status: varchar(16)
+    columns:
+      - name: to_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+      - name: from_status
+        description: Vazio na transição inicial — o pedido não vem de estado nenhum.
+        data_tests:
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, '']

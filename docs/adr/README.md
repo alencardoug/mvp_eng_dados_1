@@ -76,7 +76,22 @@ decisão.
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** As duas decisões que a Etapa 8 levantou foram fechadas na abertura dela, por
+| # | Decisão | Levantada em | Efeito de não decidir |
+|---|---|---|---|
+| **D31** | Corrigir no gerador a remessa que nasce sem item, ou aceitá-la como caso de borda | Etapa 8, ao construir `fact_shipment_item` | A taxa de P13 conta 3.141 entregas onde `trusted.shipments` diz 3.221, e a diferença precisa ser explicada a cada leitura |
+
+**D31** nasceu de um achado, não de uma escolha de projeto: 91 das 3.647 remessas não têm item
+nenhum — todas em pedidos divididos, quando cada item do pedido tem quantidade 1 e o repartidor dá
+zero unidades ao primeiro lote. Caixa vazia é estado que a operação real não produz (**P10**).
+
+O que a torna decisão, e não conserto: a correção é no gerador da **Etapa 4**, e mexer no consumo de
+aleatoriedade dele desloca a sequência — quanto disso alcança `shipments`, `delivery_events` e o que
+depende deles **não foi medido**, e por isso não é afirmado (**P5**). Aceitar a correção é aceitar
+refazer e reescrever as medições registradas. Enquanto a decisão não vem, o teste
+`remessa_leva_ao_menos_um_item` roda com severidade `warn` a cada `build`: o número fica à vista sem
+travar a entrega.
+
+As duas decisões que a Etapa 8 levantou na abertura foram fechadas no mesmo dia, por
 interrogatório: em que grão a entrega é medida, quando o pedido se divide em duas remessas
 ([ADR-0033](0033-entrega-medida-em-dois-graos.md)), e de onde sai a data de entrega realizada —
 do livro de eventos, não da coluna da remessa

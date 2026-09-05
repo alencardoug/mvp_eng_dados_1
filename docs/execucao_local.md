@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.5 |
+| Versão | 1.6 |
 | Situação | Alvos das Etapas **2 a 4** implementados e conferidos; os demais nascem na etapa indicada |
-| Última revisão | 04/09/2026 |
+| Última revisão | 05/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -311,6 +311,44 @@ pôs a configuração do Airbyte no Terraform justamente para isto. O histórico
 mv ~/.airbyte/abctl/data ~/.airbyte/abctl/data.$(date +%Y%m%d%H%M)
 make airbyte-up && make airbyte-config AUTO=1
 ```
+
+### Depois de reiniciar a máquina, o Airbyte responde 401 e o `terraform` não aplica
+
+Sintoma: a API sobe e responde `/health`, mas toda chamada volta com
+
+```
+401 {"message":"Could not get the current Airbyte user due to an internal error."}
+```
+
+e o log do `server` traz a causa real: `ERROR: relation "public.auth_user" does not exist`.
+
+O banco interno do Airbyte subiu **vazio** — `select count(*) from information_schema.tables where
+table_schema='public'` devolve zero. Os *pods* estão todos de pé; o que falta é o schema. Não é o
+mesmo caso da seção anterior, ainda que o `make airbyte-up` esbarre no mesmo `permission denied` ao
+tentar consertar: lá o cluster foi destruído e os dados ficaram; aqui o cluster está inteiro e os
+dados é que não estão.
+
+Quem cria esse schema é o *pod* `airbyte-abctl-bootloader`, que roda uma vez na instalação e fica
+como `Completed`. Rodá-lo de novo aplica as migrações sobre o banco vazio, e é a correção mais
+barata — não mexe em nada no disco do host:
+
+```bash
+K="docker exec airbyte-abctl-control-plane kubectl -n airbyte-abctl"
+$K get pod airbyte-abctl-bootloader -o json \
+  | python3 -c "import json,sys; p=json.load(sys.stdin); p['metadata']={'name':'bootloader-rerun','namespace':'airbyte-abctl'}; p.pop('status'); [p['spec'].pop(k,None) for k in ('nodeName','nodeSelector','tolerations')]; print(json.dumps(p))" \
+  | docker exec -i airbyte-abctl-control-plane kubectl apply -n airbyte-abctl -f -
+```
+
+Quando o *pod* chegar a `Succeeded`, reinicie `server`, `worker`, `workload-launcher`,
+`workload-api-server` e `cron` (`kubectl rollout restart deploy/...`) e refaça a configuração com
+`make airbyte-config AUTO=1`.
+
+**Duas armadilhas no caminho de volta.** O `terraform apply` cria fonte e destino em paralelo, e os
+dois inicializam a tabela `secrets` ao mesmo tempo — um dos dois morre com `duplicate key value
+violates unique constraint "pg_type_typname_nsp_index"`. Rodar de novo resolve, porque a tabela já
+existe. E a conexão recriada nasce **sem cursor**: a sincronização seguinte relê tudo. Isso é
+inofensivo por construção — o `dedup_history` casa versões pela chave e o `staging` deduplica o
+`append` (ADR-0015) —, mas leva o tempo de uma carga completa, não o de um incremental.
 
 ### O `pipeline` Beam morre sozinho depois de exatos cinco minutos
 

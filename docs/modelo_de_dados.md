@@ -1,7 +1,7 @@
 # Modelo de Dados
 
 > **O que vive aqui:** o inventário do que é modelado — as 40 tabelas transacionais por domínio, o
-> modelo dimensional (9 fatos e 17 dimensões), as invariantes de negócio e o contrato do evento de
+> modelo dimensional (10 fatos e 17 dimensões), as invariantes de negócio e o contrato do evento de
 > estoque.
 >
 > **O que não vive aqui:** como os dados são gerados (ver [Geração de Dados](geracao_de_dados.md));
@@ -13,9 +13,9 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.2 |
+| Versão | 1.3 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
-| Última revisão | 04/09/2026 |
+| Última revisão | 05/09/2026 |
 
 As contagens de linhas são a **proporção de referência**, não resultados medidos e não compromissos
 de tamanho: elas fixam a razão entre as tabelas, que é o que dá realismo ao domínio. O volume
@@ -581,6 +581,25 @@ classificação que impede somar saldo de estoque ao longo do tempo.
 `fact_inventory_movement` carrega **`cogs_amount`**, o custo do produto vendido, registrado no
 instante da saída ([ADR-0030](adr/0030-cmv-do-livro-de-estoque.md)). É por ela que a margem é
 calculada, e não pelo custo de compra: o custo do movimento não muda quando o preço de compra muda.
+
+**`fact_shipment_item` tem duas datas em papéis diferentes.** `date_key` é o **despacho** — o
+momento que cria o fato — e `delivered_date_key` é a **chegada**, que é por onde P13 conta entregas
+mês a mês. Uma remessa que saiu em janeiro e chegou em fevereiro é entrega de fevereiro, e uma única
+data não conseguiria dizer isso. `delivered_date_key` é a única chave de dimensão **nula** do
+datamart, e o nulo significa *ainda não chegou*: `dim_date` não tem membro para evento futuro, e
+inventar um criaria data que nenhum calendário contém.
+
+A data de chegada vem do livro `delivery_events`, e não da coluna `shipments.delivered_at`
+([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)). A coluna continua carregada como
+`delivered_at_projected`, com a única função de ser conferida; a remessa que a origem diz entregue
+sem evento correspondente vai para `quarantine.rejected_shipment_deliveries`.
+
+A fato carrega também quatro colunas de **grão de pedido** — `order_delivered_at`,
+`order_to_delivery_days`, `is_order_cycle_closed` e `order_shipment_count` —, repetidas em cada
+linha de item porque o ciclo de entrega é medido no pedido
+([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)) e o consumo só lê `analytics`. Média sobre
+elas no grão do item pesa cada pedido pelo número de itens que ele tem: quem as usa reduz antes ao
+pedido, pelas linhas em `is_cycle_closing_shipment`.
 
 `fact_cart_event` é a décima fato, acrescentada pelo
 [ADR-0028](adr/0028-fato-de-carrinho-para-o-funil.md) quando as perguntas de negócio mostraram que o

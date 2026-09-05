@@ -288,3 +288,126 @@ models:
           - accepted_values:
               values: [purchase_receipt, customer_return, transfer_in, adjustment_in,
                        sale_dispatch, supplier_return, transfer_out, adjustment_out]
+
+  # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
+  - name: dim_carrier
+    description: >
+      Transportadora e a modalidade que ela presta. SCD tipo 1: a modalidade
+      classifica o fato, mas não muda para uma transportadora contratada — o
+      gatilho que a tornaria tipo 2 está escrito no próprio modelo.
+    columns:
+      - name: carrier_key
+        data_tests: [unique, not_null]
+      - name: carrier_natural_key
+        data_tests: [unique, not_null]
+      - name: service_level
+        description: '{{ doc("promised_lead_time") }}'
+        data_tests:
+          - not_null
+          - accepted_values: {values: [standard, express, same_day]}
+      - name: is_deleted
+        data_tests: [not_null]
+
+  - name: fact_shipment_item
+    description: >
+      **Grão: um item de uma remessa.** Duas datas em papéis diferentes —
+      `date_key` é o despacho, `delivered_date_key` é a chegada (ADR-0033). As
+      colunas de grão de pedido (`order_to_delivery_days` e as vizinhas) são
+      atributos repetidos: reduza ao pedido antes de agregar.
+    columns:
+      - name: shipment_item_key
+        description: Prova do grão — uma linha por item de remessa.
+        data_tests: [unique, not_null]
+      - name: shipment_item_id
+        data_tests: [unique, not_null]
+      - name: date_key
+        description: Data de **despacho** da remessa.
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: delivered_date_key
+        description: >
+          Data de **chegada**. Única chave de dimensão nula do datamart, e o
+          nulo significa *ainda não chegou* — o motivo está no cabeçalho do
+          modelo. Sem `not_null` por isso; o `relationships` continua valendo
+          para as linhas preenchidas.
+        data_tests:
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: carrier_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_carrier'), field: carrier_key}
+      - name: warehouse_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_warehouse'), field: warehouse_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: product_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_key}
+      - name: sales_channel_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: is_on_time
+        description: '{{ doc("on_time_delivery") }}'
+      - name: order_to_delivery_days
+        description: '{{ doc("order_to_delivery_cycle") }}'
+      - name: quantity_shipped
+        description: '**Aditiva** — unidades que viajaram nesta caixa.'
+        data_tests: [not_null]
+      - name: shipment_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [created, picking, dispatched, in_transit, delivered, returned, lost]
+
+  - name: fact_order_status_event
+    description: >
+      **Grão: uma transição de estado do pedido.** A máquina de estados vista
+      como fato: `orders.order_status` diz onde o pedido está hoje, e esta fato
+      diz por onde ele passou.
+    columns:
+      - name: order_status_event_key
+        data_tests: [unique, not_null]
+      - name: order_status_event_id
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: sales_channel_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: to_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+      - name: from_status
+        description: Nulo na criação do pedido — a primeira transição não vem de estado nenhum.
+        data_tests:
+          - accepted_values:
+              values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+      - name: hours_in_previous_status
+        description: '**Não aditiva** — tempo no estado de origem; soma dentro do pedido, nunca entre pedidos.'
+      - name: transition_count
+        description: '**Aditiva** — sempre 1, para que a contagem seja uma soma explícita.'
+        data_tests: [not_null]

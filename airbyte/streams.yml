@@ -21,9 +21,9 @@ versao: 1
 origem: retail
 schema: oltp
 
-# Etapas 5 e 6 — núcleo comercial, financeiro e estoque. Os demais fluxos entram
-# na etapa que os consome: ingerir tabela que nenhum modelo lê é volume sem
-# consumidor.
+# Etapas 5 a 8 — núcleo comercial, financeiro, estoque e entrega. Os demais
+# fluxos entram na etapa que os consome: ingerir tabela que nenhum modelo lê é
+# volume sem consumidor.
 tabelas:
 
   # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
@@ -43,6 +43,9 @@ tabelas:
   payment_methods:
     modo: full_refresh
     motivo: Seis meios de pagamento. Domínio fechado, sem cursor que compense.
+  carriers:
+    modo: full_refresh
+    motivo: Oito transportadoras. Muda quando a operação contrata ou dispensa uma — não vale cursor.
   warehouses:
     modo: full_refresh
     motivo: Cinco armazéns que só mudam quando a operação abre ou fecha um centro.
@@ -53,6 +56,17 @@ tabelas:
   # `AppendOnlyMixin` no modelo — não têm `updated_at` nem `deleted_at`, porque
   # corrigir um evento é inserir outro.
   payment_transactions:
+    modo: append
+    cursor: created_at
+  # Etapa 8. Os dois livros da entrega, e ambos `AppendOnlyMixin` no modelo.
+  # `delivery_events` é a **fonte** da data de entrega realizada (ADR-0034), e
+  # não um rastro descritivo: o modo de ingestão dele é decisão de primeira
+  # ordem, não detalhe. `order_status_history` é o mesmo caso para a transição
+  # de estado do pedido.
+  delivery_events:
+    modo: append
+    cursor: created_at
+  order_status_history:
     modo: append
     cursor: created_at
   # ── Deixou de ser incremental na Etapa 7 ────────────────────────────────
@@ -135,11 +149,12 @@ tabelas:
     cursor: updated_at
     chave: [id]
 
-  # ── Logística — só o necessário para a invariante 5 ───────────────────────
-  # A fato de remessa é escopo da Etapa 8. Estas duas entram antes porque a
-  # invariante 5 — remessa não envia mais do que foi vendido — atravessa
-  # `shipment_items` e `order_items`, e é critério de conclusão da Etapa 6.
-  # Um teste é consumidor legítimo: não é volume sem uso.
+  # ── Logística ─────────────────────────────────────────────────────────────
+  # Estas duas entraram na Etapa 6, antes da fato, porque a invariante 5 —
+  # remessa não envia mais do que foi vendido — atravessa `shipment_items` e
+  # `order_items`, e um teste é consumidor legítimo. Na Etapa 8 passaram a
+  # alimentar `fact_shipment_item`, e o modo não mudou: continuam sofrendo
+  # `UPDATE` na origem, a cada mudança de estado da remessa.
   shipments:
     modo: dedup_history
     cursor: updated_at
