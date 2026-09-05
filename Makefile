@@ -45,7 +45,7 @@ BASE := source_db legacy_db warehouse_db
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
         dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
         stream-up stream-down stream-connector stream-status stream-run stream-produce \
-        stream-duplicate stream-alerts \
+        stream-duplicate stream-alerts stream-reset-sink \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -275,16 +275,17 @@ stream-duplicate: require-env ## Republica mensagens no transporte — teste de 
 stream-alerts: require-env ## Lê e resume o tópico de alerta de estoque baixo
 	@$(STREAM) alertas $(if $(MOSTRAR),--mostrar $(MOSTRAR)) $(if $(GRUPO),--grupo $(GRUPO))
 
-stream-down: require-env ## Derruba Connect e mensageria; FORCE=1 apaga também os tópicos
+stream-down: require-env $(if $(filter 1,$(FORCE)),require-venv) ## Derruba Connect e mensageria; FORCE=1 apaga também os tópicos
 	@$(COMPOSE_STREAM) down $(if $(filter 1,$(FORCE)),-v)
 	@# O slot de replicação fica no `source_db` e sobrevive à queda do Connect:
 	@# sem removê-lo, o PostgreSQL segura WAL para um consumidor que não existe
 	@# mais, até o disco acabar. É a pegadinha clássica de CDC.
 	@$(if $(filter 1,$(FORCE)),set -a; . ./.env; set +a; \
-		docker exec -e PGPASSWORD="$$SOURCE_DB_PASSWORD" $${COMPOSE_PROJECT_NAME:-mvp_ed1}_source_db \
-		psql -U "$$SOURCE_DB_USER" -d "$$SOURCE_DB_NAME" -tAc \
-		"select pg_drop_replication_slot(slot_name) from pg_replication_slots where slot_name = 'mvp_inventory_movements'" \
-		>/dev/null 2>&1; echo "slot de replicação removido"; )
+		.venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force)
+
+stream-reset-sink: require-env require-venv ## Esvazia SÓ o destino do streaming; exige FORCE=1 e consumidores parados
+	@set -a; . ./.env; set +a; \
+		.venv/bin/python -m mvp_ed1.streaming.maintenance reset-sink $(if $(filter 1,$(FORCE)),--force)
 
 dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem
 	@echo "descartando o schema 'snapshots' — o histórico SCD será refeito do zero"
