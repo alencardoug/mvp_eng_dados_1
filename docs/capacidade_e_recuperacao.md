@@ -12,8 +12,8 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.7 |
-| Situação | Vigente. Origem transacional (Etapa 4) e ingestão (Etapa 5) **medidas**; as demais camadas, não |
+| Versão | 2.8 |
+| Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7. Recuperação da Etapa 12 ainda não entregue |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -63,7 +63,7 @@ mortas de uma execução abortada mediu 86 MB onde havia 55.
 |---|---:|
 | Linhas carregadas em `oltp`, fator `dev` | 253.414 |
 | Tamanho do schema `oltp` (dados + índices) | 54,5 MB |
-| Tamanho do `source_db`, com catálogo e WAL | 63,1 MB |
+| Tamanho do `source_db`, incluindo catálogo | 63,1 MB |
 | Soma dos três bancos, dois deles vazios | 77,8 MB |
 | **Média por linha, incluindo índices** | **225 bytes** |
 | Tempo de geração em memória | 5,1 s |
@@ -79,8 +79,8 @@ as tabelas grandes; a média serve para comparar execuções, não para extrapol
 O detalhe por tabela e por índice não é copiado para cá: ele sai de `make size-report`, que é o dono
 do número, e muda a cada execução.
 
-*Ainda não medidos:* `legacy_db`, `warehouse_db`, tempo do pipeline completo e tamanho das camadas
-analíticas. Eles não existem ainda (**P5**).
+*Naquele corte ainda não medidos:* `legacy_db`, `warehouse_db`, tempo do pipeline completo e
+tamanho das camadas analíticas. As medições posteriores estão nas seções seguintes (**P5**).
 
 ### 2.2 Medido na Etapa 5 — ingestão `oltp` → `raw`
 
@@ -123,9 +123,9 @@ modelos, dois *snapshots* SCD tipo 2 e mais uma *seed*, e **não custou nada** �
 dentro da variação entre execuções.
 
 É a evidência do que as três medições vinham sugerindo: o que domina é a **sincronização**, não a
-transformação. Ela é 45% do tempo total, e o `dbt` inteiro — 485 objetos, 371 testes — roda em menos
-de 30 segundos. Foi essa proporção que o caminho quente da Etapa 7 atacou, tirando o estoque do
-caminho crítico.
+transformação. Na medição da Etapa 9 ela era 45% do tempo total, e o `dbt` inteiro — 485 objetos,
+371 testes — rodou em menos de 30 segundos. Foi essa proporção que o caminho quente da Etapa 7
+atacou, tirando o estoque do caminho crítico.
 
 Memória com o *batch* de pé — três bancos, cluster do Airbyte e os quatro contêineres do Airflow:
 cerca de **6 GB**. Com o caminho quente junto, o número da Etapa 7 é **8 GB** (§2.4).
@@ -197,6 +197,97 @@ janela de demonstração da Etapa 13**, criados e destruídos pelo mesmo Terrafo
 O custo estimado é registrado antes de subir e o custo real depois — planejado e medido, rotulados
 como tais. É o tratamento do risco **R9**.
 
+### 2.7 Re-medição da D31 — 05/09/2026
+
+Esta é uma **nova execução**, não uma substituição das medições históricas das Etapas 4 a 9 ou dos
+ADRs aceitos. Comparação em memória: revisão anterior `509c532` contra a correção posteriormente
+registrada em `522a8fc`, com `seed=20260904`, `as_of_date=2026-09-01` e fator `dev=1` iguais.
+Hashes SHA-256 das colunas graváveis, ordenadas por conteúdo, localizaram mudanças em **oito**
+tabelas; as outras **32** permaneceram idênticas. Contagem igual não significa conteúdo igual.
+
+| Tabela cujo conteúdo mudou | Antes | Corrigida |
+|---|---:|---:|
+| `shipments` | 3.647 | 3.595 |
+| `shipment_items` | 7.329 | 7.305 |
+| `delivery_events` | 17.633 | 17.340 |
+| `inventory_movements` | 13.746 | 13.700 |
+| `inventory_balances` | 2.910 | 2.911 |
+| `stock_reservations` | 4.200 | 4.200 |
+| `support_tickets` | 400 | 400 |
+| `ticket_events` | 1.723 | 1.723 |
+| **Total das 40 tabelas** | **253.369** | **252.955** |
+
+Dos 3.010 pedidos com remessa, **637 → 585** têm divisão; a cobertura do caso permaneceu e é
+testada também no fator reduzido. O total anterior em memória não é o total da primeira medição da
+Etapa 4 (253.414), nem o da origem viva antes desta manutenção (255.578): eram revisões/cortes
+distintos. Não atribuir essas diferenças prévias à D31.
+
+| Medida da nova carga inicial, antes do produtor ao vivo | Valor |
+|---|---:|
+| Linhas carregadas nas 40 tabelas | 252.955 |
+| Remessas sem item na origem | 0 |
+| Tempo de geração em memória, medido no `seed-data` | 6,5 s |
+| Tempo de carga por `COPY` | 23,0 s |
+| **Total do `seed-data`** | **29,5 s** |
+| `source_db`, por `pg_database_size` | 60,7 MB |
+| Schema `oltp`, dados + índices | 51,2 MB |
+| Média por linha, com índices | 212 bytes |
+
+Os tamanhos dessa tabela foram coletados antes de reiniciar o CDC e reconstruir o dbt, pelo
+formatador de `make size-report` (divisão por 1024). O banco foi recarregado por
+truncamento das tabelas, **sem** apagar seus volumes; catálogo e alocação anteriores continuam no
+tamanho do banco. A saída por tabela desse alvo consulta `oltp`: “sem tabelas com dados” no
+warehouse **não** significa warehouse vazio. Suas camadas precisam ser consultadas por schema.
+
+Após o cenário ao vivo e a DAG final, a origem tinha **255.161 linhas**. A medição de banco por
+`pg_database_size` deu `source_db` **62,4 MB**, `legacy_db` **7,5 MB** (sem tabelas de aplicação) e
+`warehouse_db` **180,3 MB** — soma **250,2 MB**. `oltp` ocupava 55.214.080 bytes com índices.
+No warehouse, a soma de `pg_total_relation_size` das relações físicas por schema foi:
+
+| Schema | Dados + índices, bytes | Índices, bytes |
+|---|---:|---:|
+| `raw` | 88.915.968 | 14.958.592 |
+| `trusted` | 36.995.072 | 0 |
+| `snapshots` | 811.008 | 0 |
+| `analytics` | 47.685.632 | 0 |
+| `quarantine` | 8.192 | 0 |
+
+Views de `staging`/`consumption` não têm armazenamento próprio. Os bytes não são uma medida isolada
+do custo da correção: esta manutenção também descartou histórico SCD e estado antigo da ingestão.
+
+| Execução observada | Tempo |
+|---|---:|
+| Snapshot CDC, do estado `RUNNING` do Beam até a última gravação histórica | 44,6 s |
+| Intervalo entre primeira e última gravação do snapshot | 37,7 s |
+| `dbt build RESET=1`, carga inicial | 56,12 s |
+| `dbt build` incremental após eventos ao vivo | 36,07 s |
+| Reconstrução dirigida da fato e descendentes, 20 objetos | 2,53 s |
+| DAG final, início até fim no metadado do Airflow | **257,10 s — 4 min 17 s** |
+
+Os tempos de dbt são os do `run_results.json`, não incluem a inicialização do comando; o do
+snapshot não inclui a subida do Compose e não é benchmark de latência. Não generalizar uma
+execução local como ganho ou regressão de desempenho do gerador.
+
+A DAG foi `manual__2026-09-05T22:21:30.899526+00:00`, em sucesso, com nove tarefas na primeira
+tentativa. Durações em segundos, preservadas do metadado:
+
+| Tarefa | Segundos |
+|---|---:|
+| `sincronizar_oltp_para_raw` | 107,40 |
+| `dbt_seed` | 23,77 |
+| `dbt_staging` | 20,71 |
+| `dbt_trusted` | 13,27 |
+| `dbt_quarantine` | 10,29 |
+| `dbt_snapshots` | 10,39 |
+| `dbt_analytics` | 29,61 |
+| `dbt_consumption` | 12,94 |
+| `dbt_docs` | 21,25 |
+
+As evidências brutas e a salvaguarda da origem anterior ficam em `data/validacoes/d31/`, ignorado
+pelo Git. O dump é uma salvaguarda desta manutenção, **não** o pacote aprovado e testado da
+Etapa 12. Os resultados do cenário com eventos novos, saldos e idempotência pertencem a
+[Streaming §7.2](streaming.md#72-revalidação-da-d31).
+
 ---
 
 ## 3. Ponto único de recuperação
@@ -228,8 +319,12 @@ o banco restaurado não tem. O procedimento correto após uma restauração é *
 conector e deixá-lo refazer o *snapshot* inicial** — não tentar retomar de onde parou.
 
 Como o destino do *streaming* é idempotente por chave de evento
-([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), refazer o *snapshot* reprocessa
-eventos já vistos sem duplicar saldo. É essa propriedade que torna a recuperação segura.
+([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), refazer o *snapshot* não duplica
+eventos de **mesmo conteúdo**. Isso não remove eventos posteriores ao dump nem substitui conteúdo
+sob chave reutilizada numa regeração. Para reconstruir contra outra base, o destino quente também
+precisa ser esvaziado, com consumidores parados, antes do snapshot; o procedimento de desenvolvimento
+está em [Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming).
+Uma retomada do mesmo livro não deve ser confundida com essa reconstrução.
 
 ### 3.3 Regras
 

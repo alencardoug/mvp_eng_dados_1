@@ -11,7 +11,7 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.8 |
+| Versão | 2.9 |
 | Etapa atual | **Etapa 10 — Corte 6: origem legada** (**M0** a **M4** concluídos) |
 | Última revisão | 05/09/2026 |
 
@@ -145,6 +145,17 @@ flowchart LR
 
 Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → Airbyte → `raw` → dbt →
 `staging` → `trusted` → `analytics` → view de consumo, com testes, catálogo e linhagem atualizados.
+
+**Revalidação transversal da D31 — 05/09/2026.** O gerador foi corrigido (`522a8fc`), a manutenção
+do estado do streaming passou a conferir seu resultado (`04a824a`) e o teste dbt virou bloqueante
+(`e5ff5ca`). Origem e caminhos frio/quente foram reconstruídos; testes Python e dbt, reconciliação
+por conteúdo, duplicatas, alertas, comparação incremental/completo e a DAG foram reexecutados.
+Resultados nos donos documentais: [Qualidade](qualidade_de_dados.md),
+[Streaming §7.2](streaming.md#72-revalidação-da-d31) e
+[Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026).
+As tabelas das etapas abaixo preservam seus cortes históricos; não são a medição pós-D31.
+O [aceite do Owner](pendencias.md#d31--a-remessa-que-nasce-sem-item) permanece explícito antes
+do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 5 — Corte 1: núcleo comercial · **M3**
 

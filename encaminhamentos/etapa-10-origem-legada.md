@@ -6,8 +6,11 @@
 >
 > **Estado em 05/09/2026:** implementação e medições ainda não executadas.
 >
-> **Pré-requisito de execução:** a [D31](d31-remessa-sem-item.md) entregue, com os dois caminhos
-> do estoque reconstruídos e reconciliados. Depois disso, resolver as lacunas de tratamento e
+> **Pré-requisito de execução:** a [D31](../docs/pendencias.md#d31--a-remessa-que-nasce-sem-item)
+> aceita pelo Owner. A implementação e a revalidação técnica já foram executadas nos commits
+> `522a8fc`, `04a824a` e `e5ff5ca`, com resultados nos documentos permanentes; falta registrar a
+> revisão final. Não repetir a reconstrução como etapa de leitura deste plano.
+> Depois do aceite, resolver as lacunas de tratamento e
 > modelagem da seção 2 antes de implementar as partes dependentes.
 >
 > **Parecer:** viável com PostgreSQL, Airbyte, dbt e Airflow já adotados. O trabalho alcança o

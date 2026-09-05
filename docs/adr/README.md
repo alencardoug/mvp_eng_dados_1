@@ -80,18 +80,12 @@ decisão.
 
 | # | Decisão | Levantada em | Efeito de não decidir |
 |---|---|---|---|
-| **D31** | Corrigir no gerador a remessa que nasce sem item, ou aceitá-la como caso de borda | Etapa 8, ao construir `fact_shipment_item` | A taxa de P13 conta 3.141 entregas onde `trusted.shipments` diz 3.221, e a diferença precisa ser explicada a cada leitura |
+| **D31** | Aceitar a entrega após revisão final; a escolha de corrigir o gerador já foi autorizada | Etapa 8; conserto e revalidação técnica em 05/09/2026 | O encerramento formal e a passagem à Etapa 10 aguardam a revisão do Owner, não uma nova decisão sobre corrigir |
 
-**D31** nasceu de um achado, não de uma escolha de projeto: 91 das 3.647 remessas não têm item
-nenhum — todas em pedidos divididos, quando cada item do pedido tem quantidade 1 e o repartidor dá
-zero unidades ao primeiro lote. Caixa vazia é estado que a operação real não produz (**P10**).
-
-O que a torna decisão, e não conserto: a correção é no gerador da **Etapa 4**, e mexer no consumo de
-aleatoriedade dele desloca a sequência — quanto disso alcança `shipments`, `delivery_events` e o que
-depende deles **não foi medido**, e por isso não é afirmado (**P5**). Aceitar a correção é aceitar
-refazer e reescrever as medições registradas. Enquanto a decisão não vem, o teste
-`remessa_leva_ao_menos_um_item` roda com severidade `warn` a cada `build`: o número fica à vista sem
-travar a entrega.
+D31 nasceu de remessas sem item no gerador. O Owner autorizou corrigir e re-medir; o conserto não
+exigiu novo ADR. A implementação, a reconstrução dos dois caminhos e as validações já foram
+executadas. O teste dbt agora é bloqueante. O [registro da entrega e do aceite ainda pendente](../pendencias.md#d31--a-remessa-que-nasce-sem-item)
+aponta para as evidências permanentes, sem substituir as medições históricas dos ADRs aceitos.
 
 As decisões de abertura das Etapas 8 e 9 foram fechadas no mesmo dia em que foram levantadas, por
 interrogatório: em que grão a entrega é medida, quando o pedido se divide em duas remessas

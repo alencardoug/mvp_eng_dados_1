@@ -21,19 +21,20 @@
 
 ### D31 — a remessa que nasce sem item
 
-**91 das 3.647 remessas não têm item nenhum.** Caixa vazia é estado que a operação real não produz,
-e o dado sintético não deveria tê-lo (**P10**). Todas estão em pedidos divididos: quando cada item
-do pedido tem quantidade 1, o repartidor do gerador dá zero unidades ao primeiro lote, e a guarda
-que deveria impedir a divisão nesse caso é sempre verdadeira.
+**Implementação e revalidação técnica concluídas em 05/09/2026; revisão final e aceite do Owner
+ainda não registrados.** A escolha de corrigir o gerador e re-medir já foi autorizada; não está
+sendo pedida novamente. A pendência agora é o aceite da entrega conforme `CLAUDE.md` §5/§7.
 
 | | |
 |---|---|
-| **Onde aparece** | P13 conta 3.141 entregas; `trusted.shipments` diz 3.221. A diferença não é perda do pipeline — é o grão da fato, que é o item, encontrando remessa sem item |
-| **Por que é sua** | A correção é no gerador da Etapa 4, e mexer no consumo de aleatoriedade dele desloca a sequência. Quanto disso alcança as medições já registradas **não foi medido** — decidir por corrigir é decidir por refazer e reescrever o que for atingido |
-| **Enquanto não vem** | O teste `remessa_leva_ao_menos_um_item` roda com severidade `warn` a cada `build`. O número fica à vista, e nada trava |
-| **As alternativas** | Corrigir o gerador e re-medir · aceitar como caso de borda documentado · manter em observação |
+| **Código entregue** | `522a8fc`: gerador e testes em memória; `04a824a`: descarte conferido do estado do streaming; `e5ff5ca`: teste dbt bloqueante |
+| **Evidências** | [Qualidade](qualidade_de_dados.md#43-a-entrega-e-a-primeira-quarentena-fora-do-legado): remessas e P13; [Streaming §7.2](streaming.md#72-revalidação-da-d31): conteúdos, saldo, duplicatas, alertas e incremental; [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026): volumes, tempos e DAG |
+| **O que revisar** | Comentário da probabilidade em `geracao.yml` (valor inalterado), invariante 13 no Modelo de Dados, severidade do teste dbt e procedimento destrutivo restrito; revisão integral do declarativo e amostragem do derivado |
+| **Enquanto não vem** | Correção permanece aplicada e testes bloqueantes; não repetir a reconstrução por padrão. Não declarar aceite nem iniciar a Etapa 10 |
 
-Os detalhes estão na seção 3 do [Registro de Decisões](adr/README.md).
+Nenhum ADR novo foi necessário; os aceitos não foram reescritos. Após a revisão, registrar o aceite,
+retirar D31 dos índices pendentes e remover seu encaminhamento no mesmo commit. A autorização para
+executar não foi tratada como evidência de que essa revisão já ocorreu.
 
 ---
 
@@ -92,8 +93,10 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 
 ## 4. Do lado do assistente
 
-Nada pendente. Cada ADR foi registrado com os índices e os documentos afetados atualizados na mesma
-entrega. O trabalho prossegue na Etapa 10.
+Nenhuma execução técnica da D31 pendente. Os resultados estão publicados nos donos documentais e
+o estado anterior dos processos foi restabelecido: DAG despausada, serviços de pé, sem produtor ou
+Beam/Prism no host. A transição para a Etapa 10 aguarda o aceite acima e as decisões próprias daquele
+corte; sua implementação não fez parte desta entrega.
 
 ---
 

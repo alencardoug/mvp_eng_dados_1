@@ -15,7 +15,7 @@
 | Volume | Proporções + fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) |
 | Fator padrão | `dev` (1) |
 | Declaração | [`src/mvp_ed1/generator/geracao.yml`](../src/mvp_ed1/generator/geracao.yml) |
-| Versão | 3.1 |
+| Versão | 3.2 |
 | Situação | Motor da origem principal **implementado e medido** (Etapa 4) |
 | Última revisão | 05/09/2026 |
 
@@ -303,8 +303,9 @@ O produtor:
 
 ### 6.1 Convivência entre carga histórica e streaming
 
-A carga histórica inicial ocorre **antes** da ativação do streaming. O processo registra o último
-`event_sequence` e o cursor de CDC, e o consumidor inicia a partir do próximo evento.
+A carga histórica inicial ocorre **antes** da ativação do streaming. O conector faz snapshot do
+livro inteiro e depois captura as inserções; o cursor pertence ao CDC, não ao gerador. O contrato
+da sobreposição com o lote está em [Streaming §6](streaming.md#6-convivência-com-o-airbyte).
 
 Sobreposições entre *backfill* e streaming são toleradas por deduplicação de `movement_id` e
 `idempotency_key` — mas nunca podem criar duas linhas na fato para o mesmo movimento.
@@ -312,6 +313,11 @@ Sobreposições entre *backfill* e streaming são toleradas por deduplicação d
 Com o streaming ativo, o Airbyte **não** grava os mesmos movimentos novamente no destino de
 consumo. Pode executar reconciliação periódica em área separada para identificar lacunas,
 permanecendo o streaming como caminho oficial de ingestão incremental dessa tabela.
+
+Regerar uma origem já capturada não é uma retomada: siga
+[Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming). A D31
+confirmou que a mesma chave pode passar a nomear outro conteúdo depois de uma correção no gerador;
+deduplicação por chave não substitui a reconstrução dos destinos.
 
 ---
 

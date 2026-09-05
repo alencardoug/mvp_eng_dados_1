@@ -10,8 +10,8 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.6 |
-| Situação | Alvos das Etapas **2 a 4** implementados e conferidos; os demais nascem na etapa indicada |
+| Versão | 1.7 |
+| Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
 | Última revisão | 05/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
@@ -94,9 +94,73 @@ O volume é expresso por **fator de escala** sobre um conjunto único de propor�
 `make reset`: comando que destrói estado não destrói sozinho. `FORCE=1` autoriza o truncamento das
 40 tabelas antes da carga.
 
-A mesma `SEED` com a mesma `AS_OF` recria exatamente os mesmos dados
+A mesma versão do código/configuração, `SEED` e `AS_OF` recria exatamente os mesmos dados
 ([ADR-0005](adr/0005-geracao-com-faker-orientada-a-configuracao.md)) — inclusive as chaves
 primárias, porque o gerador as atribui e o `COPY` as escreve.
+
+### 3.2 Regerar uma origem que já alimenta streaming
+
+**Manutenção destrutiva de desenvolvimento, não operação normal do livro imutável.** Regerar pode
+reutilizar `movement_id` com outro conteúdo e deixar eventos antigos sem correspondente. O destino
+quente usa `on conflict do nothing` e o `staging` prefere seu payload ao do lote: refazer apenas o
+Airbyte conserva o erro. O decodificador também recusa `TRUNCATE`; não faça a carga com CDC ativo.
+
+1. Identifique produtores, Beam/Prism, jobs do Airbyte e execuções da DAG. Registre o estado a
+   restabelecer, pause a DAG e espere os jobs ativos terminarem. A pausa não cancela jobs existentes.
+   Encerre os produtores e o `make stream-run` acompanhado, incluindo o Prism filho — derrubar o
+   Compose não encerra processos no host. Para pausar e consultar a DAG:
+
+   ```bash
+   docker compose --env-file .env -f docker/docker-compose.airflow.yml exec -T airflow_scheduler airflow dags pause fluxo_batch
+   docker compose --env-file .env -f docker/docker-compose.airflow.yml exec -T airflow_scheduler airflow dags list-runs fluxo_batch -o json
+   ```
+
+2. Valide a geração em memória e registre versão, parâmetros, contagens e hashes. Preserve um dump
+   local identificado da origem se precisar voltar ao estado exato: o `writer` confirma o truncamento
+   **antes** da transação de carga, e uma falha de `COPY` não recupera a carga anterior. Essa
+   salvaguarda não entrega o ponto de recuperação da Etapa 12. `make test CARGA=1` só em banco
+   isolado: ele substitui a origem por um fator reduzido.
+3. Com os consumidores parados, execute cada comando abaixo **somente após o anterior terminar
+   com sucesso**:
+
+   ```bash
+   make stream-down FORCE=1
+   make stream-reset-sink FORCE=1
+   make seed-data FORCE=1
+   ```
+
+   O primeiro remove tópicos/offsets e os slots **declarados** nos conectores. A manutenção recusa
+   slot ativo ou de outro banco, propaga erros e confere a ausência em `pg_replication_slots`.
+   O segundo exige `FORCE=1`, aceita exclusivamente `raw.inventory_movements_stream` e trunca sem
+   `CASCADE`, com lock e conferência na mesma transação. Não limpa `raw_legacy` nem outra tabela.
+   Nenhum dos dois encerra Beam/Prism por você; não use `make reset` ou `--remove-orphans` aqui.
+4. Confira a nova origem antes de prosseguir. Depois:
+
+   ```bash
+   make sync-airbyte RESET=1
+   make stream-up
+   make stream-run
+   ```
+
+   A sincronização espera reset e carga terminarem. Acompanhe `stream-run` em terminal próprio e
+   espere o novo snapshot alcançar a origem. Compare **chaves e todas as colunas de negócio**
+   (`streaming/sink.py`, `COLUNAS_DO_EVENTO`) nos dois caminhos, normalizando tipos; exclua apenas
+   metadados de transporte. Contagens iguais e flags de chegada não bastam. Confira também o
+   saldo por armazém/SKU, não apenas a soma geral.
+5. Só após a igualdade, execute `make dbt-build RESET=1`: snapshots SCD e fato incremental precisam
+   ser refeitos juntos. Guarde `dbt/target/run_results.json` antes que outra tarefa o sobrescreva.
+   A geração do catálogo não substitui a evidência do build e dos testes.
+6. Se a mudança afetou o livro de estoque, reexercite produtor, duplicatas e alertas pelos alvos
+   existentes. Registre `LIMITE`, `SEED` e o deslocamento de `.stream/producer_state.json`: a mesma
+   semente **retoma**, não necessariamente começa em zero. Depois de cessar a produção, espere o
+   CDC, sincronize o Airbyte e rode `make dbt-build` no corte comum. Confira incremento contra
+   reconstrução completa, invariantes e P13 no mesmo universo de remessas entregues.
+7. Execute `make test` e `make dag-run`, acompanhe **a execução disparada** até todas as tarefas
+   terminarem, gere catálogo e medições. `make dag-status` é consulta, não espera. Restabeleça a
+   pausa e os processos conforme o estado registrado; não libere consumo sobre base incompleta.
+
+Se algum passo falhar, preserve a evidência e retome pelo ponto que restabeleça coerência entre
+origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editando payloads à mão.
 
 ---
 
@@ -129,11 +193,13 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make stream-duplicate` | Republica mensagens no transporte — o teste de idempotência; `QUANTAS=` | Etapa 7 |
 | `make stream-alerts` | Lê e resume o tópico de alerta de estoque baixo | Etapa 7 |
 | `make stream-down` | Derruba Kafka Connect e mensageria; `FORCE=1` apaga tópicos **e o slot de replicação** | Etapa 7 |
+| `make stream-reset-sink FORCE=1` | Esvazia somente `raw.inventory_movements_stream`, com consumidores parados e ausência conferida | D31 |
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
 
 > `make reset`, `make seed-data FORCE=1`, `make sync-airbyte RESET=1`, `make dbt-build RESET=1`,
-> `make dbt-drop-snapshots`, `make test CARGA=1` e `make recover-restore` **destroem estado**. Todos
+> `make stream-down FORCE=1`, `make stream-reset-sink FORCE=1`, `make dbt-drop-snapshots`,
+> `make test CARGA=1` e `make recover-restore` **destroem estado**. Todos
 > exigem a variável explícita, exceto `dbt-drop-snapshots`, cujo nome já é o aviso;
 > `recover-restore` só é executado mediante decisão explícita do responsável técnico.
 
@@ -216,7 +282,8 @@ make sync-airbyte RESET=1
 ```
 
 `RESET=1` apaga o estado do cursor e o conteúdo de `raw` antes de sincronizar. Não é preciso em
-operação normal, quando cada alteração da origem move o seu próprio `updated_at`.
+operação normal, quando cada alteração da origem move o seu próprio `updated_at`. Havendo streaming,
+esse comando **não** limpa sua tabela: siga a sequência completa da §3.2.
 
 ### Um valor financeiro apareceu dobrado, ou um saldo não fecha
 

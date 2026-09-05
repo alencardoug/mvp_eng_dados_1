@@ -12,9 +12,9 @@
 |---|---|
 | Escopo | Um único domínio: `inventory_movements` |
 | Decisões | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) · [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) · [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md) |
-| Versão | 2.0 |
+| Versão | 2.1 |
 | Situação | **Em operação** desde a Etapa 7 — construído, medido e reconciliado |
-| Última revisão | 04/09/2026 |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -294,6 +294,57 @@ estimado (**P5**).
 descartou 15.450 redundâncias e não perdeu uma. A sobreposição entre os dois caminhos é de 100% por
 construção (`snapshot.mode=initial`), e é isso que torna o número uma prova em vez de uma
 coincidência: se a deduplicação falhasse por pouco, a fato teria dobrado.
+
+**Limite desse registro histórico:** as contagens acima foram publicadas com cortes diferentes:
+15.450 linhas no lote e 15.946 no fluxo não demonstram, sozinhas, sobreposição completa no mesmo
+instante. A consulta anterior à D31, em 05/09/2026, encontrou ambos com 15.946 movimentos e payloads
+iguais; o saldo da origem naquele corte era 701.399, não o número histórico da tabela. Essas
+diferenças já existiam antes do conserto. A revalidação abaixo identifica seus cortes explicitamente.
+
+### 7.2 Revalidação da D31
+
+Medição em **05/09/2026**, com o gerador corrigido em `522a8fc`, a manutenção do estado em
+`04a824a` e o teste dbt bloqueante em `e5ff5ca`. Parâmetros da carga inicial e comparação com o
+gerador anterior estão em [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026).
+O procedimento está em [Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming).
+
+Após a nova geração, **antes** do reset do Airbyte, a comparação encontrou 2.246 movimentos antigos
+sem correspondente e 13.626 chaves comuns com payload diferente. Isso confirma por que reiniciar
+apenas o transporte ou conferir só contagens não corrigiria a base. Depois do reset dos dois
+destinos, o snapshot foi lido desde o offset zero e os conteúdos voltaram a coincidir.
+
+| Corte observado | Resultado |
+|---|---|
+| Carga inicial, origem/lote/streaming | 13.700 movimentos em cada caminho; nenhuma chave ausente/extra ou payload divergente |
+| Saldo inicial do streaming contra a projeção da origem | 2.911 pares, 701.841 unidades; nenhum par divergente |
+| Alertas do snapshot inicial | 0 |
+| Cenário ao vivo | `LIMITE=2200`, `SEED=20260905`, deslocamento inicial 0; 2.200 eventos em 43,2 s (51/s) |
+| Casos produzidos | 161 eventos atrasados de propósito; 187 transferências em pares balanceados |
+| Após cessar o produtor, antes da sincronização final do lote | Origem e streaming: 15.900 movimentos; lote e fato: ainda 13.700 |
+| Saldo nesse corte, origem contra streaming | 2.917 pares, 702.964 unidades; nenhum par divergente |
+| Duplicatas republicadas e consumidas | 250; offset final do tópico e confirmado pelo consumidor: 16.150 |
+| Efeito das duplicatas | 0 linhas novas; hash dos payloads e saldo inalterados; log do destino confirma 250 já existentes |
+| Alertas do cenário | 154 — 7 aberturas e 147 normalizações; 12 marcadas como correção de atraso |
+| Corte após sincronização e dbt | Origem, lote, streaming e fato: 15.900 movimentos; zero chaves ou payloads divergentes |
+| Incremental contra `--full-refresh --select fact_inventory_movement+` | Conteúdo integral idêntico por SHA-256; 702.964 unidades e CMV 38.473.666,57 em ambos |
+| Atraso de registro no livro final | p50 387 s · p95 849 s · p99 890 s · máximo 900 s; tolerância declarada mantida |
+
+As comparações de negócio usaram todas as colunas de `sink.COLUNAS_DO_EVENTO`, normalizando tipos
+e JSON; só os carimbos próprios de transporte ficaram de fora. A diferença temporária entre lote
+e streaming acima é latência esperada, não perda. Os parâmetros do produtor estão registrados,
+mas instantes reais e agrupamento de janelas não são prometidos como reprodução dos alertas
+históricos da Etapa 7.
+
+O build inicial reconstruiu conjuntamente os quatro snapshots SCD e os modelos dependentes; o
+incremental final passou com **485 objetos, 371 testes, `WARN=0`, `ERROR=0`**. A reconstrução
+dirigida da fato e seus descendentes passou com 20 objetos. Os artefatos de cada execução foram
+preservados antes da geração do catálogo. Avisos de compilação são distinguidos dos de qualidade
+em [Qualidade §6.2](qualidade_de_dados.md#62-o-que-a-reconstrução-da-d31-acrescenta-à-verificação).
+
+A DAG final terminou com as nove tarefas em sucesso; os tempos e seu identificador estão em
+[Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026). A consulta após a DAG
+reconfirmou igualdade de chaves/payloads e saldo no corte final. A geração do catálogo não alterou
+as declarações de campos: o catálogo transacional continuou com 40 tabelas e 418 campos classificados.
 
 ---
 

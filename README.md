@@ -31,28 +31,28 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v2.4 — Etapa 8 |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v2.9 — Etapa 10 ainda não iniciada |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
-| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.2 — inventário e diagrama **gerados** |
-| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.0 — motor implementado |
+| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
+| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de 21 falhas intencionais, limpeza, quarentena e empilhamento | v2.0 |
-| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.0 — **em operação** |
-| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.3 |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.1 — origem transacional **medida** |
+| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
+| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.9 |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.8 — medições da D31 separadas das históricas |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.1 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
-| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
+| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D31** — a remessa que nasce sem item |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D31** — revisão final e aceite da entrega |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 36 aceitos, 1 pendente |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
-| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.6 — Etapas 2 a 7 conferidas |
+| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.7 — reconstrução dos dois caminhos conferida |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 
 ## Decisões já tomadas
 
-**30 decisões registradas.** As que mais definem o projeto: domínio de varejo *omnichannel* ·
+**36 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -70,31 +70,31 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 10 — Corte 6: origem legada.** Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
+**Próxima: Etapa 10 — Corte 6: origem legada, ainda não iniciada.** A D31 foi corrigida e
+revalidada tecnicamente; falta o [aceite do Owner](docs/pendencias.md#d31--a-remessa-que-nasce-sem-item).
+Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).
 
 Cinco cortes verticais entregues — comercial, financeiro e estoque, o caminho quente, entrega e
 logística, e relacionamento. **O modelo dimensional está completo: 10 fatos e 15 dimensões, e as 16
 perguntas de negócio têm view com `contract: enforced`.** O armazém tem **36 fluxos de ingestão em
-lote** mais o **CDC de `inventory_movements`**, e o `dbt build` constrói **485 objetos** — 484
-verdes e **um aviso**, que é a D31 mostrando as 91 remessas sem item a cada execução —, dos quais
-**371 testes de qualidade**. A DAG `fluxo_batch` roda **nove tarefas** de ponta a ponta em
-**3 min 21 s**. Uma decisão [pendente](docs/pendencias.md): a **D31**, sobre a remessa que nasce sem
-item.
+lote** mais o **CDC de `inventory_movements`**. Após a reconstrução da D31, o `dbt build` passou
+com **485 objetos, 371 testes de qualidade, `WARN=0` e `ERROR=0`**; o teste de remessa sem item
+é bloqueante. A DAG `fluxo_batch` terminou com as **nove tarefas em sucesso**. Resultados e
+distinção entre avisos de dados e de compilação em [Qualidade](docs/qualidade_de_dados.md).
 
 O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
-carga completa do Airbyte —, com sobreposição total e de propósito: **15.446 movimentos distintos,
-15.446 linhas na fato**, zero duplicadas e zero perdidas. Duzentas e cinquenta duplicatas injetadas
-no transporte não gravaram uma linha, e o saldo reconstruído pelo fluxo bate exatamente com a
-projeção da origem — 2.910 pares, 701.851 unidades. Detalhe em
-[Streaming §7.1](docs/streaming.md#71-o-que-foi-medido).
+carga completa do Airbyte —, com sobreposição total e de propósito. A revalidação comparou
+**chaves e payloads**, saldo por armazém/SKU, duplicatas no transporte, alertas e fato incremental
+contra reconstrução completa. Detalhes do corte atual em
+[Streaming §7.2](docs/streaming.md#72-revalidação-da-d31).
 
-Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
-— 225 bytes por linha —, geradas em 5,1 s e carregadas em 26 s. As doze
-[invariantes de negócio](docs/modelo_de_dados.md#4-invariantes-de-negócio) fecham com zero
-violações, e as 40 tabelas têm todo valor de enumeração representado. Detalhe em
-[Capacidade §2.1](docs/capacidade_e_recuperacao.md#21-medido-na-etapa-4--origem-transacional).
+A geração corrigida preservou a cobertura das 40 tabelas e dos pedidos divididos. A nova
+[invariante 13](docs/modelo_de_dados.md#4-invariantes-de-negócio) impede caixas vazias, e P13
+reconcilia com as remessas entregues em `trusted`. Volumes, tempos e comparação anterior/posterior
+em [Capacidade §2.7](docs/capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026), sem substituir
+as medições históricas.
 
 O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
 

@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.8 |
+| Versão | 1.9 |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -61,8 +61,16 @@ O que o `pytest` cobre é o que o banco **não** consegue dizer:
 | Invariantes | As do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: as que atravessam linhas passariam pela carga sem serem notadas; a invariante 13 também é conferida no fator reduzido |
 | Privacidade | Nenhum e-mail fora de `example.com`, nenhum documento com aparência de válido ([Geração §7](geracao_de_dados.md#7-privacidade-dos-dados-sintéticos)) |
 
-A suíte roda em `make test` e não depende de banco de pé, exceto a carga, que exige autorização
-explícita — um teste não pode ser mais permissivo que o comando que ele testa.
+A suíte roda em `make test`. Os testes de integração exigem banco; o que substitui a carga exige
+autorização explícita e banco isolado — um teste não pode ser mais permissivo que o comando que
+ele testa. Na revalidação de 05/09/2026 da D31: **91 passaram, 1 pulado** por ser destrutivo. Os
+três testes de carga passaram separadamente em banco temporário, com migração aplicada do zero.
+
+Os casos dirigidos de `tests/test_remessas.py` forçam as duas decisões do sorteio: unidade única,
+vários itens unitários, quantidades 2/3 e mistura de quantidades. Conferem caixas não vazias e
+conservação exata por item, sem usar o próprio repartidor como oráculo. A existência de pedido
+entregue dividido é testada no fator padrão e no reduzido: o teste dbt correspondente não pode
+passar por ausência do caso.
 
 ---
 
@@ -165,6 +173,7 @@ A data de entrega vem do livro `delivery_events`; `shipments.delivered_at` é co
 |---|---|
 | `entrega_projetada_tem_evento_no_livro` | A coluna e o livro não divergem — e quando divergirem, a remessa está em `quarantine.rejected_shipment_deliveries`, com código e motivo, não descartada |
 | `pedido_dividido_fecha_na_ultima_remessa` | O ciclo de entrega do pedido nunca é menor que a chegada de qualquer remessa dele, e só é declarado fechado quando **todas** chegaram ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)) |
+| `remessa_leva_ao_menos_um_item` | Invariante 13, bloqueante após o conserto da D31; evita a remessa sem representação na fato de itens |
 | `invariante_10_causalidade_das_datas` | Nenhuma etapa do ciclo antecede a anterior, incluindo a promessa de prazo, que é feita **no** despacho |
 
 `quarantine.rejected_shipment_deliveries` é o primeiro morador do schema `quarantine`, que até a
@@ -173,6 +182,13 @@ antes porque o ADR-0034 criou a primeira rejeição possível fora do legado, e 
 [`CLAUDE.md`](../CLAUDE.md) não admite que ela seja descartada em silêncio. O código de rejeição
 segue a convenção do [catálogo de falhas do legado](origem_legada.md#31-catálogo-de-falhas-obrigatórias):
 `UPPER_SNAKE`, estável e nunca reaproveitado.
+
+**Revalidação da D31, em 05/09/2026:** nenhuma remessa sem item na origem ou em `trusted`.
+No mesmo universo de entregues, `sum(delivered_count)` em P13 e
+`count(*) from trusted.shipments where is_delivered` deram **3.166** em ambos. Antes da correção,
+eram 3.141 e 3.221 respectivamente. O novo número não é uma subtração das remessas vazias: o
+efeito da geração sobre os dados dependentes foi medido, como registra
+[Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026).
 
 ---
 
@@ -196,10 +212,11 @@ segue a convenção do [catálogo de falhas do legado](origem_legada.md#31-catá
 
 ## 6. Streaming de estoque
 
-Construído e medido na Etapa 7. O que segue está implementado; os resultados estão em
-[Streaming §7.1](streaming.md#71-o-que-foi-medido).
+Construído e medido na Etapa 7. A tabela abaixo preserva o corte histórico então registrado;
+não representa o estado atual. A revalidação após a D31 fica em
+[Streaming §7.2](streaming.md#72-revalidação-da-d31), dono dos resultados vigentes.
 
-| O que se verifica | Onde | Resultado |
+| O que se verifica | Onde | Resultado histórico |
 |---|---|---|
 | Unicidade de `movement_id` e de `idempotency_key` | testes de schema em `_analytics__models.yml` | passa |
 | **Duplicata injetada deliberadamente no transporte** | `make stream-duplicate` | 250 republicadas, **0 gravadas** |
@@ -230,6 +247,24 @@ antes de T, porque a origem grava o movimento e move o saldo na mesma transaçã
 
 O corte é por tempo de **registro**, não de negócio: evento atrasado tem tempo de negócio antigo e
 tempo de registro novo, e é o de registro que diz se a projeção já o tinha visto.
+
+### 6.2 O que a reconstrução da D31 acrescenta à verificação
+
+Flags `arrived_by_stream`/`arrived_by_batch` e igualdade de contagens não detectam payload antigo
+sob chave reutilizada. Na reconstrução, compare também as colunas de negócio da origem, lote e
+streaming, excluindo somente metadados de transporte e normalizando UUID, decimal, fuso e JSON.
+Os hashes e diferenças foram guardados por corte — antes, carga inicial e cenário ao vivo —,
+sem misturar a geração determinística com instantes reais do produtor.
+
+As barreiras da manutenção estão em `tests/test_manutencao_streaming.py`: autorização explícita,
+destino exato, recusa de slot ativo/de outro banco e consulta de confirmação após remoção.
+A execução em bancos isolados também conferiu segunda chamada idempotente, tabelas vizinhas
+preservadas e rollback do reset quando uma dependência impede truncamento sem `CASCADE`.
+
+`WARN=0` no resultado do build significa **nenhum aviso de teste de dados**. Não significa log
+sem avisos: a versão instalada ainda informa argumentos antigos em testes genéricos, constraints
+não suportadas em views e `numeric` sem precisão explícita em contratos. Esses avisos não foram
+suprimidos nem suas declarações alteradas para encerrar a D31.
 
 ---
 

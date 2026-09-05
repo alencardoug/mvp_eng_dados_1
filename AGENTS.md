@@ -24,7 +24,7 @@ Ordens de serviço específicas ficam em [`encaminhamentos/`](encaminhamentos/).
 cada arquivo é apagado no *commit* que entrega o trabalho dele, e por isso não aparecem no mapa de
 documentação do README.
 
-### Leitura e avaliação dos planos atuais
+### Leitura e execução dos encaminhamentos atuais
 
 Depois de `CLAUDE.md` e do mapa documental, leia
 [`encaminhamentos/README.md`](encaminhamentos/README.md). Ele estabelece a ordem de leitura e
@@ -46,10 +46,10 @@ Para a avaliação destes dois planos, confira especialmente:
 - se cada critério de conclusão tem uma verificação executável, inclusive os efeitos sobre os
   cortes anteriores e os dois caminhos do estoque.
 
-**Limite desta entrega de planejamento:** somente `AGENTS.md`, o índice de encaminhamentos e os
-dois planos nele listados. Ela não implementa a D31 ou a Etapa 10, nem altera seus estados nos
-documentos permanentes. As lacunas levantadas ficam nos planos para avaliação; a eventual
-formalização em pendência/ADR segue `CLAUDE.md` §5 quando esse trabalho for encaminhado.
+O limite de quatro arquivos valeu para a **entrega original de planejamento**. Não restringe uma
+execução posteriormente autorizada pelo Owner; o escopo vigente vem do pedido que encaminha o
+trabalho. Uma autorização para executar também não é, por si só, aceite da implementação:
+distinga validação técnica, revisão do declarativo e encerramento formal conforme `CLAUDE.md` §5/§7.
 
 Ao concluir um encaminhamento, remova também sua entrada no índice e ajuste as referências dos
 encaminhamentos restantes para o registro permanente da entrega. A exclusão do arquivo, sozinha,
