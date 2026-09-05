@@ -13,15 +13,18 @@
 | Etapa atual | Etapa 8 — Corte 4: entrega e logística |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
-| Última revisão | 04/09/2026 |
+| Última revisão | 05/09/2026 |
 
 ---
 
 ## 1. Nada pendente
 
-**Não há nada esperando você.** As decisões que a Etapa 7 levantou foram fechadas em 04/09/2026 nos
+**Não há nada esperando você.** As duas decisões que a Etapa 8 levantou foram fechadas na abertura
+dela, em 05/09/2026, nos [ADR-0033](adr/0033-entrega-medida-em-dois-graos.md) — o grão em que a
+entrega é medida — e [ADR-0034](adr/0034-entrega-do-livro-de-eventos.md) — a procedência da data
+realizada. As da Etapa 7 foram fechadas em 04/09/2026 nos
 [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) e
-[ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md), por interrogatório com alternativas.
+[ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md). Todas por interrogatório com alternativas.
 
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
 **M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 7
@@ -49,10 +52,10 @@ Registro de encerramento, para que nenhuma decisão pareça ter sumido.
 As dezoito foram fechadas em quatorze ADRs temáticos, **0012** a **0025**. A correspondência está na
 seção 2 do [Registro de Decisões](adr/README.md), coluna *Resolve*.
 
-Depois delas, duas escolhas novas surgiram durante a construção e foram decididas por você na hora,
-com as alternativas na mesa: o ambiente Python ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md))
-e o formato e o piso da configuração do gerador
-([ADR-0027](adr/0027-configuracao-do-gerador-em-yaml.md)).
+Depois delas, cada etapa trouxe escolhas novas, decididas por você na hora com as alternativas na
+mesa — do ambiente Python ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md)) ao grão da
+medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Todas estão na seção 2 do
+[Registro de Decisões](adr/README.md).
 
 ### Questões que não eram ADR
 
@@ -66,7 +69,7 @@ e o formato e o piso da configuração do gerador
 ## 3. Do lado do assistente
 
 Nada pendente. Cada ADR foi registrado com os índices e os documentos afetados atualizados na mesma
-entrega. O trabalho prossegue na Etapa 5.
+entrega. O trabalho prossegue na Etapa 8.
 
 ---
 

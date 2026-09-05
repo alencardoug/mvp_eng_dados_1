@@ -69,14 +69,21 @@ decisão.
 | [0030](0030-cmv-do-livro-de-estoque.md) | Tirar o custo do produto vendido do livro de estoque | Aceita | Origem do CMV |
 | [0031](0031-aterrissagem-do-caminho-quente-em-raw.md) | Aterrissar o caminho quente em `raw` e transformar o Airbyte em reconciliação | Aceita | Aterrissagem, *snapshot* e papel do Airbyte |
 | [0032](0032-fonte-python-no-lugar-do-kafkaio.md) | Ler o transporte com fonte Python, e não com o KafkaIO do Beam | Aceita | Ponta de leitura sem Java |
+| [0033](0033-entrega-medida-em-dois-graos.md) | Medir a entrega em dois grãos, e nomear os dois no glossário | Aceita | Grão da medição de entrega |
+| [0034](0034-entrega-do-livro-de-eventos.md) | Tirar a data de entrega do livro de eventos, não da coluna da remessa | Aceita | Procedência da data de entrega |
 
 ---
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** As três decisões que a Etapa 7 levantou foram fechadas no mesmo dia, por
-interrogatório: onde o caminho quente aterrissa, quem faz o *backfill* dele e o que acontece com o
-*stream* do Airbyte — todas no
+**Nenhuma.** As duas decisões que a Etapa 8 levantou foram fechadas na abertura dela, por
+interrogatório: em que grão a entrega é medida, quando o pedido se divide em duas remessas
+([ADR-0033](0033-entrega-medida-em-dois-graos.md)), e de onde sai a data de entrega realizada —
+do livro de eventos, não da coluna da remessa
+([ADR-0034](0034-entrega-do-livro-de-eventos.md)).
+
+Antes delas, as três que a Etapa 7 levantou foram fechadas do mesmo modo: onde o caminho quente
+aterrissa, quem faz o *backfill* dele e o que acontece com o *stream* do Airbyte — todas no
 [ADR-0031](0031-aterrissagem-do-caminho-quente-em-raw.md) —, e como o *pipeline* lê o transporte sem
 Java na máquina, no [ADR-0032](0032-fonte-python-no-lugar-do-kafkaio.md).
 
