@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.7 |
+| Versão | 1.8 |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -58,7 +58,7 @@ O que o `pytest` cobre é o que o banco **não** consegue dizer:
 | Configuração | A declaração do gerador confere com os modelos: tabela ausente, coluna inexistente, peso que esquece um valor de enumeração, piso sem motivo |
 | Determinismo | A mesma `seed` com a mesma `as_of_date` produz o mesmo conjunto, comparado por impressão digital; sementes diferentes produzem conjuntos diferentes |
 | Cobertura | As 40 tabelas populadas, todo valor de enumeração presente, proporção dentro da tolerância declarada — e o mesmo em um fator vinte vezes menor, que é o que prova que a garantia é do piso e não do volume |
-| Invariantes | As doze do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: sete delas atravessam linhas e passariam pela carga sem serem notadas |
+| Invariantes | As do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: as que atravessam linhas passariam pela carga sem serem notadas; a invariante 13 também é conferida no fator reduzido |
 | Privacidade | Nenhum e-mail fora de `example.com`, nenhum documento com aparência de válido ([Geração §7](geracao_de_dados.md#7-privacidade-dos-dados-sintéticos)) |
 
 A suíte roda em `make test` e não depende de banco de pé, exceto a carga, que exige autorização
@@ -124,7 +124,7 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
 - documentação de fontes, modelos e colunas;
 - exposição da linhagem da origem até as views de consumo.
 
-Cada uma das doze [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) tem pelo
+Cada uma das [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) tem pelo
 menos um teste correspondente. Uma invariante sem teste é uma invariante que não existe.
 
 ### 4.1 A regra da máquina de estados vive fora do modelo

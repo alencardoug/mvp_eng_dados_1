@@ -5,7 +5,8 @@
 > falha mais provável desta passagem de bastão. A decisão do Owner já está registrada: **corrigir o
 > gerador e re-medir**; não pergunte de novo.
 >
-> **Estado em 05/09/2026:** correção e reconstrução ainda não executadas.
+> **Estado em 05/09/2026:** gerador corrigido e validado em memória; reconstrução e re-medição
+> operacional pendentes. A D31 permanece aberta até os critérios da seção 5 fecharem.
 >
 > **Parecer:** tecnicamente viável com a arquitetura atual. A correção é localizada, mas a entrega
 > inclui reconstruir o estado dependente, inclusive o streaming, e conferir as medições.

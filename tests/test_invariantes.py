@@ -1,15 +1,17 @@
-"""As doze invariantes de negócio do Modelo de Dados §4.
+"""As treze invariantes de negócio do Modelo de Dados §4.
 
 Elas são simultaneamente regra de geração e critério de teste — é o que o
 próprio documento diz. Aqui elas são cobradas do conjunto **em memória**, antes
-do banco: as que o banco garante por `CHECK` falhariam na carga, mas as sete
-que atravessam linhas passariam despercebidas até a reconciliação da Etapa 6.
+do banco: as que o banco garante por `CHECK` falhariam na carga, mas as que
+atravessam linhas precisam também dessa verificação explícita.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
 from decimal import Decimal
+
+import pytest
 
 from mvp_ed1.generator.dataset import Dataset
 
@@ -161,6 +163,14 @@ def test_12_cupom_usado_dentro_da_vigencia_e_das_regras(dados: Dataset) -> None:
     for cupom_id, quantidade in usos.items():
         limite = cupons[cupom_id]["max_redemptions"]
         assert limite is None or quantidade <= limite
+
+
+@pytest.mark.parametrize("dataset_fixture", ["dados", "dados_reduzidos"])
+def test_13_every_shipment_contains_items(request, dataset_fixture) -> None:
+    data = request.getfixturevalue(dataset_fixture)
+    assert {row["id"] for row in data["shipments"]} == {
+        row["shipment_id"] for row in data["shipment_items"]
+    }
 
 
 def test_livro_de_estoque_e_integro(dados: Dataset) -> None:

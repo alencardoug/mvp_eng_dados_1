@@ -15,9 +15,9 @@
 | Volume | Proporções + fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) |
 | Fator padrão | `dev` (1) |
 | Declaração | [`src/mvp_ed1/generator/geracao.yml`](../src/mvp_ed1/generator/geracao.yml) |
-| Versão | 3.0 |
+| Versão | 3.1 |
 | Situação | Motor da origem principal **implementado e medido** (Etapa 4) |
-| Última revisão | 04/09/2026 |
+| Última revisão | 05/09/2026 |
 
 ---
 
@@ -66,7 +66,7 @@ escreve um nome de pessoa; nenhuma declaração decide um estado de pedido.
 
 **Por que a causalidade não é declarativa.** Uma tabela de configuração consegue dizer "3.500
 pedidos, 2,1 itens cada". Não consegue dizer que o total do pedido reconcilia itens, desconto,
-frete e imposto com igualdade exata em `numeric(14,2)`. As doze
+frete e imposto com igualdade exata em `numeric(14,2)`. As
 [invariantes de negócio](modelo_de_dados.md#4-invariantes-de-negócio) são regra de geração e
 critério de teste ao mesmo tempo, e é por isso que elas vivem em código — pequeno, por domínio, e
 revisado por amostragem como o [`CLAUDE.md`](../CLAUDE.md) §5 manda.

@@ -460,8 +460,10 @@ tabelas:
     referencia: 37000
     origem: processo
     processo:
-      # Pedidos partidos em mais de uma remessa: é o caso que a Etapa 8 precisa
-      # encontrar pronto no dado.
+      # Probabilidade de tentar dividir o pedido, não frequência realizada.
+      # D31: uma unidade única não se divide; quantidades maiores se repartem
+      # por unidades, e itens todos avulsos por posição, sem caixa vazia.
+      # A proporção efetiva depende dos pedidos elegíveis e deve ser medida.
       remessa_dividida: 0.22
       prazo_prometido_dias: {standard: [4, 9], express: [2, 4], same_day: [0, 1]}
       atraso_na_entrega: 0.14

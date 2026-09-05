@@ -56,10 +56,11 @@ def remessas(motor: Motor, dados: Dataset) -> None:
 
         transportadora = fonte.escolha(transportadoras_linhas)
         armazem = fonte.escolha(armazens)
-        lotes = 2 if fonte.chance(processo["remessa_dividida"]) and len(itens) >= 1 else 1
+        batches = _shipment_batches(itens, fonte.chance(processo["remessa_dividida"]))
+        lotes = len(batches)
         frete_por_lote = dinheiro(pedido["shipping_amount"] / lotes)
 
-        for lote in range(lotes):
+        for batch in batches:
             estado = fonte.escolha(estados)
             if estado == "delivered" and fonte.chance(processo["extravio"]):
                 estado = "lost"
@@ -69,10 +70,7 @@ def remessas(motor: Motor, dados: Dataset) -> None:
             remessa["id"] = len(remessas_linhas) + 1
             remessas_linhas.append(remessa)
 
-            for item in itens:
-                quantidade = _fatia(item["quantity"], lote, lotes)
-                if quantidade <= 0:
-                    continue
+            for item, quantidade in batch:
                 itens_de_remessa.append(
                     {
                         "shipment_id": remessa["id"],
@@ -135,12 +133,27 @@ def _remessa(motor, fonte, pedido, transportadora, armazem, estado, frete, proce
     }
 
 
-def _fatia(quantidade: int, lote: int, lotes: int) -> int:
-    """Reparte a quantidade vendida entre as remessas, sem sobra nem excesso."""
-    if lotes == 1:
-        return quantidade
-    metade = quantidade // 2
-    return metade if lote == 0 else quantidade - metade
+def _shipment_batches(items: list[dict], split: bool) -> list[list[tuple[dict, int]]]:
+    """Reparte por quantidade ou por item, preservando unidades e caixas úteis.
+
+    D31 / invariante 13: se só há unidades avulsas, repartir cada quantidade
+    por dois deixa a primeira caixa vazia. Nesse caso repartimos os itens em
+    ordem estável: mantém a divisão operacional sem inventar unidades. Uma
+    unidade única não é divisível. A probabilidade configura a intenção; a
+    frequência efetiva depende dos pedidos que podem ser divididos.
+    """
+    if not split or sum(item["quantity"] for item in items) < 2:
+        return [[(item, item["quantity"]) for item in items]]
+
+    if all(item["quantity"] == 1 for item in items):
+        middle = len(items) // 2
+        return [[(item, 1) for item in batch] for batch in (items[:middle], items[middle:])]
+
+    # Pelo menos um item tem duas unidades: ambas as caixas recebem lastro.
+    return [
+        [(item, item["quantity"] // 2) for item in items if item["quantity"] >= 2],
+        [(item, item["quantity"] - item["quantity"] // 2) for item in items],
+    ]
 
 
 def _eventos(motor: Motor, dados: Dataset, remessas_linhas: list[dict]) -> None:
