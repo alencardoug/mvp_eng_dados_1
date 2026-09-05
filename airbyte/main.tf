@@ -19,24 +19,77 @@ locals {
   # tradução do arquivo, e existe para que a declaração fale a língua da decisão
   # em vez da língua da ferramenta.
   modo_para_sync_mode = {
-    full_refresh  = "full_refresh_overwrite"
-    dedup_history = "incremental_deduped_history"
-    append        = "incremental_append"
+    full_refresh        = "full_refresh_overwrite"
+    full_refresh_append = "full_refresh_append"
+    dedup_history       = "incremental_deduped_history"
+    append              = "incremental_append"
   }
+
+  # Credenciais por origem. O `streams.yml` declara **o quê** se lê de cada uma;
+  # aqui está de onde. Separar as duas coisas é o que permite acrescentar origem
+  # sem tocar em credencial, e trocar credencial sem tocar na declaração.
+  bancos = {
+    retail = {
+      host     = var.source_db_host
+      port     = var.source_db_port
+      database = var.source_db_name
+      username = var.source_db_user
+      password = var.source_db_password
+    }
+    legacy = {
+      host     = var.legacy_db_host
+      port     = var.legacy_db_port
+      database = var.legacy_db_name
+      username = var.legacy_db_user
+      password = var.legacy_db_password
+    }
+  }
+
+  # `tabelas` tem duas formas no YAML, e a diferença não é descuido: `retail`
+  # declara o modo **por tabela**, porque cada uma tem o seu critério; `legacy`
+  # declara um modo só para as 40, porque o critério é o mesmo em todas e
+  # repeti-lo quarenta vezes seria repetição que envelhece. A normalização
+  # abaixo é o preço dessa escolha, e cabe em cinco linhas.
+  # As duas compreensões são separadas, e não um ternário, porque o HCL avalia
+  # os dois ramos e exige tipos iguais entre eles — e aqui um lado é mapa e o
+  # outro é lista. Ambas produzem o **mesmo** formato de saída, que é o que o
+  # bloco de conexão consome sem saber de qual origem veio.
+  fluxos = merge(
+    {
+      for origem, spec in local.streams.origens : origem => {
+        for nome, tabela in spec.tabelas : nome => {
+          modo   = tabela.modo
+          cursor = try(tabela.cursor, null)
+          chave  = try(tabela.chave, null)
+        }
+      } if !can(spec.modo)
+    },
+    {
+      for origem, spec in local.streams.origens : origem => {
+        for nome in spec.tabelas : nome => {
+          modo   = spec.modo
+          cursor = null
+          chave  = null
+        }
+      } if can(spec.modo)
+    },
+  )
 }
 
-resource "airbyte_source" "oltp" {
-  name          = "source_db_oltp"
+resource "airbyte_source" "origem" {
+  for_each = local.streams.origens
+
+  name          = "source_${each.key}"
   workspace_id  = var.airbyte_workspace_id
   definition_id = var.postgres_source_definition_id
 
   configuration = jsonencode({
-    host     = var.source_db_host
-    port     = var.source_db_port
-    database = var.source_db_name
-    username = var.source_db_user
-    password = var.source_db_password
-    schemas  = [local.streams.schema]
+    host     = local.bancos[each.key].host
+    port     = local.bancos[each.key].port
+    database = local.bancos[each.key].database
+    username = local.bancos[each.key].username
+    password = local.bancos[each.key].password
+    schemas  = [each.value.schema]
 
     # Leitura por cursor, não por CDC: o log de transações da origem é
     # território do Debezium na Etapa 7, e dois consumidores disputando o mesmo
@@ -50,8 +103,10 @@ resource "airbyte_source" "oltp" {
   })
 }
 
-resource "airbyte_destination" "raw" {
-  name          = "warehouse_db_raw"
+resource "airbyte_destination" "camada" {
+  for_each = local.streams.origens
+
+  name          = "warehouse_db_${each.value.destino}"
   workspace_id  = var.airbyte_workspace_id
   definition_id = var.postgres_destination_definition_id
 
@@ -61,7 +116,7 @@ resource "airbyte_destination" "raw" {
     database = var.warehouse_db_name
     username = var.warehouse_db_user
     password = var.warehouse_db_password
-    schema   = "raw"
+    schema   = each.value.destino
 
     # ── Por que CASCADE, e por que ele é seguro aqui ─────────────────────────
     # `full_refresh_overwrite` **derruba** a tabela de destino a cada carga, e as
@@ -76,17 +131,25 @@ resource "airbyte_destination" "raw" {
     # preferência e passa a ser obrigatória. Entre as duas, as views de
     # `staging` não existem. É o orquestrador que garante a ordem — e é uma das
     # razões de o ADR-0003 ter ido buscar um.
-    drop_cascade = true
+    #
+    # ── E por que ele é **desligado** no legado ──────────────────────────────
+    # `raw_legacy` é snapshot imutável e retido (ADR-0008 e ADR-0037): a carga
+    # acrescenta, nunca derruba. Ligar CASCADE ali seria autorizar o destino a
+    # apagar a captura anterior — a única coisa contra a qual a exclusão física
+    # é detectada. A declaração de cada origem diz se o destino é descartável.
+    drop_cascade = each.value.destino_descartavel
 
     ssl_mode      = { mode = "disable" }
     tunnel_method = { tunnel_method = "NO_TUNNEL" }
   })
 }
 
-resource "airbyte_connection" "oltp_para_raw" {
-  name           = "oltp_para_raw"
-  source_id      = airbyte_source.oltp.source_id
-  destination_id = airbyte_destination.raw.destination_id
+resource "airbyte_connection" "ingestao" {
+  for_each = local.streams.origens
+
+  name           = "${each.value.schema}_para_${each.value.destino}"
+  source_id      = airbyte_source.origem[each.key].source_id
+  destination_id = airbyte_destination.camada[each.key].destination_id
 
   # O destino manda no nome do schema: sem isto o Airbyte recria `oltp` dentro
   # do armazém e a camada `raw` do ADR-0008 deixa de existir onde foi declarada.
@@ -98,11 +161,11 @@ resource "airbyte_connection" "oltp_para_raw" {
 
   configurations = {
     streams = [
-      for nome, spec in local.streams.tabelas : {
+      for nome, spec in local.fluxos[each.key] : {
         name         = nome
         sync_mode    = local.modo_para_sync_mode[spec.modo]
-        cursor_field = try([spec.cursor], null)
-        primary_key  = try([for c in spec.chave : [c]], null)
+        cursor_field = spec.cursor == null ? null : [spec.cursor]
+        primary_key  = spec.chave == null ? null : [for c in spec.chave : [c]]
       }
     ]
   }

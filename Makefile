@@ -201,6 +201,7 @@ airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão 
 		export TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET"; \
 		export TF_VAR_airbyte_workspace_id="$${AIRBYTE_WORKSPACE_ID:-$$(.venv/bin/python -m mvp_ed1.airbyte workspace)}"; \
 		export TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" TF_VAR_source_db_password="$$SOURCE_DB_PASSWORD"; \
+		export TF_VAR_legacy_db_name="$$LEGACY_DB_NAME" TF_VAR_legacy_db_user="$$LEGACY_DB_USER" TF_VAR_legacy_db_password="$$LEGACY_DB_PASSWORD" TF_VAR_legacy_db_port="$$LEGACY_DB_PORT"; \
 		export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"; \
 		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false $(if $(filter 1,$(AUTO)),-auto-approve)
 
@@ -208,6 +209,13 @@ sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 desca
 	@$(CREDENCIAIS); \
 		$(if $(filter 1,$(RESET)),.venv/bin/python -m mvp_ed1.airbyte reset &&) \
 		.venv/bin/python -m mvp_ed1.airbyte sync
+
+sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy; cada execução acrescenta um snapshot
+	@# Sem RESET: o modo é `full_refresh_append` (ADR-0037), e descartar o
+	@# estado aqui não faria a carga anterior voltar — ela está retida de
+	@# propósito. Duas execuções são duas capturas, que é o ponto.
+	@$(CREDENCIAIS); \
+		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy
 
 dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 refaz histórico SCD e incrementais
 	@# `--full-refresh` junto com o descarte do histórico, e não por precaução:

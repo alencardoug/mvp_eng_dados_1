@@ -182,6 +182,27 @@ O conteúdo original permanece **imutável** em `raw_legacy`, preservando exatam
 antes de qualquer limpeza. Reter não é acumular sem limite: o descarte de capturas antigas é decisão
 futura, e enquanto ela não vier nenhuma captura é apagada.
 
+### 4.1 A identidade da captura, e a da ocorrência
+
+Duas identidades diferentes, e confundi-las é o erro que este arranjo evita.
+
+| O que identifica | Coluna | Quem escreve |
+|---|---|---|
+| A **captura** | `_airbyte_generation_id`, com `_airbyte_extracted_at` como instante | O destino do Airbyte |
+| A **ocorrência física** | `legacy_row_id` | O gerador, antes da ingestão |
+
+O `snapshot_id` não precisou ser inventado: o destino já numera cada geração, e o instante vem com
+ela. Acrescentar uma coluna própria para isso criaria uma segunda verdade sobre a mesma captura — e
+a primeira continuaria existindo.
+
+O `legacy_row_id` é do gerador e resolve outro problema: **duas linhas de negócio idênticas
+precisam ser distinguíveis**. Sem ele, a duplicata exata do
+[ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) não teria como ter uma
+canônica e uma excedente — seriam a mesma linha contada duas vezes.
+
+**Medido em 05/09/2026:** duas capturas do mesmo conjunto, 12.749 linhas cada, retidas lado a lado
+em `raw_legacy` e separáveis por `_airbyte_generation_id`. Nenhuma sobrescreveu a outra.
+
 Diferente do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação), cuja
 finalidade é restaurar o ambiente, este *snapshot* existe para **linhagem, auditoria e
 reprocessamento** da limpeza.

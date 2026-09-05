@@ -7,199 +7,267 @@
 #
 # A regra do ADR-0015, aplicada linha a linha:
 #
-#   append            tabela de evento, só cresce, sem UPDATE
-#   dedup_history     tem `updated_at` confiável e sofre UPDATE
-#   full_refresh      estável, pequena, sem cursor que valha a pena
+#   append                tabela de evento, só cresce, sem UPDATE
+#   dedup_history         tem `updated_at` confiável e sofre UPDATE
+#   full_refresh          estável, pequena, sem cursor que valha a pena
+#   full_refresh_append   sem cursor confiável, e o histórico de capturas é o
+#                         dado — o quarto modo, criado pelo ADR-0037 para o
+#                         legado, que é o seu único usuário
 #
 # `cursor` é a coluna que o incremental usa para saber o que mudou, e `chave` é
 # a chave primária que o `dedup_history` usa para casar versões da mesma linha.
 # ══════════════════════════════════════════════════════════════════════════════
 
-versao: 1
+versao: 2
 
-# Nome da origem nos modelos de staging: `stg_<origem>__<tabela>` (ADR-0013).
-origem: retail
-schema: oltp
+# ── Duas origens, uma declaração ─────────────────────────────────────────────
+# Até a Etapa 9 este arquivo descrevia uma origem só, e o nome dela estava no
+# topo. A Etapa 10 acrescenta a segunda, e a estrutura passa a nomeá-las: cada
+# origem declara o seu schema de leitura, o schema de destino e as suas tabelas.
+#
+# `retail` e `legacy` são os valores do domínio fechado de `source_system`
+# (ADR-0039). **Caminho de ingestão não é origem**: o Airbyte e o Beam
+# transportam o mesmo `retail`, e representá-los aqui como origens distintas
+# faria a reconciliação entre os dois caminhos do estoque comparar uma coisa
+# com ela mesma sob outro nome.
+origens:
 
-# Etapas 5 a 9 — núcleo comercial, financeiro, estoque, entrega e
-# relacionamento. Cada tabela entra na etapa que a consome: ingerir tabela que
-# nenhum modelo lê é volume sem consumidor.
-tabelas:
+  retail:
+    schema: oltp
+    destino: raw
+    # A réplica é descartável (ADR-0008): o destino pode derrubar a tabela.
+    destino_descartavel: true
+    tabelas:
 
-  # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
-  customer_segments:
-    modo: full_refresh
-    motivo: Oito linhas que quase nunca mudam; cursor aqui é cerimônia sem ganho.
-  sales_channels:
-    modo: full_refresh
-    motivo: Três linhas. Carga completa é mais barata que a lógica de estado.
-  product_categories:
-    modo: full_refresh
-    motivo: Hierarquia pequena, e uma recategorização mexe em vários nós de uma vez — carga completa evita reconstruir a árvore a partir de deltas.
-  brands:
-    modo: full_refresh
-    motivo: Cadastro pequeno e de baixa rotatividade.
 
-  payment_methods:
-    modo: full_refresh
-    motivo: Seis meios de pagamento. Domínio fechado, sem cursor que compense.
-  carriers:
-    modo: full_refresh
-    motivo: Oito transportadoras. Muda quando a operação contrata ou dispensa uma — não vale cursor.
-  warehouses:
-    modo: full_refresh
-    motivo: Cinco armazéns que só mudam quando a operação abre ou fecha um centro.
+      # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
+      customer_segments:
+        modo: full_refresh
+        motivo: Oito linhas que quase nunca mudam; cursor aqui é cerimônia sem ganho.
+      sales_channels:
+        modo: full_refresh
+        motivo: Três linhas. Carga completa é mais barata que a lógica de estado.
+      product_categories:
+        modo: full_refresh
+        motivo: Hierarquia pequena, e uma recategorização mexe em vários nós de uma vez — carga completa evita reconstruir a árvore a partir de deltas.
+      brands:
+        modo: full_refresh
+        motivo: Cadastro pequeno e de baixa rotatividade.
 
-  # ── Livros de eventos: incremental por acréscimo ──────────────────────────
-  # Terceiro modo do ADR-0015, e o que o incremental faz melhor: tabela que só
-  # cresce, sem `UPDATE`, dispensa a lógica de deduplicação inteira. Ambas são
-  # `AppendOnlyMixin` no modelo — não têm `updated_at` nem `deleted_at`, porque
-  # corrigir um evento é inserir outro.
-  payment_transactions:
-    modo: append
-    cursor: created_at
-  # Etapa 8. Os dois livros da entrega, e ambos `AppendOnlyMixin` no modelo.
-  # `delivery_events` é a **fonte** da data de entrega realizada (ADR-0034), e
-  # não um rastro descritivo: o modo de ingestão dele é decisão de primeira
-  # ordem, não detalhe. `order_status_history` é o mesmo caso para a transição
-  # de estado do pedido.
-  delivery_events:
-    modo: append
-    cursor: created_at
-  order_status_history:
-    modo: append
-    cursor: created_at
-  # Etapa 9. `coupon_redemptions` tem índice único por `order_id` na origem — um
-  # cupom por pedido —, e `ticket_events` é o rastro do chamado. Ambas
-  # `AppendOnlyMixin`.
-  coupon_redemptions:
-    modo: append
-    cursor: created_at
-  ticket_events:
-    modo: append
-    cursor: created_at
-  # ── Deixou de ser incremental na Etapa 7 ────────────────────────────────
-  # O caminho oficial de ingestão incremental deste livro passou a ser o CDC
-  # (ADR-0031). Manter o `append` aqui criaria dois caminhos incrementais para a
-  # mesma tabela, e a pergunta "qual dos dois está atrasado?" não teria resposta.
-  #
-  # `full_refresh` e **não** remover o stream: com ele o Airbyte continua
-  # produzindo a segunda opinião sobre o mesmo livro — a área de reconciliação
-  # que o Streaming §6 promete e que, até a Etapa 7, não existia. Roda sob
-  # demanda, fora do caminho crítico, e é contra ela que o teste
-  # `caminhos_de_ingestao_reconciliam` pergunta se o CDC perdeu algum evento.
-  inventory_movements:
-    modo: full_refresh
-    motivo: Deixou de ser incremental na Etapa 7 — o CDC assumiu; esta carga existe para reconciliar contra ele.
+      payment_methods:
+        modo: full_refresh
+        motivo: Seis meios de pagamento. Domínio fechado, sem cursor que compense.
+      carriers:
+        modo: full_refresh
+        motivo: Oito transportadoras. Muda quando a operação contrata ou dispensa uma — não vale cursor.
+      warehouses:
+        modo: full_refresh
+        motivo: Cinco armazéns que só mudam quando a operação abre ou fecha um centro.
 
-  # ── Mutáveis com `updated_at`: dedup + history ────────────────────────────
-  customers:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  customer_addresses:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  products:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  product_variants:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  carts:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  cart_items:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  orders:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  order_items:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Livros de eventos: incremental por acréscimo ──────────────────────────
+      # Terceiro modo do ADR-0015, e o que o incremental faz melhor: tabela que só
+      # cresce, sem `UPDATE`, dispensa a lógica de deduplicação inteira. Ambas são
+      # `AppendOnlyMixin` no modelo — não têm `updated_at` nem `deleted_at`, porque
+      # corrigir um evento é inserir outro.
+      payment_transactions:
+        modo: append
+        cursor: created_at
+      # Etapa 8. Os dois livros da entrega, e ambos `AppendOnlyMixin` no modelo.
+      # `delivery_events` é a **fonte** da data de entrega realizada (ADR-0034), e
+      # não um rastro descritivo: o modo de ingestão dele é decisão de primeira
+      # ordem, não detalhe. `order_status_history` é o mesmo caso para a transição
+      # de estado do pedido.
+      delivery_events:
+        modo: append
+        cursor: created_at
+      order_status_history:
+        modo: append
+        cursor: created_at
+      # Etapa 9. `coupon_redemptions` tem índice único por `order_id` na origem — um
+      # cupom por pedido —, e `ticket_events` é o rastro do chamado. Ambas
+      # `AppendOnlyMixin`.
+      coupon_redemptions:
+        modo: append
+        cursor: created_at
+      ticket_events:
+        modo: append
+        cursor: created_at
+      # ── Deixou de ser incremental na Etapa 7 ────────────────────────────────
+      # O caminho oficial de ingestão incremental deste livro passou a ser o CDC
+      # (ADR-0031). Manter o `append` aqui criaria dois caminhos incrementais para a
+      # mesma tabela, e a pergunta "qual dos dois está atrasado?" não teria resposta.
+      #
+      # `full_refresh` e **não** remover o stream: com ele o Airbyte continua
+      # produzindo a segunda opinião sobre o mesmo livro — a área de reconciliação
+      # que o Streaming §6 promete e que, até a Etapa 7, não existia. Roda sob
+      # demanda, fora do caminho crítico, e é contra ela que o teste
+      # `caminhos_de_ingestao_reconciliam` pergunta se o CDC perdeu algum evento.
+      inventory_movements:
+        modo: full_refresh
+        motivo: Deixou de ser incremental na Etapa 7 — o CDC assumiu; esta carga existe para reconciliar contra ele.
 
-  # ── Financeiro (Etapa 6) ──────────────────────────────────────────────────
-  payments:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  refunds:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Mutáveis com `updated_at`: dedup + history ────────────────────────────
+      customers:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      customer_addresses:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      products:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      product_variants:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      carts:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      cart_items:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      orders:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      order_items:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
 
-  # ── Compras (Etapa 6) ─────────────────────────────────────────────────────
-  suppliers:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  purchase_orders:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  purchase_order_items:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  goods_receipts:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  goods_receipt_items:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Financeiro (Etapa 6) ──────────────────────────────────────────────────
+      payments:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      refunds:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
 
-  # ── Logística ─────────────────────────────────────────────────────────────
-  # Estas duas entraram na Etapa 6, antes da fato, porque a invariante 5 —
-  # remessa não envia mais do que foi vendido — atravessa `shipment_items` e
-  # `order_items`, e um teste é consumidor legítimo. Na Etapa 8 passaram a
-  # alimentar `fact_shipment_item`, e o modo não mudou: continuam sofrendo
-  # `UPDATE` na origem, a cada mudança de estado da remessa.
-  shipments:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  shipment_items:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Compras (Etapa 6) ─────────────────────────────────────────────────────
+      suppliers:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      purchase_orders:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      purchase_order_items:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      goods_receipts:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      goods_receipt_items:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
 
-  # ── Marketing e atendimento (Etapa 9) ─────────────────────────────────────
-  # `support_agents` são 42 linhas e ainda assim `dedup_history`: a dimensão
-  # dele é SCD tipo 2, e carga completa não deixa histórico para historizar.
-  # Tamanho não é o critério do ADR-0015 — mutabilidade é.
-  campaigns:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  coupons:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  support_agents:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  support_tickets:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Logística ─────────────────────────────────────────────────────────────
+      # Estas duas entraram na Etapa 6, antes da fato, porque a invariante 5 —
+      # remessa não envia mais do que foi vendido — atravessa `shipment_items` e
+      # `order_items`, e um teste é consumidor legítimo. Na Etapa 8 passaram a
+      # alimentar `fact_shipment_item`, e o modo não mudou: continuam sofrendo
+      # `UPDATE` na origem, a cada mudança de estado da remessa.
+      shipments:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      shipment_items:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
 
-  # ── Estoque (Etapa 6) ─────────────────────────────────────────────────────
-  inventory_balances:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
-  stock_reservations:
-    modo: dedup_history
-    cursor: updated_at
-    chave: [id]
+      # ── Marketing e atendimento (Etapa 9) ─────────────────────────────────────
+      # `support_agents` são 42 linhas e ainda assim `dedup_history`: a dimensão
+      # dele é SCD tipo 2, e carga completa não deixa histórico para historizar.
+      # Tamanho não é o critério do ADR-0015 — mutabilidade é.
+      campaigns:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      coupons:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      support_agents:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      support_tickets:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+
+      # ── Estoque (Etapa 6) ─────────────────────────────────────────────────────
+      inventory_balances:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+      stock_reservations:
+        modo: dedup_history
+        cursor: updated_at
+        chave: [id]
+
+  legacy:
+    schema: legacy
+    destino: raw_legacy
+    # **Não** descartável. `raw_legacy` é snapshot imutável e retido: derrubar a
+    # tabela apagaria a captura anterior, que é justamente contra o que a
+    # exclusão física é detectada.
+    destino_descartavel: false
+    # Modo único para as 40, e por isso declarado uma vez: o legado não tem
+    # cursor confiável em tabela nenhuma, e o que interessa reter é o histórico
+    # de capturas inteiro (ADR-0037).
+    modo: full_refresh_append
+    motivo: Origem sem cursor confiável cujo histórico de capturas é o dado; nenhuma carga sobrescreve a anterior.
+    tabelas:
+      - brands
+      - campaigns
+      - carriers
+      - customer_segments
+      - payment_methods
+      - product_categories
+      - sales_channels
+      - suppliers
+      - support_agents
+      - warehouses
+      - coupons
+      - customers
+      - price_lists
+      - products
+      - purchase_orders
+      - carts
+      - customer_addresses
+      - customer_contacts
+      - customer_preferences
+      - goods_receipts
+      - product_variants
+      - cart_items
+      - inventory_balances
+      - inventory_movements
+      - orders
+      - product_prices
+      - purchase_order_items
+      - coupon_redemptions
+      - goods_receipt_items
+      - order_items
+      - order_status_history
+      - payments
+      - shipments
+      - stock_reservations
+      - delivery_events
+      - payment_transactions
+      - shipment_items
+      - support_tickets
+      - refunds
+      - ticket_events

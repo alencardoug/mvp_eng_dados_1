@@ -42,6 +42,24 @@ variable "source_db_password" {
   sensitive = true
 }
 
+# ── Origem legada (Etapa 10) ─────────────────────────────────────────────────
+# Segundo banco de origem, com as mesmas 40 tabelas e sem governança. A porta
+# padrão é a do serviço `legacy_db` do Compose.
+variable "legacy_db_host" {
+  type    = string
+  default = "172.17.0.1"
+}
+variable "legacy_db_port" {
+  type    = number
+  default = 5433
+}
+variable "legacy_db_name" { type = string }
+variable "legacy_db_user" { type = string }
+variable "legacy_db_password" {
+  type      = string
+  sensitive = true
+}
+
 variable "warehouse_db_host" {
   type    = string
   default = "172.17.0.1"

@@ -44,6 +44,13 @@ def test_as_of_date_do_dbt_bate_com_a_do_gerador(config, projeto_dbt) -> None:
 #: exceção genérica o desligaria.
 FONTES_DO_CAMINHO_QUENTE = {"inventory_movements_stream"}
 
+#: Os quatro modos do ADR-0015, mais o quarto que o ADR-0037 acrescentou.
+MODOS = {"full_refresh", "full_refresh_append", "dedup_history", "append"}
+
+
+def _origem(nome: str) -> dict:
+    return _carregar(RAIZ / "airbyte/streams.yml")["origens"][nome]
+
 
 def test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt() -> None:
     """O que se ingere é o que o dbt lê — nem mais, nem menos.
@@ -53,31 +60,64 @@ def test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt() -> None:
     limpa. Desde a Etapa 7 há dois alimentadores, não um: o Airbyte e o pipeline
     Beam. A conta continua fechando, com as duas parcelas nomeadas.
     """
-    streams = _carregar(RAIZ / "airbyte/streams.yml")
     fontes = _carregar(DBT / "models/staging/_retail__sources.yml")
+    por_nome = {f["name"]: f for f in fontes["sources"]}
 
-    ingeridas = set(streams["tabelas"])
-    declaradas = {t["name"] for t in fontes["sources"][0]["tables"]}
+    ingeridas = set(_origem("retail")["tabelas"])
+    declaradas = {t["name"] for t in por_nome["retail"]["tables"]}
     assert ingeridas | FONTES_DO_CAMINHO_QUENTE == declaradas
+
+
+def test_o_legado_ingere_as_quarenta_tabelas() -> None:
+    """A origem legada reproduz **todas** as 40, e não um recorte.
+
+    O critério da Etapa 10 é `extraídos = aceitos + corrigidos + rejeitados`
+    por tabela: uma tabela fora da captura não é uma reconciliação a menos, é
+    uma que ninguém percebe faltando.
+    """
+    from mvp_ed1.models import Base
+
+    modelos = {t.name for t in Base.metadata.sorted_tables}
+    assert set(_origem("legacy")["tabelas"]) == modelos
 
 
 def test_todo_stream_tem_modo_e_o_modo_e_conhecido() -> None:
     streams = _carregar(RAIZ / "airbyte/streams.yml")
-    for nome, spec in streams["tabelas"].items():
-        modo = spec.get("modo")
-        if modo == "dedup_history":
-            # Precisa saber o que mudou e a quem a mudança pertence.
-            assert spec.get("cursor"), f"{nome}: dedup_history exige cursor"
-            assert spec.get("chave"), f"{nome}: dedup_history exige chave"
-        elif modo == "append":
-            # Livro de eventos: só cresce, então basta saber por onde parou.
-            assert spec.get("cursor"), f"{nome}: append exige cursor"
-            assert not spec.get("chave"), f"{nome}: append não deduplica, e não usa chave"
-        elif modo == "full_refresh":
-            # Não ter cursor é a escolha, e escolha precisa de justificativa.
-            assert spec.get("motivo"), f"{nome}: carga completa exige motivo escrito"
-        else:
-            raise AssertionError(f"{nome}: modo ausente ou desconhecido ({modo!r})")
+    for origem, spec_origem in streams["origens"].items():
+        # Origem que declara um modo só o aplica a todas as suas tabelas
+        # (ADR-0037): a justificativa é da origem, e não de cada tabela.
+        if "modo" in spec_origem:
+            assert spec_origem["modo"] in MODOS, f"{origem}: modo desconhecido"
+            assert spec_origem.get("motivo"), f"{origem}: modo único exige motivo escrito"
+            assert isinstance(spec_origem["tabelas"], list)
+            continue
+
+        for nome, spec in spec_origem["tabelas"].items():
+            modo = spec.get("modo")
+            if modo == "dedup_history":
+                # Precisa saber o que mudou e a quem a mudança pertence.
+                assert spec.get("cursor"), f"{nome}: dedup_history exige cursor"
+                assert spec.get("chave"), f"{nome}: dedup_history exige chave"
+            elif modo == "append":
+                # Livro de eventos: só cresce, então basta saber por onde parou.
+                assert spec.get("cursor"), f"{nome}: append exige cursor"
+                assert not spec.get("chave"), f"{nome}: append não deduplica, e não usa chave"
+            elif modo == "full_refresh":
+                # Não ter cursor é a escolha, e escolha precisa de justificativa.
+                assert spec.get("motivo"), f"{nome}: carga completa exige motivo escrito"
+            else:
+                raise AssertionError(f"{nome}: modo ausente ou desconhecido ({modo!r})")
+
+
+def test_o_destino_do_legado_nao_e_descartavel() -> None:
+    """`raw_legacy` é retido: derrubar a tabela apagaria a captura anterior.
+
+    O `drop_cascade` do destino sai desta declaração. Ligá-lo no legado seria
+    autorizar o Airbyte a apagar a única coisa contra a qual a exclusão física
+    é detectada (ADR-0037).
+    """
+    assert _origem("retail")["destino_descartavel"] is True
+    assert _origem("legacy")["destino_descartavel"] is False
 
 
 def test_ponto_de_reposicao_do_dbt_bate_com_o_do_fluxo(projeto_dbt) -> None:
