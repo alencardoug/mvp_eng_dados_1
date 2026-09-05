@@ -71,6 +71,8 @@ decisão.
 | [0032](0032-fonte-python-no-lugar-do-kafkaio.md) | Ler o transporte com fonte Python, e não com o KafkaIO do Beam | Aceita | Ponta de leitura sem Java |
 | [0033](0033-entrega-medida-em-dois-graos.md) | Medir a entrega em dois grãos, e nomear os dois no glossário | Aceita | Grão da medição de entrega |
 | [0034](0034-entrega-do-livro-de-eventos.md) | Tirar a data de entrega do livro de eventos, não da coluna da remessa | Aceita | Procedência da data de entrega |
+| [0035](0035-aposentar-dimensoes-sem-pergunta.md) | Aposentar `dim_time` e `dim_currency`, que nenhuma pergunta recorta | Aceita | Escopo do inventário dimensional |
+| [0036](0036-recompra-ancorada-no-pedido.md) | Ancorar a recompra pós-atendimento no pedido | Aceita | Âncora da janela de P16 |
 
 ---
 
@@ -91,11 +93,13 @@ refazer e reescrever as medições registradas. Enquanto a decisão não vem, o 
 `remessa_leva_ao_menos_um_item` roda com severidade `warn` a cada `build`: o número fica à vista sem
 travar a entrega.
 
-As duas decisões que a Etapa 8 levantou na abertura foram fechadas no mesmo dia, por
+As decisões de abertura das Etapas 8 e 9 foram fechadas no mesmo dia em que foram levantadas, por
 interrogatório: em que grão a entrega é medida, quando o pedido se divide em duas remessas
-([ADR-0033](0033-entrega-medida-em-dois-graos.md)), e de onde sai a data de entrega realizada —
-do livro de eventos, não da coluna da remessa
-([ADR-0034](0034-entrega-do-livro-de-eventos.md)).
+([ADR-0033](0033-entrega-medida-em-dois-graos.md)); de onde sai a data de entrega realizada — do
+livro de eventos, não da coluna da remessa ([ADR-0034](0034-entrega-do-livro-de-eventos.md)); o que
+fazer com as duas dimensões que nenhuma pergunta recorta
+([ADR-0035](0035-aposentar-dimensoes-sem-pergunta.md)); e de que marco corre a janela de recompra de
+P16 ([ADR-0036](0036-recompra-ancorada-no-pedido.md)).
 
 Antes delas, as três que a Etapa 7 levantou foram fechadas do mesmo modo: onde o caminho quente
 aterrissa, quem faz o *backfill* dele e o que acontece com o *stream* do Airbyte — todas no

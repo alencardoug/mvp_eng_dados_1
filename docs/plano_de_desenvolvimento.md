@@ -215,8 +215,9 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Objetivo** | Fechar o modelo dimensional e exercitar o histórico de atributos. |
 | **Pré-requisito** | Etapa 8 |
 | **Entregas** | **E6**, **E7** (parciais) |
+| **Decisões** | Escopo do inventário dimensional ([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) · âncora da janela de P16 ([ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)) |
 | **Escopo** | Campanhas, cupons, atendimento · `fact_coupon_redemption`, `fact_support_ticket_event` · dimensões restantes e cenários SCD |
-| **Critérios de conclusão** | 9 fatos e 17 dimensões construídas · intervalos SCD tipo 2 sem sobreposição para a mesma chave natural · regras de elegibilidade de cupom testadas · glossário com churn e recompra definidos |
+| **Critérios de conclusão** | 10 fatos e 15 dimensões construídas ([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) · intervalos SCD tipo 2 sem sobreposição para a mesma chave natural · regras de elegibilidade de cupom testadas · glossário com churn e recompra pós-pedido definidos ([ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)) |
 | **Conceitos** | SCD tipo 2 em profundidade · dimensões derivadas e conformadas · métricas de relacionamento |
 
 ### Etapa 10 — Corte 6: origem legada

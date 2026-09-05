@@ -39,10 +39,13 @@ Os detalhes estão na seção 3 do [Registro de Decisões](adr/README.md).
 
 ## 2. O que já foi fechado
 
-**Fora a D31, não há nada esperando você.** As duas decisões que a Etapa 8 levantou foram
-fechadas na abertura dela, em 05/09/2026, nos [ADR-0033](adr/0033-entrega-medida-em-dois-graos.md) — o grão em que a
-entrega é medida — e [ADR-0034](adr/0034-entrega-do-livro-de-eventos.md) — a procedência da data
-realizada. A etapa foi entregue no mesmo dia. As da Etapa 7 foram fechadas em 04/09/2026 nos
+**Fora a D31, não há nada esperando você.** As decisões de abertura das Etapas 8 e 9 foram fechadas
+no mesmo dia em que foram levantadas, em 05/09/2026: o grão em que a entrega é medida
+([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)), a procedência da data realizada
+([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)), o escopo do inventário dimensional
+([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) e a âncora da janela de recompra de P16
+([ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)). As da Etapa 7 foram fechadas em 04/09/2026
+nos
 [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) e
 [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md). Todas por interrogatório com alternativas.
 

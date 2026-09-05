@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D31** — a remessa que nasce sem item |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 34 aceitos, 1 pendente |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 36 aceitos, 1 pendente |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.6 — Etapas 2 a 7 conferidas |
@@ -63,7 +63,8 @@ tabelas por camada, com incremental como exceção justificada · chaves substit
 SCD tipo 2 por *snapshot* · Cloud Composer e Airbyte em contêiner na nuvem, em janela curta ·
 **`uv` e Python 3.11** · configuração do gerador em YAML, com o piso de cobertura derivado dos
 modelos · **entrega medida em dois grãos** — no prazo pela remessa, ciclo pelo pedido — com a data
-realizada tirada do livro de eventos, e não da coluna da remessa.
+realizada tirada do livro de eventos, e não da coluna da remessa · **dimensão que nenhuma pergunta
+recorta não é construída**, e a recompra pós-atendimento é ancorada no pedido.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 

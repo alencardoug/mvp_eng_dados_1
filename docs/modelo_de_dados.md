@@ -1,7 +1,7 @@
 # Modelo de Dados
 
 > **O que vive aqui:** o inventário do que é modelado — as 40 tabelas transacionais por domínio, o
-> modelo dimensional (10 fatos e 17 dimensões), as invariantes de negócio e o contrato do evento de
+> modelo dimensional (10 fatos e 15 dimensões), as invariantes de negócio e o contrato do evento de
 > estoque.
 >
 > **O que não vive aqui:** como os dados são gerados (ver [Geração de Dados](geracao_de_dados.md));
@@ -13,7 +13,7 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.3 |
+| Versão | 1.4 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
 | Última revisão | 05/09/2026 |
 
@@ -552,7 +552,7 @@ erDiagram
 
 ---
 
-## 3. Modelo dimensional — 27 tabelas em `analytics`
+## 3. Modelo dimensional — 25 tabelas em `analytics`
 
 Não há fatos do tipo *snapshot*: todo processo é representado por eventos transacionais. As
 métricas de estado ao longo do tempo são derivadas dos eventos, não de fotografias periódicas do
@@ -607,7 +607,7 @@ funil de conversão não tinha onde pousar. São até dois eventos por carrinho 
 desfecho —, e é por isso que ela passa a ser a maior tabela de `analytics`: `carts` é a segunda
 maior tabela da origem.
 
-### 3.2 Dimensões — 17
+### 3.2 Dimensões — 15
 
 A chave substituta é o *hash* determinístico da chave natural, e as sete dimensões SCD tipo 2 são
 materializadas por `dbt snapshot` no schema `snapshots`
@@ -627,7 +627,6 @@ qual se juntar — a fato sai vazia. A primeira versão de cada chave natural pa
 | Tabela | Linhas | Conteúdo principal | Tratamento |
 |---|---:|---|---|
 | `dim_date` | 975 | Calendário de 01/01/2024 a 01/09/2026, inclusive. | Estática |
-| `dim_time` | 1.440 | Hora, minuto e faixas do dia. | Estática |
 | `dim_customer` | 16.500 | Perfil, segmento e estado do cliente. | SCD tipo 2 |
 | `dim_geography` | 22 | Cidade, estado, região e país. | Conformada |
 | `dim_product` | 6.600 | SKU, produto e atributos da variante. | SCD tipo 2 |
@@ -640,15 +639,20 @@ qual se juntar — a fato sai vazia. A primeira versão de cada chave natural pa
 | `dim_campaign` | 28 | Campanha, objetivo e vigência. | SCD tipo 1 |
 | `dim_coupon` | 198 | Regra e tipo de desconto. | SCD tipo 2 |
 | `dim_payment_method` | 6 | Meio e modalidade de pagamento. | SCD tipo 1 |
-| `dim_currency` | 1 | Moeda e código ISO. | Estática |
 | `dim_support_category` | 6 | Motivo e categoria do chamado. | Derivada e conformada |
 | `dim_support_agent` | 46 | Agente, equipe e período de atuação. | SCD tipo 2 |
 
 Identificadores operacionais como `order_number`, `ticket_number` e `tracking_number` são mantidos
 nas respectivas fatos como **dimensões degeneradas**.
 
-**Totais:** aproximadamente **1,34 milhão de linhas nas fatos** e **26.400 nas dimensões**, na
+**Totais:** aproximadamente **1,34 milhão de linhas nas fatos** e **25.000 nas dimensões**, na
 proporção de referência — um décimo disso no fator `dev`.
+
+`dim_time` e `dim_currency` saíram deste inventário na Etapa 9
+([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)): atravessaram cinco etapas sem que
+nenhuma pergunta as recortasse, e dimensão que nenhum fato lê é o mesmo que tabela que nenhum modelo
+lê, uma camada adiante. A moeda continua como **atributo** de `trusted.orders`, que é o que ela é
+enquanto houver uma só.
 
 Duas contagens desta seção foram corrigidas contra a geração real da Etapa 4, e é assim que elas
 devem ser lidas: `dim_geography` cai de 1.500 para **22**, porque o gerador produz endereços sobre
