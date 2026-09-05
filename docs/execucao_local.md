@@ -62,7 +62,8 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 2 | `make migrate` | Aplica as migrações Alembic até a última revisão | Etapa 3 |
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
 | 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
-| 4 | `make seed-legacy` | Gera a origem legada com as falhas intencionais | Etapa 10 |
+| 4 | `make seed-legacy` | Gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
+| 4b | `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
 | 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
 | 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |

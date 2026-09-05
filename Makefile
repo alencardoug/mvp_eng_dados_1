@@ -150,6 +150,15 @@ seed-data: require-env require-venv ## Gera e carrega os dados sintéticos; SCAL
 		$(if $(AS_OF),--as-of $(AS_OF)) $(if $(filter 1,$(FORCE)),--force) \
 		$(if $(filter 1,$(DRY_RUN)),--dry-run)
 
+seed-legacy: require-env require-venv ## Gera a origem legada com as falhas do catálogo; FORCE=1 trunca antes
+	@# O legado tem semente e fator próprios, declarados no catálogo — não são
+	@# argumentos. Duas origens compartilhando sequência deixariam de ser duas.
+	@set -a; . ./.env; set +a; \
+		.venv/bin/python -m mvp_ed1.legacy.cli seed $(if $(filter 1,$(FORCE)),--force)
+
+legacy-plan: require-venv ## Mostra o que o legado geraria e injetaria, sem tocar no banco
+	@.venv/bin/python -m mvp_ed1.legacy.cli plan
+
 seed-plan: require-venv ## Mostra o plano de volume das 40 tabelas, sem tocar no banco
 	@.venv/bin/python -m mvp_ed1.generator.cli plan $(if $(SCALE),--scale $(SCALE))
 

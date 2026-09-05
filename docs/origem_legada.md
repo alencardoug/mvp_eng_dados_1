@@ -11,8 +11,8 @@
 | Campo | Informação |
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
-| Gerador | `generate_legacy_database.py` (proposto) |
-| Versão | 2.1 |
+| Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
+| Versão | 2.2 |
 | Catálogo de falhas | 22 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
 | Última revisão | 05/09/2026 |
 
@@ -44,7 +44,12 @@ exemplos defeituosos antes da engenharia de limpeza — que é exatamente o que 
 ## 3. Falhas intencionais
 
 O legado tem um pequeno conjunto consistente que fornece contexto referencial e **cerca de 100
-registros portadores de falhas intencionais**:
+registros portadores de falhas intencionais**. O gerador **não** produz esse conjunto do zero: parte
+do mesmo motor da origem principal, com semente e fator próprios, e o **degrada**. Reescrever a
+geração daria uma segunda definição do domínio, que divergiria da primeira no dia seguinte.
+
+A distribuição por domínio abaixo é a **planejada**. A realizada é consequência de onde os
+arquétipos do catálogo alcançam colunas, e é medida — não declarada:
 
 | Domínio | Registros falhos |
 |---|---:|
@@ -145,8 +150,14 @@ a geração garante esse caso de propósito.
 
 ### 3.2 Manifesto de falhas
 
-A geração é determinística, recebe `seed` própria e produz um **manifesto** declarando o erro
-esperado em cada registro.
+A geração é determinística, recebe `seed` própria — declarada em
+[`catalogo.yml`](../src/mvp_ed1/legacy/catalogo.yml), distinta da origem principal — e produz um
+**manifesto** declarando o erro esperado em cada registro.
+
+O manifesto é escrito em `data/legacy/manifesto.json`, **fora do banco e fora do Git**. Guardá-lo ao
+lado do dado tratado convidaria a transformação a consultá-lo, e o teste passaria a medir a si
+mesmo. Cada linha dele diz a ocorrência física, o código, a coluna, o valor antes, o valor depois e
+o resultado que o tratamento deve alcançar.
 
 O manifesto é o **oráculo dos testes**. A transformação nunca o consulta para descobrir a resposta
 — se consultasse, o teste passaria a medir a si mesmo.

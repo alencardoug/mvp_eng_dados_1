@@ -1,0 +1,232 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Catálogo de falhas da origem legada — a fonte única do ADR-0022.
+#
+# Dele saem **três** coisas, e nenhuma delas é escrita à mão de forma
+# independente: o injetor que produz o defeito, a regra que o trata e o teste
+# que confere o resultado. Injetar e tratar não podem divergir porque são o
+# mesmo arquivo.
+#
+# ── Como as falhas encontram as colunas ──────────────────────────────────────
+# Nenhuma entrada nomeia coluna. Cada uma declara o **arquétipo** de campo a que
+# se aplica, e o injetor resolve o arquétipo contra os modelos SQLAlchemy — que
+# são a fonte de verdade do schema (ADR-0009). Listar 400 colunas aqui seria
+# repetição que envelhece no dia em que um campo mudar de tipo.
+#
+# ── O que cada entrada declara (ADR-0022) ────────────────────────────────────
+#   arquetipo    a que tipo de campo se aplica
+#   deteccao     como o valor defeituoso é reconhecido, **sem** o manifesto
+#   conversao    a regra determinística, quando a equivalência é inequívoca
+#   rejeicao     o motivo, quando não há regra válida
+#   injecao      como o gerador produz o defeito, e com que frequência
+#
+# `conversao` e `rejeicao` são mutuamente exclusivas: o critério é o da Origem
+# Legada §3.1 — converte-se quando existe **uma** interpretação possível.
+# ══════════════════════════════════════════════════════════════════════════════
+
+versao: 1
+
+# ── Geração desta origem ──────────────────────────────────────────────────────
+# Semente **própria**, distinta da origem principal (Origem Legada §3.2): as
+# duas não podem compartilhar sequência, senão o legado deixa de ser uma origem
+# independente e passa a ser um espelho deslocado da outra.
+#
+# O fator é pequeno de propósito. O legado existe para exercitar **tratamento**,
+# não volume: o que precisa estar coberto são os 22 tipos de falha, e isso não
+# depende de quantas linhas limpas existem em volta.
+geracao:
+  semente: 20260906
+  fator: 0.05
+
+# Delimitador do arquivo de importação que a origem legada simula. É o que torna
+# `TEXT_DELIMITER` detectável: numa coluna PostgreSQL o delimitador não desloca
+# nada sozinho — quem desloca é o carregador de CSV que a origem antiga usava, e
+# o efeito observável é o campo carregar o resto da linha e os seguintes ficarem
+# vazios.
+delimitador: ";"
+
+# Marcadores textuais que a origem usa no lugar de nulo.
+nulos_disfarcados: ["NULL", "null", "N/A", "-", "#N/D", "", "   "]
+
+# Colunas de data e hora que registram **promessa**, não fato consumado. Elas
+# ficam de fora do `DATE_FUTURE` porque cair depois do corte é o comportamento
+# correto delas — o prazo prometido de uma remessa despachada ontem está no
+# futuro, e isso não é defeito. A lista é curta e explícita de propósito: a
+# regra geral é que data de fato consumado não acontece no futuro, e cada
+# exceção precisa de nome.
+promessas:
+  - shipments.estimated_delivery_at
+  - purchase_orders.expected_at
+  - campaigns.valid_to
+  - coupons.valid_to
+  - price_lists.valid_to
+  - product_prices.valid_to
+
+falhas:
+
+  # ── Numéricos e monetários ────────────────────────────────────────────────
+  NUM_TEXT_EQUIV:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Valor não é inteiro literal, mas equivale a um sem ambiguidade.
+    conversao: Interpretar por extenso ou com casa decimal nula; `oito`, `8.0` e `8,0` são 8.
+    injecao: {frequencia: 5, formas: [por_extenso, decimal_zero, decimal_virgula_zero]}
+
+  NUM_AMBIGUOUS:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Valor não inteiro sem equivalência única — fracionário, com unidade, ou vazio.
+    rejeicao: Não há regra determinística válida para o grão.
+    injecao: {frequencia: 4, formas: [fracionario, com_unidade, vazio]}
+
+  NUM_OUT_OF_RANGE:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Inteiro fora da faixa fisicamente possível do campo.
+    rejeicao: Quantidade impossível; corrigir exigiria adivinhar o valor certo.
+    injecao: {frequencia: 4, formas: [negativo, absurdamente_alto]}
+
+  MONEY_LOCALE:
+    grupo: monetarios
+    arquetipo: dinheiro
+    deteccao: Valor monetário com separadores ou símbolo de moeda, em qualquer locale.
+    conversao: Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.
+    injecao: {frequencia: 6, formas: [pt_br, en_us, com_simbolo]}
+
+  MONEY_NEGATIVE:
+    grupo: monetarios
+    arquetipo: dinheiro
+    deteccao: Valor negativo em campo que não admite estorno.
+    rejeicao: Valor negativo onde o domínio não o permite.
+    injecao: {frequencia: 3, formas: [negativo]}
+
+  # ── Datas e tempo ─────────────────────────────────────────────────────────
+  DATE_FORMAT_KNOWN:
+    grupo: datas
+    arquetipo: data
+    deteccao: Data em formato reconhecido diferente do ISO.
+    conversao: Interpretar pelo formato declarado e normalizar para ISO.
+    injecao: {frequencia: 5, formas: [dd_mm_aaaa, aaaa_ponto_mm_dd]}
+
+  DATE_IMPOSSIBLE:
+    grupo: datas
+    arquetipo: data
+    deteccao: Componentes fora de faixa, data inexistente no calendário ou incompleta.
+    rejeicao: Data impossível ou incompleta; não há valor único a inferir.
+    injecao: {frequencia: 4, formas: [mes_invalido, dia_inexistente, so_mes_e_ano]}
+
+  DATE_FUTURE:
+    grupo: datas
+    arquetipo: data_de_fato_consumado
+    deteccao: Data posterior a `as_of_date` em campo que registra fato já ocorrido.
+    rejeicao: Fato consumado não acontece no futuro.
+    injecao: {frequencia: 3, formas: [depois_do_corte]}
+
+  DATE_TZ_MISSING:
+    grupo: datas
+    arquetipo: momento
+    deteccao: Timestamp sem deslocamento de fuso.
+    conversao: Aplicar o fuso declarado da origem — `America/Sao_Paulo`.
+    injecao: {frequencia: 5, formas: [sem_fuso]}
+
+  # ── Texto ─────────────────────────────────────────────────────────────────
+  TEXT_ENCODING:
+    grupo: texto
+    arquetipo: texto
+    deteccao: Sequência de codificação dupla reconhecível — UTF-8 lido como Latin-1.
+    conversao: Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.
+    injecao: {frequencia: 5, formas: [utf8_como_latin1]}
+
+  TEXT_WHITESPACE_CASE:
+    grupo: texto
+    arquetipo: texto
+    deteccao: Espaços à volta, espaços internos repetidos ou caixa inconsistente em chave.
+    conversao: Padronizar espaçamento e caixa conforme a convenção do campo.
+    injecao: {frequencia: 6, formas: [espaco_a_volta, caixa_alterada, espaco_duplo]}
+
+  TEXT_TRUNCATED:
+    grupo: texto
+    arquetipo: texto_com_limite
+    # Detecção por heurística declarada, e a limitação é assumida: um valor
+    # legítimo de comprimento exatamente igual ao limite é indistinguível de um
+    # cortado. É por isso que o gerador produz, de propósito, casos válidos
+    # nesse comprimento — o controle mede o falso positivo em vez de escondê-lo.
+    deteccao: Comprimento exatamente igual ao limite declarado da coluna legada.
+    rejeicao: O que foi perdido no corte não se restaura.
+    injecao: {frequencia: 4, formas: [cortado_no_limite]}
+
+  TEXT_DELIMITER:
+    grupo: texto
+    arquetipo: texto
+    deteccao: Campo contém o delimitador declarado **e** os campos seguintes da linha estão vazios.
+    rejeicao: A linha veio deslocada na importação; o conteúdo dos campos seguintes se perdeu.
+    injecao: {frequencia: 3, formas: [absorve_os_seguintes]}
+
+  NULL_DISGUISED:
+    grupo: texto
+    arquetipo: qualquer
+    deteccao: Valor pertence à lista declarada de nulos disfarçados.
+    conversao: Converter para nulo de verdade.
+    injecao: {frequencia: 7, formas: [marcador_textual]}
+
+  # ── Domínios e formatos ───────────────────────────────────────────────────
+  BOOL_VARIANT:
+    grupo: dominios
+    arquetipo: booleano
+    deteccao: Valor booleano escrito fora de `true`/`false`.
+    conversao: Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.
+    injecao: {frequencia: 5, formas: [sim_nao, s_n, um_zero]}
+
+  ENUM_UNKNOWN:
+    grupo: dominios
+    arquetipo: enumerado
+    deteccao: Valor fora do domínio declarado do campo.
+    rejeicao: Estado desconhecido; mapear exigiria inventar equivalência.
+    injecao: {frequencia: 4, formas: [valor_inexistente]}
+
+  EMAIL_MALFORMED:
+    grupo: dominios
+    arquetipo: email
+    deteccao: Sem arroba, com espaço interno, ou domínio sem ponto.
+    rejeicao: Endereço inválido; não há correção segura.
+    injecao: {frequencia: 4, formas: [sem_arroba, com_espaco, dominio_invalido]}
+
+  # ── Integridade e consistência ────────────────────────────────────────────
+  FK_ORPHAN:
+    grupo: integridade
+    arquetipo: chave_estrangeira
+    deteccao: Referência a chave que não existe na tabela referenciada, dentro da mesma captura.
+    rejeicao: A linha aponta para um registro que não existe.
+    injecao: {frequencia: 5, formas: [id_inexistente]}
+
+  DUP_EXACT:
+    grupo: integridade
+    arquetipo: registro
+    # ADR-0038: a canônica é a de menor identificador físico e segue como
+    # `accepted`/`corrected`; cada excedente é uma linha `rejected` própria.
+    deteccao: Duas ou mais ocorrências físicas com todos os campos iguais na mesma captura.
+    rejeicao: Ocorrência excedente de duplicata exata; a canônica foi mantida.
+    injecao: {frequencia: 4, formas: [linha_repetida]}
+
+  DUP_PARTIAL:
+    grupo: integridade
+    arquetipo: chave_natural
+    deteccao: Mesma chave natural com atributos divergentes na mesma captura.
+    rejeicao: Não há critério de desempate seguro entre as versões.
+    injecao: {frequencia: 3, formas: [mesma_chave_outro_atributo]}
+
+  TOTAL_MISMATCH:
+    grupo: integridade
+    arquetipo: total_do_pedido
+    deteccao: Total declarado difere da soma dos itens além da tolerância de arredondamento.
+    rejeicao: O total não reconcilia com os itens; corrigir exigiria escolher qual lado vale.
+    injecao: {frequencia: 3, formas: [total_alterado]}
+
+  PARENT_REJECTED:
+    grupo: integridade
+    arquetipo: registro_filho
+    # Único código que não descreve defeito do próprio registro (ADR-0038).
+    # Não é injetado: **emerge** do tratamento, e por isso os pais são
+    # classificados antes dos filhos.
+    deteccao: O registro é íntegro, e o pai a que ele pertence foi rejeitado.
+    rejeicao: O pai foi rejeitado; empilhar o filho produziria fato sem a entidade que o explica.
+    injecao: {frequencia: 0, derivado_de: [TOTAL_MISMATCH, FK_ORPHAN, DUP_PARTIAL]}
