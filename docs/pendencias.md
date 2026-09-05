@@ -12,35 +12,41 @@
 |---|---|
 | Etapa atual | Etapa 10 — Corte 6: origem legada |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 |
+| Decisões pendentes | 0 |
 | Última revisão | 05/09/2026 |
 
 ---
 
-## 1. Esperando você
+## 1. Nada pendente
 
-### D31 — a remessa que nasce sem item
+**Não há nada esperando você.** A **D31** era a última, e foi aceita em 05/09/2026.
 
-**Implementação e revalidação técnica concluídas em 05/09/2026; revisão final e aceite do Owner
-ainda não registrados.** A escolha de corrigir o gerador e re-medir já foi autorizada; não está
-sendo pedida novamente. A pendência agora é o aceite da entrega conforme `CLAUDE.md` §5/§7.
+### D31 — encerrada
+
+A remessa que nascia sem item: 91 das 3.647, todas em pedidos divididos, porque o repartidor do
+gerador dava zero unidades ao primeiro lote quando cada item do pedido tinha quantidade 1.
 
 | | |
 |---|---|
-| **Código entregue** | `522a8fc`: gerador e testes em memória; `04a824a`: descarte conferido do estado do streaming; `e5ff5ca`: teste dbt bloqueante |
-| **Evidências** | [Qualidade](qualidade_de_dados.md#43-a-entrega-e-a-primeira-quarentena-fora-do-legado): remessas e P13; [Streaming §7.2](streaming.md#72-revalidação-da-d31): conteúdos, saldo, duplicatas, alertas e incremental; [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026): volumes, tempos e DAG |
-| **O que revisar** | Comentário da probabilidade em `geracao.yml` (valor inalterado), invariante 13 no Modelo de Dados, severidade do teste dbt e procedimento destrutivo restrito; revisão integral do declarativo e amostragem do derivado |
-| **Enquanto não vem** | Correção permanece aplicada e testes bloqueantes; não repetir a reconstrução por padrão. Não declarar aceite nem iniciar a Etapa 10 |
+| **Decisão** | Corrigir o gerador e re-medir, entre as três alternativas apresentadas |
+| **Código** | `522a8fc` gerador e testes · `04a824a` descarte conferido do estado do streaming · `e5ff5ca` teste dbt bloqueante · `1e6da99` re-medição publicada |
+| **Resultado** | Nenhuma remessa sem item; P13 e `trusted.shipments` reconciliam em 3.166 dos dois lados, contra 3.141 e 3.221 antes; `dbt build` com `WARN=0` |
+| **Regra que impede a volta** | [Invariante 13](modelo_de_dados.md#4-invariantes-de-negócio) — toda remessa contém ao menos um item —, com teste bloqueante |
+| **Evidências** | [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026) · [Streaming §7.2](streaming.md#72-revalidação-da-d31) · [Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming) |
 
-Nenhum ADR novo foi necessário; os aceitos não foram reescritos. Após a revisão, registrar o aceite,
-retirar D31 dos índices pendentes e remover seu encaminhamento no mesmo commit. A autorização para
-executar não foi tratada como evidência de que essa revisão já ocorreu.
+**O que ela ensinou, e vale além dela:** regerar a origem com o caminho quente de pé corrompia em
+silêncio — 2.246 movimentos órfãos e 13.626 chaves com payload diferente antes do descarte do
+estado —, porque nenhum alvo limpava o destino do *streaming* e o `staging` desempata em favor dele.
+O procedimento reproduzível nasceu daí.
+
+Nenhum ADR novo foi necessário, e nenhum aceito foi reescrito: a re-medição entrou como execução
+nova, ao lado das históricas.
 
 ---
 
 ## 2. O que já foi fechado
 
-**Fora a D31, não há nada esperando você.** As decisões de abertura das Etapas 8 e 9 foram fechadas
+As decisões de abertura das Etapas 8 e 9 foram fechadas
 no mesmo dia em que foram levantadas, em 05/09/2026: o grão em que a entrega é medida
 ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)), a procedência da data realizada
 ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)), o escopo do inventário dimensional
@@ -93,10 +99,10 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 
 ## 4. Do lado do assistente
 
-Nenhuma execução técnica da D31 pendente. Os resultados estão publicados nos donos documentais e
-o estado anterior dos processos foi restabelecido: DAG despausada, serviços de pé, sem produtor ou
-Beam/Prism no host. A transição para a Etapa 10 aguarda o aceite acima e as decisões próprias daquele
-corte; sua implementação não fez parte desta entrega.
+Nada pendente. A D31 está encerrada, os resultados publicados nos donos documentais e o estado
+anterior dos processos restabelecido: DAG despausada, serviços de pé, sem produtor ou Beam/Prism no
+host. A Etapa 10 está encaminhada e ainda não iniciada; as decisões próprias daquele corte serão
+levantadas quando ele começar.
 
 ---
 

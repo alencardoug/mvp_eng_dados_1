@@ -78,14 +78,14 @@ decisão.
 
 ## 3. Decisões pendentes
 
-| # | Decisão | Levantada em | Efeito de não decidir |
-|---|---|---|---|
-| **D31** | Aceitar a entrega após revisão final; a escolha de corrigir o gerador já foi autorizada | Etapa 8; conserto e revalidação técnica em 05/09/2026 | O encerramento formal e a passagem à Etapa 10 aguardam a revisão do Owner, não uma nova decisão sobre corrigir |
+**Nenhuma.** A última foi a D31 — a remessa que nascia sem item —, fechada em 05/09/2026: o
+Owner autorizou corrigir o gerador e re-medir, a correção foi executada e revalidada, e o aceite
+está registrado nas [Pendências](../pendencias.md). O conserto **não** exigiu ADR novo, e nenhum
+ADR aceito foi reescrito — a re-medição foi registrada como execução nova, ao lado das históricas.
 
-D31 nasceu de remessas sem item no gerador. O Owner autorizou corrigir e re-medir; o conserto não
-exigiu novo ADR. A implementação, a reconstrução dos dois caminhos e as validações já foram
-executadas. O teste dbt agora é bloqueante. O [registro da entrega e do aceite ainda pendente](../pendencias.md#d31--a-remessa-que-nasce-sem-item)
-aponta para as evidências permanentes, sem substituir as medições históricas dos ADRs aceitos.
+Ela é a única `Dnn` do projeto que não nasceu de uma escolha de arquitetura, e sim de um achado: um
+defeito encontrado ao construir a Etapa 8 e que só virou decisão porque consertá-lo custava refazer
+medições já publicadas.
 
 As decisões de abertura das Etapas 8 e 9 foram fechadas no mesmo dia em que foram levantadas, por
 interrogatório: em que grão a entrega é medida, quando o pedido se divide em duas remessas

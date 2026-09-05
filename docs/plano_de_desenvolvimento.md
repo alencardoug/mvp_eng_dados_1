@@ -154,7 +154,7 @@ Resultados nos donos documentais: [Qualidade](qualidade_de_dados.md),
 [Streaming §7.2](streaming.md#72-revalidação-da-d31) e
 [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026).
 As tabelas das etapas abaixo preservam seus cortes históricos; não são a medição pós-D31.
-O [aceite do Owner](pendencias.md#d31--a-remessa-que-nasce-sem-item) permanece explícito antes
+O [aceite do Owner](pendencias.md#d31--encerrada) foi registrado em 05/09/2026, antes
 do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 5 — Corte 1: núcleo comercial · **M3**

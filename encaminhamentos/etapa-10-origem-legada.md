@@ -6,7 +6,7 @@
 >
 > **Estado em 05/09/2026:** implementação e medições ainda não executadas.
 >
-> **Pré-requisito de execução:** a [D31](../docs/pendencias.md#d31--a-remessa-que-nasce-sem-item)
+> **Pré-requisito de execução:** a [D31](../docs/pendencias.md#d31--encerrada)
 > aceita pelo Owner. A implementação e a revalidação técnica já foram executadas nos commits
 > `522a8fc`, `04a824a` e `e5ff5ca`, com resultados nos documentos permanentes; falta registrar a
 > revisão final. Não repetir a reconstrução como etapa de leitura deste plano.
