@@ -12,7 +12,7 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.6 |
+| Versão | 2.7 |
 | Situação | Vigente. Origem transacional (Etapa 4) e ingestão (Etapa 5) **medidas**; as demais camadas, não |
 | Última revisão | 05/09/2026 |
 
@@ -106,21 +106,26 @@ simultaneamente de pé. A primeira coluna é a medição da Etapa 5, com 12 flux
 segunda é a da Etapa 6, com 27; a terceira é a da Etapa 8, com 30 e uma tarefa a mais — a
 quarentena, que estreou como camada.
 
-| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 |
-|---|---:|---:|---:|
-| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s |
-| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s |
-| `dbt_quarantine` | — | — | 7 s |
-| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s |
-| `dbt_docs` | 13 s | 16 s | 13 s |
-| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** |
-| **Tarefas** | 8 | 8 | 9 |
+| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 | Etapa 9 |
+|---|---:|---:|---:|---:|
+| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s | 1 min 31 s |
+| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s | 16 s · 16 s · 12 s |
+| `dbt_quarantine` | — | — | 7 s | 7 s |
+| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s | 8 s · 20 s · 9 s |
+| `dbt_docs` | 13 s | 16 s | 13 s | 16 s |
+| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** | **3 min 21 s** |
+| **Tarefas** | 8 | 8 | 9 | 9 |
 
 Dobrar o número de fluxos e passar de 36 para 53 modelos custou **19 segundos** entre as Etapas 5 e
 6. A Etapa 8 acrescentou três fluxos de ingestão, catorze modelos, uma *seed* e a camada
-`quarantine`, e custou **13 segundos** sobre a Etapa 6. O que domina continua sendo a sincronização,
-não a transformação: ela é 47% do tempo total da execução, e é ela que o caminho quente da Etapa 7
-tira do caminho crítico do estoque.
+`quarantine`, e custou **13 segundos** sobre a Etapa 6. A Etapa 9 acrescentou seis fluxos, dezoito
+modelos, dois *snapshots* SCD tipo 2 e mais uma *seed*, e **não custou nada** — 4 segundos a menos,
+dentro da variação entre execuções.
+
+É a evidência do que as três medições vinham sugerindo: o que domina é a **sincronização**, não a
+transformação. Ela é 45% do tempo total, e o `dbt` inteiro — 485 objetos, 371 testes — roda em menos
+de 30 segundos. Foi essa proporção que o caminho quente da Etapa 7 atacou, tirando o estoque do
+caminho crítico.
 
 Memória com o *batch* de pé — três bancos, cluster do Airbyte e os quatro contêineres do Airflow:
 cerca de **6 GB**. Com o caminho quente junto, o número da Etapa 7 é **8 GB** (§2.4).

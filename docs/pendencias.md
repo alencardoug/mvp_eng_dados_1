@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 9 — Corte 5: relacionamento e histórico |
+| Etapa atual | Etapa 10 — Corte 6: origem legada |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 |
 | Última revisão | 05/09/2026 |
@@ -50,8 +50,9 @@ nos
 [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md). Todas por interrogatório com alternativas.
 
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
-**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 8
-foram entregues, e a próxima é a **Etapa 9 — Corte 5: relacionamento e histórico**.
+**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 9
+foram entregues — o modelo dimensional está completo e as 16 perguntas de negócio têm view —, e a
+próxima é a **Etapa 10 — Corte 6: origem legada**.
 
 O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
 [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a
@@ -92,7 +93,7 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 ## 4. Do lado do assistente
 
 Nada pendente. Cada ADR foi registrado com os índices e os documentos afetados atualizados na mesma
-entrega. O trabalho prossegue na Etapa 9.
+entrega. O trabalho prossegue na Etapa 10.
 
 ---
 

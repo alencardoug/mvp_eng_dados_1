@@ -11,7 +11,7 @@
 |---|---|
 | Domínio | Marketplace de varejo *omnichannel* |
 | Consumido por | dbt, via blocos `docs … enddocs` |
-| Situação | 16 perguntas de negócio; 14 conceitos escritos até a Etapa 8 |
+| Situação | 16 perguntas de negócio; 16 conceitos, e a lista fechada |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -79,11 +79,17 @@ O diretório é declarado em `docs-paths` no `dbt_project.yml`.
 | [Entrega no prazo](entrega_no_prazo.md) | View de consumo de P13, `fact_shipment_item` | 8 | **Escrito** |
 | [Prazo prometido](entrega_no_prazo.md) | `shipments`, `dim_carrier` | 8 | **Escrito** |
 | [Ciclo de entrega](ciclo_de_entrega.md) | View de consumo de P14 | 8 | **Escrito** |
-| Churn | `dim_customer` | 9 | A escrever |
-| Recompra pós-atendimento | `fact_support_ticket_event` | 9 | A escrever |
+| [Churn](churn.md) | `dim_customer` | 9 | **Escrito** |
+| [Recompra pós-pedido](recompra_pos_pedido.md) | View de consumo de P16 | 9 | **Escrito** |
 
-O arquivo de ruptura carrega também **saldo disponível**, porque os dois são a mesma medida vista de
-dois ângulos e separá-los faria o leitor abrir dois arquivos para entender um conceito.
+Dois arquivos carregam mais de um bloco, pelo mesmo motivo nos dois casos: o de ruptura carrega
+**saldo disponível**, e o de entrega no prazo carrega **prazo prometido**. São medidas que só fazem
+sentido uma ao lado da outra, e separá-las faria o leitor abrir dois arquivos para entender um
+conceito.
+
+*Recompra pós-atendimento* estava previsto aqui e não foi escrito com esse nome: o
+[ADR-0036](../adr/0036-recompra-ancorada-no-pedido.md) mudou a âncora da medida do chamado para o
+pedido, e com ela o nome — é a [recompra pós-pedido](recompra_pos_pedido.md) acima.
 
 Cada definição é escrita na etapa em que o modelo correspondente é construído — nunca depois.
 

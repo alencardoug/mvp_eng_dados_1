@@ -12,7 +12,7 @@
 |---|---|
 | Método | Perguntas antes do SQL ([ADR-0018](../adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
 | Quantidade | 16 |
-| Situação | **P01 a P14** com view construída; P15 e P16 na Etapa 9 |
+| Situação | **As 16 com view construída**, todas com `contract: enforced` |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -246,6 +246,18 @@ remessa ([ADR-0034](../adr/0034-entrega-do-livro-de-eventos.md)).
 
 ## 6. Relacionamento e atendimento — Etapa 9
 
+As duas últimas, e as duas que combinam a fato de atendimento com a de vendas por *drill across* —
+nenhuma das duas está no grão da resposta, e cada uma é reduzida ao seu antes de se encontrarem.
+
+**P15 tem denominador de canal, não de categoria.** Pedido não tem categoria de chamado, e a coluna
+se chama `channel_order_count` para dizer isso: ela se repete em cada linha de categoria.
+
+**P16 mudou de âncora.** Os 90 dias correm do **pedido**, não da estreia do cliente
+([ADR-0036](../adr/0036-recompra-ancorada-no-pedido.md)), porque é o que dá aos dois grupos
+comparados a mesma janela. O conceito correspondente é
+[recompra pós-pedido](recompra_pos_pedido.md), que **não** é a recompra de P04: aquela conta
+clientes de uma coorte de estreia, esta conta pedidos.
+
 ### P15 — Quantos chamados por 100 pedidos, por categoria de chamado e canal, mês a mês?
 
 | | |
@@ -260,11 +272,13 @@ remessa ([ADR-0034](../adr/0034-entrega-do-livro-de-eventos.md)).
 | | |
 |---|---|
 | **Fatos** | `fact_support_ticket_event` · `fact_sales_order_item` |
-| **Medidas** | `customer_count` (aditiva) · `repeat_purchase_rate_90d` (**não aditiva**) |
-| **Dimensões** | `dim_date` · `dim_customer` · `dim_support_category` |
+| **Medidas** | `order_count` (aditiva) · `repeat_order_count` (aditiva) · `repeat_purchase_rate` (**não aditiva**) |
+| **Dimensões** | `dim_date` · `dim_sales_channel` · `dim_support_category` |
 | **View** | `repeat_purchase_rate_after_support` |
 
-Depende dos conceitos de *churn* e de *recompra pós-atendimento*, escritos na Etapa 9.
+A unidade é o **pedido**, não o cliente: é o que permite comparar quem abriu chamado com quem não
+abriu sob a mesma âncora. Depende de [recompra pós-pedido](recompra_pos_pedido.md) e de
+[churn](churn.md), escritos na Etapa 9.
 
 ---
 

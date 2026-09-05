@@ -11,6 +11,30 @@ with pedidos as (
 
 ),
 
+-- ── Recompra pós-pedido (ADR-0036) ──────────────────────────────────────────
+-- Depois deste pedido, o cliente fez outro em até 90 dias? A âncora é o pedido,
+-- não a estreia do cliente: é o que permite comparar pedidos que geraram
+-- chamado com pedidos que não geraram, com a mesma janela dos dois lados.
+--
+-- Só pedido **realizado** entra, dos dois lados da conta. Pedido cancelado não
+-- é compra, e contá-lo como retorno diria que o cliente voltou quando ele
+-- desistiu.
+--
+-- Este é um conceito **diferente** da recompra de P04, que conta clientes de
+-- uma coorte de estreia. Os dois nunca se somam.
+recompra as (
+
+    select
+        order_id,
+        customer_id,
+        placed_at,
+        lead(placed_at) over (partition by customer_id order by placed_at, order_id)
+                                                as next_order_at
+    from {{ ref('stg_retail__orders') }}
+    where order_status in ('paid', 'picking', 'shipped', 'delivered', 'returned')
+
+),
+
 itens as (
 
     select
@@ -54,8 +78,30 @@ select
     p.order_status in ('paid', 'picking', 'shipped', 'delivered', 'returned')
                                             as is_realised,
 
+    -- ── Recompra pós-pedido, no grão do pedido (ADR-0036) ───────────────────
+    r.next_order_at,
+    case
+        when r.next_order_at is not null
+        then extract(epoch from r.next_order_at - p.placed_at) / 86400.0
+    end::numeric(12, 4)                     as days_to_next_order,
+
+    -- A janela fecha 90 dias depois do pedido. Enquanto ela está aberta, o
+    -- pedido **não** tem resposta: incluí-lo como "não houve recompra" faria a
+    -- taxa dos meses recentes cair sozinha, sem que nada tivesse acontecido.
+    p.placed_at + interval '{{ var("repeat_purchase_window_days") }} days'
+        <= timestamptz '{{ var("as_of_date") }} 00:00-03'
+                                            as is_repeat_window_closed,
+    case
+        when p.placed_at + interval '{{ var("repeat_purchase_window_days") }} days'
+             <= timestamptz '{{ var("as_of_date") }} 00:00-03'
+        then r.next_order_at is not null
+             and r.next_order_at <= p.placed_at
+                 + interval '{{ var("repeat_purchase_window_days") }} days'
+    end                                     as has_post_order_repeat,
+
     p.is_deleted,
     p.source_created_at,
     p.source_updated_at
 from pedidos p
 left join itens i on i.order_id = p.order_id
+left join recompra r on r.order_id = p.order_id

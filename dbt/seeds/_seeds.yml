@@ -47,3 +47,28 @@ seeds:
         data_tests:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, '']
+
+  - name: support_categories
+    description: >
+      As seis categorias de chamado, com nome legível e agrupamento. É a fonte
+      de `dim_support_category`, que é **derivada**: a origem não tem tabela
+      para ela — a lista vive no `CHECK` de `support_tickets.category`, e um
+      `CHECK` não guarda nome de exibição nem agrupamento.
+
+      Um `pytest` confere que esta lista e o modelo transacional declaram as
+      mesmas seis. Se a origem ganhar uma sétima, o teste avisa antes de a
+      dimensão perder uma linha em silêncio.
+    config:
+      column_types:
+        category_code: varchar(20)
+    columns:
+      - name: category_code
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: [delivery, payment, product, return, account, other]
+      - name: category_name
+        data_tests: [not_null]
+      - name: category_group
+        data_tests: [not_null]

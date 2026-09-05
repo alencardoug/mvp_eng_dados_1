@@ -11,8 +11,9 @@
 -- significados diferentes; misturá-las numa só faria a taxa de pontualidade de
 -- um mês incluir remessas que chegaram no seguinte.
 --
--- `delivered_date_key` é **nulo** enquanto a remessa não chega, e essa é a
--- única chave de dimensão nula do datamart. A alternativa habitual — o membro
+-- `delivered_date_key` é **nulo** enquanto a remessa não chega — a segunda
+-- chave de dimensão nula do datamart, ao lado de `fact_cart_event.customer_key`,
+-- que é nula em sessão anônima. A alternativa habitual — o membro
 -- desconhecido do `chave_desconhecida()` — não serve aqui: `dim_date` é gerada
 -- da série de datas e não tem linha para "ainda não aconteceu", e inventar uma
 -- criaria uma data que nenhum calendário contém. O nulo aqui significa *evento

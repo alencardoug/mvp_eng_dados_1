@@ -45,6 +45,8 @@ select
     a.lifetime_net_revenue_amount,
     a.is_active,
     a.is_repeat_buyer,
+    a.is_churned,
+    a.days_since_last_order,
 
     -- ── Tipo 2: classificam a venda no instante em que ela aconteceu ────────
     v.customer_status,

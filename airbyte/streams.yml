@@ -21,9 +21,9 @@ versao: 1
 origem: retail
 schema: oltp
 
-# Etapas 5 a 8 — núcleo comercial, financeiro, estoque e entrega. Os demais
-# fluxos entram na etapa que os consome: ingerir tabela que nenhum modelo lê é
-# volume sem consumidor.
+# Etapas 5 a 9 — núcleo comercial, financeiro, estoque, entrega e
+# relacionamento. Cada tabela entra na etapa que a consome: ingerir tabela que
+# nenhum modelo lê é volume sem consumidor.
 tabelas:
 
   # ── Domínio fechado: pequeno, estável, sem cursor que compense ─────────────
@@ -67,6 +67,15 @@ tabelas:
     modo: append
     cursor: created_at
   order_status_history:
+    modo: append
+    cursor: created_at
+  # Etapa 9. `coupon_redemptions` tem índice único por `order_id` na origem — um
+  # cupom por pedido —, e `ticket_events` é o rastro do chamado. Ambas
+  # `AppendOnlyMixin`.
+  coupon_redemptions:
+    modo: append
+    cursor: created_at
+  ticket_events:
     modo: append
     cursor: created_at
   # ── Deixou de ser incremental na Etapa 7 ────────────────────────────────
@@ -160,6 +169,27 @@ tabelas:
     cursor: updated_at
     chave: [id]
   shipment_items:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+
+  # ── Marketing e atendimento (Etapa 9) ─────────────────────────────────────
+  # `support_agents` são 42 linhas e ainda assim `dedup_history`: a dimensão
+  # dele é SCD tipo 2, e carga completa não deixa histórico para historizar.
+  # Tamanho não é o critério do ADR-0015 — mutabilidade é.
+  campaigns:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  coupons:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  support_agents:
+    modo: dedup_history
+    cursor: updated_at
+    chave: [id]
+  support_tickets:
     modo: dedup_history
     cursor: updated_at
     chave: [id]

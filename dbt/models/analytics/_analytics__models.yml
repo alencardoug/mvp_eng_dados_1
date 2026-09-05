@@ -67,13 +67,17 @@ models:
         data_tests: [unique, not_null]
 
   - name: dim_sales_channel
+    description: >
+      Canal de venda. Carrega um membro "Sem canal" desde a Etapa 9: chamado que
+      não nasce de pedido não tem canal, e a alternativa seria chave nula na
+      fato — que some de todo recorte em vez de aparecer agrupada.
     columns:
       - name: sales_channel_key
         data_tests: [unique, not_null]
       - name: channel_type
         data_tests:
           - accepted_values:
-              values: [web, app, store]
+              values: [web, app, store, unknown]
 
   - name: dim_geography
     description: >
@@ -327,10 +331,10 @@ models:
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: delivered_date_key
         description: >
-          Data de **chegada**. Única chave de dimensão nula do datamart, e o
-          nulo significa *ainda não chegou* — o motivo está no cabeçalho do
-          modelo. Sem `not_null` por isso; o `relationships` continua valendo
-          para as linhas preenchidas.
+          Data de **chegada**. Nula enquanto a remessa não chega, e o nulo
+          significa *ainda não chegou* — o motivo está no cabeçalho do modelo.
+          Sem `not_null` por isso; o `relationships` continua valendo para as
+          linhas preenchidas.
         data_tests:
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: carrier_key
@@ -410,4 +414,158 @@ models:
         description: '**Não aditiva** — tempo no estado de origem; soma dentro do pedido, nunca entre pedidos.'
       - name: transition_count
         description: '**Aditiva** — sempre 1, para que a contagem seja uma soma explícita.'
+        data_tests: [not_null]
+
+  # ── Etapa 9 — relacionamento e histórico ───────────────────────────────────
+  - name: dim_campaign
+    description: Campanha e objetivo. SCD tipo 1 — o objetivo é fixado na criação e não muda.
+    columns:
+      - name: campaign_key
+        data_tests: [unique, not_null]
+      - name: campaign_natural_key
+        data_tests: [unique, not_null]
+      - name: campaign_objective
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [acquisition, retention, reactivation, clearance]
+
+  - name: dim_support_category
+    description: >
+      Categoria de chamado — **derivada** de uma *seed*, porque a origem só tem
+      a lista dentro de um `CHECK` e uma dimensão precisa de nome legível e de
+      agrupamento.
+    columns:
+      - name: support_category_key
+        data_tests: [unique, not_null]
+      - name: support_category_natural_key
+        data_tests: [unique, not_null]
+      - name: support_category_name
+        data_tests: [not_null]
+
+  - name: dim_coupon
+    description: >
+      Cupom. SCD tipo 2 no padrão misto: campanha e regra de desconto
+      historizadas, uso acumulado corrente. `redemption_count` **não** entra nas
+      `check_cols` do *snapshot* — cada resgate criaria uma versão, e a dimensão
+      teria mais linhas que a fato que ela recorta.
+    data_tests:
+      - vigencias_sem_sobreposicao:
+          chave_natural: coupon_natural_key
+    columns:
+      - name: coupon_key
+        data_tests: [unique, not_null]
+      - name: coupon_natural_key
+        data_tests: [not_null]
+      - name: discount_type
+        data_tests:
+          - not_null
+          - accepted_values: {values: [percentage, fixed]}
+      - name: is_deleted
+        data_tests: [not_null]
+
+  - name: dim_support_agent
+    description: >
+      Agente. SCD tipo 2 pela **equipe**, que classifica o chamado. Carrega o
+      membro desconhecido: `ticket_events.agent_id` é nulo quando o autor é o
+      cliente.
+    data_tests:
+      - vigencias_sem_sobreposicao:
+          chave_natural: support_agent_natural_key
+    columns:
+      - name: support_agent_key
+        data_tests: [unique, not_null]
+      - name: support_agent_natural_key
+        data_tests: [not_null]
+      - name: agent_team
+        data_tests: [not_null]
+      - name: is_deleted
+        data_tests: [not_null]
+
+  - name: fact_coupon_redemption
+    description: >
+      **Grão: um uso de cupom**, um por pedido. Duas âncoras temporais de
+      propósito — o cupom pela versão do **resgate**, o cliente pela versão da
+      **venda**, que é a mesma de `fact_sales_order_item`.
+    columns:
+      - name: coupon_redemption_key
+        data_tests: [unique, not_null]
+      - name: coupon_redemption_id
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: Único — um cupom por pedido.
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: coupon_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_coupon'), field: coupon_key}
+      - name: campaign_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_campaign'), field: campaign_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: sales_channel_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: is_eligible
+        description: As três condições da invariante 12 juntas — vigência, piso e teto.
+        data_tests: [not_null]
+      - name: coupon_discount_amount
+        description: '**Aditiva** — desconto efetivamente concedido.'
+        data_tests: [not_null]
+
+  - name: fact_support_ticket_event
+    description: >
+      **Grão: um evento de um chamado.** Contar chamados aqui exige
+      `count(distinct support_ticket_id)`; `event_count` é o que se soma.
+    columns:
+      - name: support_ticket_event_key
+        data_tests: [unique, not_null]
+      - name: ticket_event_id
+        data_tests: [unique, not_null]
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_key}
+      - name: support_category_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_support_category'), field: support_category_key}
+      - name: support_agent_key
+        description: Membro desconhecido quando o autor do evento é o cliente.
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_support_agent'), field: support_agent_key}
+      - name: sales_channel_key
+        description: Membro desconhecido quando o chamado não nasceu de um pedido.
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
+      - name: geography_key
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: ticket_event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [created, assigned, message, status_changed, resolved, reopened]
+      - name: event_count
+        description: '**Aditiva** — sempre 1, para que a contagem de eventos seja uma soma explícita.'
         data_tests: [not_null]

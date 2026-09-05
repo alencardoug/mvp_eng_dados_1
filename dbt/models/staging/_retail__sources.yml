@@ -4,9 +4,10 @@ sources:
   - name: retail
     description: >
       Réplica das tabelas de `oltp` no schema `raw`, escrita pelo Airbyte. Cobre
-      os cortes comercial (Etapa 5), financeiro e de estoque (Etapa 6) e de
-      entrega (Etapa 8); os demais domínios entram na etapa que os consome —
-      ingerir tabela que nenhum modelo lê é volume sem consumidor.
+      os cortes comercial (Etapa 5), financeiro e de estoque (Etapa 6), de
+      entrega (Etapa 8) e de relacionamento (Etapa 9). Cada tabela entra na
+      etapa que a consome — ingerir tabela que nenhum modelo lê é volume sem
+      consumidor.
     database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
     schema: raw
     loader: airbyte
@@ -57,6 +58,12 @@ sources:
       - name: shipments
       - name: shipment_items
 
+      # ── Marketing e atendimento (Etapa 9) ───────────────────────────────
+      - name: campaigns
+      - name: coupons
+      - name: support_agents
+      - name: support_tickets
+
       # ── Estoque (Etapa 6) ───────────────────────────────────────────────
       - name: warehouses
       - name: inventory_balances
@@ -74,6 +81,14 @@ sources:
         description: >
           Uma linha por transição de estado do pedido. Grão de
           `fact_order_status_event`.
+      - name: coupon_redemptions
+        description: >
+          Uso efetivo de cupom, um por pedido. Grão de
+          `fact_coupon_redemption`.
+      - name: ticket_events
+        description: >
+          Rastro do chamado — criação, atribuição, mensagem, mudança de estado,
+          resolução e reabertura. Grão de `fact_support_ticket_event`.
 
       # `inventory_movements` deixou de ser ingerido por acréscimo na Etapa 7: o
       # caminho oficial passou a ser o CDC, e o Airbyte ficou com carga completa

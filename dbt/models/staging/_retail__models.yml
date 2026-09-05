@@ -268,3 +268,110 @@ models:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: changed_at
         data_tests: [not_null]
+
+  # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
+  - name: stg_retail__campaigns
+    columns:
+      - name: campaign_id
+        data_tests: [unique, not_null]
+      - name: campaign_code
+        data_tests: [unique, not_null]
+      - name: campaign_objective
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [acquisition, retention, reactivation, clearance]
+
+  - name: stg_retail__coupons
+    description: >
+      Cupons com as três condições que a invariante 12 verifica: vigência, piso
+      do pedido e teto de resgates. Nulo em `min_order_amount` é *sem piso*; em
+      `max_redemptions`, *sem teto*.
+    columns:
+      - name: coupon_id
+        data_tests: [unique, not_null]
+      - name: coupon_code
+        data_tests: [unique, not_null]
+      - name: campaign_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__campaigns')
+              field: campaign_id
+      - name: discount_type
+        data_tests:
+          - not_null
+          - accepted_values: {values: [percentage, fixed]}
+
+  - name: stg_retail__coupon_redemptions
+    description: Um resgate por pedido, garantido por índice único na origem.
+    columns:
+      - name: coupon_redemption_id
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: Único — dois cupons no mesmo pedido tornariam o rateio do desconto ambíguo.
+        data_tests: [unique, not_null]
+      - name: coupon_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__coupons')
+              field: coupon_id
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__customers')
+              field: customer_id
+
+  - name: stg_retail__support_agents
+    columns:
+      - name: support_agent_id
+        data_tests: [unique, not_null]
+      - name: agent_code
+        data_tests: [unique, not_null]
+      - name: agent_team
+        data_tests: [not_null]
+
+  - name: stg_retail__support_tickets
+    description: >
+      Chamados. `order_id` é nulo em parte deles — nem todo contato nasce de um
+      pedido —, e é esse nulo que os exclui da comparação de P16 (ADR-0036).
+    columns:
+      - name: support_ticket_id
+        data_tests: [unique, not_null]
+      - name: ticket_number
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__customers')
+              field: customer_id
+      - name: ticket_category
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [delivery, payment, product, return, account, other]
+      - name: ticket_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [open, in_progress, waiting_customer, resolved, closed]
+
+  - name: stg_retail__ticket_events
+    description: '`support_agent_id` nulo é autor **cliente**, não dado faltando.'
+    columns:
+      - name: ticket_event_id
+        data_tests: [unique, not_null]
+      - name: support_ticket_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_retail__support_tickets')
+              field: support_ticket_id
+      - name: ticket_event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [created, assigned, message, status_changed, resolved, reopened]

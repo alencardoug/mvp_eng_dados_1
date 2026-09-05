@@ -70,18 +70,18 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 9 — Corte 5: relacionamento e histórico.** Termo aprovado (**M0**), decisões em ADR
-(**M1**), ambiente subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em
-operação (**M3**) e **streaming em operação com o *batch* intacto** (**M4**).
+**Etapa 10 — Corte 6: origem legada.** Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
+subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
+**streaming em operação com o *batch* intacto** (**M4**).
 
-Quatro cortes verticais entregues — comercial, financeiro e estoque, o caminho quente e agora
-entrega e logística. O armazém tem **30 fluxos de ingestão em lote** mais o **CDC de
-`inventory_movements`**, e o `dbt build` constrói **350 objetos** — 349 verdes e **um aviso**, que
-é a D31 mostrando as 91 remessas sem item a cada execução —, dos quais **259 testes de qualidade**.
-As **catorze primeiras perguntas de negócio** têm view com contrato aplicado. A DAG
-`fluxo_batch` roda **nove tarefas** de ponta a ponta em **3 min 25 s** — a nona é a `quarantine`,
-que estreou como camada na Etapa 8. Uma decisão [pendente](docs/pendencias.md): a **D31**, sobre a
-remessa que nasce sem item.
+Cinco cortes verticais entregues — comercial, financeiro e estoque, o caminho quente, entrega e
+logística, e relacionamento. **O modelo dimensional está completo: 10 fatos e 15 dimensões, e as 16
+perguntas de negócio têm view com `contract: enforced`.** O armazém tem **36 fluxos de ingestão em
+lote** mais o **CDC de `inventory_movements`**, e o `dbt build` constrói **485 objetos** — 484
+verdes e **um aviso**, que é a D31 mostrando as 91 remessas sem item a cada execução —, dos quais
+**371 testes de qualidade**. A DAG `fluxo_batch` roda **nove tarefas** de ponta a ponta em
+**3 min 21 s**. Uma decisão [pendente](docs/pendencias.md): a **D31**, sobre a remessa que nasce sem
+item.
 
 O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
 carga completa do Airbyte —, com sobreposição total e de propósito: **15.446 movimentos distintos,

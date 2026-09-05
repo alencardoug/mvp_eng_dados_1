@@ -13,7 +13,7 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.4 |
+| Versão | 1.5 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
 | Última revisão | 05/09/2026 |
 
@@ -585,9 +585,11 @@ calculada, e não pelo custo de compra: o custo do movimento não muda quando o 
 **`fact_shipment_item` tem duas datas em papéis diferentes.** `date_key` é o **despacho** — o
 momento que cria o fato — e `delivered_date_key` é a **chegada**, que é por onde P13 conta entregas
 mês a mês. Uma remessa que saiu em janeiro e chegou em fevereiro é entrega de fevereiro, e uma única
-data não conseguiria dizer isso. `delivered_date_key` é a única chave de dimensão **nula** do
-datamart, e o nulo significa *ainda não chegou*: `dim_date` não tem membro para evento futuro, e
-inventar um criaria data que nenhum calendário contém.
+data não conseguiria dizer isso. `delivered_date_key` é **nula** enquanto a remessa não chega, e o
+nulo significa *ainda não chegou*: `dim_date` não tem membro para evento futuro, e inventar um
+criaria data que nenhum calendário contém. É a segunda chave de dimensão nula do datamart — a outra
+é `fact_cart_event.customer_key`, nula em sessão anônima —, e as duas são a mesma decisão: nulo
+quando a ausência é **fato**, membro desconhecido quando é junção que falhou.
 
 A data de chegada vem do livro `delivery_events`, e não da coluna `shipments.delivered_at`
 ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)). A coluna continua carregada como
@@ -644,6 +646,20 @@ qual se juntar — a fato sai vazia. A primeira versão de cada chave natural pa
 
 Identificadores operacionais como `order_number`, `ticket_number` e `tracking_number` são mantidos
 nas respectivas fatos como **dimensões degeneradas**.
+
+**Três dimensões carregam membro desconhecido**, e sempre pelo mesmo critério: quando a fato não
+encontra par, a linha aterrissa nele em vez de ficar com chave nula — chave nula some de todo
+recorte, silenciosamente. `dim_geography` recebe o cliente sem endereço principal; `dim_support_agent`,
+o evento cujo autor é o **cliente**; e `dim_sales_channel`, o chamado que não nasceu de um pedido.
+
+O contrário — **nulo de propósito** — vale onde a ausência é um fato, e não uma junção que falhou:
+`fact_cart_event.customer_key` em sessão anônima, e `fact_shipment_item.delivered_date_key` enquanto
+a remessa não chega. A regra que separa os dois casos é essa, e é ela que decide qual usar.
+
+`dim_support_category` é a única dimensão **derivada** do modelo: a origem não tem tabela para ela —
+a lista vive no `CHECK` de `support_tickets.category` —, e nome de exibição e agrupamento não cabem
+num `CHECK`. Ela nasce da *seed* `support_categories`, com um `pytest` conferindo que as duas listas
+concordam.
 
 **Totais:** aproximadamente **1,34 milhão de linhas nas fatos** e **25.000 nas dimensões**, na
 proporção de referência — um décimo disso no fator `dev`.

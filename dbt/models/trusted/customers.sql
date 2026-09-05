@@ -102,6 +102,19 @@ select
             + interval '{{ var("repeat_purchase_window_days") }} days'
                                                         as is_repeat_buyer,
 
+    -- Glossário: **churn** é a perda de um cliente que já foi ativo. Exige as
+    -- duas metades — comprou alguma vez, e a janela de cliente ativo se fechou
+    -- sem compra nova. Quem nunca comprou não entrou, e por isso não saiu: é
+    -- cadastro sem conversão, que é outro problema e outra métrica.
+    p.first_order_at is not null
+        and p.last_order_at < {{ as_of }}
+            - interval '{{ var("active_customer_window_days") }} days'
+                                                        as is_churned,
+    case
+        when p.last_order_at is not null
+        then extract(epoch from {{ as_of }} - p.last_order_at) / 86400.0
+    end::numeric(12, 2)                                 as days_since_last_order,
+
     c.is_deleted,
     c.source_created_at,
     c.source_updated_at

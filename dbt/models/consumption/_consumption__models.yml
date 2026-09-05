@@ -482,3 +482,83 @@ models:
         data_type: numeric
       - name: max_order_to_delivery_days
         data_type: numeric
+
+  # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
+  - name: support_tickets_per_hundred_orders
+    description: >
+      P15 — Chamados por 100 pedidos, por categoria e canal, mês a mês. O mês é
+      o da **abertura** do chamado. `channel_order_count` é do canal e se repete
+      em cada categoria — o nome diz o grão, e somá-lo entre categorias
+      multiplica os pedidos. Há linha só onde houve chamado, e a taxa é nula no
+      canal "Sem canal", que não tem pedidos para servir de denominador.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: sales_channel_name
+        data_type: text
+      - name: channel_type
+        data_type: text
+      - name: support_category_name
+        data_type: text
+      - name: support_category_group
+        data_type: text
+      - name: ticket_count
+        data_type: bigint
+      - name: high_priority_ticket_count
+        data_type: bigint
+      - name: reopened_ticket_count
+        data_type: bigint
+      - name: solved_first_time_count
+        data_type: bigint
+      - name: channel_order_count
+        description: Denominador do **canal**, repetido em cada linha de categoria.
+        data_type: numeric
+      - name: tickets_per_hundred_orders
+        data_type: numeric
+      - name: avg_hours_to_resolution
+        description: '**Não aditiva** — média por chamado aberto no mês.'
+        data_type: numeric
+
+  - name: repeat_purchase_rate_after_support
+    description: >
+      P16 — Recompra em 90 dias depois do pedido, comparando pedidos que geraram
+      chamado com os que não geraram. {{ doc("post_order_repeat_purchase") }}
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: year_number
+        data_type: integer
+      - name: month_number
+        data_type: integer
+      - name: year_month
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: sales_channel_name
+        data_type: text
+      - name: has_support_ticket
+        description: A linha `false` é o grupo de comparação, uma por mês e canal.
+        data_type: boolean
+      - name: support_category_name
+        description: '"Sem chamado" no grupo de comparação.'
+        data_type: text
+      - name: order_count
+        description: >
+          Pedidos com janela fechada. Um pedido que gerou chamados de duas
+          categorias aparece nas duas linhas — somar entre categorias o conta
+          duas vezes.
+        data_type: bigint
+      - name: repeat_order_count
+        data_type: bigint
+      - name: repeat_purchase_rate
+        description: '{{ doc("post_order_repeat_purchase") }}'
+        data_type: numeric
+      - name: avg_days_to_next_order
+        description: '**Não aditiva** — média entre os que voltaram.'
+        data_type: numeric

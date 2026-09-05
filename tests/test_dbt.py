@@ -103,10 +103,10 @@ def test_toda_pergunta_com_view_construida_existe_como_modelo() -> None:
     perguntas = (RAIZ / "docs/glossario_de_negocio/perguntas_de_negocio.md").read_text(
         encoding="utf-8"
     )
-    # As perguntas até a Etapa 8 já viraram view; as da Etapa 9 estão
-    # declaradas e não devem existir ainda. A fronteira anda uma seção por
-    # etapa, e mover esta linha é parte de entregar a etapa.
-    construidas = perguntas.split("## 6. Relacionamento e atendimento")[0]
+    # A Etapa 9 fecha a lista: as dezesseis perguntas têm view construída, e a
+    # fronteira que andava uma seção por etapa chegou ao fim do documento.
+    # Pergunta nova daqui em diante nasce junto com a view que a responde.
+    construidas = perguntas
     declaradas = set(re.findall(r"\*\*View\*\* \| `([a-z0-9_]+)`", construidas))
     existentes = {p.stem for p in (DBT / "models/consumption").glob("*.sql")}
 
@@ -157,4 +157,28 @@ def test_transicoes_declaradas_batem_com_os_caminhos_do_gerador() -> None:
     assert declaradas == produzidas, (
         f"declaradas e nunca produzidas: {sorted(declaradas - produzidas)}; "
         f"produzidas e não declaradas: {sorted(produzidas - declaradas)}"
+    )
+
+
+def test_categorias_de_chamado_da_seed_batem_com_o_modelo() -> None:
+    """A *seed* de categorias e o modelo transacional declaram as mesmas seis.
+
+    `dim_support_category` é **derivada**: a origem não tem tabela para ela, só
+    a lista dentro de um `CHECK`. A *seed* acrescenta nome legível e
+    agrupamento, que é o que faz dela uma dimensão — e passa a ser um segundo
+    lugar onde a lista existe.
+
+    Se a origem ganhar uma sétima categoria, o `accepted_values` do `staging`
+    quebra, mas a dimensão apenas deixaria de ter a linha — e o chamado da
+    categoria nova sumiria do recorte sem que nada falhasse. Este teste é o que
+    avisa antes.
+    """
+    from mvp_ed1.models.support import TICKET_CATEGORIES
+
+    linhas = (DBT / "seeds/support_categories.csv").read_text(encoding="utf-8")
+    declaradas = {linha.split(",")[0] for linha in linhas.strip().splitlines()[1:]}
+
+    assert declaradas == set(TICKET_CATEGORIES), (
+        f"na seed e não no modelo: {sorted(declaradas - set(TICKET_CATEGORIES))}; "
+        f"no modelo e não na seed: {sorted(set(TICKET_CATEGORIES) - declaradas)}"
     )

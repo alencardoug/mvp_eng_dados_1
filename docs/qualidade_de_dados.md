@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.6 |
+| Versão | 1.7 |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -115,8 +115,10 @@ explícita — um teste não pode ser mais permissivo que o comando que ele test
   motivo escrito de por que elas não são `CHECK`: a 2 compara pedido com a soma dos itens, a 3 e a 4
   comparam eventos financeiros entre si, a 5 soma remessas do mesmo pedido, a 6 soma recebimentos,
   a 7 exige origem no movimento, a 8 confere a **direção** da diferença de reserva, a 9 confronta
-  cada transição observada com a lista de transições legais, e a 10 percorre a causalidade do ciclo
-  — pedido, despacho, coleta, entrega e devolução — nomeando na falha **qual** elo saiu de ordem;
+  cada transição observada com a lista de transições legais, a 10 percorre a causalidade do ciclo
+  — pedido, despacho, coleta, entrega e devolução — nomeando na falha **qual** elo saiu de ordem, e
+  a 12 verifica as três condições do cupom uma a uma, mais uma quarta que só apareceu construindo:
+  o desconto não pode passar do valor do pedido;
 - reconciliação de pedidos, pagamentos, estoque e remessas;
 - testes de atualidade dos dados;
 - documentação de fontes, modelos e colunas;
@@ -137,7 +139,24 @@ declarando a mesma máquina, e o `pytest` `test_transicoes_declaradas_batem_com_
 confere que concordam: regra que o gerador nunca produz é regra morta, e caminho que a regra não
 permite quebraria a invariante 9 no primeiro `build`.
 
-### 4.2 A entrega, e a primeira quarentena fora do legado
+### 4.2 Três regras em *seed*, e o espelho que as guarda
+
+A partir da Etapa 8, a regra que um teste verifica passou a viver em artefato declarativo, e não em
+`case` dentro de modelo. São três, e cada uma tem um `pytest` que confere a *seed* contra quem
+produz o dado — porque uma regra escrita em dois lugares só é útil enquanto os dois concordam:
+
+| *Seed* | Regra | Espelho conferido por `pytest` |
+|---|---|---|
+| `order_status_transitions` | Quais transições de estado do pedido são legais (invariante 9) | Os caminhos de estado do gerador |
+| `support_categories` | As seis categorias de chamado, com nome e agrupamento | O `CHECK` de `support_tickets.category` no modelo transacional |
+| `brazilian_states` | As 27 UFs e a região de cada uma | — dado de referência externo, sem produtor no projeto |
+
+É o mesmo arranjo de `as_of_date` e do ponto de reposição, pelo mesmo motivo: dois lugares precisam
+do valor e só um pode ser o dono. A diferença é que aqui o segundo lugar é uma **regra**, não um
+número, e a divergência não apareceria como falha — apareceria como uma categoria sumindo do recorte
+sem que nada quebrasse.
+
+### 4.3 A entrega, e a primeira quarentena fora do legado
 
 A data de entrega vem do livro `delivery_events`; `shipments.delivered_at` é conferência
 ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)). Três testes sustentam o arranjo:

@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.7 |
-| Etapa atual | **Etapa 9 — Corte 5: relacionamento e histórico** (**M0** a **M4** concluídos) |
+| Versão | 2.8 |
+| Etapa atual | **Etapa 10 — Corte 6: origem legada** (**M0** a **M4** concluídos) |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -210,6 +210,8 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 
 ### Etapa 9 — Corte 5: relacionamento e histórico
 
+*Concluída em 05/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Fechar o modelo dimensional e exercitar o histórico de atributos. |
@@ -217,8 +219,9 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 | **Entregas** | **E6**, **E7** (parciais) |
 | **Decisões** | Escopo do inventário dimensional ([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) · âncora da janela de P16 ([ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)) |
 | **Escopo** | Campanhas, cupons, atendimento · `fact_coupon_redemption`, `fact_support_ticket_event` · dimensões restantes e cenários SCD |
-| **Critérios de conclusão** | 10 fatos e 15 dimensões construídas ([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) · intervalos SCD tipo 2 sem sobreposição para a mesma chave natural · regras de elegibilidade de cupom testadas · glossário com churn e recompra pós-pedido definidos ([ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)) |
-| **Conceitos** | SCD tipo 2 em profundidade · dimensões derivadas e conformadas · métricas de relacionamento |
+| **Artefatos** | Seis fluxos de ingestão novos · seis modelos em `trusted` · `dim_campaign`, `dim_coupon`, `dim_support_agent`, `dim_support_category` · `fact_coupon_redemption` (600 linhas), `fact_support_ticket_event` (1.723) · *snapshots* `scd_coupon` e `scd_support_agent` · views `support_tickets_per_hundred_orders` e `repeat_purchase_rate_after_support` · *seed* `support_categories` |
+| **Critérios de conclusão** | 10 fatos e 15 dimensões construídas ✓ ([ADR-0035](adr/0035-aposentar-dimensoes-sem-pergunta.md)) · intervalos SCD tipo 2 sem sobreposição ✓ (quatro dimensões historizadas, `vigencias_sem_sobreposicao` em todas) · regras de elegibilidade de cupom testadas ✓ (invariante 12, quatro condições, 0 violações em 600 resgates) · glossário com churn e recompra pós-pedido definidos ✓ ([churn](glossario_de_negocio/churn.md), [recompra pós-pedido](glossario_de_negocio/recompra_pos_pedido.md), [ADR-0036](adr/0036-recompra-ancorada-no-pedido.md)) |
+| **Conceitos** | SCD tipo 2 em profundidade · dimensões derivadas e conformadas · métricas de relacionamento · *drill across* entre fatos de grãos diferentes · coorte de cliente contra coorte de evento |
 
 ### Etapa 10 — Corte 6: origem legada
 

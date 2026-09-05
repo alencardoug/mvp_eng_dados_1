@@ -64,6 +64,9 @@ vendas as (
         p.is_realised,
         p.is_cancelled,
         p.is_from_cart,
+        p.has_post_order_repeat,
+        p.is_repeat_window_closed,
+        p.days_to_next_order,
         cast(p.placed_at at time zone 'America/Sao_Paulo' as date) as order_date
     from itens i
     join pedidos p on p.order_id = i.order_id
@@ -94,6 +97,19 @@ select
     v.is_realised,
     v.is_cancelled,
     v.is_from_cart,
+
+    -- ── Grão de pedido — reduzir antes de agregar ────────────────────────────
+    -- Recompra pós-pedido ([ADR-0036](../../../docs/adr/0036-recompra-ancorada-no-pedido.md)):
+    -- atributos do **pedido**, repetidos em cada item dele. Estão aqui porque
+    -- P16 os compara e o consumo só lê `analytics`. Média ou contagem sobre eles
+    -- no grão do item pesa cada pedido pelo número de itens — reduza a
+    -- `order_id` antes, como a view de P16 faz.
+    --
+    -- `has_post_order_repeat` é **nulo** enquanto a janela de 90 dias não fechou:
+    -- janela aberta não é ausência de recompra.
+    v.has_post_order_repeat,
+    v.is_repeat_window_closed,
+    v.days_to_next_order,
 
     -- ── Medidas, todas aditivas ──────────────────────────────────────────────
     v.quantity,
