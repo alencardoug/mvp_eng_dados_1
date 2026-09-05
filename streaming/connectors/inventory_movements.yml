@@ -1,0 +1,82 @@
+# Conector Debezium de `oltp.inventory_movements` — o artefato declarativo do
+# caminho quente (ADR-0020: "configurado por arquivo versionado e aplicado pela
+# API REST").
+#
+# YAML e não JSON pelo mesmo motivo que `airbyte/streams.yml` é YAML: o que o
+# Owner revisa é a declaração, e declaração sem comentário não se revisa. O
+# `make stream-connector` converte para JSON e aplica em `PUT /connectors/…`.
+#
+# `${VAR}` é substituído a partir do ambiente no momento de aplicar. Nenhuma
+# credencial neste arquivo — regra 1 do CLAUDE.md.
+
+name: inventory-movements
+
+config:
+  connector.class: io.debezium.connector.postgresql.PostgresConnector
+  tasks.max: "1"
+
+  # ── Origem ────────────────────────────────────────────────────────────────
+  # `host.docker.internal` porque o Connect está em outra composição que o
+  # `source_db`; o gateway do host é o endereço comum às duas redes.
+  database.hostname: host.docker.internal
+  database.port: "${SOURCE_DB_PORT}"
+  database.user: "${SOURCE_DB_USER}"
+  database.password: "${SOURCE_DB_PASSWORD}"
+  database.dbname: "${SOURCE_DB_NAME}"
+
+  # `pgoutput` é o plugin de decodificação lógica embutido no PostgreSQL desde
+  # a 10. As alternativas (`decoderbufs`, `wal2json`) são extensões que teriam
+  # de ser compiladas na imagem — e o Cloud SQL, na fase GCP, oferece
+  # justamente `pgoutput`. Escolher outro criaria divergência entre as fases.
+  plugin.name: pgoutput
+  slot.name: mvp_inventory_movements
+  publication.name: mvp_inventory_movements
+  publication.autocreate.mode: filtered
+
+  # ── Escopo: uma tabela, e só ─────────────────────────────────────────────
+  # O ADR-0006 restringiu o fluxo a um domínio. Capturar o schema inteiro
+  # traria 39 tabelas que ninguém consome — e faria o slot de replicação
+  # segurar WAL por elas.
+  schema.include.list: oltp
+  table.include.list: oltp.inventory_movements
+  topic.prefix: mvp
+
+  # ── Snapshot inicial ─────────────────────────────────────────────────────
+  # Republica a tabela inteira antes de seguir o WAL. É o modo de produção do
+  # Debezium e é o que o Capacidade §3.2 já documenta como procedimento de
+  # recuperação: descartar o estado do conector e deixá-lo refazer o snapshot.
+  # Só é seguro porque o destino é idempotente por `movement_id` (ADR-0019) —
+  # e é a sobreposição entre snapshot e streaming que dá ao teste de
+  # deduplicação o que provar.
+  snapshot.mode: initial
+
+  # ── Nada é descartado em silêncio ────────────────────────────────────────
+  # `inventory_movements` é livro de eventos: só aceita inserção. `UPDATE` e
+  # `DELETE` aqui indicam defeito na origem, não evento de negócio. Filtrá-los
+  # no conector os esconderia; deixá-los passar faz o pipeline falhar em cima
+  # deles, que é o que o Streaming §2.1 exige e a regra 4 do CLAUDE.md manda.
+  skipped.operations: none
+  tombstones.on.delete: "false"
+
+  # ── Tipos ────────────────────────────────────────────────────────────────
+  # `string` e não `precise`: o padrão codifica decimal como bytes em base64
+  # mais a escala, e reconstruir isso em Python convida a passar por `float`.
+  # Como string, `unit_cost` chega exato e vira `Decimal` direto — a regra
+  # "nunca float" do CLAUDE.md §3 vale também no transporte.
+  decimal.handling.mode: string
+
+  # ── Heartbeat ────────────────────────────────────────────────────────────
+  # Sem ele, o slot de replicação segura WAL indefinidamente quando esta
+  # tabela fica parada e as outras 39 recebem escrita: o LSN confirmado não
+  # avança porque nenhum evento capturado acontece. É a causa clássica de
+  # disco cheio em CDC de tabela pouco movimentada.
+  heartbeat.interval.ms: "10000"
+
+  # ── Tópicos ──────────────────────────────────────────────────────────────
+  topic.creation.enable: "true"
+  topic.creation.default.replication.factor: "1"
+  topic.creation.default.partitions: "1"
+  topic.creation.default.cleanup.policy: delete
+  # Sete dias: o suficiente para reprocessar uma janela inteira de
+  # desenvolvimento sem guardar o log para sempre em disco de laboratório.
+  topic.creation.default.retention.ms: "604800000"

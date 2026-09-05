@@ -727,6 +727,24 @@ já publicado. É esse contrato que torna possível o
 - Consumidores tratam entrega *at least once* por meio de `idempotency_key`, sem presumir
   processamento exatamente uma vez pelo transporte.
 
+### 5.5 A cópia do livro escrita pelo caminho quente
+
+Desde a Etapa 7, o mesmo livro chega ao armazém por dois caminhos independentes
+([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)):
+
+| Tabela em `raw` | Escrita por | Papel |
+|---|---|---|
+| `inventory_movements` | Airbyte, em carga completa sob demanda | Reconciliação — a segunda opinião |
+| `inventory_movements_stream` | Pipeline Beam, a partir do CDC | **Ingestão incremental oficial** |
+
+A segunda carrega **uma linha por movimento**, com as colunas do contrato acima mais a procedência
+da entrega — partição, *offset*, LSN, se veio do *snapshot* inicial e o instante da escrita, todas
+prefixadas por `_stream_`, pelo mesmo motivo que o Airbyte prefixa as suas por `_airbyte_`.
+
+A chave primária é `movement_id`, e é ela que torna a escrita idempotente: reprocessar o mesmo lote
+não altera uma linha. As duas tabelas se encontram em `stg_retail__inventory_movements`, e o modelo
+de *staging* é o único do projeto que lê duas fontes.
+
 ---
 
 ## 6. Camadas no armazém

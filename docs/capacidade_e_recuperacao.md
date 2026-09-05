@@ -12,7 +12,7 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.4 |
+| Versão | 2.5 |
 | Situação | Vigente. Origem transacional (Etapa 4) e ingestão (Etapa 5) **medidas**; as demais camadas, não |
 | Última revisão | 04/09/2026 |
 
@@ -116,10 +116,47 @@ a segunda é a da Etapa 6, com 27.
 Dobrar o número de fluxos e passar de 36 para 53 modelos custou **19 segundos**. O que domina é a
 sincronização, não a transformação — e é ela que a Etapa 7 tira do caminho crítico do estoque.
 
-Memória com tudo de pé — três bancos, cluster do Airbyte e os quatro contêineres do Airflow —:
-cerca de **6 GB**. É o número a usar para dimensionar a máquina da fase local.
+Memória com o *batch* de pé — três bancos, cluster do Airbyte e os quatro contêineres do Airflow:
+cerca de **6 GB**. Com o caminho quente junto, o número da Etapa 7 é **8 GB** (§2.4).
 
-### 2.4 A restrição real passou a ser memória — e, na Etapa 5, CPU
+### 2.4 Medido na Etapa 7 — o caminho quente
+
+O [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) aceitou o Kafka Connect prevendo *"cerca de
+1 GB de memória a mais"*. A previsão era pessimista por quase o dobro:
+
+| Serviço | Memória residente |
+|---|---|
+| Redpanda | **51 MB** |
+| Kafka Connect com o conector Debezium | **434 MB** |
+| **Os dois juntos** | **485 MB** |
+
+O Redpanda reserva 1 GB por configuração (`--memory=1G` em `docker-compose.streaming.yml`), e usa
+5% disso nesta escala; o Connect roda com teto de heap de 768 MB declarado no mesmo arquivo. Sem
+esses dois limites os dois serviços dimensionam-se pela memória da máquina, e aí a previsão do ADR
+estaria certa.
+
+O `pipeline` Beam roda **fora** dos contêineres, no processo Python do host, e leva junto o
+executor Prism em processo próprio.
+
+| Observação do fluxo | Valor |
+|---|---|
+| Movimentos entregues pelo *snapshot* inicial | 13.746 |
+| Tempo para atravessar o *snapshot* inteiro | ~4 min, em lotes de 500 |
+| Eventos ao vivo produzidos | 2.200, a 43–55 eventos/s |
+| Linhas em `raw.inventory_movements_stream` | 15.946 |
+| Objetos dbt construídos, com os dois caminhos | **262, zero erro** |
+| DAG `fluxo_batch` com o caminho quente em operação | 3 min 10 s — contra 3 min 12 s na Etapa 6 |
+
+**Memória com tudo simultaneamente de pé** — três bancos, cluster do Airbyte, quatro contêineres do
+Airflow, Redpanda, Kafka Connect e o *pipeline* Beam com o Prism: cerca de **8 GB**. É o número a
+usar para dimensionar a máquina da fase local, e é o estado que a Etapa 12 exige; nas demais, o
+[Execução Local §5](execucao_local.md#5-executando-por-partes) diz o que basta subir.
+
+O tempo do *snapshot* é dominado pela escrita em lote e pelo autocheckpoint do executor local, não
+pelo transporte. Como avisa o [Streaming §2.1](streaming.md#21-limites-honestos-da-execução-local),
+medição de latência no executor local vale como ordem de grandeza, nunca como desempenho.
+
+### 2.5 A restrição real passou a ser memória — e, na Etapa 5, CPU
 
 **Correção do que estava escrito aqui.** Até a Etapa 5, este documento afirmava que a restrição do
 ambiente local era memória. A ingestão mostrou que é **CPU**: o *pod* de replicação do Airbyte pede
@@ -140,7 +177,7 @@ Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o sub
 etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
 final da Etapa 12.
 
-### 2.5 Custo da janela na nuvem
+### 2.6 Custo da janela na nuvem
 
 O [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) escolheu Cloud Composer e Airbyte em contêiner,
 que cobram por hora ligada. A contenção é temporal, não técnica: os dois existem **apenas durante a

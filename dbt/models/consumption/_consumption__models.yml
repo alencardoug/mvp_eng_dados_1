@@ -341,3 +341,57 @@ models:
         data_type: numeric
       - name: refund_rate_pct
         data_type: numeric
+
+  # ── Etapa 7: estoque em tempo real ────────────────────────────────────────
+  - name: skus_below_reorder_point
+    description: >
+      P12 — SKUs abaixo do ponto de reposição agora, por armazém. É a única view
+      do projeto que compõe o caminho frio com o quente (ADR-0031): o saldo é o
+      da fato mais os deltas que ela ainda não absorveu, e por isso é a única
+      cuja resposta muda entre duas execuções seguidas sem ninguém rodar nada.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: warehouse_name
+        data_type: text
+      - name: warehouse_region
+        data_type: text
+      - name: sku
+        data_type: text
+      - name: product_name
+        data_type: text
+      - name: category_name
+        data_type: text
+      - name: brand_name
+        data_type: text
+      - name: quantity_on_hand
+        description: >
+          **Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.
+          Fotografia não se empilha.
+        data_type: integer
+      - name: quantity_reserved
+        data_type: integer
+      - name: quantity_available
+        description: '{{ doc("stock_availability") }}'
+        data_type: integer
+      - name: quantity_from_batch
+        description: Parcela do saldo já absorvida pela fato — o caminho frio.
+        data_type: integer
+      - name: quantity_from_stream
+        description: Parcela ainda só no caminho quente, que a próxima execução do dbt absorve.
+        data_type: integer
+      - name: stream_movement_count
+        data_type: bigint
+      - name: reorder_point
+        data_type: integer
+      - name: is_stockout
+        description: '{{ doc("stockout") }}'
+        data_type: boolean
+      - name: daily_demand_units
+        description: Demanda diária média na janela de cobertura; só venda entra.
+        data_type: numeric
+      - name: days_of_cover
+        description: '{{ doc("days_of_cover") }}'
+        data_type: numeric
+      - name: last_movement_at
+        data_type: timestamp with time zone

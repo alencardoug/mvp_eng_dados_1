@@ -37,6 +37,30 @@ vars:
   active_customer_window_days: 180
   repeat_purchase_window_days: 90
 
+  # Horizonte do calendário além do "hoje" da simulação.
+  #
+  # `dim_date` ia até `as_of_date`, e o caminho quente da Etapa 7 produz evento
+  # com `occurred_at` no relógio real — depois do fim do calendário. O `join`
+  # interno da fato descartava esses eventos **em silêncio**, que é exatamente o
+  # que a regra 4 do CLAUDE.md proíbe.
+  #
+  # Dimensão de data que acaba onde os fatos acabam é defeito, não escolha: ela
+  # existe para receber o fato seguinte, e o primeiro evento ao vivo prova isso.
+  calendar_horizon_days: 365
+
+  # Janela de demanda usada para calcular cobertura de estoque (P12). Um
+  # trimestre: curto o bastante para refletir a demanda corrente, longo o
+  # bastante para não transformar uma semana fraca em ruptura iminente.
+  cover_window_days: 90
+
+  # Ponto de reposição, em unidades, por par armazém/SKU (P12).
+  #
+  # **Espelho.** O dono do valor é `streaming/fluxo.yml`, que é quem alerta ao
+  # cruzá-lo; aqui está a cópia que o dbt consegue ler, e um teste do `pytest`
+  # confere que as duas concordam. Mesmo arranjo de `as_of_date`, pelo mesmo
+  # motivo: dois runtimes precisam do número e só um pode ser o dono.
+  reorder_point_units: 25
+
   # Margem de atraso da única fato incremental do projeto (ADR-0016). É o quanto
   # de atraso entre `occurred_at` e a carga o filtro tolera: evento mais velho
   # que isto não é recuperado pelo incremental, e depende do `--full-refresh`.

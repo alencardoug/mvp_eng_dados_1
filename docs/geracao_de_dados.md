@@ -269,8 +269,12 @@ fração pequena, para que a propagação de `deleted_at` tenha o que propagar.
 
 A carga inicial cria os movimentos históricos coerentes entre `period_start` e `as_of_date` — na
 proporção declarada para `inventory_movements`, como toda tabela. Um **produtor Python separado**,
-que nasce na Etapa 7, acrescenta eventos ao livro depois disso, alimentando o
+construído na Etapa 7, acrescenta eventos ao livro depois disso, alimentando o
 [fluxo de streaming](streaming.md); o teto dele é proporcional ao mesmo fator de escala.
+
+Ele vive em `mvp_ed1/streaming/producer.py`, é acionado por `make stream-produce`, e os parâmetros
+dele — rajada, ociosidade, fração de atrasados, fração de transferências — são declarados em
+[`streaming/fluxo.yml`](../streaming/fluxo.yml), não no código.
 
 > Até 04/09/2026 esta seção citava 120.000 e 50.000 como absolutos. São a **proporção de
 > referência**, não o fator 1: o [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)
@@ -279,7 +283,10 @@ que nasce na Etapa 7, acrescenta eventos ao livro depois disso, alimentando o
 O produtor:
 
 - gera somente eventos compatíveis com SKU, armazém, compra, venda, devolução ou ajuste existentes;
-- mantém uma `stream_seed` própria, para repetibilidade do cenário;
+- mantém uma `stream_seed` própria, para repetibilidade do cenário — e, porque repetibilidade e
+  retomada se contradizem se ingênuas, deriva de cada retomada uma subsemente do ponto em que a
+  execução anterior parou: a sequência continua determinística sem recriar as mesmas chaves
+  primárias, que colidiriam;
 - produz rajadas, intervalos ociosos e taxas configuráveis;
 - cria uma quantidade pequena e configurável de **eventos atrasados**, com
   `occurred_at < recorded_at`;

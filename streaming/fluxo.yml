@@ -1,0 +1,116 @@
+# Parâmetros do caminho quente — o artefato declarativo do fluxo de streaming.
+#
+# Cada número aqui tem procedência declarada: ou foi fixado por ADR, ou é
+# hipótese a calibrar por medição, e nesse caso está rotulado como tal (P5).
+# Nenhum é escolha silenciosa de código.
+#
+# O que **não** vive aqui: a configuração do conector, que é
+# `connectors/inventory_movements.yml`; e as proporções da carga histórica,
+# que são de `src/mvp_ed1/generator/geracao.yml`.
+
+# ── Transporte ──────────────────────────────────────────────────────────────
+transporte:
+  # O pipeline Beam roda no host, então usa o ouvinte externo do Redpanda.
+  # O conector, que roda dentro da rede do Docker, usa `redpanda:9092`.
+  bootstrap: localhost:19092
+
+  # `<topic.prefix>.<schema>.<tabela>`, como o Debezium nomeia.
+  topico_de_eventos: mvp.oltp.inventory_movements
+
+  # Ramificação de alerta (Streaming §5). Tópico separado de propósito: o
+  # alerta é sinal para outro sistema, não linha de dado.
+  topico_de_alertas: mvp.alerts.inventory_low_stock
+
+  grupo_de_consumo: mvp_ed1_beam
+
+  # Tempo que o consumidor espera por mensagem antes de devolver o controle ao
+  # runner. Curto: é ele que define quão rápido o pipeline percebe o fim de uma
+  # rajada, não a latência de processamento.
+  espera_por_mensagem_segundos: 1.0
+
+# ── Semântica de processamento (ADR-0019) ───────────────────────────────────
+processamento:
+  # Janela fixa por tempo de evento. Fixada em 1 minuto pelo ADR-0019.
+  janela_segundos: 60
+
+  # *Allowed lateness*: quanto tempo depois de a janela fechar um evento
+  # atrasado ainda a reabre e emite correção.
+  #
+  # **MEDIDO em 04/09/2026**, sobre os 15.446 movimentos da fato. O ADR-0019
+  # registrou 5 minutos como hipótese explícita a calibrar nesta etapa, e a
+  # medição derrubou a hipótese:
+  #
+  #   atraso `recorded_at - occurred_at`   p50 403 s · p95 851 s · p99 890 s
+  #   máximo observado                     900 s
+  #   eventos com atraso maior que zero    89,8%
+  #
+  # Cinco minutos ficavam **abaixo da mediana**: a maior parte dos eventos
+  # atrasados chegaria fora da tolerância e seria descartada da janela — em
+  # silêncio, porque evento além do atraso tolerado não falha, some.
+  #
+  # O teto não é acidente: a origem declara o atraso máximo em
+  # `geracao.yml` (`atraso_de_registro_segundos: [0, 900]`) e no bloco
+  # `produtor` abaixo. A tolerância cobre esse teto com folga de um terço —
+  # não a média, e nem sequer a cauda medida, mas o **limite declarado da
+  # origem**, que é o único número que não muda quando o dado muda.
+  atraso_tolerado_segundos: 1200
+
+  # Folga do *watermark* sobre o maior tempo de evento já visto. É o que
+  # declara "não espero mais nada anterior a isto": pequena demais fecha
+  # janelas antes da hora, grande demais atrasa toda emissão. Mantida em uma
+  # janela — a menor folga que não fecha uma janela ainda recebendo evento.
+  folga_do_watermark_segundos: 60
+
+# ── Ramificação de alerta (Streaming §5) ────────────────────────────────────
+alerta:
+  # Limiar de estoque baixo, em unidades, por par armazém/SKU.
+  #
+  # É parâmetro e não coluna da origem de propósito: `inventory_balances` não
+  # tem ponto de reposição, e inventá-lo exigiria migração, regeração e um ADR
+  # que ninguém pediu. Ponto de reposição por SKU é assunto de um WMS, e entra
+  # se e quando houver um.
+  limiar_de_unidades: 25
+
+# ── Destino (ADR-0019, ADR-0031) ────────────────────────────────────────────
+destino:
+  # Uma linha por movimento, imutável. O saldo é uma **view** que soma estas
+  # linhas — o ADR-0019 recusou explicitamente a tabela agregada por janela,
+  # porque agregado sem os eventos que o formaram não se reconstrói.
+  #
+  # Aterrissa em `raw` porque é ingestão, e ingestão é a função dessa camada
+  # (ADR-0031). Tabela própria, ao lado da que o Airbyte escreve: as duas se
+  # encontram em `staging`, deduplicadas por `movement_id`.
+  schema: raw
+  tabela: inventory_movements_stream
+
+  # Tamanho do lote de escrita. Escrever evento a evento faria uma transação
+  # por linha; lote grande demais segura a linha em memória sem necessidade.
+  lote_de_escrita: 500
+
+# ── Produtor de eventos (Geração §6) ────────────────────────────────────────
+produtor:
+  # Teto de eventos por execução. A Geração §6 declara 50.000 como proporção de
+  # referência; no fator `dev` — divisor 10 do ADR-0014 — são 5.000. O alvo
+  # aceita `LIMITE=` para sobrepor.
+  teto_de_eventos: 5000
+
+  # Rajadas e ociosidade: o fluxo real não é uniforme, e um pipeline testado
+  # só contra taxa constante não exercita nem watermark nem gatilho.
+  eventos_por_rajada: [3, 25]
+  pausa_entre_rajadas_segundos: [0.05, 0.4]
+
+  # ── O que o pipeline existe para tratar ───────────────────────────────────
+  # Fração de eventos atrasados: `occurred_at` no passado, `recorded_at` agora.
+  # É o caso que exercita *allowed lateness* e a correção retroativa.
+  fracao_de_eventos_atrasados: 0.08
+  atraso_dos_eventos_segundos: [90, 900]
+
+  # Transferências, sempre em par correlacionado e balanceado: o que sai de um
+  # armazém entra em outro, com o mesmo `correlation_id`. É o teste de que o
+  # fluxo não perde nem duplica o lado de dentro de uma operação de dois lados.
+  fracao_de_transferencias: 0.10
+
+  # Duplicatas são simuladas **no transporte**, nunca na origem (Geração §6):
+  # a tabela permanece íntegra e quem repete é o caminho, que é onde a
+  # duplicata acontece de verdade.
+  fracao_de_duplicatas_no_transporte: 0.05

@@ -1,0 +1,101 @@
+# Caminho quente — Redpanda e Kafka Connect com o conector Debezium.
+#
+# Sobe separado dos bancos e do Airflow, pelo mesmo motivo que o orquestrador:
+# o risco R11 é memória, e o tratamento declarado é subir só o subconjunto da
+# etapa em curso (Execução Local §5). `make up` não arrasta o streaming junto,
+# e o streaming não exige o Airbyte de pé.
+#
+# Os dois serviços custam cerca de 1,6 GB juntos — o preço que o ADR-0020
+# aceitou ao escolher Kafka Connect em vez do Debezium Server autônomo, para
+# ter API de gestão, offsets em tópicos e recomeço sem parada (P10).
+
+name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}
+
+services:
+  # Transporte. Um nó só: o que o fluxo exercita é semântica de consumo com
+  # offset, não tolerância a falha do broker — essa é do Pub/Sub, na fase GCP.
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.4@sha256:efddcc9ac2b00bd523aff393defbd21cedd922ead984bcb8fdadd92982c81027
+    container_name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_redpanda
+    command:
+      - redpanda
+      - start
+      # `--smp 1` e `--memory` fixos: sem eles o Redpanda reserva a máquina
+      # inteira. Em ambiente de laboratório isso não é economia, é o que
+      # permite Connect e pipeline caberem ao lado.
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      # Dois ouvintes porque há dois lados: o Connect fala de dentro da rede do
+      # Docker, e o pipeline Beam roda no host. Um endereço só serviria a um.
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "${REDPANDA_PORT:-19092}:19092"
+      - "${REDPANDA_ADMIN_PORT:-19644}:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    restart: unless-stopped
+
+  # Kafka Connect com os conectores Debezium já na imagem (ADR-0020).
+  kafka_connect:
+    image: quay.io/debezium/connect:3.6.2.Final@sha256:efc4eb7bc46743158f8f0e5a719e60a041518c00c39b1918a64db3ac2be5722a
+    container_name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_kafka_connect
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:9092
+      GROUP_ID: mvp_ed1_connect
+
+      # ── O cursor mora aqui (ADR-0019) ────────────────────────────────────
+      # Offset, status e histórico de schema em tópicos do próprio transporte.
+      # Nenhuma tabela do projeto participa da recuperação, e é por isso que
+      # restaurar `source_db` de um dump obriga a descartar o estado do
+      # conector: ver Capacidade e Recuperação §3.2.
+      CONFIG_STORAGE_TOPIC: _mvp_connect_configs
+      OFFSET_STORAGE_TOPIC: _mvp_connect_offsets
+      STATUS_STORAGE_TOPIC: _mvp_connect_status
+      CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      STATUS_STORAGE_REPLICATION_FACTOR: "1"
+
+      # JSON sem schema embutido: o consumidor é Python e lê o contrato do
+      # Modelo de Dados §5, não um Avro gerado. Com `schemas.enable=true` cada
+      # mensagem carregaria o schema inteiro — dezenas de vezes o tamanho do
+      # dado, para nada que o pipeline use.
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      # Teto de heap explícito. O padrão da imagem cresce com a memória da
+      # máquina, e aqui a máquina é compartilhada com tudo o mais.
+      KAFKA_HEAP_OPTS: -Xms256M -Xmx768M
+    ports:
+      - "${KAFKA_CONNECT_PORT:-8083}:8083"
+    # O `source_db` está em outra composição. O gateway do host é o endereço
+    # comum às duas redes — mesma solução do Airflow, pelo mesmo motivo.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  redpanda_data:

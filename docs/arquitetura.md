@@ -49,7 +49,7 @@ flowchart TB
 
     SRC -->|Airbyte| RAW
     LEG -->|Airbyte full refresh| RAWL
-    SRC -->|Debezium → Redpanda → Beam| ANA
+    SRC -->|Debezium → Redpanda → Beam| RAW
 
     RAW -->|dbt| STG
     RAWL -->|dbt| STG
@@ -115,7 +115,7 @@ Regras válidas para todas as camadas:
 | Orquestração | **Airflow** | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Captura de mudanças | **Debezium** sobre **Kafka Connect** | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) |
 | Transporte de eventos | **Redpanda** | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
-| Processamento contínuo | **Apache Beam** com `DirectRunner` | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
+| Processamento contínuo | **Apache Beam**, executor local (`DirectRunner` → Prism) | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md) |
 | Interface de operação | `Makefile` + comandos de terminal | Firmada |
 | Testes de dados | `dbt` + `dbt-expectations`; `pytest` para código | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Acesso a dados em Python | **SQLAlchemy** — os modelos são a fonte de verdade do schema | [ADR-0009](adr/0009-sqlalchemy-para-acesso-a-dados.md) |
@@ -178,7 +178,9 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Orquestração | Airflow local | Cloud Composer ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)) |
 | Captura de mudanças | Debezium sobre Kafka Connect | Datastream |
 | Transporte de eventos | Redpanda | Pub/Sub |
-| Processamento contínuo | Beam / `DirectRunner` | Beam / Dataflow |
+| Processamento contínuo | Beam, executor local (Prism) | Beam / Dataflow |
+| Leitura do transporte | `DoFn` divisível em Python ([ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md)) | `ReadFromPubSub`, nativo do SDK |
+| Destino do caminho quente | Tabela em `raw` ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) | Tabela no dataset `raw`, por *streaming inserts* |
 | Controle de acesso | *Roles* e *grants* do PostgreSQL | IAM por dataset + *policy tags*, aplicadas a partir do YAML por fluxo automatizado ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) |
 | Catálogo e linhagem | `.yml` do dbt + `dbt docs` | Os mesmos `.yml` publicados no Dataplex |
 | Versionamento de schema | Migrações versionadas | As mesmas migrações + DDL versionado |

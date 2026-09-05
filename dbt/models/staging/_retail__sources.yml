@@ -60,8 +60,26 @@ sources:
       - name: stock_reservations
 
       # ── Livros de eventos ───────────────────────────────────────────────
-      # Só crescem, e por isso são ingeridos por acréscimo. `inventory_movements`
-      # deixa de ser ingerido assim na Etapa 7, quando o CDC assume — está aqui
-      # como caminho de lote enquanto o caminho quente não existe.
+      # Só crescem, e por isso são ingeridos por acréscimo.
       - name: payment_transactions
+
+      # `inventory_movements` deixou de ser ingerido por acréscimo na Etapa 7: o
+      # caminho oficial passou a ser o CDC, e o Airbyte ficou com carga completa
+      # sob demanda. Esta tabela é hoje a **área de reconciliação** que o
+      # Streaming §6 promete — a segunda opinião sobre o mesmo livro.
       - name: inventory_movements
+        description: >
+          Carga completa do livro pelo Airbyte, fora do caminho crítico. Serve de
+          contraprova ao caminho quente, não de fonte incremental (ADR-0031).
+        freshness: null
+
+      # ── Caminho quente (ADR-0031) ───────────────────────────────────────
+      # Escrita pelo pipeline Beam, não pelo Airbyte. Aterrissa em `raw` porque
+      # é ingestão, que é a função da camada — e assim o `staging` continua
+      # lendo só de `raw`, sem inverter a ordem que o ADR-0008 fixou.
+      - name: inventory_movements_stream
+        description: >
+          Deltas imutáveis do CDC, um por movimento, gravados pelo pipeline Beam
+          com idempotência por `movement_id` (ADR-0019). Caminho oficial de
+          ingestão incremental do livro de estoque.
+        loaded_at_field: _stream_extracted_at

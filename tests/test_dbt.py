@@ -37,19 +37,28 @@ def test_as_of_date_do_dbt_bate_com_a_do_gerador(config, projeto_dbt) -> None:
     assert str(projeto_dbt["vars"]["period_start"]) == config.period_start.isoformat()
 
 
+#: Fontes de `raw` que **não** vêm do Airbyte. Desde a Etapa 7 há uma: o
+#: caminho quente escreve os próprios deltas em `raw` (ADR-0031), e o `staging`
+#: os lê como qualquer outra fonte da camada. A lista é explícita de propósito —
+#: acrescentar uma fonte sem alimentador é o defeito que este teste pega, e uma
+#: exceção genérica o desligaria.
+FONTES_DO_CAMINHO_QUENTE = {"inventory_movements_stream"}
+
+
 def test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt() -> None:
-    """O que o Airbyte ingere é o que o dbt lê — nem mais, nem menos.
+    """O que se ingere é o que o dbt lê — nem mais, nem menos.
 
     Stream ingerido sem modelo que o leia é volume sem consumidor; fonte
-    declarada sem stream que a alimente é modelo que quebra na primeira execução
-    limpa.
+    declarada sem quem a alimente é modelo que quebra na primeira execução
+    limpa. Desde a Etapa 7 há dois alimentadores, não um: o Airbyte e o pipeline
+    Beam. A conta continua fechando, com as duas parcelas nomeadas.
     """
     streams = _carregar(RAIZ / "airbyte/streams.yml")
     fontes = _carregar(DBT / "models/staging/_retail__sources.yml")
 
     ingeridas = set(streams["tabelas"])
     declaradas = {t["name"] for t in fontes["sources"][0]["tables"]}
-    assert ingeridas == declaradas
+    assert ingeridas | FONTES_DO_CAMINHO_QUENTE == declaradas
 
 
 def test_todo_stream_tem_modo_e_o_modo_e_conhecido() -> None:
@@ -71,6 +80,20 @@ def test_todo_stream_tem_modo_e_o_modo_e_conhecido() -> None:
             raise AssertionError(f"{nome}: modo ausente ou desconhecido ({modo!r})")
 
 
+def test_ponto_de_reposicao_do_dbt_bate_com_o_do_fluxo(projeto_dbt) -> None:
+    """O dono do valor é `streaming/fluxo.yml`; o dbt tem o espelho que ele lê.
+
+    Mesmo arranjo de `as_of_date`, pelo mesmo motivo: dois runtimes precisam do
+    número e só um pode ser o dono. Se divergirem, o pipeline alerta em um
+    limiar e a view P12 lista SKUs por outro — e as duas telas discordam sem que
+    nada falhe.
+    """
+    fluxo = _carregar(RAIZ / "streaming/fluxo.yml")
+    assert int(projeto_dbt["vars"]["reorder_point_units"]) == int(
+        fluxo["alerta"]["limiar_de_unidades"]
+    )
+
+
 def test_toda_pergunta_com_view_construida_existe_como_modelo() -> None:
     """A view declarada no Glossário existe em `consumption` — e vice-versa.
 
@@ -80,9 +103,10 @@ def test_toda_pergunta_com_view_construida_existe_como_modelo() -> None:
     perguntas = (RAIZ / "docs/glossario_de_negocio/perguntas_de_negocio.md").read_text(
         encoding="utf-8"
     )
-    # As perguntas das Etapas 5 e 6 já viram view; as das Etapas 7 a 9 estão
-    # declaradas e não devem existir ainda.
-    construidas = perguntas.split("## 4. Estoque em tempo real")[0]
+    # As perguntas até a Etapa 7 já viraram view; as das Etapas 8 e 9 estão
+    # declaradas e não devem existir ainda. A fronteira anda uma seção por
+    # etapa, e mover esta linha é parte de entregar a etapa.
+    construidas = perguntas.split("## 5. Entrega e logística")[0]
     declaradas = set(re.findall(r"\*\*View\*\* \| `([a-z0-9_]+)`", construidas))
     existentes = {p.stem for p in (DBT / "models/consumption").glob("*.sql")}
 

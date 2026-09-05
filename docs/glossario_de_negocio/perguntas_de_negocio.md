@@ -193,15 +193,20 @@ estoque que nunca existiu.
 
 | | |
 |---|---|
-| **Fato** | `fact_inventory_movement` + saldo em tempo real |
+| **Fato** | `fact_inventory_movement` + os deltas que ela ainda não absorveu |
 | **Medidas** | `quantity_available` (**semiaditiva**) · `days_of_cover` (**não aditiva**) |
 | **Dimensões** | `dim_product` · `dim_warehouse` |
 | **View** | `skus_below_reorder_point` |
 
-Depende dos conceitos de *ruptura de estoque* e *cobertura de estoque*, que serão definidos na
-Etapa 7 — cada conceito é escrito na etapa que constrói o modelo correspondente, nunca antes. É a
-única pergunta cuja resposta muda entre duas execuções seguidas, e por isso a única que exercita o
-caminho quente.
+Depende de [ruptura de estoque](ruptura_de_estoque.md) e de
+[cobertura de estoque](cobertura_de_estoque.md) — os dois conceitos escritos na Etapa 7, que é a
+que construiu o modelo correspondente.
+
+É a única pergunta cuja resposta muda entre duas execuções seguidas sem ninguém rodar nada, e por
+isso a única que exercita o caminho quente. A composição está descrita em
+[Streaming §4.1](../streaming.md#41-onde-o-quente-e-o-frio-se-encontram): a fronteira entre o que a
+fato já absorveu e o que só existe no fluxo é a **ausência do `movement_id` na fato**, e não um
+corte por tempo — que perderia justamente o evento atrasado.
 
 ---
 

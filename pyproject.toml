@@ -25,6 +25,8 @@ dependencies = [
     "PyYAML>=6.0,<7.0",       # Etapa 4 — o artefato declarativo do gerador é YAML
     "dbt-core>=1.9,<2.0",     # ADR-0003 — transformação, testes, documentação e linhagem
     "dbt-postgres>=1.9,<2.0", # adaptador da fase local; o BigQuery entra na Etapa 13
+    "apache-beam>=2.60,<3.0",
+    "confluent-kafka>=2.6,<3.0",
 ]
 
 # Os testes de código são `pytest` (Qualidade de Dados §1); testes de dados são

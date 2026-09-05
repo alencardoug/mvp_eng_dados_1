@@ -55,13 +55,19 @@ tabelas:
   payment_transactions:
     modo: append
     cursor: created_at
+  # ── Deixou de ser incremental na Etapa 7 ────────────────────────────────
+  # O caminho oficial de ingestão incremental deste livro passou a ser o CDC
+  # (ADR-0031). Manter o `append` aqui criaria dois caminhos incrementais para a
+  # mesma tabela, e a pergunta "qual dos dois está atrasado?" não teria resposta.
+  #
+  # `full_refresh` e **não** remover o stream: com ele o Airbyte continua
+  # produzindo a segunda opinião sobre o mesmo livro — a área de reconciliação
+  # que o Streaming §6 promete e que, até a Etapa 7, não existia. Roda sob
+  # demanda, fora do caminho crítico, e é contra ela que o teste
+  # `caminhos_de_ingestao_reconciliam` pergunta se o CDC perdeu algum evento.
   inventory_movements:
-    modo: append
-    # `recorded_at` é o momento em que a origem registrou o evento, e é a coluna
-    # que o Modelo de Dados §5.2 indexa para leitura incremental. `occurred_at`
-    # seria errado: evento atrasado tem tempo de negócio antigo, e o cursor o
-    # deixaria para trás.
-    cursor: recorded_at
+    modo: full_refresh
+    motivo: Deixou de ser incremental na Etapa 7 — o CDC assumiu; esta carga existe para reconciliar contra ele.
 
   # ── Mutáveis com `updated_at`: dedup + history ────────────────────────────
   customers:

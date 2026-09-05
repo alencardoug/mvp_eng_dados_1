@@ -12,7 +12,7 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.4 |
+| Versão | 1.5 |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -145,19 +145,40 @@ menos um teste correspondente. Uma invariante sem teste é uma invariante que n�
 
 ## 6. Streaming de estoque
 
-- unicidade de `movement_id` e de `idempotency_key`;
-- **duplicata injetada deliberadamente**: reenviar o mesmo evento não pode alterar o saldo. É o
-  teste que transforma a idempotência do [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)
-  de intenção em garantia;
-- sequência sem duplicidade por armazém/SKU;
-- validação do sinal da quantidade conforme `movement_type`;
-- reconciliação de `inventory_balances` com o saldo inicial somado a `quantity_delta`;
-- correspondência entre os dois lados de uma transferência;
-- garantia de que reversões sejam eventos compensatórios, e não alterações do evento original;
-- reprocessamento do mesmo lote sem duplicar efeitos na camada analítica;
-- medição do atraso entre `occurred_at`, `recorded_at` e o processamento;
-- reconciliação entre eventos confirmados na origem, capturados pelo CDC e aplicados pelo
-  consumidor.
+Construído e medido na Etapa 7. O que segue está implementado; os resultados estão em
+[Streaming §7.1](streaming.md#71-o-que-foi-medido).
+
+| O que se verifica | Onde | Resultado |
+|---|---|---|
+| Unicidade de `movement_id` e de `idempotency_key` | testes de schema em `_analytics__models.yml` | passa |
+| **Duplicata injetada deliberadamente no transporte** | `make stream-duplicate` | 250 republicadas, **0 gravadas** |
+| Reprocessar o mesmo lote não altera o resultado | o mesmo alvo, e o log do destino | contagem e saldo idênticos |
+| *Backfill* e streaming não duplicam linhas na fato | `caminhos_de_ingestao_reconciliam` e a chave da fato | 15.446 distintos, 15.446 na fato |
+| Nenhum caminho perde evento | `caminhos_de_ingestao_reconciliam` | **0** movimentos só pelo lote |
+| Correspondência entre os dois lados de uma transferência | `transferencia_confere_dos_dois_lados` | passa |
+| Sinal da quantidade conforme `movement_type` | `CHECK` na origem | recusado na escrita |
+| `UPDATE` ou `DELETE` capturado falha o pipeline | `envelope.decodificar` | levanta `ContratoViolado` |
+| Saldo reconstruído confere com a projeção da origem | `saldo_reconstruido_confere_com_a_projecao` | passa, com o corte comum |
+| Atraso entre `occurred_at` e `recorded_at` | medição sobre a fato | p50 403 s · máx 900 s |
+| Alerta emitido ao cruzar o limiar | `make stream-alerts` | 10 aberturas, 2 correções |
+
+### 6.1 O corte comum, e por que dois caminhos o exigem
+
+A descoberta mais cara da Etapa 7 não foi um defeito no fluxo: foi um **teste que passou a mentir**.
+
+`saldo_reconstruido_confere_com_a_projecao` compara o livro reconstruído com a projeção
+`inventory_balances`. Até a Etapa 6 os dois vinham da mesma carga, no mesmo instante, e comparar era
+trivial. Com o livro chegando pelo CDC em segundos e a projeção pelo Airbyte sob demanda, o teste
+acusou **1.284 divergências que não eram divergências** — era a diferença de latência entre dois
+caminhos, apresentada como defeito na projeção.
+
+A regra que sai daí vale para qualquer reconciliação em arquitetura de caminho quente e frio:
+**comparar dois números exige cortá-los no mesmo instante**. Aqui o corte é
+`recorded_at <= ingested_at` da projeção — a fotografia lida em T reflete todo movimento registrado
+antes de T, porque a origem grava o movimento e move o saldo na mesma transação.
+
+O corte é por tempo de **registro**, não de negócio: evento atrasado tem tempo de negócio antigo e
+tempo de registro novo, e é o de registro que diz se a projeção já o tinha visto.
 
 ---
 
@@ -172,7 +193,8 @@ no caminho.
 | `raw_legacy` → tratamento | `extraídos = aceitos + corrigidos + rejeitados` |
 | `staging` → `trusted` | Contagem e regras aplicadas, com rejeições rastreáveis |
 | `trusted` → `analytics` | Grão declarado e medidas somadas |
-| *Batch* + streaming → view de saldo | Saldo unificado igual à soma dos deltas sobre o saldo inicial |
+| *Batch* + streaming → view de saldo | O saldo da view é a soma dos deltas que a fato absorveu mais os que ela ainda não contém, sem interseção — a fronteira é a ausência do `movement_id` na fato ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) |
+| CDC ↔ carga completa | Todo movimento chega pelos dois caminhos; o que chega só pelo lote é lacuna do CDC |
 
 Nenhuma etapa descarta registros em silêncio: o que não passa vai para quarentena com motivo
 registrado.

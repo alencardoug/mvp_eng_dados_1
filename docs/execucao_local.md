@@ -67,8 +67,9 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
 | 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados; `RESET=1` refaz o histórico SCD | Etapa 5 |
-| 7 | `make stream-up` | Sobe Redpanda, Kafka Connect com o conector Debezium e o *job* Beam | Etapa 7 |
-| 8 | `make stream-produce` | Executa o produtor de eventos de estoque | Etapa 7 |
+| 7 | `make stream-up` | Sobe Redpanda e Kafka Connect e aplica o conector Debezium | Etapa 7 |
+| 7b | `make stream-run` | Sobe o *pipeline* Beam — **primeiro plano**, `Ctrl-C` encerra | Etapa 7 |
+| 8 | `make stream-produce` | Executa o produtor de eventos de estoque; `LIMITE=`, `SEED=` | Etapa 7 |
 | 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
 | 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
 | 11 | `make check` | Verificação completa: testes, reconciliações e revisão de segredos | Etapa 12 |
@@ -123,7 +124,11 @@ primárias, porque o gerador as atribui e o `COPY` as escreve.
 | `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
 | `make dag-status` | Estado das tarefas da última execução da DAG | Etapa 5 |
 | `make dag-run` | Despausa e dispara a DAG `fluxo_batch` do caminho frio | Etapa 5 |
-| `make stream-down` | Derruba Kafka Connect, mensageria e o *job* | Etapa 7 |
+| `make stream-connector` | Aplica as declarações de `streaming/connectors/` pela API REST | Etapa 7 |
+| `make stream-status` | Estado do conector Debezium e das tarefas | Etapa 7 |
+| `make stream-duplicate` | Republica mensagens no transporte — o teste de idempotência; `QUANTAS=` | Etapa 7 |
+| `make stream-alerts` | Lê e resume o tópico de alerta de estoque baixo | Etapa 7 |
+| `make stream-down` | Derruba Kafka Connect e mensageria; `FORCE=1` apaga tópicos **e o slot de replicação** | Etapa 7 |
 | `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
 | `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
 
@@ -144,7 +149,8 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Desenvolver modelos dbt | `make up` + dados já carregados |
 | Rodar o fluxo pelo orquestrador | `make up` + `make airbyte-up` + `make airflow-up` |
 | Ajustar o gerador | `make up` apenas — ou nada, com `DRY_RUN=1` |
-| Trabalhar no streaming | `make up` + `make stream-up` |
+| Trabalhar no streaming | `make up` + `make stream-up` + `make stream-run` |
+| Reconciliar o CDC contra a carga completa | acrescentar `make airbyte-up` e `make sync-airbyte` |
 | Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
 
 ---
@@ -281,6 +287,67 @@ o `dbt build` recria em seguida, não dado — o `raw` é declarado descartável
 **A consequência precisa ser dita:** a ordem `sync-airbyte` → `dbt-build` deixa de ser preferência e
 passa a ser obrigatória. Entre as duas, as views de `staging` não existem. É uma das razões de o
 [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) ter ido buscar um orquestrador.
+
+### `make airbyte-up` falha com `permission denied` no `PG_VERSION`
+
+Sintoma, depois de um `make airbyte-down` seguido de `make airbyte-up`:
+
+```
+failed to determine if any previous psql version exists: error reading pgdata
+version file: open ~/.airbyte/abctl/data/airbyte-volume-db/pgdata/PG_VERSION: permission denied
+```
+
+O `abctl local uninstall` destrói o cluster mas **preserva** o diretório de dados, e o `pgdata` lá
+dentro pertence ao `uid 70` com modo `0700` — o usuário que roda o `abctl` não consegue lê-lo de
+volta. A reinstalação para nesse ponto.
+
+O diretório guarda o banco de metadados do Airbyte: conexões, fontes, destinos e histórico de jobs.
+As três primeiras são recriáveis por `make airbyte-config`, porque o [ADR-0004](adr/0004-terraform-como-iac.md)
+pôs a configuração do Airbyte no Terraform justamente para isto. O histórico de jobs se perde, e não é estado do projeto.
+
+**Solução:** mover o diretório de lado — mover, não apagar — e reinstalar.
+
+```bash
+mv ~/.airbyte/abctl/data ~/.airbyte/abctl/data.$(date +%Y%m%d%H%M)
+make airbyte-up && make airbyte-config AUTO=1
+```
+
+### O `pipeline` Beam morre sozinho depois de exatos cinco minutos
+
+Sintoma: `make stream-run` roda normalmente, o Prism informa `pipeline is running`, e em cinco
+minutos o processo cai com `DEADLINE_EXCEEDED: Stream removed`.
+
+É o `job_server_timeout` do Beam, cujo padrão é 300 s. A documentação da opção diz que ele "não se
+aplica ao tempo de execução do pipeline" — e se aplica: o fluxo de mensagens do job herda o mesmo
+prazo, e o cliente desiste de um job que continua vivo do lado do runner.
+
+Já está tratado em `mvp_ed1/streaming/pipeline.py`, que declara um dia. Se um dia não bastar para a
+sua sessão, o número está lá, nomeado.
+
+### O tópico de alerta fica vazio mesmo com eventos entrando
+
+Duas causas, e as duas são comportamento correto:
+
+1. **Os eventos vieram do *snapshot* inicial.** O painel formado só por eventos do *snapshot*
+   constrói o saldo e não alerta — do contrário, replicar dois anos e meio de livro encheria o
+   tópico de avisos sobre estoque de 2024 (Streaming §5).
+2. **Nada cruzou o limiar.** O alerta é borda, não nível: só a travessia emite. Confira com
+   `make stream-alerts`, que resume aberturas e normalizações, e produza mais eventos com
+   `make stream-produce`.
+
+### `make stream-down` sem `FORCE=1` deixa o slot de replicação para trás
+
+O *slot* de replicação vive no `source_db` e sobrevive à queda do Kafka Connect. Enquanto ele
+existir, o PostgreSQL segura WAL para um consumidor que não existe mais — até o disco acabar. É a
+pegadinha clássica de CDC.
+
+`make stream-down FORCE=1` remove o *slot* junto com os tópicos. Para conferir o que ficou:
+
+```sql
+select slot_name, active, pg_size_pretty(
+    pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) as wal_retido
+from pg_replication_slots;
+```
 
 ### `make seed-data` recusa executar
 

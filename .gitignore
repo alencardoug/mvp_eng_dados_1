@@ -51,3 +51,6 @@ dbt/logs/
 .terraform/
 terraform.tfstate*
 dbt/.user.yml
+
+# Estado de execução do produtor de streaming (Etapa 7) — não é código.
+.stream/

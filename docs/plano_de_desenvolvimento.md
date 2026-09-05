@@ -12,7 +12,7 @@
 | Campo | Informação |
 |---|---|
 | Versão | 2.6 |
-| Etapa atual | **Etapa 7 — Corte 3: streaming de estoque** (**M0** a **M3** concluídos) |
+| Etapa atual | **Etapa 8 — Corte 4: entrega e logística** (**M0** a **M4** concluídos) |
 | Última revisão | 04/09/2026 |
 
 ---
@@ -46,7 +46,7 @@
 | **M1** | Decisões fundamentais registradas em ADR | Etapa 1 — **04/09/2026** |
 | **M2** | Ambiente local sobe do zero com um comando | Etapa 2 — **04/09/2026** |
 | **M3** | Primeiro fluxo completo origem → consumo | Etapa 5 — **04/09/2026** |
-| **M4** | Streaming em operação, com o *batch* intacto | Etapa 7 |
+| **M4** | Streaming em operação, com o *batch* intacto | Etapa 7 — **04/09/2026** |
 | **M5** | Fase local concluída, testada e reproduzível | Etapa 12 |
 | **M6** | Fluxo replicado no GCP por Terraform | Etapa 13 |
 
@@ -180,14 +180,16 @@ Cada corte abaixo entrega **fluxo completo** para o seu domínio: geração → 
 
 ### Etapa 7 — Corte 3: streaming de estoque · **M4**
 
+*Concluída em 04/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Acrescentar o caminho quente sem alterar o caminho frio. |
 | **Pré-requisito** | Etapa 6 — o *batch* precisa estar funcionando antes |
 | **Entregas** | **E6**, **E10** (parciais) |
-| **Decisões** | **D16**, **D17**, **D18** ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), **D29** ([ADR-0020](adr/0020-debezium-sobre-kafka-connect.md)) — todas aceitas em 04/09/2026 |
-| **Artefatos** | Produtor em `src/streaming/` · conector Debezium · Redpanda no `docker/` · pipeline Beam · tabela de saldo em tempo real · view unificada · tópico de alerta |
-| **Critérios de conclusão** | *Backfill* e streaming não duplicam linhas na fato · reprocessar o mesmo lote não altera o resultado · evento atrasado recalcula a janela e emite correção · transferência confere dos dois lados · alerta emitido ao cruzar o limiar · Airbyte deixa de ingerir incrementalmente `inventory_movements` |
+| **Decisões** | **D16**, **D17**, **D18** ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), **D29** ([ADR-0020](adr/0020-debezium-sobre-kafka-connect.md)) · aterrissagem e reconciliação ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) · ponta de leitura ([ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md)) |
+| **Artefatos** | `streaming/fluxo.yml` e `streaming/connectors/` · `docker/docker-compose.streaming.yml` com Redpanda e Kafka Connect · `src/mvp_ed1/streaming/` — produtor, transporte, pipeline Beam e destino · `raw.inventory_movements_stream` · view `skus_below_reorder_point` (**P12**) · tópico `mvp.alerts.inventory_low_stock` |
+| **Critérios de conclusão** | *Backfill* e streaming não duplicam linhas na fato ✓ (15.446 distintos, 15.446 na fato, sobreposição total) · reprocessar o mesmo lote não altera o resultado ✓ (250 duplicatas injetadas, 0 gravadas) · evento atrasado recalcula a janela e emite correção ✓ (2 correções emitidas) · transferência confere dos dois lados ✓ (`transferencia_confere_dos_dois_lados`) · alerta emitido ao cruzar o limiar ✓ (10 aberturas, 20 normalizações) · Airbyte deixa de ingerir incrementalmente `inventory_movements` ✓ (passou a `full_refresh`, e virou a área de reconciliação) |
 | **Riscos tratados** | **R11**, **R13** |
 | **Conceitos** | CDC sobre log de transações · tempo de evento · *watermarks* e *allowed lateness* · janelas e gatilhos · idempotência e deduplicação · *at least once* · caminho quente e frio sob o mesmo contrato |
 

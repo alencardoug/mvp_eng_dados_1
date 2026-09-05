@@ -9,6 +9,28 @@
 -- o livro é a fonte da verdade (Modelo de Dados §2.10). Guardar os dois é o que
 -- permite descobrir que a projeção divergiu — que é justamente o defeito que
 -- uma projeção pode ter.
+--
+-- ═══ O corte comum, e por que a Etapa 7 obrigou a ele ════════════════════════
+-- Até a Etapa 6 os dois números vinham da mesma carga, no mesmo instante, e
+-- comparar era trivial. A Etapa 7 deu ao livro um caminho próprio: o movimento
+-- chega pelo CDC em segundos, e a projeção continua chegando pelo Airbyte,
+-- quando a carga rodar (ADR-0031).
+--
+-- Sem tratamento, o teste de reconciliação passa a acusar **1.284 divergências
+-- que não são divergências** — é a diferença de latência entre dois caminhos,
+-- não defeito na projeção. Foi exatamente o que aconteceu na primeira execução
+-- da Etapa 7, e é a armadilha que qualquer arquitetura de caminho quente e frio
+-- arma para as suas próprias reconciliações.
+--
+-- O corte é por `recorded_at`: a projeção lida no instante T reflete todo
+-- movimento **registrado na origem** antes de T, porque a origem grava o
+-- movimento e move o saldo na mesma transação (Modelo de Dados §5.4). Comparar
+-- o livro inteiro contra uma fotografia antiga compara coisas diferentes; cortar
+-- o livro em T compara as mesmas.
+--
+-- Note que o corte é por `recorded_at` e **não** por `occurred_at`: evento
+-- atrasado tem tempo de negócio antigo e tempo de registro novo, e é o de
+-- registro que diz se a projeção já o tinha visto.
 
 with saldos as (
 
@@ -19,15 +41,19 @@ with saldos as (
 reconstruido as (
 
     select
-        warehouse_id,
-        product_variant_id,
-        sum(quantity_delta)                         as rebuilt_quantity_on_hand,
-        sum(quantity_in)                            as quantity_in,
-        sum(quantity_out)                           as quantity_out,
+        m.warehouse_id,
+        m.product_variant_id,
+        sum(m.quantity_delta)                       as rebuilt_quantity_on_hand,
+        sum(m.quantity_in)                          as quantity_in,
+        sum(m.quantity_out)                         as quantity_out,
         count(*)                                    as movement_count,
-        max(occurred_at)                            as last_movement_at
-    from {{ ref('inventory_movements') }}
-    group by warehouse_id, product_variant_id
+        max(m.occurred_at)                          as last_movement_at
+    from {{ ref('inventory_movements') }} m
+    join saldos s
+      on s.warehouse_id = m.warehouse_id
+     and s.product_variant_id = m.product_variant_id
+    where m.recorded_at <= s.ingested_at
+    group by m.warehouse_id, m.product_variant_id
 
 ),
 

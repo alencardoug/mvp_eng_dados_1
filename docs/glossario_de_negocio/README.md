@@ -71,12 +71,17 @@ O diretório é declarado em `docs-paths` no `dbt_project.yml`.
 | [Recorrência de compra](recorrencia_de_compra.md) | `dim_customer`, `fact_sales_order_item` | 5 | **Escrito** |
 | [Carrinho abandonado](carrinho_abandonado.md) | `fact_cart_event` | 5 | **Escrito** |
 | [Taxa de conversão](taxa_de_conversao.md) | View de consumo de P07 | 5 | **Escrito** |
-| Lucro bruto | `fact_sales_order_item`, `fact_purchase_order_item` | 6 | A escrever |
-| Ruptura de estoque | `fact_inventory_movement`, saldo em tempo real | 7 | A escrever |
-| Cobertura de estoque | Saldo em tempo real | 7 | A escrever |
+| [Lucro bruto](lucro_bruto.md) | Views de consumo de P08 | 6 | **Escrito** |
+| [Custo do produto vendido](custo_do_produto_vendido.md) | `fact_inventory_movement` | 6 | **Escrito** |
+| [Giro de estoque](giro_de_estoque.md) | View de consumo de P11 | 6 | **Escrito** |
+| [Ruptura de estoque](ruptura_de_estoque.md) | View de consumo de P12 | 7 | **Escrito** |
+| [Cobertura de estoque](cobertura_de_estoque.md) | View de consumo de P12 | 7 | **Escrito** |
 | Prazo de entrega prometido e realizado | `fact_shipment_item`, `delivery_events` | 8 | A escrever |
 | Churn | `dim_customer` | 9 | A escrever |
 | Recompra pós-atendimento | `fact_support_ticket_event` | 9 | A escrever |
+
+O arquivo de ruptura carrega também **saldo disponível**, porque os dois são a mesma medida vista de
+dois ângulos e separá-los faria o leitor abrir dois arquivos para entender um conceito.
 
 Cada definição é escrita na etapa em que o modelo correspondente é construído — nunca depois.
 

@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 5 — Corte 1: núcleo comercial |
+| Etapa atual | Etapa 8 — Corte 4: entrega e logística |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
 | Última revisão | 04/09/2026 |
@@ -19,14 +19,18 @@
 
 ## 1. Nada pendente
 
-**Não há nada esperando você.** A **D30** foi fechada em 04/09/2026 pelo
-[ADR-0029](adr/0029-exclusao-logica-como-marca-na-dimensao.md). Em 04/09/2026 o Termo de Abertura foi aprovado, as três aprovações
-foram dadas, as dezoito decisões abertas foram fechadas em ADR e as três questões que não eram ADR
-foram resolvidas nos documentos que as tratam.
+**Não há nada esperando você.** As decisões que a Etapa 7 levantou foram fechadas em 04/09/2026 nos
+[ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) e
+[ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md), por interrogatório com alternativas.
 
-Os marcos **M0** (Termo aprovado), **M1** (decisões registradas) e **M2** (ambiente reproduzível)
-estão fechados, e as Etapas 3 e 4 foram entregues. A Etapa 5 está em curso; **D30**, acima, é a
-única coisa que depende de você.
+Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
+**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 7
+foram entregues, e a próxima é a **Etapa 8 — Corte 4: entrega e logística**.
+
+O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
+[ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a
+medição derrubou a hipótese: 300 s ficavam abaixo da mediana do atraso real. O valor vigente é
+1200 s ([Streaming §3.3](streaming.md#33-eventos-atrasados)).
 
 ## 2. Onde cada item foi parar
 

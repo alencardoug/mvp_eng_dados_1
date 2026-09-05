@@ -31,12 +31,12 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v2.4 — Etapa 5 |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v2.4 — Etapa 8 |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.2 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.0 — motor implementado |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de 21 falhas intencionais, limpeza, quarentena e empilhamento | v2.0 |
-| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v1.1 |
+| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.0 — **em operação** |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.3 |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.1 — origem transacional **medida** |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.1 |
@@ -44,10 +44,10 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 6 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nada pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 30 aceitos, 0 pendentes |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 32 aceitos, 0 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
-| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.5 — Etapas 2 a 4 conferidas |
+| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.6 — Etapas 2 a 7 conferidas |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 
 ## Decisões já tomadas
@@ -68,15 +68,23 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 7 — Corte 3: streaming de estoque.** Termo aprovado (**M0**), decisões em ADR (**M1**),
-ambiente subindo do zero com um comando (**M2**) e o **fluxo completo origem → consumo** em
-operação (**M3**).
+**Etapa 8 — Corte 4: entrega e logística.** Termo aprovado (**M0**), decisões em ADR (**M1**),
+ambiente subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação
+(**M3**) e **streaming em operação com o *batch* intacto** (**M4**).
 
-Dois cortes verticais entregues — comercial, financeiro e estoque. O armazém tem **27 fluxos de
-ingestão**, com os três modos de sincronização exercitados, e o `dbt build` constrói **259 objetos**
-sem erro: 53 modelos nas quatro camadas, 2 *snapshots* SCD tipo 2 e os testes de qualidade. As
-**onze primeiras perguntas de negócio** têm view com contrato aplicado. Tudo orquestrado pelo
-Airflow. Nada [pendente](docs/pendencias.md) do lado do Owner.
+Três cortes verticais entregues — comercial, financeiro e estoque, e agora o caminho quente. O
+armazém tem **27 fluxos de ingestão em lote** mais o **CDC de `inventory_movements`**, e o
+`dbt build` constrói **262 objetos** sem erro: 54 modelos nas quatro camadas, 2 *snapshots* SCD tipo
+2 e os testes de qualidade. As **doze primeiras perguntas de negócio** têm view com contrato
+aplicado, e a décima segunda é a única cuja resposta muda entre duas leituras sem ninguém rodar
+nada. Nada [pendente](docs/pendencias.md) do lado do Owner.
+
+O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
+carga completa do Airbyte —, com sobreposição total e de propósito: **15.446 movimentos distintos,
+15.446 linhas na fato**, zero duplicadas e zero perdidas. Duzentas e cinquenta duplicatas injetadas
+no transporte não gravaram uma linha, e o saldo reconstruído pelo fluxo bate exatamente com a
+projeção da origem — 2.910 pares, 701.851 unidades. Detalhe em
+[Streaming §7.1](docs/streaming.md#71-o-que-foi-medido).
 
 Primeira medição real do projeto, em ambiente limpo e fator `dev`: **253.414 linhas** em **54,5 MB**
 — 225 bytes por linha —, geradas em 5,1 s e carregadas em 26 s. As doze
@@ -89,4 +97,12 @@ O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
 ```bash
 make env && make install && make up && make migrate && make seed-data
 make tools && make airbyte-up && make airbyte-config && make airflow-up && make dag-run
+```
+
+E o caminho quente, que sobe separado do frio de propósito — os dois não precisam conviver fora da
+validação final (risco **R11**):
+
+```bash
+make stream-up && make stream-run          # o pipeline fica em primeiro plano
+make stream-produce && make stream-alerts  # em outro terminal
 ```

@@ -67,15 +67,24 @@ decisão.
 | [0028](0028-fato-de-carrinho-para-o-funil.md) | Acrescentar uma fato de carrinho para o funil de conversão | Aceita | Lacuna do funil de conversão |
 | [0029](0029-exclusao-logica-como-marca-na-dimensao.md) | Carregar a exclusão lógica como marca até a dimensão | Aceita | D30 |
 | [0030](0030-cmv-do-livro-de-estoque.md) | Tirar o custo do produto vendido do livro de estoque | Aceita | Origem do CMV |
+| [0031](0031-aterrissagem-do-caminho-quente-em-raw.md) | Aterrissar o caminho quente em `raw` e transformar o Airbyte em reconciliação | Aceita | Aterrissagem, *snapshot* e papel do Airbyte |
+| [0032](0032-fonte-python-no-lugar-do-kafkaio.md) | Ler o transporte com fonte Python, e não com o KafkaIO do Beam | Aceita | Ponta de leitura sem Java |
 
 ---
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** A decisão levantada e fechada em 04/09/2026 está registrada no
-[ADR-0029](0029-exclusao-logica-como-marca-na-dimensao.md): a exclusão lógica viaja como marca até a
-dimensão, e filtrar é decisão da pergunta. A medição que sustentou a escolha — 1,74% da receita do
-datamart desapareceria se `staging` filtrasse — está no contexto do ADR.
+**Nenhuma.** As três decisões que a Etapa 7 levantou foram fechadas no mesmo dia, por
+interrogatório: onde o caminho quente aterrissa, quem faz o *backfill* dele e o que acontece com o
+*stream* do Airbyte — todas no
+[ADR-0031](0031-aterrissagem-do-caminho-quente-em-raw.md) —, e como o *pipeline* lê o transporte sem
+Java na máquina, no [ADR-0032](0032-fonte-python-no-lugar-do-kafkaio.md).
+
+As duas primeiras nasceram de **documentos aceitos que se contradiziam**: o ADR-0008 proíbe ler de
+camada posterior, o `streaming.md` desenhava o Beam escrevendo em `analytics`, e o ADR-0016
+concedera a exceção incremental justamente porque o *streaming* alimentaria a fato. Contradição
+entre decisões vigentes é decisão nova, e volta ao Owner — não se resolve escolhendo em silêncio
+qual documento vale.
 
 O procedimento — registrar como pendência, devolver ao Owner, e só então implementar — está na
 seção 1.

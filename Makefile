@@ -6,12 +6,20 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# Composições separadas compartilham o nome do projeto, então cada uma vê as
+# outras como "órfãs" e sugere `--remove-orphans` — que aqui apagaria os três
+# bancos. A sugestão é perigosa, e o aviso é desligado por isso.
+export COMPOSE_IGNORE_ORPHANS := true
+
 COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml
 COMPOSE_AIRFLOW := docker compose --env-file .env -f docker/docker-compose.airflow.yml
+COMPOSE_STREAM := docker compose --env-file .env -f docker/docker-compose.streaming.yml
 # O .env é carregado em cada receita: `make` roda um shell novo por linha.
 ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
 # O gerador lê a conexão do ambiente, nunca de argumento (mvp_ed1/db.py).
 GERADOR := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.generator.cli
+# O caminho quente lê conexão e parâmetros do ambiente e de streaming/*.yml.
+STREAM := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.streaming.cli
 
 # Ferramentas externas, fixadas em .tools/ e ignoradas pelo Git. A versão vive
 # aqui, não na máquina de quem clona: o projeto fixa imagem por digest e
@@ -36,6 +44,8 @@ BASE := source_db legacy_db warehouse_db
         migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
         dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
+        stream-up stream-down stream-connector stream-status stream-run stream-produce \
+        stream-duplicate stream-alerts \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -87,6 +97,11 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "AIRFLOW_PORT=8081"; \
 		echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
 		echo "AIRFLOW_FERNET_KEY=$$(pw)"; \
+		echo ""; \
+		echo "# Caminho quente (Etapa 7) — portas do transporte e do Connect."; \
+		echo "REDPANDA_PORT=19092"; \
+		echo "REDPANDA_ADMIN_PORT=19644"; \
+		echo "KAFKA_CONNECT_PORT=8083"; \
 	} > .env
 	@chmod 600 .env
 	@echo "'.env' criado com senhas aleatórias e permissão 600."
@@ -230,6 +245,46 @@ dag-status: require-env ## Mostra o estado das tarefas da última execução da 
 		airflow tasks states-for-dag-run fluxo_batch \
 		"$$($(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags list-runs fluxo_batch -o plain 2>/dev/null | grep -oE 'manual__[0-9T:.+-]+' | head -1)" \
 		-o plain 2>/dev/null | grep -viE 'alembic|plugin'
+
+# ── Caminho quente (Etapa 7) ────────────────────────────────────────────────
+stream-up: require-env ## Sobe Redpanda e Kafka Connect e aplica o conector Debezium
+	@$(COMPOSE_STREAM) up -d --wait redpanda kafka_connect
+	@$(MAKE) --no-print-directory stream-connector
+	@echo ""
+	@echo "Transporte em localhost:$${REDPANDA_PORT:-19092}; Connect em http://localhost:$${KAFKA_CONNECT_PORT:-8083}."
+	@echo "O pipeline é processo em primeiro plano: 'make stream-run'."
+
+stream-connector: require-env ## Aplica as declarações de streaming/connectors/ pela API REST
+	@$(STREAM) connector
+
+stream-status: require-env ## Estado do conector Debezium e das tarefas
+	@$(STREAM) status
+
+stream-run: require-env ## Sobe o pipeline Beam (primeiro plano; Ctrl-C encerra)
+	@# Primeiro plano de propósito: job de streaming que sobe em segundo plano
+	@# e morre em silêncio é o pior modo de falha possível — o tópico enche, o
+	@# saldo congela e nada avisa.
+	@$(STREAM) pipeline
+
+stream-produce: require-env ## Emite eventos novos no livro da origem; LIMITE=, SEED=
+	@$(STREAM) produzir $(if $(LIMITE),--limite $(LIMITE)) $(if $(SEED),--semente $(SEED))
+
+stream-duplicate: require-env ## Republica mensagens no transporte — teste de idempotência; QUANTAS=
+	@$(STREAM) duplicar $(if $(QUANTAS),--quantas $(QUANTAS))
+
+stream-alerts: require-env ## Lê e resume o tópico de alerta de estoque baixo
+	@$(STREAM) alertas $(if $(MOSTRAR),--mostrar $(MOSTRAR)) $(if $(GRUPO),--grupo $(GRUPO))
+
+stream-down: require-env ## Derruba Connect e mensageria; FORCE=1 apaga também os tópicos
+	@$(COMPOSE_STREAM) down $(if $(filter 1,$(FORCE)),-v)
+	@# O slot de replicação fica no `source_db` e sobrevive à queda do Connect:
+	@# sem removê-lo, o PostgreSQL segura WAL para um consumidor que não existe
+	@# mais, até o disco acabar. É a pegadinha clássica de CDC.
+	@$(if $(filter 1,$(FORCE)),set -a; . ./.env; set +a; \
+		docker exec -e PGPASSWORD="$$SOURCE_DB_PASSWORD" $${COMPOSE_PROJECT_NAME:-mvp_ed1}_source_db \
+		psql -U "$$SOURCE_DB_USER" -d "$$SOURCE_DB_NAME" -tAc \
+		"select pg_drop_replication_slot(slot_name) from pg_replication_slots where slot_name = 'mvp_inventory_movements'" \
+		>/dev/null 2>&1; echo "slot de replicação removido"; )
 
 dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem
 	@echo "descartando o schema 'snapshots' — o histórico SCD será refeito do zero"

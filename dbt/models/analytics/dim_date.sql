@@ -11,9 +11,12 @@
 
 with dias as (
 
+    -- O calendário vai **além** do fim dos fatos, de propósito: o caminho
+    -- quente da Etapa 7 grava evento com o relógio real, e uma dimensão de data
+    -- que parasse em `as_of_date` faria o `join` da fato descartá-lo sem dizer.
     select generate_series(
         date '{{ var("period_start") }}',
-        date '{{ var("as_of_date") }}',
+        date '{{ var("as_of_date") }}' + interval '{{ var("calendar_horizon_days") }} days',
         interval '1 day'
     )::date as full_date
 
