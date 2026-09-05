@@ -25,6 +25,14 @@ credentials*.json
 data/
 !data/.gitkeep
 
+# Exceção: os *seeds* do dbt são **código**, não dado. São dado de referência
+# pequeno e estável que os modelos leem — `brazilian_states` alimenta
+# `dim_geography`, `order_status_transitions` é a regra que a invariante 9
+# testa. Sem eles versionados, o `dbt seed` de um clone limpo não roda, e a
+# reprodutibilidade que o P2 exige deixa de existir. O `*.csv` acima os pegava
+# em silêncio desde a Etapa 5.
+!dbt/seeds/*.csv
+
 # Ferramentas
 .ipynb_checkpoints/
 .pytest_cache/
