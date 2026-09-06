@@ -233,9 +233,16 @@ def _espaco_duplo(valor: str, fonte: Fonte, **_: Any) -> str:
 
 
 def _cortado_no_limite(valor: str, fonte: Fonte, *, limite: int, **_: Any) -> str:
-    """Corta **e** completa até o limite: é o comprimento que denuncia o corte."""
-    base = (valor * 3)[:limite] if len(valor) < limite else valor[:limite]
-    return base
+    """Corta **e** completa até o limite: é o comprimento que denuncia o corte.
+
+    Repetir três vezes não bastava: `PRD-000005` triplicado dá 30 caracteres, e
+    o limite da coluna é 32 — o valor saía com 30 e a detecção, que compara com
+    o limite, não via nada. Repete-se o quanto for preciso para alcançá-lo.
+    """
+    if not valor:
+        return valor
+    repeticoes = limite // len(valor) + 1
+    return (valor * repeticoes)[:limite]
 
 
 def _marcador_textual(valor: str, fonte: Fonte, *, marcadores: tuple[str, ...], **_: Any) -> str:

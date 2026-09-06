@@ -45,7 +45,13 @@ geracao:
 delimitador: ";"
 
 # Marcadores textuais que a origem usa no lugar de nulo.
-nulos_disfarcados: ["NULL", "null", "N/A", "-", "#N/D", "", "   "]
+#
+# A string vazia **saiu da lista**, e o motivo foi medido: o destino do Airbyte
+# a entrega como `NULL` de verdade em `raw_legacy`. Um marcador que não
+# sobrevive ao transporte é indistinguível de nulo do outro lado, e injetá-lo
+# produziria um achado que o tratamento nunca poderia encontrar — falha do
+# oráculo, não do tratamento. Espaços em branco sobrevivem, e continuam.
+nulos_disfarcados: ["NULL", "null", "N/A", "-", "#N/D", "   "]
 
 # Colunas de data e hora que registram **promessa**, não fato consumado. Elas
 # ficam de fora do `DATE_FUTURE` porque cair depois do corte é o comportamento
@@ -141,7 +147,13 @@ falhas:
     arquetipo: texto
     deteccao: Espaços à volta, espaços internos repetidos ou caixa inconsistente em chave.
     conversao: Padronizar espaçamento e caixa conforme a convenção do campo.
-    injecao: {frequencia: 6, formas: [espaco_a_volta, caixa_alterada, espaco_duplo]}
+    # `caixa_alterada` **não** é injetada, e a razão é honesta: caixa
+    # inconsistente só é reconhecível contra uma convenção declarada do campo, e
+    # em texto livre não há nenhuma — `MÊS DO CLIENTE` é tão legítimo quanto
+    # `Mês do Cliente`. Injetar um defeito que o tratamento não tem como
+    # reconhecer faria o oráculo falhar por culpa da injeção, não da limpeza.
+    # A conversão continua padronizando espaçamento, que é o que se detecta.
+    injecao: {frequencia: 6, formas: [espaco_a_volta, espaco_duplo]}
 
   TEXT_TRUNCATED:
     grupo: texto
