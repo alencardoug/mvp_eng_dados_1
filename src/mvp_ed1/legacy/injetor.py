@@ -418,7 +418,7 @@ class _Aplicador:
     def _registro(self, falha: Falha, fonte: Fonte) -> int:
         aplicadas = 0
         for _ in range(falha.frequencia):
-            tabela = fonte.escolha([t for t, l in self.r.linhas.items() if l])
+            tabela = fonte.escolha(self._tabelas_alvo())
             linhas = self.r.linhas[tabela]
             original = fonte.escolha(linhas)
             copia = dict(original)
@@ -443,15 +443,25 @@ class _Aplicador:
     # ── Mesma chave natural, atributo divergente ─────────────────────────────
     def _chave_natural(self, falha: Falha, fonte: Fonte) -> int:
         aplicadas = 0
-        candidatas = [t for t, l in self.r.linhas.items() if len(l) > 1]
+        candidatas = [t for t in self._tabelas_alvo() if len(self.r.linhas[t]) > 1]
         for _ in range(falha.frequencia):
             tabela = fonte.escolha(candidatas)
             linhas = self.r.linhas[tabela]
             original = fonte.escolha(linhas)
+            # Só coluna de **texto livre**. Acrescentar " (rev)" a um timestamp
+            # produz `2025-07-01T00:09:09-03:00 (rev)`, que não é duplicata
+            # parcial: é valor malformado, que é outra falha do catálogo. O
+            # ponto do `DUP_PARTIAL` é a mesma chave com atributo **divergente**
+            # e válido — a ambiguidade está em qual das duas versões vale, não
+            # em nenhuma delas ser legível.
             texto = [
                 c
                 for c in schema.colunas(tabela)
-                if c != "id" and isinstance(original.get(c), str) and original.get(c)
+                if c != "id"
+                and isinstance(original.get(c), str)
+                and original.get(c)
+                and schema.arquetipo(tabela, c, self.i.promessas)
+                in ("texto", "texto_com_limite")
             ]
             if not texto:
                 continue
@@ -496,6 +506,14 @@ class _Aplicador:
             aplicadas += 1
         return aplicadas
 
+    def _tabelas_alvo(self) -> list[str]:
+        """Tabelas que podem receber defeito de linha inteira."""
+        return [
+            t
+            for t, linhas in self.r.linhas.items()
+            if linhas and t not in self.i.catalogo.dominios_fechados
+        ]
+
     def _injetavel(self, falha: Falha, tabela: str, coluna: str) -> bool:
         """A falha seria mesmo um defeito **nesta** coluna?
 
@@ -504,6 +522,8 @@ class _Aplicador:
         — que é o valor certo. Um defeito que não é defeito nunca seria
         detectado, e o oráculo falharia por culpa da injeção.
         """
+        if tabela in self.i.catalogo.dominios_fechados:
+            return False
         qualificado = f"{tabela}.{coluna}"
         if falha.codigo == "NUM_OUT_OF_RANGE":
             return qualificado not in self.i.catalogo.quantidades_com_sinal

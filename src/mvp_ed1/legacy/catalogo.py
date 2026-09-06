@@ -93,6 +93,8 @@ class Catalogo:
     quantidades_com_sinal: frozenset[str]
     #: Colunas que o sistema antigo guardava mais estreitas que o atual.
     colunas_estreitadas: frozenset[str]
+    #: Tabelas de domínio fechado, fora do sorteio de injeção.
+    dominios_fechados: frozenset[str]
     falhas: dict[str, Falha]
 
     def por_arquetipo(self, arquetipo: str) -> tuple[Falha, ...]:
@@ -160,5 +162,6 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
         promessas=frozenset(bruto["promessas"]),
         quantidades_com_sinal=frozenset(bruto["quantidades_com_sinal"]),
         colunas_estreitadas=frozenset(bruto["colunas_estreitadas"]),
+        dominios_fechados=frozenset(bruto["dominios_fechados"]),
         falhas=falhas,
     )

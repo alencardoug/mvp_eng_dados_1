@@ -126,6 +126,14 @@ def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto) -> No
 # estreitadas no catálogo.
 TETO_DE_FALSO_POSITIVO = 0.005
 
+#: Falhas que **não** são achados de valor, e por isso não aparecem no `achados`
+#: dos modelos de limpeza. Três precisam de outras linhas ou de outra tabela; a
+#: quarta, `NULL_REQUIRED`, nasce do contrato do registro **depois** da
+#: conversão — reconhecer a ausência não torna a ocorrência válida (ADR-0040).
+DE_CONTEXTO = frozenset(
+    {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH", "NULL_REQUIRED"}
+)
+
 
 def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
     uniao = "\nunion all\n".join(
@@ -163,7 +171,7 @@ def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
     if not existe:
         pytest.skip("modelos de limpeza não construídos; rode `make dbt-build`")
 
-    de_contexto = {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH"}
+    de_contexto = DE_CONTEXTO
     esperados = {
         (a["tabela"], a["legacy_row_id"], a["coluna"], a["codigo"])
         for a in manifesto["achados"]
@@ -182,7 +190,7 @@ def test_o_falso_positivo_da_heuristica_continua_marginal(
     engine, manifesto, record_property
 ) -> None:
     """A heurística é aceita; deixar de ser marginal, não."""
-    de_contexto = {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH"}
+    de_contexto = DE_CONTEXTO
     esperados = {
         (a["tabela"], a["legacy_row_id"], a["coluna"], a["codigo"])
         for a in manifesto["achados"]

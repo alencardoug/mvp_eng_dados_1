@@ -91,6 +91,25 @@ quantidades_com_sinal:
 #
 # Truncamento é de campo **livre e longo**, que é onde o limite de uma coluna
 # antiga realmente aperta.
+# Tabelas de **domínio fechado** — as que guardam valores, não coisas. Elas não
+# recebem injeção, e o motivo é de proporção, não de princípio.
+#
+# O injetor sorteia alvos uniformemente, então acerta uma tabela de três linhas
+# com a mesma facilidade com que acerta `cart_items`, que tem milhares. E todo
+# carrinho e todo pedido referenciam um canal: rejeitar **uma** das três linhas
+# de `sales_channels` cascateou para 3.564 carrinhos e itens, e sozinha
+# respondia por 64% das 5.530 rejeições em cascata da captura.
+#
+# A cascata existe para demonstrar o custo real de um defeito de dado, e esse
+# número deixava de demonstrar isso: descrevia o azar de um sorteio numa tabela
+# minúscula. O custo aceito é o exercício deixar de cobrir "linha de referência
+# corrompida", que existe em sistema legado real.
+dominios_fechados:
+  - sales_channels
+  - payment_methods
+  - customer_segments
+  - carriers
+
 colunas_estreitadas:
   - customer_addresses.street
   - customer_addresses.district

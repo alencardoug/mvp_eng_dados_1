@@ -166,10 +166,16 @@ otimização: sem elas, o tratamento rejeitava **1.508 registros perfeitos** —
 | `promessas` | `carts.expires_at` é uma data futura por natureza; `DATE_FUTURE` ali condenaria 127 carrinhos corretos |
 | `quantidades_com_sinal` | `quantity_delta` é assinado — saída de estoque é negativa —, e o sinal ali não é defeito. Eram 388 movimentos |
 | `colunas_estreitadas` | O sistema antigo apertou **alguns** campos livres, não todos. `currency` sempre teve três caracteres, e truncá-la produzia 987 rejeições de valores certos |
+| `dominios_fechados` | Tabela que guarda **valores**, não coisas, não recebe injeção. O sorteio é uniforme, e acertar uma das três linhas de `sales_channels` cascateava para 3.564 carrinhos — 64% de toda a cascata vinha daí |
 
-Depois das três listas, o falso positivo residual é **13 em 12.749 linhas
-(0,10%)**, e é quase todo `TEXT_TRUNCATED` — a heurística declarada, com o seu
-custo medido em vez de escondido.
+Depois das listas, o falso positivo residual é **13 em 12.749 linhas (0,10%)**,
+e é quase todo `TEXT_TRUNCATED` — a heurística declarada, com o seu custo medido
+em vez de escondido.
+
+E a cascata passa a medir o que existe para demonstrar. Com os domínios fechados
+fora do sorteio, a captura fecha em **82,0% aceitos, 17,8% rejeitados e 0,2%
+corrigidos** — contra 44% de rejeição quando uma linha de três derrubava um
+terço do dado.
 
 ### 3.1.3 Precedência quando a mesma ocorrência tem várias falhas
 
