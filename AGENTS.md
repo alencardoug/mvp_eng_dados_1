@@ -25,6 +25,24 @@ cada arquivo é apagado no *commit* que entrega o trabalho dele, e o diretório 
 quando nada está encaminhado — que é o estado atual. Por isso não aparecem no mapa de documentação
 do README.
 
+### Passagem entre agentes
+
+Este projeto é trabalhado por **dois** agentes com orçamentos de esforço
+diferentes: um gera, outro revisa. A passagem entre eles não depende da memória
+de nenhum dos dois — ela tem skill própria, `revisao`.
+
+Quem **entrega** roda `python3 .claude/skills/revisao/dossie.py --desde <ref>`,
+preenche as seções que só o autor sabe e confere com `--conferir`. Quem
+**revisa** lê o `REVISAO.md` na raiz e escreve os achados na tabela ao fim dele,
+com veredito por linha.
+
+Duas coisas que a skill impõe, e que valem repetir aqui:
+
+* **afirmação de medição precisa de saída de comando colada.** O que não tem
+  saída não é medição, e vai para a seção das suposições;
+* a seção **"o que não foi verificado"** não sai vazia. Nenhuma entrega
+  verifica tudo, e um dossiê que afirma o contrário está errado.
+
 ### Quando um encaminhamento existir
 
 Ao receber um pedido de **avaliação**, confronte o plano com o código, os ADRs e o estado

@@ -1,0 +1,4 @@
+# Comandos de verificação deste projeto, um por linha.
+# O dossiê roda cada um e cola a saída. Linha com # é ignorada.
+make test
+make dbt-build
