@@ -60,14 +60,18 @@ PADRAO = {
     tags=["batch", "armazem"],
 )
 def fluxo_batch():
-    @task(task_id="sincronizar_oltp_para_raw")
-    def sincronizar() -> dict:
-        """Executa a sincronização do Airbyte e **espera** o resultado.
+    @task
+    def sincronizar(conexao: str) -> dict:
+        """Executa uma sincronização do Airbyte e **espera** o resultado.
 
         Importa o cliente do próprio pacote do projeto em vez de reimplementar
         a chamada: uma segunda implementação divergiria da do `Makefile` na
         primeira alteração, e as duas responderiam coisas diferentes sobre a
         mesma sincronização.
+
+        Recebe o nome da conexão porque desde a Etapa 10 há **duas** origens, e
+        a tarefa é a mesma para as duas — o que muda é de onde se lê, e isso
+        está declarado em `airbyte/streams.yml`, não aqui.
         """
         from mvp_ed1 import airbyte
 
@@ -78,11 +82,11 @@ def fluxo_batch():
             )
 
         jwt = airbyte.token()
-        connection_id = airbyte.conexao("oltp_para_raw", jwt)
+        connection_id = airbyte.conexao(conexao, jwt)
         job = airbyte.acompanhar(airbyte.sincronizar(connection_id, jwt)["jobId"], jwt)
 
         if job.get("status") != "succeeded":
-            raise RuntimeError(f"sincronização terminou como {job.get('status')}")
+            raise RuntimeError(f"{conexao}: sincronização terminou como {job.get('status')}")
         return {"linhas": job.get("rowsSynced", 0), "job": job.get("jobId")}
 
     def camada(nome: str, selecao: str, comando: str = "build") -> BashOperator:
@@ -95,12 +99,16 @@ def fluxo_batch():
     # `trusted.geographies` lê, e ele não vem da origem.
     semear = camada("seed", "", comando="seed")
     staging = camada("staging", "--select staging")
-    trusted = camada("trusted", "--select trusted")
+    # O teste que compara `trusted` com a quarentena sai daqui: os dois lados
+    # dele só existem depois da tarefa seguinte. Sem o `--exclude`, a seleção
+    # indireta do dbt o traz de volta e ele compara a captura nova com a
+    # quarentena da anterior.
+    trusted = camada("trusted", "--select trusted --exclude tag:legado_reconciliacao")
     # A quarentena sai de `trusted` e não alimenta ninguém — é destino, não
     # passagem (ADR-0008). Roda aqui porque o teste que a confere só tem o que
     # ler depois que ela existe, e porque uma rejeição descoberta tarde é uma
     # rejeição que já contaminou o relatório.
-    quarentena = camada("quarantine", "--select quarantine")
+    quarentena = camada("quarantine", "--select quarantine tag:legado_reconciliacao")
     # `snapshot` no meio: lê `trusted`, é lido por `analytics`.
     snapshots = camada("snapshots", "", comando="snapshot")
     analytics = camada("analytics", "--select analytics")
@@ -108,8 +116,24 @@ def fluxo_batch():
     # O catálogo é a última coisa: ele descreve o que acabou de ser construído.
     catalogo = camada("docs", "generate", comando="docs")
 
+    # As duas capturas são **independentes** e correm em paralelo: lêem bancos
+    # diferentes e escrevem schemas diferentes. O que não é paralelizável é o
+    # que vem depois — a transformação precisa das duas completas, porque o
+    # empilhamento do legado se junta ao dado da origem principal.
+    #
+    # O legado não entra em nenhuma tarefa nova de transformação: as tarefas da
+    # DAG são por **camada**, e os modelos dele vivem nas camadas que já existem.
+    # É a propriedade que o cabeçalho desta DAG anuncia — acrescentar domínio
+    # não acrescenta tarefa —, e a Etapa 10 é o teste dela.
+    capturas = [
+        sincronizar.override(task_id="sincronizar_oltp_para_raw")(conexao="oltp_para_raw"),
+        sincronizar.override(task_id="sincronizar_legado_para_raw_legacy")(
+            conexao="legacy_para_raw_legacy"
+        ),
+    ]
+
     (
-        sincronizar()
+        capturas
         >> semear
         >> staging
         >> trusted

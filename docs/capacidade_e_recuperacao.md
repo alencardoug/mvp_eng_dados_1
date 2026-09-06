@@ -12,7 +12,7 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.8 |
+| Versão | 2.9 |
 | Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7. Recuperação da Etapa 12 ainda não entregue |
 | Última revisão | 05/09/2026 |
 
@@ -106,15 +106,21 @@ simultaneamente de pé. A primeira coluna é a medição da Etapa 5, com 12 flux
 segunda é a da Etapa 6, com 27; a terceira é a da Etapa 8, com 30 e uma tarefa a mais — a
 quarentena, que estreou como camada.
 
-| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 | Etapa 9 |
-|---|---:|---:|---:|---:|
-| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s | 1 min 31 s |
-| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s | 16 s · 16 s · 12 s |
-| `dbt_quarantine` | — | — | 7 s | 7 s |
-| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s | 8 s · 20 s · 9 s |
-| `dbt_docs` | 13 s | 16 s | 13 s | 16 s |
-| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** | **3 min 21 s** |
-| **Tarefas** | 8 | 8 | 9 | 9 |
+| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 | Etapa 9 | Etapa 10 |
+|---|---:|---:|---:|---:|---:|
+| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s | 1 min 31 s | 2 min 37 s |
+| `sincronizar_legado_para_raw_legacy` | — | — | — | — | 2 min 7 s, em paralelo |
+| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s | 16 s · 16 s · 12 s | 19 s · 34 s · 32 s |
+| `dbt_quarantine` | — | — | 7 s | 7 s | 9 s |
+| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s | 8 s · 20 s · 9 s | 8 s · 22 s · 11 s |
+| `dbt_docs` | 13 s | 16 s | 13 s | 16 s | 22 s |
+| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** | **3 min 21 s** | **5 min 20 s** |
+| **Tarefas** | 8 | 8 | 9 | 9 | 10 |
+
+A Etapa 10 é a primeira em que o total **salta**: 5 min 20 s contra 3 min 21 s. A causa não é a
+transformação — é a segunda origem. As duas capturas correm em paralelo e a mais lenta define o
+piso, e a do `oltp` passou a levar 2 min 37 s por reler tudo depois da conexão ter sido recriada.
+O `dbt` inteiro, agora com 812 objetos e os 40 modelos do legado, roda em 2 min 17 s.
 
 Dobrar o número de fluxos e passar de 36 para 53 modelos custou **19 segundos** entre as Etapas 5 e
 6. A Etapa 8 acrescentou três fluxos de ingestão, catorze modelos, uma *seed* e a camada

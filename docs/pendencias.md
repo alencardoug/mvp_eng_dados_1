@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada |
+| Etapa atual | Etapa 11 — Consolidação de governança e qualidade |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
 | Última revisão | 06/09/2026 |
@@ -67,9 +67,10 @@ nos
 [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md). Todas por interrogatório com alternativas.
 
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
-**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 9
-foram entregues — o modelo dimensional está completo e as 16 perguntas de negócio têm view —, e a
-atual é a **Etapa 10 — Corte 6: origem legada**, em implementação.
+**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 10
+foram entregues — o modelo dimensional está completo, as 16 perguntas de negócio têm view e a
+segunda origem atravessa o fluxo inteiro —, e a próxima é a **Etapa 11 — Consolidação de governança
+e qualidade**.
 
 O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
 [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a

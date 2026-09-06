@@ -20,37 +20,22 @@ O mapa dos documentos está no [README](README.md). O que está parado esperando
 
 ## Trabalho encaminhado
 
-Ordens de serviço específicas ficam em [`encaminhamentos/`](encaminhamentos/). São **transitórias**:
-cada arquivo é apagado no *commit* que entrega o trabalho dele, e por isso não aparecem no mapa de
-documentação do README.
+Ordens de serviço específicas, **quando houver**, ficam em `encaminhamentos/`. São transitórias:
+cada arquivo é apagado no *commit* que entrega o trabalho dele, e o diretório deixa de existir
+quando nada está encaminhado — que é o estado atual. Por isso não aparecem no mapa de documentação
+do README.
 
-### Leitura e execução dos encaminhamentos atuais
+### Quando um encaminhamento existir
 
-Depois de `CLAUDE.md` e do mapa documental, leia
-[`encaminhamentos/README.md`](encaminhamentos/README.md). Ele estabelece a ordem de leitura e
-execução dos planos da D31 e da Etapa 10. Os detalhes pertencem a cada encaminhamento; não os
-copie para este arquivo.
+Ao receber um pedido de **avaliação**, confronte o plano com o código, os ADRs e o estado
+observado. Entregue um parecer com viabilidade, lacunas, ajustes propostos e validações ainda não
+executadas. Avaliar um plano não significa executar seus comandos nem encerrar suas pendências.
 
-Ao receber um pedido de **avaliação**, confronte o plano com o código, os ADRs e o estado observado.
-Entregue um parecer com viabilidade, lacunas, ajustes propostos e validações ainda não executadas.
-Avaliar um plano não significa executar seus comandos de reconstrução ou encerrar suas pendências.
 Ao receber um pedido de **execução**, use a autorização já existente na conversa, cumpra os
-pré-requisitos e avance no trabalho autorizado; não peça novamente uma decisão já registrada.
+pré-requisitos e avance; não peça de novo uma decisão já registrada. Uma autorização para executar
+também não é aceite da implementação: distinga validação técnica, revisão do declarativo e
+encerramento formal, conforme `CLAUDE.md` §5 e §7.
 
-Para a avaliação destes dois planos, confira especialmente:
-
-- se as premissas rotuladas como medidas continuam válidas no ambiente atual;
-- se os procedimentos distinguem ferramentas existentes de rotinas ainda a implementar;
-- se há decisão nova sobre tratamento ou modelagem, indicando a evidência e a proposta concreta
-  antes de devolver o ponto ao Owner;
-- se cada critério de conclusão tem uma verificação executável, inclusive os efeitos sobre os
-  cortes anteriores e os dois caminhos do estoque.
-
-O limite de quatro arquivos valeu para a **entrega original de planejamento**. Não restringe uma
-execução posteriormente autorizada pelo Owner; o escopo vigente vem do pedido que encaminha o
-trabalho. Uma autorização para executar também não é, por si só, aceite da implementação:
-distinga validação técnica, revisão do declarativo e encerramento formal conforme `CLAUDE.md` §5/§7.
-
-Ao concluir um encaminhamento, remova também sua entrada no índice e ajuste as referências dos
-encaminhamentos restantes para o registro permanente da entrega. A exclusão do arquivo, sozinha,
-não é evidência de conclusão.
+Ao concluir um encaminhamento, remova o arquivo **e** a sua entrada no índice, e aponte as
+referências restantes para o registro permanente da entrega. A exclusão do arquivo, sozinha, não é
+evidência de conclusão.

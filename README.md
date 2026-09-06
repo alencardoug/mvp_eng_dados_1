@@ -71,22 +71,23 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Atual: Etapa 10 — Corte 6: origem legada, em implementação.** Gerador, captura retida e
-limpeza existem; classificação, quarentena, empilhamento e DAG ainda não estão entregues.
-O tratamento de nulo obrigatório foi decidido no
-[ADR-0040](docs/adr/0040-rejeitar-nulo-em-campo-obrigatorio.md).
-A D31 foi corrigida, revalidada e [aceita](docs/pendencias.md#d31--encerrada).
+**Próxima: Etapa 11 — Consolidação de governança e qualidade.**
 Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).
 
-Cinco cortes verticais entregues — comercial, financeiro e estoque, o caminho quente, entrega e
-logística, e relacionamento. **O modelo dimensional está completo: 10 fatos e 15 dimensões, e as 16
-perguntas de negócio têm view com `contract: enforced`.** O armazém tem **36 fluxos de ingestão em
-lote** mais o **CDC de `inventory_movements`**. Após a reconstrução da D31, o `dbt build` passou
-com **485 objetos, 371 testes de qualidade, `WARN=0` e `ERROR=0`**; o teste de remessa sem item
-é bloqueante. A DAG `fluxo_batch` terminou com as **nove tarefas em sucesso**. Resultados e
-distinção entre avisos de dados e de compilação em [Qualidade](docs/qualidade_de_dados.md).
+Seis cortes verticais entregues — comercial, financeiro e estoque, o caminho quente, entrega e
+logística, relacionamento e a **origem legada**. O modelo dimensional está completo: 10 fatos e 15
+dimensões, e as 16 perguntas de negócio têm view com `contract: enforced`. O armazém tem **36 fluxos
+de ingestão em lote** da origem principal, o **CDC de `inventory_movements`** e **40 do legado**, e o
+`dbt build` passa com **812 objetos, `WARN=0` e `ERROR=0`**.
+
+**A segunda origem atravessa o fluxo inteiro.** São 12.747 ocorrências capturadas: **82,0% aceitas,
+17,8% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com valor original, resultado e
+regra registrados. A equação `extraídos = aceitos + corrigidos + rejeitados` é conferida a cada
+*build*, e os modelos de limpeza encontram **74 de 74** defeitos injetados com 0,10% de falso
+positivo — medidos contra o manifesto, que a transformação nunca lê. A DAG `fluxo_batch` roda **dez
+tarefas** de ponta a ponta em **5 min 20 s**, com as duas capturas em paralelo.
 
 O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
 carga completa do Airbyte —, com sobreposição total e de propósito. A revalidação comparou

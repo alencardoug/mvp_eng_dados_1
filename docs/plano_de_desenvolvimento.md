@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.9 |
-| Etapa atual | **Etapa 10 — Corte 6: origem legada** (**M0** a **M4** concluídos) |
+| Versão | 3.0 |
+| Etapa atual | **Etapa 11 — Consolidação de governança e qualidade** (**M0** a **M4** concluídos) |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -236,6 +236,8 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 10 — Corte 6: origem legada
 
+*Concluída em 06/09/2026.*
+
 | | |
 |---|---|
 | **Objetivo** | Exercitar a parte suja do trabalho: interpretar, corrigir, rejeitar e provar. |
@@ -243,7 +245,7 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 | **Entregas** | **E5**, **E6**, **E10** (parciais) |
 | **Decisões** | **D15** ([ADR-0021](adr/0021-procedencia-no-empilhamento.md)), **D28** ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — aceitas em 04/09/2026 · retenção das capturas ([ADR-0037](adr/0037-reter-capturas-do-legado-por-acrescimo.md)) · duplicata e cascata ([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) · alcance da procedência ([ADR-0039](adr/0039-alcance-da-procedencia.md)) — aceitas em 05/09/2026 |
 | **Artefatos** | `src/mvp_ed1/legacy/` com o catálogo declarativo, o gerador e o manifesto · `legacy_db` · *snapshot* em `raw_legacy` · schema `quarantine` · modelos de limpeza e empilhamento |
-| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente · resultado confere com o manifesto, sem que a transformação o consulte · `raw_legacy` intacto · rejeitados preservados em quarentena com motivo · reprocessar o mesmo `snapshot_id` não duplica · nenhuma correção silenciosa |
+| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente ✓ (12.747 = 10.452 + 27 + 2.268, por teste a cada *build*) · resultado confere com o manifesto, sem que a transformação o consulte ✓ (74 de 74 defeitos de valor encontrados, 0,10% de falso positivo) · `raw_legacy` intacto ✓ (11 capturas retidas lado a lado) · rejeitados preservados em quarentena com motivo ✓ (três origens discriminadas, duas versões de catálogo retidas) · reprocessar o mesmo `snapshot_id` não duplica ✓ · nenhuma correção silenciosa ✓ (toda conversão registra valor original, resultado e regra) |
 | **Riscos tratados** | **R5**, **R14** |
 | **Conceitos** | *Schema-on-read* × *schema-on-write* · dicionário de conversões determinísticas · quarentena em vez de descarte · procedência · teste contra oráculo |
 
