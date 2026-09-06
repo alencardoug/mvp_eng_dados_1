@@ -84,19 +84,27 @@ def _gerada_pelo_banco(coluna) -> bool:
     )
 
 
-def limites() -> dict[tuple[str, str], int]:
-    """Limite declarado de cada coluna textual, por (tabela, coluna).
+def limites(largura_do_legado: int | None = None) -> dict[tuple[str, str], int]:
+    """Largura de cada coluna textual **no sistema antigo**, por (tabela, coluna).
 
-    É o que torna `TEXT_TRUNCATED` detectável: sem um limite declarado, "cortado
-    no limite" não é observável em coluna `text`. A heurística — comprimento
-    exatamente igual ao limite — é assumida com a sua taxa de falso positivo,
-    e o gerador produz de propósito valores legítimos nesse comprimento.
+    Não é o limite do modelo atual. A origem legada é outro sistema, mais velho
+    e mais apertado, e o truncamento nasce daí: um `varchar(24)` recebendo um
+    endereço de quarenta caracteres. Quando `largura_do_legado` é informada, ela
+    limita a do modelo — a coluna antiga nunca é mais larga que a de hoje.
+
+    É o que torna `TEXT_TRUNCATED` detectável: sem uma largura declarada,
+    "cortado no limite" não é observável em coluna `text`. A heurística —
+    comprimento exatamente igual à largura — é assumida com a sua taxa de falso
+    positivo, e o gerador produz de propósito valores legítimos nesse tamanho.
     """
     resultado: dict[tuple[str, str], int] = {}
     for t in Base.metadata.sorted_tables:
         for c in t.columns:
             if isinstance(c.type, String) and c.type.length:
-                resultado[(t.name, c.name)] = int(c.type.length)
+                largura = int(c.type.length)
+                if largura_do_legado is not None:
+                    largura = min(largura, largura_do_legado)
+                resultado[(t.name, c.name)] = largura
     return resultado
 
 

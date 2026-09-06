@@ -81,6 +81,7 @@ class Catalogo:
     versao: int
     semente: int
     fator: float
+    limite_de_texto: int
     delimitador: str
     nulos_disfarcados: tuple[str, ...]
     falhas: dict[str, Falha]
@@ -141,6 +142,7 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
         versao=int(bruto["versao"]),
         semente=int(bruto["geracao"]["semente"]),
         fator=float(bruto["geracao"]["fator"]),
+        limite_de_texto=int(bruto["geracao"]["limite_de_texto"]),
         delimitador=bruto["delimitador"],
         nulos_disfarcados=tuple(bruto["nulos_disfarcados"]),
         falhas=falhas,

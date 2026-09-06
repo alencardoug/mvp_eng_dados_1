@@ -36,6 +36,12 @@ versao: 1
 geracao:
   semente: 20260906
   fator: 0.05
+  # Largura das colunas de texto no sistema antigo. A origem legada não é a
+  # atual com defeitos: é **outro sistema**, mais velho e mais apertado, e é daí
+  # que o truncamento vem de verdade — um `varchar(24)` recebendo um endereço de
+  # 40 caracteres. Sem isso, "cortar no limite" só produzia o valor repetido até
+  # encher a coluna moderna, que não se parece com nada que exista.
+  limite_de_texto: 24
 
 # Delimitador do arquivo de importação que a origem legada simula. É o que torna
 # `TEXT_DELIMITER` detectável: numa coluna PostgreSQL o delimitador não desloca

@@ -74,7 +74,7 @@ def _regra(codigo: str, tabela: str, coluna: str, catalogo, limites):
 
 def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto) -> None:
     catalogo = carregar()
-    limites = schema.limites()
+    limites = schema.limites(catalogo.limite_de_texto)
     injetados: collections.Counter[str] = collections.Counter()
     detectados: collections.Counter[str] = collections.Counter()
     escapou: list[str] = []

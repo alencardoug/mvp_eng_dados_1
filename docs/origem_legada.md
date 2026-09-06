@@ -39,6 +39,11 @@ mas representa uma origem antiga sem governança adequada:
 A tipagem frouxa é necessária: uma coluna PostgreSQL tipada como número ou data rejeitaria os
 exemplos defeituosos antes da engenharia de limpeza — que é exatamente o que se quer exercitar.
 
+**As colunas de texto do legado são mais estreitas que as de hoje.** É daí que o truncamento vem: um
+`varchar(24)` recebendo um endereço de quarenta caracteres perde o fim dele, e o que sobra é o
+começo. A largura é declarada uma vez no catálogo, e vale como teto — a coluna antiga nunca é mais
+larga que a atual.
+
 ---
 
 ## 3. Falhas intencionais
@@ -102,7 +107,7 @@ nunca é reaproveitado.
 |---|---|---|---|
 | `TEXT_ENCODING` | Qualquer texto | `JosÃ©`, `SÃ£o Paulo` | Reparar quando o par de codificações é conhecido; rejeitar se ambíguo |
 | `TEXT_WHITESPACE_CASE` | Chaves e textos | Espaços à volta, caixa inconsistente | Padronizar |
-| `TEXT_TRUNCATED` | Texto longo | Cortado no limite da coluna legada | Rejeitar: o que foi perdido não se restaura |
+| `TEXT_TRUNCATED` | Texto longo | Cortado na largura da coluna **antiga**, mais estreita que a atual | Rejeitar: o que foi perdido não se restaura |
 | `TEXT_DELIMITER` | Qualquer texto | Delimitador dentro do campo, deslocando as colunas | Rejeitar a **linha inteira** — as demais colunas também estão erradas |
 | `NULL_DISGUISED` | Qualquer campo | `NULL`, `N/A`, `-`, `#N/D`, texto vazio | Converter para nulo real |
 

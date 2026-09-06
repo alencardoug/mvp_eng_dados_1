@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from mvp_ed1.generator import enums
 from mvp_ed1.generator.rng import Fonte
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.catalogo import Catalogo, Falha
@@ -233,16 +234,15 @@ def _espaco_duplo(valor: str, fonte: Fonte, **_: Any) -> str:
 
 
 def _cortado_no_limite(valor: str, fonte: Fonte, *, limite: int, **_: Any) -> str:
-    """Corta **e** completa até o limite: é o comprimento que denuncia o corte.
+    """Corta no limite da coluna antiga — e só quando há o que perder.
 
-    Repetir três vezes não bastava: `PRD-000005` triplicado dá 30 caracteres, e
-    o limite da coluna é 32 — o valor saía com 30 e a detecção, que compara com
-    o limite, não via nada. Repete-se o quanto for preciso para alcançá-lo.
+    A primeira versão repetia o valor até encher a coluna moderna, o que produzia
+    `PRD-000005PRD-000005PRD-000005PR`: comprimento certo, aparência de nada.
+    Truncamento de verdade é um valor **longo** entrando numa coluna estreita, e
+    o que sobra é o começo dele. Valor mais curto que a coluna não é truncável, e
+    devolvê-lo intacto faz o injetor procurar outro alvo.
     """
-    if not valor:
-        return valor
-    repeticoes = limite // len(valor) + 1
-    return (valor * repeticoes)[:limite]
+    return valor[:limite] if len(valor) > limite else valor
 
 
 def _marcador_textual(valor: str, fonte: Fonte, *, marcadores: tuple[str, ...], **_: Any) -> str:
@@ -261,8 +261,16 @@ def _um_zero(valor: str, fonte: Fonte, **_: Any) -> str:
     return "1" if valor == "true" else "0"
 
 
-def _valor_inexistente(valor: str, fonte: Fonte, **_: Any) -> str:
-    return f"{valor}_legado"
+def _valor_inexistente(valor: str, fonte: Fonte, *, dominio: tuple[str, ...] = (), **_: Any) -> str:
+    """Como o sistema antigo escrevia o mesmo estado: abreviado e em caixa alta.
+
+    `adjustment_legado` denunciava a si mesmo — nenhum sistema grava assim. Uma
+    sigla de três letras é o que uma origem dos anos noventa realmente teria, e
+    obriga o tratamento a rejeitar por **não reconhecer**, que é o ponto, em vez
+    de por encontrar uma marca óbvia.
+    """
+    sigla = valor[:3].upper()
+    return sigla if sigla not in {v.upper() for v in dominio} else f"{sigla}9"
 
 
 def _sem_arroba(valor: str, fonte: Fonte, **_: Any) -> str:
@@ -308,7 +316,7 @@ class _Aplicador:
     def __init__(self, injetor: "Injetor", resultado: Resultado) -> None:
         self.i = injetor
         self.r = resultado
-        self.limites = schema.limites()
+        self.limites = schema.limites(injetor.catalogo.limite_de_texto)
 
     def executar(self, falha: Falha) -> int:
         fonte = self.i._fonte(falha.codigo)
@@ -346,6 +354,7 @@ class _Aplicador:
                         as_of=self.i.as_of,
                         limite=self.limites.get((tabela, coluna), len(original)),
                         marcadores=self.i.catalogo.nulos_disfarcados,
+                        dominio=enums.enumeracoes().get(tabela, {}).get(coluna, ()),
                     )
                 except (ValueError, KeyError, TypeError):
                     continue
@@ -427,7 +436,10 @@ class _Aplicador:
             copia[schema.IDENTIDADE] = _proximo_id(linhas)
             copia[coluna] = f"{original[coluna]} (rev)"
             linhas.append(copia)
-            # As duas versões são rejeitadas: não há critério de desempate.
+            # As duas versões são rejeitadas: não há critério de desempate. E as
+            # duas registram a **divergência**, não o próprio valor: um achado
+            # em que original e legado são iguais não ilustra nada, e foi o que
+            # tornou este código ilegível no manifesto da primeira geração.
             for linha in (original, copia):
                 self.r.achados.append(
                     Achado(
@@ -436,7 +448,7 @@ class _Aplicador:
                         coluna=coluna,
                         codigo=falha.codigo,
                         valor_original=original[coluna],
-                        valor_legado=linha[coluna],
+                        valor_legado=copia[coluna],
                         resultado_esperado=REJEITADO,
                     )
                 )
