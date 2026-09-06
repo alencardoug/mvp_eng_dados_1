@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.9 |
-| Última revisão | 05/09/2026 |
+| Versão | 1.10 |
+| Última revisão | 06/09/2026 |
 
 ---
 
@@ -207,6 +207,43 @@ efeito da geração sobre os dados dependentes foi medido, como registra
 - reconciliação entre extraídos, aceitos, corrigidos, rejeitados e empilhados;
 - bloqueio do empilhamento quando a regra de correção for ambígua;
 - relatório de qualidade por tabela, coluna, tipo de erro e resultado do tratamento.
+
+### 5.1 Validação dos valores tratados — 06/09/2026
+
+Os testes de detecção passaram antes da correção, mas ler todas as colunas de
+`staging.stg_legacy__cart_items` falhava em `31/02/2024`. O gerador SQL removia os ramos de rejeição
+do `case` de limpeza; a data detectada como impossível chegava a `to_date` por uma regra posterior.
+O otimizador podia eliminar essa expressão quando a consulta lia somente `achados`.
+
+O gerador passou a respeitar a precedência também na conversão, preservando o original quando a
+primeira regra rejeita. Nenhuma regra de negócio, lista do catálogo ou teto foi alterado.
+
+| Verificação executada | Resultado |
+|---|---|
+| Build restrito às views de limpeza legada | 40 modelos; `PASS=40`, `WARN=0`, `ERROR=0` |
+| Suíte de gerador, SQL derivado e detecção/conversão | 24 testes passaram, nenhum pulado |
+| Achados de valor injetados encontrados nos modelos | 74 de 74; zero perdidos |
+| Achados adicionais em relação ao manifesto | 13 em 12.749 linhas (0,10%); teto em teste permanece 0,5% |
+| Leitura efetiva de todas as colunas das 40 views | Passou, sem exceção de conversão |
+
+Casos dirigidos conferem dias impossíveis, ano bissexto válido, nulo disfarçado, e-mail malformado
+e números equivalentes/ambíguos, com resultados esperados independentes do injetor. Testes sem
+banco também conferem a ordem de todos os ramos e a igualdade entre os modelos versionados e a
+saída do gerador.
+
+Relatório local ignorado: `data/validacoes/etapa10/limpeza.xml`, incluindo as contagens como
+propriedades JUnit. Com o ambiente carregado, a verificação é reproduzível por:
+
+```bash
+.venv/bin/pytest tests/test_legado_deteccao.py tests/test_legacy_models.py tests/test_legado.py \
+  -q --tb=short -o junit_family=legacy --junitxml=data/validacoes/etapa10/limpeza.xml
+```
+
+**Escopo da evidência:** são achados de valor, não as falhas de contexto nem a classificação final
+das ocorrências. A reconciliação das três saídas, a cascata, a quarentena, o empilhamento e a DAG
+da Etapa 10 continuam pendentes. A origem principal não foi regenerada e nenhum build do datamart
+principal foi executado nesta validação. A decisão de tratamento pendente está na
+[D32](adr/README.md#3-decisões-pendentes).
 
 ---
 

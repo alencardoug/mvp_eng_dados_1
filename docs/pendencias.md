@@ -13,13 +13,16 @@
 | Etapa atual | Etapa 10 — Corte 6: origem legada |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 0 |
-| Última revisão | 05/09/2026 |
+| Última revisão | 06/09/2026 |
 
 ---
 
-## 1. Nada pendente
+## 1. Nenhuma decisão pendente
 
-**Não há nada esperando você.** A **D31** era a última, e foi aceita em 05/09/2026.
+**D32 — decidida em 06/09/2026.** O Owner autorizou `NULL_REQUIRED`, preservando
+`NULL_DISGUISED` como achado de conversão e mantendo campos opcionais corrigíveis.
+Contexto e consequências no [ADR-0040](adr/0040-rejeitar-nulo-em-campo-obrigatorio.md).
+A decisão libera a implementação; não significa aceite de conclusão da Etapa 10.
 
 ### D31 — encerrada
 
@@ -66,7 +69,7 @@ nos
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
 **M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 9
 foram entregues — o modelo dimensional está completo e as 16 perguntas de negócio têm view —, e a
-próxima é a **Etapa 10 — Corte 6: origem legada**.
+atual é a **Etapa 10 — Corte 6: origem legada**, em implementação.
 
 O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
 [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a
@@ -106,10 +109,11 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 
 ## 4. Do lado do assistente
 
-Nada pendente. A D31 está encerrada, os resultados publicados nos donos documentais e o estado
-anterior dos processos restabelecido: DAG despausada, serviços de pé, sem produtor ou Beam/Prism no
-host. A Etapa 10 está encaminhada e ainda não iniciada; as decisões próprias daquele corte serão
-levantadas quando ele começar.
+A D31 está encerrada. Na Etapa 10, gerador, ingestão com retenção e modelos de limpeza já existem.
+A correção da precedência entre rejeição e conversão foi validada em 06/09/2026
+([Qualidade §5.1](qualidade_de_dados.md#51-validação-dos-valores-tratados--06092026)).
+Classificação com contexto, quarentena, empilhamento com procedência e DAG estão em implementação;
+a D32 foi decidida e deixou de pausar o tratamento. Nenhum aceite da Etapa 10 foi presumido.
 
 ---
 

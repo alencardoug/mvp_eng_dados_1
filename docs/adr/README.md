@@ -76,12 +76,19 @@ decisão.
 | [0037](0037-reter-capturas-do-legado-por-acrescimo.md) | Reter as capturas do legado com um quarto modo de sincronização | Aceita | Retenção do *snapshot* legado |
 | [0038](0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) | Fechar as equações com quarentena de excedente e rejeição em cascata | Aceita | Duplicata exata e filho de pai rejeitado |
 | [0039](0039-alcance-da-procedencia.md) | Aplicar a procedência onde as duas origens se encontram | Aceita | Alcance do `source_system` |
+| [0040](0040-rejeitar-nulo-em-campo-obrigatorio.md) | Rejeitar nulo em campo obrigatório após a limpeza | Aceita | D32 |
 
 ---
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** As três lacunas de contrato que a Etapa 10 levantou na abertura foram fechadas no mesmo
+**Nenhuma.** A regra de nulo obrigatório foi decidida em 06/09/2026 no
+[ADR-0040](0040-rejeitar-nulo-em-campo-obrigatorio.md). A implementação e sua revisão são
+acompanhadas separadamente da decisão.
+
+### Decisões de abertura já resolvidas
+
+As três lacunas de contrato que a Etapa 10 levantou na abertura foram fechadas no mesmo
 dia, por interrogatório: como o legado retém as capturas
 ([ADR-0037](0037-reter-capturas-do-legado-por-acrescimo.md)), o que acontece com a duplicata exata e
 com o filho de um pai rejeitado ([ADR-0038](0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)),

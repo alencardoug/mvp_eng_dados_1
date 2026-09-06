@@ -4,14 +4,17 @@
 > conferido contra o repositório em 05/09/2026 — as lacunas ali são para resolver, não para
 > redescobrir.
 >
-> **Estado em 05/09/2026:** implementação e medições ainda não executadas.
+> **Estado em 06/09/2026:** gerador, retenção das capturas e limpeza por coluna implementados.
+> A precedência da conversão foi corrigida e validada; evidências em
+> [Qualidade §5.1](../docs/qualidade_de_dados.md#51-validação-dos-valores-tratados--06092026).
+> Classificação com contexto, quarentena, empilhamento com procedência e DAG ainda não entregues.
+> O tratamento de nulo obrigatório aguarda a [D32](../docs/pendencias.md); não implementar uma
+> alternativa sem decisão do Owner.
 >
 > **Pré-requisito de execução:** a [D31](../docs/pendencias.md#d31--encerrada)
-> aceita pelo Owner. A implementação e a revalidação técnica já foram executadas nos commits
-> `522a8fc`, `04a824a` e `e5ff5ca`, com resultados nos documentos permanentes; falta registrar a
-> revisão final. Não repetir a reconstrução como etapa de leitura deste plano.
-> Depois do aceite, resolver as lacunas de tratamento e
-> modelagem da seção 2 antes de implementar as partes dependentes.
+> aceita pelo Owner — **cumprido**, com encerramento registrado em `fcb1deb`.
+> Não repetir a reconstrução como etapa de leitura deste plano. A origem principal pós-D31 deve
+> ser preservada durante o trabalho no legado.
 >
 > **Parecer:** viável com PostgreSQL, Airbyte, dbt e Airflow já adotados. O trabalho alcança o
 > datamart existente: acrescentar somente um gerador e um `union all` não aplica o ADR-0021.
@@ -46,6 +49,14 @@ um segundo domínio de streaming. Governança dos campos novos acompanha a entre
 integral de papéis e acessos continua na Etapa 11.
 
 ## 2. Pontos que o Codex deve avaliar antes de construir
+
+**Leitura histórica do parecer de 05/09/2026.** Retenção, duplicata/cascata e alcance da
+procedência foram decididos nos ADRs [0037](../docs/adr/0037-reter-capturas-do-legado-por-acrescimo.md),
+[0038](../docs/adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) e
+[0039](../docs/adr/0039-alcance-da-procedencia.md). Não os reabrir. O catálogo atual tem 22 códigos,
+incluindo `PARENT_REJECTED` derivado; suas três listas e a heurística já foram implementadas.
+As lacunas de implementação e suas provas continuam no roteiro abaixo; a nova decisão de
+tratamento é a D32, no [registro permanente](../docs/adr/README.md#3-decisões-pendentes).
 
 ### 2.1 Captura completa com retenção imutável
 

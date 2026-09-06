@@ -1,0 +1,3627 @@
+# Gerado por make legacy-models; metadados em legacy/classification.py e models/.
+version: 2
+models:
+- name: stg_legacy__brands
+  description: Limpeza por coluna de legacy.brands; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável da marca.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome da marca.
+    meta:
+      sensitivity: public
+  - name: country
+    description: País de origem, em código ISO.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se a marca continua ativa no catálogo.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__campaigns
+  description: Limpeza por coluna de legacy.campaigns; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável da campanha.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome da campanha.
+    meta:
+      sensitivity: public
+  - name: objective
+    description: Objetivo comercial da campanha.
+    meta:
+      sensitivity: public
+  - name: valid_from
+    description: Início da vigência da campanha.
+    meta:
+      sensitivity: public
+  - name: valid_to
+    description: Fim da vigência da campanha.
+    meta:
+      sensitivity: public
+  - name: budget_amount
+    description: Orçamento previsto da campanha.
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    description: Indica se a campanha está ativa.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__carriers
+  description: Limpeza por coluna de legacy.carriers; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável da transportadora.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome da transportadora.
+    meta:
+      sensitivity: public
+  - name: service_level
+    description: 'Modalidade: standard, express ou same_day.'
+    meta:
+      sensitivity: public
+  - name: tracking_url_template
+    description: Modelo de URL de rastreio, com marcador do código.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se a transportadora está em uso.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__customer_segments
+  description: Limpeza por coluna de legacy.customer_segments; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável do segmento, usado como chave natural.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome comercial do segmento.
+    meta:
+      sensitivity: public
+  - name: description
+    description: Critério de enquadramento do segmento.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se o segmento continua em uso.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__payment_methods
+  description: Limpeza por coluna de legacy.payment_methods; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável do meio de pagamento.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome do meio de pagamento.
+    meta:
+      sensitivity: public
+  - name: method_type
+    description: 'Natureza do meio: cartão, pix, boleto, carteira ou vale.'
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se o meio continua aceito.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__product_categories
+  description: Limpeza por coluna de legacy.product_categories; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável da categoria; chave natural.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome comercial da categoria.
+    meta:
+      sensitivity: public
+  - name: parent_id
+    description: Categoria imediatamente superior; nulo na raiz.
+    meta:
+      sensitivity: public
+  - name: depth
+    description: Profundidade na hierarquia, com a raiz em zero.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se a categoria continua em uso.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__sales_channels
+  description: Limpeza por coluna de legacy.sales_channels; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável do canal.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome do canal de venda.
+    meta:
+      sensitivity: public
+  - name: channel_type
+    description: 'Natureza do canal: web, app ou store.'
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se o canal continua operando.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__suppliers
+  description: Limpeza por coluna de legacy.suppliers; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: supplier_code
+    description: Chave natural do fornecedor na origem.
+    meta:
+      sensitivity: internal
+  - name: legal_name
+    description: Razão social do fornecedor (sintética).
+    meta:
+      sensitivity: confidential
+  - name: trade_name
+    description: Nome fantasia do fornecedor.
+    meta:
+      sensitivity: public
+  - name: document
+    description: Documento de identificação do fornecedor (sintético).
+    meta:
+      sensitivity: confidential
+  - name: contact_email
+    description: E-mail de contato comercial (sintético).
+    meta:
+      sensitivity: personal
+  - name: country
+    description: País do fornecedor, em código ISO.
+    meta:
+      sensitivity: public
+  - name: payment_terms_days
+    description: Prazo de pagamento negociado, em dias.
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    description: Indica se o fornecedor continua ativo.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__support_agents
+  description: Limpeza por coluna de legacy.support_agents; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: agent_code
+    description: Chave natural do agente.
+    meta:
+      sensitivity: internal
+  - name: first_name
+    description: Primeiro nome do agente (sintético).
+    meta:
+      sensitivity: personal
+  - name: last_name
+    description: Sobrenome do agente (sintético).
+    meta:
+      sensitivity: personal
+  - name: email
+    description: E-mail corporativo do agente (sintético).
+    meta:
+      sensitivity: personal
+  - name: team
+    description: Equipe de atendimento à qual o agente pertence.
+    meta:
+      sensitivity: public
+  - name: hired_at
+    description: Início do período de atuação do agente.
+    meta:
+      sensitivity: internal
+  - name: is_active
+    description: Indica se o agente continua atuando.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__warehouses
+  description: Limpeza por coluna de legacy.warehouses; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável do armazém.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome do armazém.
+    meta:
+      sensitivity: public
+  - name: city
+    description: Cidade do armazém.
+    meta:
+      sensitivity: public
+  - name: state
+    description: Unidade federativa do armazém.
+    meta:
+      sensitivity: public
+  - name: country
+    description: País, em código ISO.
+    meta:
+      sensitivity: public
+  - name: capacity_units
+    description: Capacidade máxima em unidades.
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    description: Indica se o armazém está operando.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__coupons
+  description: Limpeza por coluna de legacy.coupons; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código digitado pelo cliente.
+    meta:
+      sensitivity: public
+  - name: campaign_id
+    description: Campanha à qual o cupom pertence.
+    meta:
+      sensitivity: public
+  - name: discount_type
+    description: 'Natureza do desconto: percentage ou fixed.'
+    meta:
+      sensitivity: public
+  - name: discount_value
+    description: 'Valor do desconto: percentual quando `percentage`, moeda quando `fixed`.'
+    meta:
+      sensitivity: confidential
+  - name: min_order_amount
+    description: Valor mínimo de pedido para o cupom ser elegível.
+    meta:
+      sensitivity: public
+  - name: max_redemptions
+    description: Limite total de utilizações; nulo quando ilimitado.
+    meta:
+      sensitivity: internal
+  - name: valid_from
+    description: Início da vigência do cupom.
+    meta:
+      sensitivity: public
+  - name: valid_to
+    description: Fim da vigência do cupom.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se o cupom continua aceito.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__customers
+  description: Limpeza por coluna de legacy.customers; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: customer_code
+    description: Chave natural do cliente na origem; estável entre cargas.
+    meta:
+      sensitivity: internal
+  - name: segment_id
+    description: Segmento comercial ao qual o cliente pertence.
+    meta:
+      sensitivity: internal
+  - name: first_name
+    description: Primeiro nome do cliente (sintético).
+    meta:
+      sensitivity: personal
+  - name: last_name
+    description: Sobrenome do cliente (sintético).
+    meta:
+      sensitivity: personal
+  - name: document
+    description: Documento de identificação do cliente (sintético).
+    meta:
+      sensitivity: personal
+  - name: birth_date
+    description: Data de nascimento do cliente (sintética).
+    meta:
+      sensitivity: personal
+  - name: status
+    description: 'Estado do relacionamento: active, inactive, blocked ou pending.'
+    meta:
+      sensitivity: internal
+  - name: registered_at
+    description: Momento de negócio do cadastro, distinto de `created_at`.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__price_lists
+  description: Limpeza por coluna de legacy.price_lists; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: code
+    description: Código estável da lista.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome comercial da lista de preços.
+    meta:
+      sensitivity: public
+  - name: sales_channel_id
+    description: Canal ao qual a lista se aplica; nulo quando vale para todos.
+    meta:
+      sensitivity: public
+  - name: currency
+    description: Moeda da lista, em código ISO 4217.
+    meta:
+      sensitivity: public
+  - name: valid_from
+    description: Início da vigência da lista.
+    meta:
+      sensitivity: public
+  - name: valid_to
+    description: Fim da vigência; nulo enquanto vigente.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se a lista está em uso.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__products
+  description: Limpeza por coluna de legacy.products; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: product_code
+    description: Chave natural do produto na origem.
+    meta:
+      sensitivity: public
+  - name: category_id
+    description: Categoria comercial do produto.
+    meta:
+      sensitivity: public
+  - name: brand_id
+    description: Marca do produto.
+    meta:
+      sensitivity: public
+  - name: name
+    description: Nome comercial do produto.
+    meta:
+      sensitivity: public
+  - name: description
+    description: Descrição comercial do produto.
+    meta:
+      sensitivity: public
+  - name: status
+    description: 'Estado do produto: draft, active ou discontinued.'
+    meta:
+      sensitivity: internal
+  - name: launched_at
+    description: Momento de lançamento comercial.
+    meta:
+      sensitivity: public
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__purchase_orders
+  description: Limpeza por coluna de legacy.purchase_orders; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: po_number
+    description: Número da ordem de compra; chave natural.
+    meta:
+      sensitivity: internal
+  - name: supplier_id
+    description: Fornecedor da ordem.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: Estado da ordem; transições válidas em Modelo de Dados §4.
+    meta:
+      sensitivity: internal
+  - name: ordered_at
+    description: Momento de emissão da ordem.
+    meta:
+      sensitivity: internal
+  - name: expected_at
+    description: Data prometida de entrega pelo fornecedor.
+    meta:
+      sensitivity: internal
+  - name: currency
+    description: Moeda da ordem, em código ISO 4217.
+    meta:
+      sensitivity: public
+  - name: total_amount
+    description: Valor total da ordem, somando os itens.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__carts
+  description: Limpeza por coluna de legacy.carts; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: cart_code
+    description: Chave natural do carrinho.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente dono do carrinho; nulo em sessão anônima.
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    description: Canal em que o carrinho foi aberto.
+    meta:
+      sensitivity: public
+  - name: status
+    description: 'Estado do carrinho: open, converted, abandoned ou expired.'
+    meta:
+      sensitivity: internal
+  - name: expires_at
+    description: Momento previsto de expiração.
+    meta:
+      sensitivity: internal
+  - name: converted_at
+    description: Momento da conversão em pedido.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__customer_addresses
+  description: Limpeza por coluna de legacy.customer_addresses; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente dono do endereço.
+    meta:
+      sensitivity: internal
+  - name: address_type
+    description: 'Finalidade do endereço: billing ou shipping.'
+    meta:
+      sensitivity: internal
+  - name: street
+    description: Logradouro (sintético).
+    meta:
+      sensitivity: personal
+  - name: number
+    description: Número do endereço (sintético).
+    meta:
+      sensitivity: personal
+  - name: complement
+    description: Complemento do endereço (sintético).
+    meta:
+      sensitivity: personal
+  - name: district
+    description: Bairro (sintético).
+    meta:
+      sensitivity: personal
+  - name: city
+    description: Cidade; alimenta a dimensão de geografia.
+    meta:
+      sensitivity: public
+  - name: state
+    description: Unidade federativa em sigla de duas letras.
+    meta:
+      sensitivity: public
+  - name: postal_code
+    description: Código postal (sintético).
+    meta:
+      sensitivity: personal
+  - name: country
+    description: País em código ISO de duas letras.
+    meta:
+      sensitivity: public
+  - name: is_primary
+    description: Endereço principal do cliente para o tipo indicado.
+    meta:
+      sensitivity: internal
+  - name: valid_from
+    description: Início da vigência do endereço.
+    meta:
+      sensitivity: internal
+  - name: valid_to
+    description: Fim da vigência; nulo enquanto vigente.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__customer_contacts
+  description: Limpeza por coluna de legacy.customer_contacts; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente dono do contato.
+    meta:
+      sensitivity: internal
+  - name: contact_type
+    description: 'Natureza do contato: email, phone ou mobile.'
+    meta:
+      sensitivity: internal
+  - name: contact_value
+    description: Endereço de e-mail ou número de telefone (sintético).
+    meta:
+      sensitivity: personal
+  - name: is_primary
+    description: Contato principal do cliente para o tipo indicado.
+    meta:
+      sensitivity: internal
+  - name: is_verified
+    description: Indica se o contato passou por verificação simulada.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__customer_preferences
+  description: Limpeza por coluna de legacy.customer_preferences; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente dono das preferências; uma linha por cliente.
+    meta:
+      sensitivity: internal
+  - name: language
+    description: Idioma preferido, em código BCP 47.
+    meta:
+      sensitivity: internal
+  - name: currency
+    description: Moeda preferida, em código ISO 4217.
+    meta:
+      sensitivity: public
+  - name: marketing_opt_in
+    description: Consentimento simulado para comunicações de marketing.
+    meta:
+      sensitivity: confidential
+  - name: newsletter_opt_in
+    description: Consentimento simulado para a newsletter.
+    meta:
+      sensitivity: confidential
+  - name: consent_updated_at
+    description: Momento da última alteração de consentimento.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__goods_receipts
+  description: Limpeza por coluna de legacy.goods_receipts; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: receipt_number
+    description: Número do recebimento; chave natural.
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    description: Ordem de compra recebida.
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    description: Armazém que recebeu a mercadoria.
+    meta:
+      sensitivity: internal
+  - name: received_at
+    description: Momento do recebimento físico.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: 'Estado do recebimento: pending, completed ou rejected.'
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__product_variants
+  description: Limpeza por coluna de legacy.product_variants; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: product_id
+    description: Produto do qual a variante deriva.
+    meta:
+      sensitivity: public
+  - name: sku
+    description: Código de estoque da variante; chave natural do SKU.
+    meta:
+      sensitivity: public
+  - name: size
+    description: Tamanho da variante.
+    meta:
+      sensitivity: public
+  - name: color
+    description: Cor da variante.
+    meta:
+      sensitivity: public
+  - name: package
+    description: Embalagem ou unidade de venda.
+    meta:
+      sensitivity: public
+  - name: barcode
+    description: Código de barras da variante (sintético).
+    meta:
+      sensitivity: public
+  - name: weight_grams
+    description: Peso em gramas, usado no cálculo de frete.
+    meta:
+      sensitivity: public
+  - name: is_active
+    description: Indica se o SKU continua disponível para venda.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__cart_items
+  description: Limpeza por coluna de legacy.cart_items; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: cart_id
+    description: Carrinho ao qual o item pertence.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU adicionado ao carrinho.
+    meta:
+      sensitivity: internal
+  - name: quantity
+    description: Quantidade do SKU no carrinho.
+    meta:
+      sensitivity: internal
+  - name: unit_price
+    description: Preço unitário vigente no momento em que o item foi adicionado.
+    meta:
+      sensitivity: confidential
+  - name: added_at
+    description: Momento em que o item entrou no carrinho.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__inventory_balances
+  description: Limpeza por coluna de legacy.inventory_balances; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    description: Armazém do saldo.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU do saldo.
+    meta:
+      sensitivity: internal
+  - name: quantity_on_hand
+    description: Quantidade fisicamente disponível.
+    meta:
+      sensitivity: internal
+  - name: quantity_reserved
+    description: Quantidade reservada para carrinhos e pedidos.
+    meta:
+      sensitivity: internal
+  - name: last_movement_at
+    description: Momento do último movimento aplicado ao saldo.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__inventory_movements
+  description: Limpeza por coluna de legacy.inventory_movements; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: movement_id
+    description: Chave primária estável do evento.
+    meta:
+      sensitivity: internal
+  - name: idempotency_key
+    description: Chave que impede aplicação duplicada pelo consumidor (ADR-0019).
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    description: Armazém afetado pelo movimento.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU afetado pelo movimento.
+    meta:
+      sensitivity: internal
+  - name: movement_type
+    description: Tipo controlado do movimento; determina o sinal da quantidade.
+    meta:
+      sensitivity: internal
+  - name: quantity_delta
+    description: Variação assinada da quantidade; nunca zero.
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    description: Custo unitário, quando aplicável ao tipo.
+    meta:
+      sensitivity: confidential
+  - name: source_type
+    description: Processo de negócio que originou o movimento.
+    meta:
+      sensitivity: internal
+  - name: source_id
+    description: Identificador do registro que causou o movimento.
+    meta:
+      sensitivity: internal
+  - name: correlation_id
+    description: Agrupa eventos relacionados; obrigatório nos pares de transferência.
+    meta:
+      sensitivity: internal
+  - name: causation_id
+    description: Evento ou comando que causou este movimento.
+    meta:
+      sensitivity: internal
+  - name: aggregate_version
+    description: Ordem do evento dentro do par armazém/SKU; sem lacuna nem repetição.
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    description: Momento de negócio do movimento; é por ele que o Beam janela (ADR-0019).
+    meta:
+      sensitivity: internal
+  - name: recorded_at
+    description: Momento em que a origem registrou o evento; base da leitura incremental.
+    meta:
+      sensitivity: internal
+  - name: schema_version
+    description: Versão do contrato do evento, para evolução sem quebrar consumidor.
+    meta:
+      sensitivity: internal
+  - name: metadata
+    description: Contexto adicional do evento, opcional e limitado a 4 KB.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__orders
+  description: Limpeza por coluna de legacy.orders; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: order_number
+    description: Número do pedido; chave natural.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente que fez o pedido.
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    description: Canal em que o pedido foi feito.
+    meta:
+      sensitivity: public
+  - name: cart_id
+    description: Carrinho que originou o pedido; nulo em venda direta.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: Estado atual do pedido; o histórico vive em `order_status_history`.
+    meta:
+      sensitivity: internal
+  - name: placed_at
+    description: Momento de negócio em que o pedido foi feito.
+    meta:
+      sensitivity: internal
+  - name: currency
+    description: Moeda do pedido, em código ISO 4217.
+    meta:
+      sensitivity: public
+  - name: subtotal_amount
+    description: Soma dos itens antes de desconto, frete e imposto.
+    meta:
+      sensitivity: confidential
+  - name: discount_amount
+    description: Desconto total aplicado ao pedido.
+    meta:
+      sensitivity: confidential
+  - name: shipping_amount
+    description: Valor de frete cobrado.
+    meta:
+      sensitivity: confidential
+  - name: tax_amount
+    description: Imposto simulado sobre o pedido.
+    meta:
+      sensitivity: confidential
+  - name: total_amount
+    description: Valor total do pedido; reconcilia os demais campos.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__product_prices
+  description: Limpeza por coluna de legacy.product_prices; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: price_list_id
+    description: Lista à qual o preço pertence.
+    meta:
+      sensitivity: public
+  - name: product_variant_id
+    description: SKU precificado.
+    meta:
+      sensitivity: public
+  - name: unit_price
+    description: Preço unitário de venda na lista e vigência.
+    meta:
+      sensitivity: confidential
+  - name: valid_from
+    description: Início da vigência do preço.
+    meta:
+      sensitivity: public
+  - name: valid_to
+    description: Fim da vigência; nulo enquanto vigente.
+    meta:
+      sensitivity: public
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__purchase_order_items
+  description: Limpeza por coluna de legacy.purchase_order_items; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    description: Ordem de compra à qual o item pertence.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU solicitado.
+    meta:
+      sensitivity: internal
+  - name: quantity_ordered
+    description: Quantidade solicitada ao fornecedor.
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    description: Custo unitário negociado.
+    meta:
+      sensitivity: confidential
+  - name: total_cost
+    description: Custo total do item, já arredondado.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__coupon_redemptions
+  description: Limpeza por coluna de legacy.coupon_redemptions; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: coupon_id
+    description: Cupom utilizado.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente que utilizou o cupom.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido em que o cupom foi aplicado.
+    meta:
+      sensitivity: internal
+  - name: discount_amount
+    description: Desconto efetivamente concedido.
+    meta:
+      sensitivity: confidential
+  - name: redeemed_at
+    description: Momento de negócio da utilização.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento em que o evento foi registrado na origem.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__goods_receipt_items
+  description: Limpeza por coluna de legacy.goods_receipt_items; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: goods_receipt_id
+    description: Recebimento ao qual o item pertence.
+    meta:
+      sensitivity: internal
+  - name: purchase_order_item_id
+    description: Item da ordem de compra correspondente.
+    meta:
+      sensitivity: internal
+  - name: quantity_received
+    description: Quantidade efetivamente recebida.
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    description: Custo unitário no recebimento.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__order_items
+  description: Limpeza por coluna de legacy.order_items; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido ao qual o item pertence.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU comprado.
+    meta:
+      sensitivity: internal
+  - name: quantity
+    description: Quantidade comprada do SKU.
+    meta:
+      sensitivity: internal
+  - name: unit_price
+    description: Preço unitário praticado na venda.
+    meta:
+      sensitivity: confidential
+  - name: discount_amount
+    description: Desconto aplicado a este item.
+    meta:
+      sensitivity: confidential
+  - name: tax_amount
+    description: Imposto simulado sobre este item.
+    meta:
+      sensitivity: confidential
+  - name: total_amount
+    description: Valor total da linha, já arredondado.
+    meta:
+      sensitivity: confidential
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__order_status_history
+  description: Limpeza por coluna de legacy.order_status_history; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido cujo estado mudou.
+    meta:
+      sensitivity: internal
+  - name: from_status
+    description: Estado anterior; nulo na criação do pedido.
+    meta:
+      sensitivity: internal
+  - name: to_status
+    description: Estado resultante da transição.
+    meta:
+      sensitivity: internal
+  - name: changed_at
+    description: Momento de negócio da transição.
+    meta:
+      sensitivity: internal
+  - name: reason
+    description: Motivo registrado para a transição.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento em que o evento foi registrado na origem.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__payments
+  description: Limpeza por coluna de legacy.payments; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: payment_code
+    description: Chave natural do pagamento.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido que o pagamento quita.
+    meta:
+      sensitivity: internal
+  - name: payment_method_id
+    description: Meio de pagamento utilizado.
+    meta:
+      sensitivity: public
+  - name: status
+    description: Estado do pagamento; transições válidas em Modelo de Dados §4.
+    meta:
+      sensitivity: internal
+  - name: amount
+    description: Valor pretendido do pagamento.
+    meta:
+      sensitivity: confidential
+  - name: currency
+    description: Moeda, em código ISO 4217.
+    meta:
+      sensitivity: public
+  - name: installments
+    description: Número de parcelas acordadas.
+    meta:
+      sensitivity: public
+  - name: authorized_at
+    description: Momento da autorização pelo emissor simulado.
+    meta:
+      sensitivity: internal
+  - name: captured_at
+    description: Momento da captura efetiva do valor.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__shipments
+  description: Limpeza por coluna de legacy.shipments; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: shipment_code
+    description: Chave natural da remessa.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido que a remessa atende.
+    meta:
+      sensitivity: internal
+  - name: carrier_id
+    description: Transportadora responsável.
+    meta:
+      sensitivity: public
+  - name: warehouse_id
+    description: Armazém de origem da remessa.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: Estado da remessa; transições válidas em Modelo de Dados §4.
+    meta:
+      sensitivity: internal
+  - name: tracking_code
+    description: Código de rastreio junto à transportadora.
+    meta:
+      sensitivity: internal
+  - name: freight_amount
+    description: Custo de frete da remessa.
+    meta:
+      sensitivity: confidential
+  - name: shipped_at
+    description: Momento do despacho.
+    meta:
+      sensitivity: internal
+  - name: estimated_delivery_at
+    description: Prazo de entrega prometido ao cliente.
+    meta:
+      sensitivity: public
+  - name: delivered_at
+    description: Momento da entrega efetiva.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__stock_reservations
+  description: Limpeza por coluna de legacy.stock_reservations; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: reservation_code
+    description: Chave natural da reserva.
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    description: Armazém em que a quantidade está reservada.
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    description: SKU reservado.
+    meta:
+      sensitivity: internal
+  - name: cart_id
+    description: Carrinho que originou a reserva; nulo quando a origem é um pedido.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido que originou a reserva; nulo quando a origem é um carrinho.
+    meta:
+      sensitivity: internal
+  - name: quantity
+    description: Quantidade reservada.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: 'Estado da reserva: active, released, expired ou consumed.'
+    meta:
+      sensitivity: internal
+  - name: expires_at
+    description: Momento em que a reserva expira se não for consumida.
+    meta:
+      sensitivity: internal
+  - name: released_at
+    description: Momento em que a reserva deixou de ocupar saldo.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__delivery_events
+  description: Limpeza por coluna de legacy.delivery_events; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    description: Remessa à qual o evento se refere.
+    meta:
+      sensitivity: internal
+  - name: event_type
+    description: Natureza do evento de entrega.
+    meta:
+      sensitivity: public
+  - name: occurred_at
+    description: Momento de negócio do evento.
+    meta:
+      sensitivity: internal
+  - name: location
+    description: Localidade registrada pela transportadora.
+    meta:
+      sensitivity: public
+  - name: description
+    description: Descrição textual do evento.
+    meta:
+      sensitivity: public
+  - name: created_at
+    description: Momento em que o evento foi registrado na origem.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__payment_transactions
+  description: Limpeza por coluna de legacy.payment_transactions; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: transaction_code
+    description: Chave natural da transação.
+    meta:
+      sensitivity: internal
+  - name: payment_id
+    description: Pagamento ao qual a transação pertence.
+    meta:
+      sensitivity: internal
+  - name: transaction_type
+    description: 'Operação financeira: authorization, capture, void ou refund.'
+    meta:
+      sensitivity: internal
+  - name: result
+    description: 'Desfecho da operação: succeeded, failed ou pending.'
+    meta:
+      sensitivity: internal
+  - name: amount
+    description: Valor movimentado nesta operação.
+    meta:
+      sensitivity: confidential
+  - name: gateway_response_code
+    description: Código de retorno do adquirente simulado.
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    description: Momento de negócio da operação.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento em que o evento foi registrado na origem.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__shipment_items
+  description: Limpeza por coluna de legacy.shipment_items; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    description: Remessa à qual o item pertence.
+    meta:
+      sensitivity: internal
+  - name: order_item_id
+    description: Item de pedido sendo enviado.
+    meta:
+      sensitivity: internal
+  - name: quantity
+    description: Quantidade enviada nesta remessa.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__support_tickets
+  description: Limpeza por coluna de legacy.support_tickets; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: ticket_number
+    description: Número do chamado; chave natural.
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    description: Cliente que abriu o chamado.
+    meta:
+      sensitivity: internal
+  - name: order_id
+    description: Pedido relacionado ao chamado, quando houver.
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    description: Remessa relacionada ao chamado, quando houver.
+    meta:
+      sensitivity: internal
+  - name: assigned_agent_id
+    description: Agente responsável pelo chamado no momento.
+    meta:
+      sensitivity: internal
+  - name: category
+    description: Motivo do chamado.
+    meta:
+      sensitivity: public
+  - name: priority
+    description: Prioridade atribuída ao chamado.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: Estado atual do chamado.
+    meta:
+      sensitivity: internal
+  - name: subject
+    description: Assunto escrito pelo cliente (sintético).
+    meta:
+      sensitivity: personal
+  - name: opened_at
+    description: Momento de abertura do chamado.
+    meta:
+      sensitivity: internal
+  - name: closed_at
+    description: Momento de encerramento do chamado.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__refunds
+  description: Limpeza por coluna de legacy.refunds; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: refund_code
+    description: Chave natural do reembolso.
+    meta:
+      sensitivity: internal
+  - name: payment_transaction_id
+    description: Transação de captura que está sendo revertida.
+    meta:
+      sensitivity: internal
+  - name: amount
+    description: Valor reembolsado.
+    meta:
+      sensitivity: confidential
+  - name: reason
+    description: Motivo comercial do reembolso.
+    meta:
+      sensitivity: internal
+  - name: status
+    description: 'Estado do reembolso: requested, completed ou rejected.'
+    meta:
+      sensitivity: internal
+  - name: refunded_at
+    description: Momento em que o reembolso foi concluído.
+    meta:
+      sensitivity: internal
+  - name: created_at
+    description: Momento de criação do registro na origem.
+    meta:
+      sensitivity: internal
+  - name: updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id
+- name: stg_legacy__ticket_events
+  description: Limpeza por coluna de legacy.ticket_events; contexto avaliado em trusted.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: id
+    description: Chave primária técnica, gerada pelo banco.
+    meta:
+      sensitivity: internal
+  - name: ticket_id
+    description: Chamado ao qual o evento pertence.
+    meta:
+      sensitivity: internal
+  - name: agent_id
+    description: Agente autor do evento; nulo quando o autor é o cliente.
+    meta:
+      sensitivity: internal
+  - name: event_type
+    description: Natureza do evento no chamado.
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    description: Momento de negócio do evento.
+    meta:
+      sensitivity: internal
+  - name: message
+    description: Conteúdo da interação (sintético).
+    meta:
+      sensitivity: personal
+  - name: created_at
+    description: Momento em que o evento foi registrado na origem.
+    meta:
+      sensitivity: internal
+  - name: achados
+    description: Primeiro código de valor detectado por coluna, na ordem do catálogo.
+    meta:
+      sensitivity: internal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - legacy_row_id

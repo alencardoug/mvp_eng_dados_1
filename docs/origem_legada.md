@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.2 |
+| Versão | 2.3 |
 | Catálogo de falhas | 22 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 05/09/2026 |
+| Última revisão | 06/09/2026 |
 
 ---
 
@@ -147,9 +147,13 @@ essa ordem produz erro silencioso, não falha. Três exemplos, todos medidos:
 
 | O valor | Casa com | Se a ordem estiver errada |
 |---|---|---|
-| `31/02/2024` | `DATE_FORMAT_KNOWN` e `DATE_IMPOSSIBLE` | A data que não existe é **convertida** para 02/03, em vez de rejeitada |
+| `31/02/2024` | `DATE_FORMAT_KNOWN` e `DATE_IMPOSSIBLE` | Tenta converter uma data inexistente; no PostgreSQL 16, a consulta falha antes da quarentena |
 | `   ` | `TEXT_WHITESPACE_CASE` e `NULL_DISGUISED` | Um nulo disfarçado vira string vazia, em vez de nulo |
 | `sem@arroba` | as regras de texto e `EMAIL_MALFORMED` | Um e-mail inválido é aceito depois de "limpo" |
+
+A mesma precedência vale para a expressão que produz o **valor tratado**: a primeira regra que
+rejeita preserva o original e impede conversões posteriores. Consultar só o código detectado não
+exercita essa expressão; a verificação está em [Qualidade §5.1](qualidade_de_dados.md#51-validação-dos-valores-tratados--06092026).
 
 ### 3.1.2 Onde cada falha se aplica, e por quê nem toda coluna
 
@@ -243,6 +247,11 @@ reprocessamento** da limpeza.
 ---
 
 ## 5. Limpeza e classificação
+
+**Estado em 06/09/2026:** a limpeza por coluna está implementada; classificação com falhas de
+contexto, quarentena, empilhamento e DAG ainda não estão entregues. A regra adicional para nulo
+obrigatório aguarda a [D32](adr/README.md#3-decisões-pendentes). As saídas descritas abaixo são o
+contrato a implementar, não uma medição concluída.
 
 O dbt classifica cada registro legado em exatamente uma saída:
 

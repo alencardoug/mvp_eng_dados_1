@@ -93,15 +93,16 @@ def _achado(coluna: str, aplicaveis: list[Regra]) -> str:
 def _limpo(coluna: str, aplicaveis: list[Regra]) -> str:
     """Valor tratado: converte quando há regra, mantém o original quando não há.
 
-    Rejeição **não** aparece aqui. O valor de um registro rejeitado permanece
-    como veio — quem decide o destino dele é a classificação, e alterar o valor
-    de algo que vai para a quarentena apagaria a evidência.
+    A rejeição interrompe o `case` preservando o original. Pular esses ramos
+    faria uma regra de conversão posterior tratar o mesmo valor: por exemplo,
+    `DATE_FORMAT_KNOWN` tentaria converter `31/02/2024`, apesar do achado
+    `DATE_IMPOSSIBLE`, e derrubaria a consulta antes da quarentena.
     """
     alvo = _referencia(coluna)
     ramos = [
-        "            when " + r.deteccao.format(v=alvo) + " then " + r.conversao.format(v=alvo)
+        "            when " + r.deteccao.format(v=alvo) + " then "
+        + (r.conversao.format(v=alvo) if r.conversao is not None else alvo)
         for r in aplicaveis
-        if r.conversao
     ]
     if not ramos:
         return "        " + alvo
@@ -119,6 +120,7 @@ def modelo(catalogo: Catalogo, tabela: str, promessas: frozenset[str], limites) 
         for c in colunas
         if por_coluna[c]
     )
+    original = ", ".join(f"'{column}', c.\"{column}\"" for column in colunas)
 
     return f"""{AVISO}
 -- Limpeza de `legacy.{tabela}` — camada `staging` (ADR-0016).
@@ -135,9 +137,10 @@ with captura as (
 
     select *
     from {{{{ source('legacy', '{tabela}') }}}}
-    where _airbyte_generation_id = (
+    where _airbyte_generation_id = coalesce(
+        {{{{ legacy_snapshot_id() }}}}, (
         select max(_airbyte_generation_id) from {{{{ source('legacy', '{tabela}') }}}}
-    )
+    ))
 
 )
 
@@ -155,7 +158,8 @@ select
         jsonb_build_object(
 {achados}
         )
-    )                                           as achados
+    )                                           as achados,
+    jsonb_build_object({original})              as original_payload
 from captura c
 """
 

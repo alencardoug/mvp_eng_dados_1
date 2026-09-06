@@ -23,7 +23,10 @@
 # Legada §3.1 — converte-se quando existe **uma** interpretação possível.
 # ══════════════════════════════════════════════════════════════════════════════
 
-versao: 1
+# Versão do contrato aplicado, inclusive regras de contexto. A versão 2 da
+# primeira execução de classificação fica retida para auditoria; a 3 respeita
+# também os predicados dos índices únicos parciais declarados nos modelos.
+versao: 3
 
 # ── Geração desta origem ──────────────────────────────────────────────────────
 # Semente **própria**, distinta da origem principal (Origem Legada §3.2): as
@@ -31,7 +34,7 @@ versao: 1
 # independente e passa a ser um espelho deslocado da outra.
 #
 # O fator é pequeno de propósito. O legado existe para exercitar **tratamento**,
-# não volume: o que precisa estar coberto são os 22 tipos de falha, e isso não
+# não volume: o que precisa estar coberto são os 23 tipos de falha, e isso não
 # depende de quantas linhas limpas existem em volta.
 geracao:
   semente: 20260906
@@ -266,6 +269,7 @@ falhas:
     arquetipo: total_do_pedido
     deteccao: Total declarado difere da soma dos itens além da tolerância de arredondamento.
     rejeicao: O total não reconcilia com os itens; corrigir exigiria escolher qual lado vale.
+    tolerancia: "0.01"
     injecao: {frequencia: 3, formas: [total_alterado]}
   PARENT_REJECTED:
     grupo: integridade
@@ -275,4 +279,12 @@ falhas:
     # classificados antes dos filhos.
     deteccao: O registro é íntegro, e o pai a que ele pertence foi rejeitado.
     rejeicao: O pai foi rejeitado; empilhar o filho produziria fato sem a entidade que o explica.
-    injecao: {frequencia: 0, derivado_de: [TOTAL_MISMATCH, FK_ORPHAN, DUP_PARTIAL]}
+    injecao: {frequencia: 0, derivado_de: [TOTAL_MISMATCH, FK_ORPHAN, DUP_PARTIAL, NULL_REQUIRED]}
+  NULL_REQUIRED:
+    grupo: integridade
+    arquetipo: qualquer
+    # ADR-0040: achado posterior à limpeza; não substitui NULL_DISGUISED.
+    # A obrigatoriedade sai de nullable nos modelos, nunca de outra lista.
+    deteccao: Campo obrigatório permanece nulo após a limpeza, inclusive nulo recebido sem marcador.
+    rejeicao: Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.
+    injecao: {frequencia: 0, derivado_de: [NULL_DISGUISED, TEXT_DELIMITER]}

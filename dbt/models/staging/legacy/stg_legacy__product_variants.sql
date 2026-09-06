@@ -18,9 +18,10 @@ with captura as (
 
     select *
     from {{ source('legacy', 'product_variants') }}
-    where _airbyte_generation_id = (
+    where _airbyte_generation_id = coalesce(
+        {{ legacy_snapshot_id() }}, (
         select max(_airbyte_generation_id) from {{ source('legacy', 'product_variants') }}
-    )
+    ))
 
 )
 
@@ -38,30 +39,35 @@ select
         c."product_id" as "product_id",
         case
             when btrim(c."sku") = '' or btrim(c."sku") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."sku" like '%;%' then c."sku"
             when c."sku" ~ '(Ã.|Â.)' then convert_from(convert_to(c."sku", 'LATIN1'), 'UTF8')
             when c."sku" <> btrim(c."sku") or c."sku" ~ '  ' then regexp_replace(btrim(c."sku"), '\s+', ' ', 'g')
             else c."sku"
         end as "sku",
         case
             when btrim(c."size") = '' or btrim(c."size") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."size" like '%;%' then c."size"
             when c."size" ~ '(Ã.|Â.)' then convert_from(convert_to(c."size", 'LATIN1'), 'UTF8')
             when c."size" <> btrim(c."size") or c."size" ~ '  ' then regexp_replace(btrim(c."size"), '\s+', ' ', 'g')
             else c."size"
         end as "size",
         case
             when btrim(c."color") = '' or btrim(c."color") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."color" like '%;%' then c."color"
             when c."color" ~ '(Ã.|Â.)' then convert_from(convert_to(c."color", 'LATIN1'), 'UTF8')
             when c."color" <> btrim(c."color") or c."color" ~ '  ' then regexp_replace(btrim(c."color"), '\s+', ' ', 'g')
             else c."color"
         end as "color",
         case
             when btrim(c."package") = '' or btrim(c."package") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."package" like '%;%' then c."package"
             when c."package" ~ '(Ã.|Â.)' then convert_from(convert_to(c."package", 'LATIN1'), 'UTF8')
             when c."package" <> btrim(c."package") or c."package" ~ '  ' then regexp_replace(btrim(c."package"), '\s+', ' ', 'g')
             else c."package"
         end as "package",
         case
             when btrim(c."barcode") = '' or btrim(c."barcode") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."barcode" like '%;%' then c."barcode"
             when c."barcode" ~ '(Ã.|Â.)' then convert_from(convert_to(c."barcode", 'LATIN1'), 'UTF8')
             when c."barcode" <> btrim(c."barcode") or c."barcode" ~ '  ' then regexp_replace(btrim(c."barcode"), '\s+', ' ', 'g')
             else c."barcode"
@@ -77,18 +83,24 @@ select
         end as "is_active",
         case
             when btrim(c."created_at") = '' or btrim(c."created_at") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."created_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( c."created_at" ~ '^[0-9]{2}/[0-9]{4}$' or (c."created_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' and (   substring(c."created_at" from 4 for 2)::int not between 1 and 12   or substring(c."created_at" from 1 for 2)::int not between 1 and 31   or (substring(c."created_at" from 4 for 2)::int in (4, 6, 9, 11)       and substring(c."created_at" from 1 for 2)::int > 30)   or (substring(c."created_at" from 4 for 2)::int = 2       and substring(c."created_at" from 1 for 2)::int > 29)   or (substring(c."created_at" from 4 for 2)::int = 2       and substring(c."created_at" from 1 for 2)::int = 29       and not (substring(c."created_at" from 7 for 4)::int % 4 = 0                and (substring(c."created_at" from 7 for 4)::int % 100 <> 0                     or substring(c."created_at" from 7 for 4)::int % 400 = 0)))))) then c."created_at"
+            when c."created_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and left(c."created_at", 10)::date > date '{{ var("as_of_date") }}' then c."created_at"
             when c."created_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( (c."created_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'  and substring(c."created_at" from 4 for 2)::int between 1 and 12  and substring(c."created_at" from 1 for 2)::int between 1 and 31) or c."created_at" ~ '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$') then case when c."created_at" ~ '^[0-9]{2}/' then to_date(c."created_at", 'DD/MM/YYYY')::text else to_date(c."created_at", 'YYYY.MM.DD')::text end
             when c."created_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}' and c."created_at" !~ '(Z|[+-][0-9]{2}:?[0-9]{2})$' then (c."created_at"::timestamp at time zone 'America/Sao_Paulo')::text
             else c."created_at"
         end as "created_at",
         case
             when btrim(c."updated_at") = '' or btrim(c."updated_at") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."updated_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( c."updated_at" ~ '^[0-9]{2}/[0-9]{4}$' or (c."updated_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' and (   substring(c."updated_at" from 4 for 2)::int not between 1 and 12   or substring(c."updated_at" from 1 for 2)::int not between 1 and 31   or (substring(c."updated_at" from 4 for 2)::int in (4, 6, 9, 11)       and substring(c."updated_at" from 1 for 2)::int > 30)   or (substring(c."updated_at" from 4 for 2)::int = 2       and substring(c."updated_at" from 1 for 2)::int > 29)   or (substring(c."updated_at" from 4 for 2)::int = 2       and substring(c."updated_at" from 1 for 2)::int = 29       and not (substring(c."updated_at" from 7 for 4)::int % 4 = 0                and (substring(c."updated_at" from 7 for 4)::int % 100 <> 0                     or substring(c."updated_at" from 7 for 4)::int % 400 = 0)))))) then c."updated_at"
+            when c."updated_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and left(c."updated_at", 10)::date > date '{{ var("as_of_date") }}' then c."updated_at"
             when c."updated_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( (c."updated_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'  and substring(c."updated_at" from 4 for 2)::int between 1 and 12  and substring(c."updated_at" from 1 for 2)::int between 1 and 31) or c."updated_at" ~ '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$') then case when c."updated_at" ~ '^[0-9]{2}/' then to_date(c."updated_at", 'DD/MM/YYYY')::text else to_date(c."updated_at", 'YYYY.MM.DD')::text end
             when c."updated_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}' and c."updated_at" !~ '(Z|[+-][0-9]{2}:?[0-9]{2})$' then (c."updated_at"::timestamp at time zone 'America/Sao_Paulo')::text
             else c."updated_at"
         end as "updated_at",
         case
             when btrim(c."deleted_at") = '' or btrim(c."deleted_at") in ('NULL', 'null', 'N/A', '-', '#N/D', '   ') then null
+            when c."deleted_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( c."deleted_at" ~ '^[0-9]{2}/[0-9]{4}$' or (c."deleted_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' and (   substring(c."deleted_at" from 4 for 2)::int not between 1 and 12   or substring(c."deleted_at" from 1 for 2)::int not between 1 and 31   or (substring(c."deleted_at" from 4 for 2)::int in (4, 6, 9, 11)       and substring(c."deleted_at" from 1 for 2)::int > 30)   or (substring(c."deleted_at" from 4 for 2)::int = 2       and substring(c."deleted_at" from 1 for 2)::int > 29)   or (substring(c."deleted_at" from 4 for 2)::int = 2       and substring(c."deleted_at" from 1 for 2)::int = 29       and not (substring(c."deleted_at" from 7 for 4)::int % 4 = 0                and (substring(c."deleted_at" from 7 for 4)::int % 100 <> 0                     or substring(c."deleted_at" from 7 for 4)::int % 400 = 0)))))) then c."deleted_at"
+            when c."deleted_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and left(c."deleted_at", 10)::date > date '{{ var("as_of_date") }}' then c."deleted_at"
             when c."deleted_at" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' and ( (c."deleted_at" ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'  and substring(c."deleted_at" from 4 for 2)::int between 1 and 12  and substring(c."deleted_at" from 1 for 2)::int between 1 and 31) or c."deleted_at" ~ '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$') then case when c."deleted_at" ~ '^[0-9]{2}/' then to_date(c."deleted_at", 'DD/MM/YYYY')::text else to_date(c."deleted_at", 'YYYY.MM.DD')::text end
             when c."deleted_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}' and c."deleted_at" !~ '(Z|[+-][0-9]{2}:?[0-9]{2})$' then (c."deleted_at"::timestamp at time zone 'America/Sao_Paulo')::text
             else c."deleted_at"
@@ -159,5 +171,6 @@ select
             when c."deleted_at" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}' and c."deleted_at" !~ '(Z|[+-][0-9]{2}:?[0-9]{2})$' then 'DATE_TZ_MISSING'
         end
         )
-    )                                           as achados
+    )                                           as achados,
+    jsonb_build_object('id', c."id", 'product_id', c."product_id", 'sku', c."sku", 'size', c."size", 'color', c."color", 'package', c."package", 'barcode', c."barcode", 'weight_grams', c."weight_grams", 'is_active', c."is_active", 'created_at', c."created_at", 'updated_at', c."updated_at", 'deleted_at', c."deleted_at")              as original_payload
 from captura c

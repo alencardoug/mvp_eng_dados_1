@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import pathlib
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import yaml
@@ -66,6 +67,7 @@ class Falha:
     frequencia: int
     formas: tuple[str, ...]
     derivado_de: tuple[str, ...]
+    tolerance: Decimal | None = None
 
     @property
     def converte(self) -> bool:
@@ -122,8 +124,11 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
             frequencia=int(injecao.get("frequencia", 0)),
             formas=tuple(injecao.get("formas", ())),
             derivado_de=tuple(injecao.get("derivado_de", ())),
+            tolerance=Decimal(str(spec["tolerancia"])) if "tolerancia" in spec else None,
         )
         falhas[codigo] = falha
+        if falha.tolerance is not None and (not falha.tolerance.is_finite() or falha.tolerance < 0):
+            problemas.append(f"{codigo}: tolerância deve ser decimal finito não negativo")
 
         if falha.arquetipo not in ARQUETIPOS:
             problemas.append(f"{codigo}: arquétipo {falha.arquetipo!r} não é resolvível")

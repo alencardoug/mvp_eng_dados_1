@@ -1,0 +1,94 @@
+# Gerado por make legacy-models; metadados em legacy/classification.py e models/.
+version: 2
+models:
+- name: rejected_legacy_records
+  description: Destino permanente dos rejeitados por captura e versão do catálogo; nunca fonte de negócio.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_system
+    description: Sistema que criou o registro; caminho de ingestão não é origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - legacy
+  - name: snapshot_id
+    description: Identidade da captura no Airbyte.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_at
+    description: Instante de extração da ocorrência, com fuso.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: legacy_row_id
+    description: Identidade física na tabela e captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: original_payload
+    description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  - name: source_table
+    description: Tabela de origem da ocorrência.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: catalog_version
+    description: Versão do contrato de tratamento aplicado.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: cleaned_payload
+    description: Valores após conversão; inválidos preservados, nunca preenchidos por adivinhação.
+    meta:
+      sensitivity: personal
+  - name: classification
+    description: Saída exclusiva da ocorrência, depois de todos os achados.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - accepted
+          - corrected
+          - rejected
+  - name: rejection_origin
+    description: 'Categoria exclusiva: defeito próprio, excedente ou cascata.'
+    meta:
+      sensitivity: internal
+    data_tests:
+    - accepted_values:
+        arguments:
+          values:
+          - own_invalid
+          - duplicate_excess
+          - parent_rejected
+  - name: findings
+    description: Todos os achados, ações, motivos, valores e vínculos causais. Pode conter dados pessoais
+      sintéticos.
+    meta:
+      sensitivity: personal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_system
+        - snapshot_id
+        - source_table
+        - legacy_row_id
+        - catalog_version

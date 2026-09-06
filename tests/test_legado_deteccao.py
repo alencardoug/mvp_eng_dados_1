@@ -33,7 +33,7 @@ from sqlalchemy import create_engine, text
 
 from mvp_ed1.db import WAREHOUSE, database_url
 from mvp_ed1.generator import enums
-from mvp_ed1.legacy import schema
+from mvp_ed1.legacy import dbt, schema
 from mvp_ed1.legacy.catalogo import carregar
 from mvp_ed1.legacy.regras import regra_enum, regra_truncado, regras
 
@@ -137,7 +137,9 @@ def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
         return {tuple(linha) for linha in conexao.execute(text(uniao))}
 
 
-def test_os_modelos_encontram_tudo_que_o_injetor_produziu(engine, manifesto) -> None:
+def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
+    engine, manifesto, record_property
+) -> None:
     """A ponta final: o SQL gerado acha no banco o que o manifesto declara.
 
     O teste anterior confere **regra a regra**, isolada. Este confere o
@@ -170,10 +172,15 @@ def test_os_modelos_encontram_tudo_que_o_injetor_produziu(engine, manifesto) -> 
     encontrados = _achados_dos_modelos(engine)
 
     perdidos = sorted(esperados - encontrados)
+    record_property("injected_value_findings", len(esperados))
+    record_property("detected_value_findings", len(esperados & encontrados))
+    record_property("missed_value_findings", len(perdidos))
     assert not perdidos, f"injetados e não detectados pelos modelos: {perdidos[:8]}"
 
 
-def test_o_falso_positivo_da_heuristica_continua_marginal(engine, manifesto) -> None:
+def test_o_falso_positivo_da_heuristica_continua_marginal(
+    engine, manifesto, record_property
+) -> None:
     """A heurística é aceita; deixar de ser marginal, não."""
     de_contexto = {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH"}
     esperados = {
@@ -197,7 +204,59 @@ def test_o_falso_positivo_da_heuristica_continua_marginal(engine, manifesto) -> 
         )
 
     falsos = len(encontrados - esperados)
+    record_property("false_positive_findings", falsos)
+    record_property("captured_rows", linhas)
     assert falsos / linhas <= TETO_DE_FALSO_POSITIVO, (
         f"{falsos} falsos positivos em {linhas} linhas "
         f"({falsos / linhas:.2%}), acima do teto declarado"
     )
+
+
+@pytest.mark.parametrize(
+    "table,column,value,expected_code,expected_value",
+    [
+        ("orders", "placed_at", "31/02/2024", "DATE_IMPOSSIBLE", "31/02/2024"),
+        ("orders", "placed_at", "29/02/2025", "DATE_IMPOSSIBLE", "29/02/2025"),
+        ("orders", "placed_at", "29/02/2024", "DATE_FORMAT_KNOWN", "2024-02-29"),
+        ("orders", "placed_at", "   ", "NULL_DISGUISED", None),
+        ("support_agents", "email", " a @example.com ", "EMAIL_MALFORMED", " a @example.com "),
+        ("cart_items", "quantity", "8,0", "NUM_TEXT_EQUIV", "8"),
+        ("cart_items", "quantity", "8.5", "NUM_AMBIGUOUS", "8.5"),
+        ("cart_items", "quantity", "8", None, "8"),
+    ],
+)
+def test_detection_and_cleaning_share_precedence(
+    engine, table, column, value, expected_code, expected_value
+) -> None:
+    """Detectar rejeição não basta: a coluna tratada não pode tentar convertê-la.
+
+    Valores dirigidos, independentes do injetor. Consultar apenas `achados`
+    permite ao PostgreSQL eliminar a avaliação das demais expressões da view;
+    uma conversão que estoura ficava invisível na medição dos 74 achados.
+    """
+    catalog = carregar()
+    limits = schema.limites(catalog.limite_de_texto, catalog.colunas_estreitadas)
+    rules = dbt._aplicaveis(catalog, table, column, catalog.promessas, limits)
+    query = (
+        f"select {dbt._achado(column, rules)} as code,"
+        f" {dbt._limpo(column, rules)} as cleaned"
+        f' from (select cast(:value as text) as "{column}") c'
+    ).replace('{{ var("as_of_date") }}', "2026-09-01")
+    with engine.connect() as connection:
+        actual = connection.execute(text(query), {"value": value}).one()
+    assert tuple(actual) == (expected_code, expected_value)
+
+
+def test_cleaned_models_materialize_every_column(engine) -> None:
+    """Ler efetivamente todas as colunas, não só contar linhas ou achados.
+
+    O hash não sai do banco e o teste não imprime payloads pessoais. A consulta
+    é somente leitura: nem a captura nem os modelos são alterados.
+    """
+    for table in schema.tabelas():
+        with engine.connect() as connection:
+            count = connection.execute(text(
+                f"select count(md5(to_jsonb(c)::text))"
+                f" from staging.stg_legacy__{table} c"
+            )).scalar_one()
+        assert count > 0, f"{table}: o cenário gerado exige cobertura"

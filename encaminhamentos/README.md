@@ -4,9 +4,9 @@ Ordens de trabalho transitórias, uma por assunto. Cada arquivo é apagado no co
 seu trabalho, depois da validação e da atualização dos documentos permanentes. Não fazem parte
 do mapa documental do [README](../README.md).
 
-| Arquivo | Estado em 05/09/2026 | Próximo passo |
+| Arquivo | Estado em 06/09/2026 | Próximo passo |
 |---|---|---|
-| [Etapa 10](etapa-10-origem-legada.md) | Planejada, ainda não iniciada | Resolver as lacunas de tratamento e modelagem da seção 2 e executar |
+| [Etapa 10](etapa-10-origem-legada.md) | Em implementação; limpeza validada | Decidir D32 e retomar classificação, quarentena, procedência e DAG |
 
 A **D31** saiu daqui: foi aceita em 05/09/2026 e o seu encaminhamento foi removido no *commit* do
 encerramento. O registro permanente está em
@@ -25,5 +25,6 @@ encerramento. O registro permanente está em
    A exclusão de um arquivo não é evidência de conclusão.
 
 A ordem permanece D31 → Etapa 10. O limite de quatro arquivos foi da redação original dos planos;
-a execução da D31 foi posteriormente autorizada em todo o projeto. Não foi autorização para
-iniciar a Etapa 10, cujas lacunas continuam no próprio plano.
+a implementação atual não está restrita a eles. O pedido de continuação de 06/09/2026 alcança a
+classificação, quarentena, procedência e DAG da Etapa 10, mas não decide o tratamento novo da
+[D32](../docs/pendencias.md). Nenhum aceite de conclusão foi presumido.

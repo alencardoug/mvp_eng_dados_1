@@ -27,6 +27,7 @@ from mvp_ed1.generator import enums
 from mvp_ed1.generator.rng import Fonte
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.catalogo import Catalogo, Falha
+from mvp_ed1.models import Base
 
 #: Resultados possíveis do tratamento, na ordem de precedência da Origem Legada
 #: §3.1.1: rejeição vence conversão, que vence aceitação.
@@ -543,4 +544,29 @@ def injetar(
     aplicador = _Aplicador(Injetor(catalogo, promessas, as_of), resultado)
     for falha in catalogo.injetaveis:
         aplicador.executar(falha)
+    _record_required_nulls(catalogo, resultado)
     return resultado
+
+
+def _record_required_nulls(catalog: Catalogo, result: Resultado) -> None:
+    """Oráculo da D32, sem executar o limpador nem alterar os dados injetados.
+
+    A ausência é reconhecida diretamente nos marcadores declarados e nos
+    campos vazios da importação deslocada. Inclui nulo que já veio da base;
+    é achado derivado, não uma segunda injeção na mesma célula.
+    """
+    if "NULL_REQUIRED" not in catalog.falhas:
+        return
+    for table, rows in result.linhas.items():
+        metadata = Base.metadata.tables[f"oltp.{table}"]
+        required = [c for c in schema.colunas(table) if not metadata.c[c].nullable]
+        for row in rows:
+            for column in required:
+                value = row.get(column)
+                missing = value is None or value.strip() == "" or value.strip() in catalog.nulos_disfarcados
+                if missing:
+                    result.achados.append(Achado(
+                        tabela=table, legacy_row_id=row[schema.IDENTIDADE], coluna=column,
+                        codigo="NULL_REQUIRED", valor_original=value, valor_legado=None,
+                        resultado_esperado=REJEITADO,
+                    ))
