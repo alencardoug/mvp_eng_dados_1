@@ -156,6 +156,9 @@ seed-legacy: require-env require-venv ## Gera a origem legada com as falhas do c
 	@set -a; . ./.env; set +a; \
 		.venv/bin/python -m mvp_ed1.legacy.cli seed $(if $(filter 1,$(FORCE)),--force)
 
+legacy-catalogo: require-venv ## Imprime o catálogo de falhas em português, para revisão sem abrir o YAML
+	@.venv/bin/python -m mvp_ed1.legacy.cli catalogo
+
 legacy-plan: require-venv ## Mostra o que o legado geraria e injetaria, sem tocar no banco
 	@.venv/bin/python -m mvp_ed1.legacy.cli plan
 

@@ -64,6 +64,8 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
 | 4b | `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
+| 4c | `make legacy-catalogo` | Imprime o catálogo de falhas em português, para revisão sem abrir o YAML | Etapa 10 |
+| 4d | `make sync-legacy` | Captura o legado em `raw_legacy`; cada execução acrescenta um snapshot | Etapa 10 |
 | 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
 | 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |

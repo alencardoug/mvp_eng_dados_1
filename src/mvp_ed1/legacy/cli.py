@@ -43,6 +43,27 @@ def _gerar():
     return catalogo, resultado
 
 
+def _catalogo(catalogo) -> None:
+    """Imprime o catálogo em português, para revisão sem abrir o YAML.
+
+    A revisão que importa aqui não é de sintaxe: é decidir se **converter ou
+    rejeitar** está certo em cada linha. Quem decide isso é o Owner
+    (`CLAUDE.md` §5), e ele não deve precisar ler YAML para fazê-lo.
+    """
+    print(f"Catálogo de falhas v{catalogo.versao} — {len(catalogo.falhas)} tipos\n")
+    print(f"{'CÓDIGO':22} {'COMO SE RECONHECE':44} {'DECISÃO':10} {'QUANTOS':>7}")
+    print("-" * 88)
+    for falha in catalogo.falhas.values():
+        decisao = "converter" if falha.converte else "REJEITAR"
+        texto = falha.deteccao if len(falha.deteccao) <= 44 else falha.deteccao[:42] + ".."
+        print(f"{falha.codigo:22} {texto:44} {decisao:10} "
+              f"{falha.frequencia if falha.frequencia else '—':>7}")
+    print("-" * 88)
+    print(f"{'':22} {'':44} {'total':10} {catalogo.registros_falhos_planejados:>7}\n")
+    print("Converter é para quando existe **uma** interpretação possível; rejeitar,")
+    print("quando existe mais de uma. O critério está em docs/origem_legada.md §3.1.")
+
+
 def _resumo(catalogo, resultado) -> None:
     por_codigo = collections.Counter(a.codigo for a in resultado.achados)
     veredito = collections.Counter(resultado.resultado_por_ocorrencia().values())
@@ -68,9 +89,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="comando", required=True)
     sub.add_parser("plan")
+    sub.add_parser("catalogo")
     semear = sub.add_parser("seed")
     semear.add_argument("--force", action="store_true", help="trunca o legado antes de carregar")
     args = parser.parse_args(argv)
+
+    if args.comando == "catalogo":
+        _catalogo(carregar())
+        return 0
 
     catalogo, resultado = _gerar()
     _resumo(catalogo, resultado)
