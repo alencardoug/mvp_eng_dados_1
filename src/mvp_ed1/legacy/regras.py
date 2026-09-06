@@ -76,6 +76,11 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
                 " else split_part(replace(btrim({v}), ',', '.'), '.', 1) end"
             ),
         ),
+        # A faixa impossível depende do que a coluna **significa**, e por isso
+        # esta regra é parametrizada: `quantity_delta` é assinado por natureza —
+        # saída de estoque é negativa —, e tratar o sinal como defeito
+        # condenaria 388 movimentos corretos. Foi medido antes de a exceção
+        # existir.
         Regra(
             "NUM_OUT_OF_RANGE",
             deteccao="{v} ~ '^-?[0-9]+$' and ({v}::numeric < 0 or {v}::numeric > 1000000)",
@@ -203,6 +208,16 @@ def regra_truncado(limite: int) -> Regra:
     fingir que ele não existe.
     """
     return Regra("TEXT_TRUNCATED", deteccao=f"length({{v}}) = {limite}")
+
+
+def regra_faixa(permite_negativo: bool) -> Regra:
+    """`NUM_OUT_OF_RANGE` para coluna assinada: só o teto é impossível."""
+    if permite_negativo:
+        return Regra("NUM_OUT_OF_RANGE", deteccao="{v} ~ '^-?[0-9]+$' and abs({v}::numeric) > 1000000")
+    return Regra(
+        "NUM_OUT_OF_RANGE",
+        deteccao="{v} ~ '^-?[0-9]+$' and ({v}::numeric < 0 or {v}::numeric > 1000000)",
+    )
 
 
 def regra_enum(valores: tuple[str, ...]) -> Regra:

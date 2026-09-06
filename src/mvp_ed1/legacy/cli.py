@@ -90,12 +90,23 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="comando", required=True)
     sub.add_parser("plan")
     sub.add_parser("catalogo")
+    sub.add_parser("models")
     semear = sub.add_parser("seed")
     semear.add_argument("--force", action="store_true", help="trunca o legado antes de carregar")
     args = parser.parse_args(argv)
 
     if args.comando == "catalogo":
         _catalogo(carregar())
+        return 0
+
+    if args.comando == "models":
+        from mvp_ed1.legacy import dbt
+
+        catalogo = carregar()
+        escritos = dbt.gerar(catalogo, _promessas())
+        fontes = dbt.DESTINO / "_legacy__sources.yml"
+        fontes.write_text(dbt.sources_yml(), encoding="utf-8")
+        print(f"{len(escritos)} modelos e a declaração de fontes em {dbt.DESTINO}/")
         return 0
 
     catalogo, resultado = _gerar()

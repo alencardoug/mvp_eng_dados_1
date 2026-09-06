@@ -84,6 +84,13 @@ class Catalogo:
     limite_de_texto: int
     delimitador: str
     nulos_disfarcados: tuple[str, ...]
+    #: Colunas de tempo que registram compromisso, não fato: podem cair depois
+    #: do corte sem que isso seja defeito.
+    promessas: frozenset[str]
+    #: Colunas de quantidade em que o negativo é legítimo.
+    quantidades_com_sinal: frozenset[str]
+    #: Colunas que o sistema antigo guardava mais estreitas que o atual.
+    colunas_estreitadas: frozenset[str]
     falhas: dict[str, Falha]
 
     def por_arquetipo(self, arquetipo: str) -> tuple[Falha, ...]:
@@ -145,5 +152,8 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
         limite_de_texto=int(bruto["geracao"]["limite_de_texto"]),
         delimitador=bruto["delimitador"],
         nulos_disfarcados=tuple(bruto["nulos_disfarcados"]),
+        promessas=frozenset(bruto["promessas"]),
+        quantidades_com_sinal=frozenset(bruto["quantidades_com_sinal"]),
+        colunas_estreitadas=frozenset(bruto["colunas_estreitadas"]),
         falhas=falhas,
     )

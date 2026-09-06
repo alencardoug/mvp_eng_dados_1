@@ -114,3 +114,90 @@ def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto) -> No
     assert detectados == injetados, "falhas injetadas que a regra não encontra: " + "; ".join(
         escapou[:10]
     )
+
+
+#: Teto de falso positivo aceito, em fração das linhas capturadas.
+#
+# Não é zero de propósito. `TEXT_TRUNCATED` é heurística declarada — comprimento
+# igual à largura da coluna antiga —, e um valor legítimo desse tamanho é
+# indistinguível de um cortado. O que não se aceita é que a heurística deixe de
+# ser marginal: quando ela era aplicada a todas as colunas de texto, produzia
+# 1.508 rejeições falsas, e foi essa medição que criou a lista de colunas
+# estreitadas no catálogo.
+TETO_DE_FALSO_POSITIVO = 0.005
+
+
+def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
+    uniao = "\nunion all\n".join(
+        f"select '{tabela}' as tabela, legacy_row_id, chave as coluna, valor as codigo "
+        f"from staging.stg_legacy__{tabela}, jsonb_each_text(achados) as e(chave, valor)"
+        for tabela in schema.tabelas()
+    )
+    with engine.connect() as conexao:
+        return {tuple(linha) for linha in conexao.execute(text(uniao))}
+
+
+def test_os_modelos_encontram_tudo_que_o_injetor_produziu(engine, manifesto) -> None:
+    """A ponta final: o SQL gerado acha no banco o que o manifesto declara.
+
+    O teste anterior confere **regra a regra**, isolada. Este confere o
+    resultado do modelo inteiro, onde a precedência entre falhas passa a
+    valer — e é ela que erra em silêncio. Três defeitos apareceram só aqui:
+
+    * a ordem do catálogo punha `DATE_FORMAT_KNOWN` antes de `DATE_IMPOSSIBLE`,
+      e uma data que não existe era **convertida** em vez de rejeitada;
+    * duas falhas caíam na mesma célula, e a segunda apagava o valor da
+      primeira — o manifesto declarava um achado que já não existia;
+    * o `TEXT_DELIMITER` esvaziava as colunas vizinhas, apagando defeitos que
+      já estavam nelas.
+    """
+    with engine.connect() as conexao:
+        existe = conexao.execute(
+            text(
+                "select count(*) from information_schema.views "
+                "where table_schema = 'staging' and table_name like 'stg_legacy__%'"
+            )
+        ).scalar_one()
+    if not existe:
+        pytest.skip("modelos de limpeza não construídos; rode `make dbt-build`")
+
+    de_contexto = {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH"}
+    esperados = {
+        (a["tabela"], a["legacy_row_id"], a["coluna"], a["codigo"])
+        for a in manifesto["achados"]
+        if a["coluna"] is not None and a["codigo"] not in de_contexto
+    }
+    encontrados = _achados_dos_modelos(engine)
+
+    perdidos = sorted(esperados - encontrados)
+    assert not perdidos, f"injetados e não detectados pelos modelos: {perdidos[:8]}"
+
+
+def test_o_falso_positivo_da_heuristica_continua_marginal(engine, manifesto) -> None:
+    """A heurística é aceita; deixar de ser marginal, não."""
+    de_contexto = {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH"}
+    esperados = {
+        (a["tabela"], a["legacy_row_id"], a["coluna"], a["codigo"])
+        for a in manifesto["achados"]
+        if a["coluna"] is not None and a["codigo"] not in de_contexto
+    }
+    encontrados = _achados_dos_modelos(engine)
+    if not encontrados:
+        pytest.skip("modelos de limpeza não construídos")
+
+    with engine.connect() as conexao:
+        linhas = sum(
+            conexao.execute(
+                text(
+                    f"select count(*) from raw_legacy.\"{tabela}\" where _airbyte_generation_id = "
+                    f"(select max(_airbyte_generation_id) from raw_legacy.\"{tabela}\")"
+                )
+            ).scalar_one()
+            for tabela in schema.tabelas()
+        )
+
+    falsos = len(encontrados - esperados)
+    assert falsos / linhas <= TETO_DE_FALSO_POSITIVO, (
+        f"{falsos} falsos positivos em {linhas} linhas "
+        f"({falsos / linhas:.2%}), acima do teto declarado"
+    )

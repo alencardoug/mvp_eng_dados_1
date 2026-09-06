@@ -139,7 +139,35 @@ uma. `oito` → 8 converte; `oito caixas` não, porque o grão é desconhecido.
 descartado em silêncio. É derivado: depende do resultado de outro registro, e por isso os pais são
 classificados antes dos filhos.
 
-### 3.1.1 Precedência quando a mesma ocorrência tem várias falhas
+### 3.1.1 A ordem do catálogo é a precedência de detecção
+
+Uma coluna casa com mais de uma falha, e vale a **primeira**. O catálogo é
+ordenado por **especificidade** — do caso exato para o amplo —, e desrespeitar
+essa ordem produz erro silencioso, não falha. Três exemplos, todos medidos:
+
+| O valor | Casa com | Se a ordem estiver errada |
+|---|---|---|
+| `31/02/2024` | `DATE_FORMAT_KNOWN` e `DATE_IMPOSSIBLE` | A data que não existe é **convertida** para 02/03, em vez de rejeitada |
+| `   ` | `TEXT_WHITESPACE_CASE` e `NULL_DISGUISED` | Um nulo disfarçado vira string vazia, em vez de nulo |
+| `sem@arroba` | as regras de texto e `EMAIL_MALFORMED` | Um e-mail inválido é aceito depois de "limpo" |
+
+### 3.1.2 Onde cada falha se aplica, e por quê nem toda coluna
+
+Três listas no catálogo restringem onde uma falha faz sentido. Elas não são
+otimização: sem elas, o tratamento rejeitava **1.508 registros perfeitos** —
+12% da captura —, e a reconciliação deixava de informar qualquer coisa.
+
+| Lista | Por que existe |
+|---|---|
+| `promessas` | `carts.expires_at` é uma data futura por natureza; `DATE_FUTURE` ali condenaria 127 carrinhos corretos |
+| `quantidades_com_sinal` | `quantity_delta` é assinado — saída de estoque é negativa —, e o sinal ali não é defeito. Eram 388 movimentos |
+| `colunas_estreitadas` | O sistema antigo apertou **alguns** campos livres, não todos. `currency` sempre teve três caracteres, e truncá-la produzia 987 rejeições de valores certos |
+
+Depois das três listas, o falso positivo residual é **13 em 12.749 linhas
+(0,10%)**, e é quase todo `TEXT_TRUNCATED` — a heurística declarada, com o seu
+custo medido em vez de escondido.
+
+### 3.1.3 Precedência quando a mesma ocorrência tem várias falhas
 
 Uma linha pode carregar mais de um defeito, e **todos os achados são registrados**. O que não se
 multiplica é a ocorrência: ela é contada uma vez, e classificada uma vez, pela regra:

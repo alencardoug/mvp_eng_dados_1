@@ -66,6 +66,7 @@ nulos_disfarcados: ["NULL", "null", "N/A", "-", "#N/D", "   "]
 # regra geral é que data de fato consumado não acontece no futuro, e cada
 # exceção precisa de nome.
 promessas:
+  - carts.expires_at
   - shipments.estimated_delivery_at
   - purchase_orders.expected_at
   - campaigns.valid_to
@@ -73,66 +74,99 @@ promessas:
   - price_lists.valid_to
   - product_prices.valid_to
 
+# Colunas de quantidade em que o negativo é **legítimo**. `quantity_delta` é
+# assinado por natureza: saída de estoque é negativa, e rejeitá-la como fora de
+# faixa condenaria 388 movimentos corretos. Faixa impossível depende do que a
+# coluna significa, e o significado é declarado, não inferido do tipo.
+quantidades_com_sinal:
+  - inventory_movements.quantity_delta
+
+# Colunas que o sistema antigo guardava mais estreitas que o atual, e que por
+# isso perdem o fim do valor. **Não são todas**: `currency` sempre teve três
+# caracteres, `state` sempre teve dois, e aplicar truncamento a elas produziria
+# 987 rejeições de valores perfeitos — medido antes de esta lista existir.
+#
+# Truncamento é de campo **livre e longo**, que é onde o limite de uma coluna
+# antiga realmente aperta.
+colunas_estreitadas:
+  - customer_addresses.street
+  - customer_addresses.district
+  - products.name
+  - campaigns.name
+  - suppliers.legal_name
+  - suppliers.trade_name
+  - support_tickets.subject
+  - warehouses.name
+
 falhas:
 
-  # ── Numéricos e monetários ────────────────────────────────────────────────
-  NUM_TEXT_EQUIV:
-    grupo: numericos
-    arquetipo: quantidade
-    deteccao: Valor não é inteiro literal, mas equivale a um sem ambiguidade.
-    conversao: Interpretar por extenso ou com casa decimal nula; `oito`, `8.0` e `8,0` são 8.
-    injecao: {frequencia: 5, formas: [por_extenso, decimal_zero, decimal_virgula_zero]}
+  # ── A ordem desta lista É a precedência de detecção ─────────────────────────
+  # Uma coluna pode casar com mais de uma falha, e vale a **primeira**. O
+  # critério de ordenação é a especificidade: da falha que descreve um caso
+  # exato para a que descreve um caso amplo.
+  #
+  # Não é preferência estética, e desrespeitá-la produz erro silencioso. Três
+  # que custaram medição para aparecer:
+  #
+  #   `31/02/2024` casa com DATE_FORMAT_KNOWN (é o formato conhecido) e com
+  #   DATE_IMPOSSIBLE (o dia não existe). Se o formato vier primeiro, a data
+  #   impossível é **convertida** para 02/03/2024 em vez de rejeitada.
+  #
+  #   `   ` casa com TEXT_WHITESPACE_CASE e com NULL_DISGUISED. Se o espaço
+  #   vier primeiro, um nulo disfarçado vira string vazia em vez de nulo.
+  #
+  #   `sem@arroba` casa com as regras de texto e com EMAIL_MALFORMED. Se o
+  #   texto vier primeiro, um e-mail inválido é aceito depois de "limpo".
+  #
+  # As quatro últimas não são de valor: precisam de outras linhas, outras
+  # tabelas, ou do resultado do tratamento do pai.
 
-  NUM_AMBIGUOUS:
-    grupo: numericos
-    arquetipo: quantidade
-    deteccao: Valor não inteiro sem equivalência única — fracionário, com unidade, ou vazio.
-    rejeicao: Não há regra determinística válida para o grão.
-    injecao: {frequencia: 4, formas: [fracionario, com_unidade, vazio]}
+  NULL_DISGUISED:
+    grupo: texto
+    arquetipo: qualquer
+    deteccao: Valor pertence à lista declarada de nulos disfarçados.
+    conversao: Converter para nulo de verdade.
+    injecao: {frequencia: 7, formas: [marcador_textual]}
 
-  NUM_OUT_OF_RANGE:
-    grupo: numericos
-    arquetipo: quantidade
-    deteccao: Inteiro fora da faixa fisicamente possível do campo.
-    rejeicao: Quantidade impossível; corrigir exigiria adivinhar o valor certo.
-    injecao: {frequencia: 4, formas: [negativo, absurdamente_alto]}
+  # ── Domínios e formatos ───────────────────────────────────────────────────
+  EMAIL_MALFORMED:
+    grupo: dominios
+    arquetipo: email
+    deteccao: Sem arroba, com espaço interno, ou domínio sem ponto.
+    rejeicao: Endereço inválido; não há correção segura.
+    injecao: {frequencia: 4, formas: [sem_arroba, com_espaco, dominio_invalido]}
 
-  MONEY_LOCALE:
-    grupo: monetarios
-    arquetipo: dinheiro
-    deteccao: Valor monetário com separadores ou símbolo de moeda, em qualquer locale.
-    conversao: Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.
-    injecao: {frequencia: 6, formas: [pt_br, en_us, com_simbolo]}
-
-  MONEY_NEGATIVE:
-    grupo: monetarios
-    arquetipo: dinheiro
-    deteccao: Valor negativo em campo que não admite estorno.
-    rejeicao: Valor negativo onde o domínio não o permite.
-    injecao: {frequencia: 3, formas: [negativo]}
-
-  # ── Datas e tempo ─────────────────────────────────────────────────────────
-  DATE_FORMAT_KNOWN:
-    grupo: datas
-    arquetipo: data
-    deteccao: Data em formato reconhecido diferente do ISO.
-    conversao: Interpretar pelo formato declarado e normalizar para ISO.
-    injecao: {frequencia: 5, formas: [dd_mm_aaaa, aaaa_ponto_mm_dd]}
-
+  # ── Integridade e consistência ────────────────────────────────────────────
+  ENUM_UNKNOWN:
+    grupo: dominios
+    arquetipo: enumerado
+    deteccao: Valor fora do domínio declarado do campo.
+    rejeicao: Estado desconhecido; mapear exigiria inventar equivalência.
+    injecao: {frequencia: 4, formas: [valor_inexistente]}
+  BOOL_VARIANT:
+    grupo: dominios
+    arquetipo: booleano
+    deteccao: Valor booleano escrito fora de `true`/`false`.
+    conversao: Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.
+    injecao: {frequencia: 5, formas: [sim_nao, s_n, um_zero]}
   DATE_IMPOSSIBLE:
     grupo: datas
     arquetipo: data
     deteccao: Componentes fora de faixa, data inexistente no calendário ou incompleta.
     rejeicao: Data impossível ou incompleta; não há valor único a inferir.
     injecao: {frequencia: 4, formas: [mes_invalido, dia_inexistente, so_mes_e_ano]}
-
   DATE_FUTURE:
     grupo: datas
     arquetipo: data_de_fato_consumado
     deteccao: Data posterior a `as_of_date` em campo que registra fato já ocorrido.
     rejeicao: Fato consumado não acontece no futuro.
     injecao: {frequencia: 3, formas: [depois_do_corte]}
-
+  DATE_FORMAT_KNOWN:
+    grupo: datas
+    arquetipo: data
+    deteccao: Data em formato reconhecido diferente do ISO.
+    conversao: Interpretar pelo formato declarado e normalizar para ISO.
+    injecao: {frequencia: 5, formas: [dd_mm_aaaa, aaaa_ponto_mm_dd]}
   DATE_TZ_MISSING:
     grupo: datas
     arquetipo: momento
@@ -141,13 +175,60 @@ falhas:
     injecao: {frequencia: 5, formas: [sem_fuso]}
 
   # ── Texto ─────────────────────────────────────────────────────────────────
+  NUM_OUT_OF_RANGE:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Inteiro fora da faixa fisicamente possível do campo.
+    rejeicao: Quantidade impossível; corrigir exigiria adivinhar o valor certo.
+    injecao: {frequencia: 4, formas: [negativo, absurdamente_alto]}
+  NUM_TEXT_EQUIV:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Valor não é inteiro literal, mas equivale a um sem ambiguidade.
+    conversao: Interpretar por extenso ou com casa decimal nula; `oito`, `8.0` e `8,0` são 8.
+    injecao: {frequencia: 5, formas: [por_extenso, decimal_zero, decimal_virgula_zero]}
+  NUM_AMBIGUOUS:
+    grupo: numericos
+    arquetipo: quantidade
+    deteccao: Valor não inteiro sem equivalência única — fracionário, com unidade, ou vazio.
+    rejeicao: Não há regra determinística válida para o grão.
+    injecao: {frequencia: 4, formas: [fracionario, com_unidade, vazio]}
+  MONEY_NEGATIVE:
+    grupo: monetarios
+    arquetipo: dinheiro
+    deteccao: Valor negativo em campo que não admite estorno.
+    rejeicao: Valor negativo onde o domínio não o permite.
+    injecao: {frequencia: 3, formas: [negativo]}
+
+  # ── Datas e tempo ─────────────────────────────────────────────────────────
+  MONEY_LOCALE:
+    grupo: monetarios
+    arquetipo: dinheiro
+    deteccao: Valor monetário com separadores ou símbolo de moeda, em qualquer locale.
+    conversao: Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.
+    injecao: {frequencia: 6, formas: [pt_br, en_us, com_simbolo]}
+  TEXT_TRUNCATED:
+    grupo: texto
+    arquetipo: texto_com_limite
+    # Detecção por heurística declarada, e a limitação é assumida: um valor
+    # legítimo de comprimento exatamente igual ao limite é indistinguível de um
+    # cortado. É por isso que o gerador produz, de propósito, casos válidos
+    # nesse comprimento — o controle mede o falso positivo em vez de escondê-lo.
+    deteccao: Comprimento exatamente igual ao limite declarado da coluna legada.
+    rejeicao: O que foi perdido no corte não se restaura.
+    injecao: {frequencia: 4, formas: [cortado_no_limite]}
+  TEXT_DELIMITER:
+    grupo: texto
+    arquetipo: texto
+    deteccao: Campo contém o delimitador declarado **e** os campos seguintes da linha estão vazios.
+    rejeicao: A linha veio deslocada na importação; o conteúdo dos campos seguintes se perdeu.
+    injecao: {frequencia: 3, formas: [absorve_os_seguintes]}
   TEXT_ENCODING:
     grupo: texto
     arquetipo: texto
     deteccao: Sequência de codificação dupla reconhecível — UTF-8 lido como Latin-1.
     conversao: Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.
     injecao: {frequencia: 5, formas: [utf8_como_latin1]}
-
   TEXT_WHITESPACE_CASE:
     grupo: texto
     arquetipo: texto
@@ -160,62 +241,12 @@ falhas:
     # reconhecer faria o oráculo falhar por culpa da injeção, não da limpeza.
     # A conversão continua padronizando espaçamento, que é o que se detecta.
     injecao: {frequencia: 6, formas: [espaco_a_volta, espaco_duplo]}
-
-  TEXT_TRUNCATED:
-    grupo: texto
-    arquetipo: texto_com_limite
-    # Detecção por heurística declarada, e a limitação é assumida: um valor
-    # legítimo de comprimento exatamente igual ao limite é indistinguível de um
-    # cortado. É por isso que o gerador produz, de propósito, casos válidos
-    # nesse comprimento — o controle mede o falso positivo em vez de escondê-lo.
-    deteccao: Comprimento exatamente igual ao limite declarado da coluna legada.
-    rejeicao: O que foi perdido no corte não se restaura.
-    injecao: {frequencia: 4, formas: [cortado_no_limite]}
-
-  TEXT_DELIMITER:
-    grupo: texto
-    arquetipo: texto
-    deteccao: Campo contém o delimitador declarado **e** os campos seguintes da linha estão vazios.
-    rejeicao: A linha veio deslocada na importação; o conteúdo dos campos seguintes se perdeu.
-    injecao: {frequencia: 3, formas: [absorve_os_seguintes]}
-
-  NULL_DISGUISED:
-    grupo: texto
-    arquetipo: qualquer
-    deteccao: Valor pertence à lista declarada de nulos disfarçados.
-    conversao: Converter para nulo de verdade.
-    injecao: {frequencia: 7, formas: [marcador_textual]}
-
-  # ── Domínios e formatos ───────────────────────────────────────────────────
-  BOOL_VARIANT:
-    grupo: dominios
-    arquetipo: booleano
-    deteccao: Valor booleano escrito fora de `true`/`false`.
-    conversao: Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.
-    injecao: {frequencia: 5, formas: [sim_nao, s_n, um_zero]}
-
-  ENUM_UNKNOWN:
-    grupo: dominios
-    arquetipo: enumerado
-    deteccao: Valor fora do domínio declarado do campo.
-    rejeicao: Estado desconhecido; mapear exigiria inventar equivalência.
-    injecao: {frequencia: 4, formas: [valor_inexistente]}
-
-  EMAIL_MALFORMED:
-    grupo: dominios
-    arquetipo: email
-    deteccao: Sem arroba, com espaço interno, ou domínio sem ponto.
-    rejeicao: Endereço inválido; não há correção segura.
-    injecao: {frequencia: 4, formas: [sem_arroba, com_espaco, dominio_invalido]}
-
-  # ── Integridade e consistência ────────────────────────────────────────────
   FK_ORPHAN:
     grupo: integridade
     arquetipo: chave_estrangeira
     deteccao: Referência a chave que não existe na tabela referenciada, dentro da mesma captura.
     rejeicao: A linha aponta para um registro que não existe.
     injecao: {frequencia: 5, formas: [id_inexistente]}
-
   DUP_EXACT:
     grupo: integridade
     arquetipo: registro
@@ -224,21 +255,18 @@ falhas:
     deteccao: Duas ou mais ocorrências físicas com todos os campos iguais na mesma captura.
     rejeicao: Ocorrência excedente de duplicata exata; a canônica foi mantida.
     injecao: {frequencia: 4, formas: [linha_repetida]}
-
   DUP_PARTIAL:
     grupo: integridade
     arquetipo: chave_natural
     deteccao: Mesma chave natural com atributos divergentes na mesma captura.
     rejeicao: Não há critério de desempate seguro entre as versões.
     injecao: {frequencia: 3, formas: [mesma_chave_outro_atributo]}
-
   TOTAL_MISMATCH:
     grupo: integridade
     arquetipo: total_do_pedido
     deteccao: Total declarado difere da soma dos itens além da tolerância de arredondamento.
     rejeicao: O total não reconcilia com os itens; corrigir exigiria escolher qual lado vale.
     injecao: {frequencia: 3, formas: [total_alterado]}
-
   PARENT_REJECTED:
     grupo: integridade
     arquetipo: registro_filho

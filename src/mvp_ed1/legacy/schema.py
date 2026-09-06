@@ -84,7 +84,10 @@ def _gerada_pelo_banco(coluna) -> bool:
     )
 
 
-def limites(largura_do_legado: int | None = None) -> dict[tuple[str, str], int]:
+def limites(
+    largura_do_legado: int | None = None,
+    apenas: frozenset[str] | None = None,
+) -> dict[tuple[str, str], int]:
     """Largura de cada coluna textual **no sistema antigo**, por (tabela, coluna).
 
     Não é o limite do modelo atual. A origem legada é outro sistema, mais velho
@@ -100,6 +103,8 @@ def limites(largura_do_legado: int | None = None) -> dict[tuple[str, str], int]:
     resultado: dict[tuple[str, str], int] = {}
     for t in Base.metadata.sorted_tables:
         for c in t.columns:
+            if apenas is not None and f"{t.name}.{c.name}" not in apenas:
+                continue
             if isinstance(c.type, String) and c.type.length:
                 largura = int(c.type.length)
                 if largura_do_legado is not None:

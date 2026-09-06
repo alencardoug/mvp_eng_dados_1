@@ -1,0 +1,61 @@
+# Gerado por `make legacy-models`. Não edite: a lista sai dos modelos.
+
+version: 2
+
+sources:
+  - name: legacy
+    description: >
+      Capturas retidas da origem legada, escritas pelo Airbyte em modo
+      `full_refresh_append` (ADR-0037). **Imutável**: cada carga acrescenta uma
+      captura, nenhuma sobrescreve a anterior, e é comparando duas que a
+      exclusão física da origem antiga é detectada.
+
+      Os valores chegam como texto, com os defeitos preservados. Tipar aqui
+      recusaria justamente as linhas que a etapa existe para tratar.
+    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    schema: raw_legacy
+    loader: airbyte
+
+    # Sem `freshness`: a origem legada é capturada sob demanda, e não há
+    # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
+    tables:
+      - name: brands
+      - name: campaigns
+      - name: carriers
+      - name: customer_segments
+      - name: payment_methods
+      - name: product_categories
+      - name: sales_channels
+      - name: suppliers
+      - name: support_agents
+      - name: warehouses
+      - name: coupons
+      - name: customers
+      - name: price_lists
+      - name: products
+      - name: purchase_orders
+      - name: carts
+      - name: customer_addresses
+      - name: customer_contacts
+      - name: customer_preferences
+      - name: goods_receipts
+      - name: product_variants
+      - name: cart_items
+      - name: inventory_balances
+      - name: inventory_movements
+      - name: orders
+      - name: product_prices
+      - name: purchase_order_items
+      - name: coupon_redemptions
+      - name: goods_receipt_items
+      - name: order_items
+      - name: order_status_history
+      - name: payments
+      - name: shipments
+      - name: stock_reservations
+      - name: delivery_events
+      - name: payment_transactions
+      - name: shipment_items
+      - name: support_tickets
+      - name: refunds
+      - name: ticket_events

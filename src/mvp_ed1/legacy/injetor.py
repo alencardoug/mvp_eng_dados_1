@@ -316,7 +316,14 @@ class _Aplicador:
     def __init__(self, injetor: "Injetor", resultado: Resultado) -> None:
         self.i = injetor
         self.r = resultado
-        self.limites = schema.limites(injetor.catalogo.limite_de_texto)
+        #: Células já estragadas. Uma segunda falha na mesma célula sobrescreve
+        #: o valor da primeira, e o manifesto passa a declarar um achado que não
+        #: existe mais — o oráculo mentindo. Foram dois casos assim, e os dois
+        #: apareceram como "regra não detecta" antes de a causa ficar clara.
+        self.ocupadas: set[tuple[str, int, str]] = set()
+        self.limites = schema.limites(
+            injetor.catalogo.limite_de_texto, injetor.catalogo.colunas_estreitadas
+        )
 
     def executar(self, falha: Falha) -> int:
         fonte = self.i._fonte(falha.codigo)
@@ -336,8 +343,12 @@ class _Aplicador:
                 tabela, coluna = fonte.escolha(alvos)
                 if coluna in INTOCAVEIS:
                     continue
+                if not self._injetavel(falha, tabela, coluna):
+                    continue
                 linhas = self.r.linhas[tabela]
                 linha = fonte.escolha(linhas)
+                if (tabela, linha[schema.IDENTIDADE], coluna) in self.ocupadas:
+                    continue
                 original = linha.get(coluna)
                 if original in (None, ""):
                     continue
@@ -345,6 +356,7 @@ class _Aplicador:
                 if forma == "absorve_os_seguintes":
                     if not self._absorver(falha, tabela, linha, coluna):
                         continue
+                    self.ocupadas.add((tabela, linha[schema.IDENTIDADE], coluna))
                     aplicadas += 1
                     break
                 try:
@@ -361,6 +373,7 @@ class _Aplicador:
                 if novo == original:
                     continue
                 linha[coluna] = novo
+                self.ocupadas.add((tabela, linha[schema.IDENTIDADE], coluna))
                 self._registrar(falha, tabela, linha, coluna, original, novo)
                 aplicadas += 1
                 break
@@ -378,6 +391,15 @@ class _Aplicador:
         colunas = [c for c in schema.colunas(tabela) if c not in INTOCAVEIS]
         posicao = colunas.index(coluna)
         seguintes = colunas[posicao + 1 : posicao + 3]
+
+        # As colunas engolidas ficam vazias, e isso **apaga** qualquer defeito
+        # que já estivesse nelas: o achado continuaria no manifesto sem existir
+        # no dado. Aconteceu uma vez, e apareceu disfarçado de "a regra de
+        # booleano não detecta" — o valor tinha sido comido pelo vizinho.
+        identidade = linha[schema.IDENTIDADE]
+        if any((tabela, identidade, c) in self.ocupadas for c in seguintes):
+            return False
+
         engolidos = [linha.get(c) for c in seguintes if linha.get(c)]
         if not engolidos:
             return False
@@ -387,6 +409,7 @@ class _Aplicador:
         for c in seguintes:
             if linha.get(c):
                 linha[c] = ""
+            self.ocupadas.add((tabela, identidade, c))
         self._registrar(falha, tabela, linha, coluna, original, linha[coluna])
         return True
 
@@ -471,6 +494,21 @@ class _Aplicador:
             self._registrar(falha, "orders", linha, "total_amount", original, novo)
             aplicadas += 1
         return aplicadas
+
+    def _injetavel(self, falha: Falha, tabela: str, coluna: str) -> bool:
+        """A falha seria mesmo um defeito **nesta** coluna?
+
+        Injetar negativo em `quantity_delta` produziria um movimento de saída
+        perfeitamente legítimo, e cortar `currency` no limite produziria `BRL`
+        — que é o valor certo. Um defeito que não é defeito nunca seria
+        detectado, e o oráculo falharia por culpa da injeção.
+        """
+        qualificado = f"{tabela}.{coluna}"
+        if falha.codigo == "NUM_OUT_OF_RANGE":
+            return qualificado not in self.i.catalogo.quantidades_com_sinal
+        if falha.codigo == "TEXT_TRUNCATED":
+            return qualificado in self.i.catalogo.colunas_estreitadas
+        return True
 
     def _registrar(
         self, falha: Falha, tabela: str, linha: dict, coluna: str, antes: str, depois: str
