@@ -216,7 +216,8 @@ join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = b.sales
 -- cruzar venda e entrega sem que as duas fatos apontem para versões diferentes
 -- do mesmo cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.customer_natural_key = b.customer_id
+  on cu.source_system = 'retail'
+ and cu.customer_natural_key = b.customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)
 

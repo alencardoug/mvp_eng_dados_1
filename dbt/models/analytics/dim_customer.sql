@@ -15,7 +15,7 @@ with versoes as (
 
     select
         *,
-        row_number() over (partition by customer_id order by dbt_valid_from)
+        row_number() over (partition by source_system, customer_id order by dbt_valid_from)
             as numero_da_versao
     from {{ ref('scd_customer') }}
 
@@ -28,7 +28,10 @@ atual as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['v.customer_id', 'v.dbt_valid_from']) }} as customer_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['v.source_system', 'v.customer_id', 'v.dbt_valid_from']
+    ) }}                                                    as customer_key,
+    v.source_system,
     v.customer_id                                           as customer_natural_key,
 
     -- ── Tipo 1: descrevem a pessoa, ou descrevem o hoje ─────────────────────
@@ -67,4 +70,4 @@ select
     v.dbt_valid_to                                          as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
-join atual a on a.customer_id = v.customer_id
+join atual a on a.source_system = v.source_system and a.customer_id = v.customer_id

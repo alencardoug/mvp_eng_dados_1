@@ -92,7 +92,8 @@ join {{ ref('dim_campaign') }} cm on cm.campaign_natural_key = b.campaign_id
 -- Versão do cliente vigente no instante da venda — mesma âncora da fato de
 -- vendas, para que as duas contem a mesma história do mesmo cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.customer_natural_key = b.order_customer_id
+  on cu.source_system = 'retail'
+ and cu.customer_natural_key = b.order_customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)
 

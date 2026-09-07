@@ -10,9 +10,22 @@
 
 {% set as_of = "date '" ~ var("as_of_date") ~ "'" %}
 
+-- ── Onde as duas origens se encontram ───────────────────────────────────────
+-- `trusted` é a camada do empilhamento (ADR-0021 e Origem Legada §6), e é aqui
+-- que o cliente do legado se junta ao da origem principal. `source_system`
+-- entra como coluna e passa a fazer parte da identidade: dois sistemas numeram
+-- clientes a partir de 1, e sem a origem na chave o cliente 42 de um seria o
+-- cliente 42 do outro (ADR-0039).
+--
+-- Só o conjunto **apto** é empilhado. O rejeitado fica em `quarantine`, com o
+-- motivo — nada é descartado, e nada inválido atravessa.
 with clientes as (
 
-    select * from {{ ref('stg_retail__customers') }}
+    select 'retail' as source_system, * from {{ ref('stg_retail__customers') }}
+
+    union all
+
+    select 'legacy' as source_system, * from {{ ref('legado__customers') }}
 
 ),
 
@@ -68,6 +81,7 @@ segunda_compra as (
 )
 
 select
+    c.source_system,
     c.customer_id,
     c.customer_code,
     c.first_name,

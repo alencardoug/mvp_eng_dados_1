@@ -142,7 +142,8 @@ join {{ ref('dim_support_agent') }} ag
 
 -- Versão do cliente vigente na abertura do chamado.
 join {{ ref('dim_customer') }} cu
-  on cu.customer_natural_key = b.customer_id
+  on cu.source_system = 'retail'
+ and cu.customer_natural_key = b.customer_id
  and b.opened_at >= cu.valid_from
  and (cu.valid_to is null or b.opened_at < cu.valid_to)
 

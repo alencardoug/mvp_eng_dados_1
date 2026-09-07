@@ -37,6 +37,7 @@ join {{ ref('dim_date') }} d
 join {{ ref('dim_payment_method') }} pm on pm.payment_method_natural_key = p.payment_method_id
 join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = o.sales_channel_id
 join {{ ref('dim_customer') }} c
-  on c.customer_natural_key = o.customer_id
+  on c.source_system = 'retail'
+ and c.customer_natural_key = o.customer_id
  and o.placed_at >= c.valid_from
  and (c.valid_to is null or o.placed_at < c.valid_to)

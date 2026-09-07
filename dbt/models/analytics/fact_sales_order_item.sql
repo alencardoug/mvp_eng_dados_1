@@ -124,7 +124,8 @@ join {{ ref('dim_date') }} d on d.full_date = v.order_date
 
 -- Versão do cliente vigente no instante da venda.
 join cliente c
-  on c.customer_natural_key = v.customer_id
+  on c.source_system = 'retail'
+ and c.customer_natural_key = v.customer_id
  and v.placed_at >= c.valid_from
  and (c.valid_to is null or v.placed_at < c.valid_to)
 

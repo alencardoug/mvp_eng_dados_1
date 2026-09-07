@@ -291,3 +291,42 @@ def test_cleaned_models_materialize_every_column(engine) -> None:
                 f" from staging.stg_legacy__{table} c"
             )).scalar_one()
         assert count > 0, f"{table}: o cenário gerado exige cobertura"
+
+
+def test_a_ponte_do_legado_expoe_o_mesmo_formato_do_staging(engine) -> None:
+    """`legado__customers` e `stg_retail__customers` expõem as mesmas colunas.
+
+    O mapa de renome vive nos dois, e não há como evitá-lo sem extrair o mapa
+    dos modelos escritos à mão da Etapa 5 — refatoração de outra etapa. A
+    duplicação é aceita e **vigiada**: uma coluna acrescentada de um lado só
+    quebra aqui, com o nome dela, e não no `union all`, onde a mensagem seria
+    sobre contagem de colunas.
+
+    A comparação é contra o **banco**, e não contra o texto do SQL: colunas que
+    passam sem `as` não aparecem numa leitura por expressão regular, e a
+    primeira versão deste teste falhou exatamente por isso.
+    """
+    def colunas(schema_nome: str, relacao: str) -> list[str]:
+        with engine.connect() as conexao:
+            return [
+                linha[0]
+                for linha in conexao.execute(
+                    text(
+                        "select column_name from information_schema.columns "
+                        "where table_schema = :s and table_name = :t "
+                        "order by ordinal_position"
+                    ),
+                    {"s": schema_nome, "t": relacao},
+                )
+            ]
+
+    do_retail = colunas("staging", "stg_retail__customers")
+    do_legado = colunas("trusted", "legado__customers")
+    if not do_retail or not do_legado:
+        pytest.skip("relações não construídas; rode `make dbt-build`")
+
+    assert do_legado == do_retail, (
+        "as duas relações precisam expor as mesmas colunas, na mesma ordem; "
+        f"só no legado: {set(do_legado) - set(do_retail)}; "
+        f"só no retail: {set(do_retail) - set(do_legado)}"
+    )

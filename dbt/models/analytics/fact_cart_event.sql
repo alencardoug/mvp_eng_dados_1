@@ -66,6 +66,7 @@ join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = e.sales
 
 -- Sessão anônima não tem cliente: o *join* é `left`, e a chave fica nula.
 left join cliente c
-  on c.customer_natural_key = e.customer_id
+  on c.source_system = 'retail'
+ and c.customer_natural_key = e.customer_id
  and e.occurred_at >= c.valid_from
  and (c.valid_to is null or e.occurred_at < c.valid_to)

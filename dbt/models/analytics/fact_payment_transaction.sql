@@ -57,6 +57,7 @@ join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = o.sales
 -- Versão do cliente vigente quando o pedido foi feito, e não quando a transação
 -- ocorreu: a transação pertence ao pedido, e é o pedido que define o cliente.
 join {{ ref('dim_customer') }} c
-  on c.customer_natural_key = o.customer_id
+  on c.source_system = 'retail'
+ and c.customer_natural_key = o.customer_id
  and o.placed_at >= c.valid_from
  and (c.valid_to is null or o.placed_at < c.valid_to)

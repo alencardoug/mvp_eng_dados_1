@@ -30,3 +30,4 @@ def test_cleaning_preserves_catalog_order_including_rejections() -> None:
                 position = sql.find(branch, cursor)
                 assert position >= cursor, f"{table}.{column}: ramo {rule.codigo} ausente/fora de ordem"
                 cursor = position + len(branch)
+

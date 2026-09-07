@@ -98,7 +98,8 @@ join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = b.sales
 -- Versão do cliente vigente no instante da **venda**: a transição pertence ao
 -- pedido, e o pedido foi feito por aquela versão do cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.customer_natural_key = b.customer_id
+  on cu.source_system = 'retail'
+ and cu.customer_natural_key = b.customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)
 

@@ -1,4 +1,8 @@
 {#
+    A chave inclui a **origem** (ADR-0039): sem ela, o cliente 42 do legado e o
+    42 da origem principal seriam a mesma linha historizada, e cada carga
+    alternaria os atributos entre os dois.
+
     Histórico de atributos do cliente — SCD tipo 2 (ADR-0017).
 
     `strategy='check'` com colunas **declaradas**, nunca `check_cols='all'`: com
@@ -15,7 +19,7 @@
 
 {{
     config(
-        unique_key='customer_id',
+        unique_key="source_system || '-' || customer_id",
         strategy='check',
         check_cols=[
             'customer_segment_id',
