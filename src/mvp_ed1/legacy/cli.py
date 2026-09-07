@@ -105,10 +105,15 @@ def main(argv: list[str] | None = None) -> int:
         from mvp_ed1.legacy import ponte
 
         catalogo = carregar()
-        escritos = dbt.gerar(catalogo, _promessas())
+        promessas = _promessas()
+        escritos = dbt.gerar(catalogo, promessas)
         fontes = dbt.DESTINO / "_legacy__sources.yml"
         fontes.write_text(dbt.sources_yml(), encoding="utf-8")
-        escritos.extend(classification.generate(catalogo))
+        escritos.extend(
+            classification.generate(
+                catalogo, fingerprint=dbt.impressao_digital(catalogo, promessas)
+            )
+        )
         escritos.extend(ponte.gerar())
         escritos.extend(ponte.gerar_testes())
         print(f"{len(escritos)} modelos e a declaração de fontes em {dbt.DESTINO}/")

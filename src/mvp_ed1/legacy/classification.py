@@ -77,7 +77,11 @@ from {{{{ ref('stg_legacy__{table}') }}}} r""")
     return HEADER + "\nunion all\n".join(parts) + "\n"
 
 
-def classification_sql(catalog: Catalogo, relation: str = "{{ ref('legacy_records') }}") -> str:
+def classification_sql(
+    catalog: Catalogo,
+    relation: str = "{{ ref('legacy_records') }}",
+    fingerprint: str = "__pendente__",
+) -> str:
     rules = ",\n".join(
         f"({sql_literal(f.codigo)}, {sql_literal('correct' if f.converte else 'reject')}, "
         f"{sql_literal(f.conversao if f.converte else f.rejeicao)})"
@@ -86,13 +90,19 @@ def classification_sql(catalog: Catalogo, relation: str = "{{ ref('legacy_record
     template = Path(__file__).with_name("classification.sql").read_text(encoding="utf-8")
     return HEADER + template.replace("__RECORDS__", relation).replace("__RULES__", rules).replace(
         "__VERSION__", str(catalog.versao)
-    ).replace("__TOLERANCE__", str(catalog.falhas["TOTAL_MISMATCH"].tolerance))
+    ).replace("__TOLERANCE__", str(catalog.falhas["TOTAL_MISMATCH"].tolerance)).replace(
+        "__FINGERPRINT__", sql_literal(fingerprint)
+    )
 
 
-def generate(catalog: Catalogo, root: Path = ROOT) -> list[Path]:
+def generate(
+    catalog: Catalogo, root: Path = ROOT, fingerprint: str = "__pendente__"
+) -> list[Path]:
     outputs = {
         root / "trusted/legacy/legacy_records.sql": records_sql(),
-        root / "trusted/legacy/legacy_classifications.sql": classification_sql(catalog),
+        root / "trusted/legacy/legacy_classifications.sql": classification_sql(
+            catalog, fingerprint=fingerprint
+        ),
     }
     outputs.update(metadata_files(root))
     for path, content in outputs.items():
@@ -123,6 +133,9 @@ def metadata_files(root: Path) -> dict[Path, str]:
         return common_columns() + [
             column("source_table", "Tabela de origem da ocorrência.", tests=["not_null"]),
             column("catalog_version", "Versão do contrato de tratamento aplicado.", tests=["not_null"]),
+            column("treatment_fingerprint",
+                   "Identidade do tratamento que produziu esta linha, derivada do SQL gerado (D34).",
+                   tests=["not_null"]),
             column("cleaned_payload", "Valores após conversão; inválidos preservados, nunca preenchidos por adivinhação.", "personal"),
             column("classification", "Saída exclusiva da ocorrência, depois de todos os achados.", tests=["not_null", {
                 "accepted_values": {"arguments": {"values": ["accepted", "corrected", "rejected"]}}
@@ -159,8 +172,11 @@ def metadata_files(root: Path) -> dict[Path, str]:
         model("legacy_eligible_records", "Aceitos e corrigidos da captura selecionada; ainda não empilhados por domínio.",
               classified_columns(), identity + ["catalog_version"]),
     ]
+    # A quarentena é a única que guarda mais de uma execução, e por isso a
+    # impressão digital entra na sua chave: sob a mesma versão, dois
+    # tratamentos diferentes são duas auditorias, não uma sobrescrita (D34).
     quarantine = [model("rejected_legacy_records", "Destino permanente dos rejeitados por captura e versão do catálogo; nunca fonte de negócio.",
-                        classified_columns(), identity + ["catalog_version"])]
+                        classified_columns(), identity + ["catalog_version", "treatment_fingerprint"])]
     return {
         root / directory / "_legacy__models.yml": "# Gerado por make legacy-models; metadados em legacy/classification.py e models/.\n"
         + yaml.safe_dump({"version": 2, "models": models}, allow_unicode=True, sort_keys=False, width=100)

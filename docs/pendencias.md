@@ -12,62 +12,70 @@
 |---|---|
 | Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 2 |
-| Última revisão | 06/09/2026 |
+| Decisões pendentes | 0 |
+| Última revisão | 07/09/2026 |
 
 ---
 
 ## 1. Esperando você
 
-Três questões que a revisão da Etapa 10 levantou e que **não** são implementação: mudam o
-contrato, e por isso são suas.
+Nada. As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — foram decididas em
+07/09/2026 e estão implementadas; o registro delas está abaixo.
 
-### D33 — o universo da reconciliação de pedidos
-
-O total do pedido é conferido contra **todos** os itens capturados, menos as duplicatas exatas —
-inclusive itens que serão rejeitados por outro motivo. Isso mede *consistência da origem*.
-
-A alternativa é conferir contra o conjunto que será **empilhado**, o que mede *consistência do que
-chega ao armazém*. São contratos diferentes, e a escolha muda a política, não só o número.
-
-Escolhi o primeiro ao consertar uma circularidade — 114 pedidos falsamente não reconciliados
-viraram 8 —, mas melhora de contagem não decide qual contrato deve valer.
-
-### D34 — o que identifica uma versão auditável do tratamento
-
-A quarentena substitui a auditoria anterior quando captura e `catalog_version` coincidem. Mas
-mudanças em `regras.py` ou em `classification.sql` alteram o resultado **sem** mudar o número do
-catálogo — duas auditorias diferentes sob a mesma identidade.
-
-Falta decidir quando esse número avança, e se resultado distinto sob a mesma chave deve ser
-recusado ou receber identidade própria.
-
-### D35 — o pai sobrevive à rejeição do filho?
-
-Apareceu ao empilhar o legado inteiro. O ADR-0038 faz a rejeição cascatear **do pai para o filho**,
-e só nessa direção: um pedido bom com um item ruim continua no armazém, e o item ruim vai para a
-quarentena. A consequência é aritmética — a soma dos itens deixa de bater com o total do pedido.
-
-São **75 linhas**, todas do legado e todas explicadas: 58 pedidos que não reconciliam com os seus
-itens, 12 remessas sem caixa, 3 saldos que não batem com o livro e 2 reservas. Para cada uma há um
-filho em quarentena com o motivo — nenhuma divergência é inexplicada, e é isso que os testes
-passaram a exigir (macro `explicado_pela_quarentena`).
-
-As três saídas:
-
-| Saída | O que ganha | O que custa |
-|---|---|---|
-| **Manter como está** — o pai sobrevive, e a invariante é exigida só onde a quarentena não explica | Nenhum registro bom é descartado; a divergência é rastreável até o motivo | O armazém guarda pedidos cujo total não reconcilia com os itens que ele mostra |
-| **Cascatear para cima** — rejeitar o pai quando qualquer filho for rejeitado | As invariantes voltam a valer sem exceção | Descarta 58 pedidos válidos e o que depende deles; inverte a direção declarada no ADR-0038 |
-| **Marcar o pai** — coluna em `trusted` dizendo que o registro tem filho em quarentena | A incompletude vira dado consultável, não só nota de teste | Coluna nova em vários modelos, e ainda é preciso decidir o que as views fazem com ela |
-
-Minha recomendação é **manter como está**: é a leitura que não descarta dado bom e que não deixa
-buraco mudo, já que toda diferença precisa de contrapartida em quarentena. Mas a escolha é de
-contrato, e a implementação de hoje descreve o comportamento — não o ratifica.
+Os bloqueios que restam da revisão são **implementação**, não decisão: R10 (detecção de exclusão
+física), R12 (migração Alembic do schema legado) e R13 (oráculo independente da cascata).
 
 ---
 
 ## 2. Decisões já fechadas
+
+### D35 — decidida em 07/09/2026
+
+**O pai sobrevive à rejeição do filho.** A invariante que atravessa entidades é exigida em todo
+lugar onde a quarentena **não** explica a diferença — e só ali. Nenhum registro bom é descartado, e
+nenhuma divergência fica muda: cada uma precisa de contrapartida rastreável até o motivo.
+
+O ADR-0038 continua valendo sem inversão: a rejeição cascateia do pai para o filho, e não ao
+contrário. O que mudou é que os testes passaram a afirmar algo **mais forte** do que antes — não que
+os números fecham, mas que todo lugar onde não fecham tem registro em quarentena explicando. A
+implementação é a macro `explicado_pela_quarentena`, aplicada a quatro invariantes.
+
+Medido no fechamento: 75 linhas divergentes, todas do legado e **todas explicadas** — 58 pedidos, 12
+remessas sem caixa, 3 saldos e 2 reservas.
+
+### D34 — decidida em 07/09/2026
+
+**A versão declarada continua sendo o rótulo, e uma impressão digital passa a guardá-la.**
+`catalog_version` segue legível e avançando à mão; `treatment_fingerprint` é derivada do SQL que o
+tratamento **gera** — os 40 modelos de limpeza e a classificação —, e não do código-fonte. A
+distinção importa: hashear `regras.py` faria uma variável renomeada invalidar auditoria sem que uma
+linha do armazém mudasse.
+
+A quarentena passou a **recusar a substituição** quando a impressão diverge sob a mesma versão: a
+auditoria antiga fica, a nova entra ao lado, e `legacy_versao_do_tratamento_e_univoca` diz em voz
+alta que a versão precisa avançar.
+
+A regra foi exercitada na própria entrega. Acrescentar a coluna mudou o que o tratamento produz, o
+teste acusou, e o remédio foi o que ele prescreve: `versao` avançou de 3 para 4. A recusa também já
+está observada em dado real — a versão 3 guarda duas impressões lado a lado, 2.280 linhas de uma e
+19.243 da auditoria anterior ao contrato.
+
+### D33 — decidida em 07/09/2026
+
+**A classificação continua conferindo contra a origem inteira, e uma medida separada responde pelo
+armazém.** Conferir o total do pedido contra o conjunto empilhado mediria a pergunta mais útil e
+seria circular: o que é empilhado depende da classificação, que passaria a depender do
+empilhamento. A circularidade não é hipótese — custou 114 pedidos falsamente não reconciliados.
+
+O que faltava não era trocar de universo, era ter o segundo número. Ele agora existe em
+`legacy_order_totals_divergence`, que é **medida e não regra**: nenhuma linha ali rejeita nada. As
+duas origens entram, de propósito, para que o zero da origem principal seja resultado observado e
+não suposição embutida.
+
+Medido no fechamento: 66 pedidos do legado divergem, somando **R$ 465.293,49**, e os 66 têm
+contrapartida em quarentena. A origem principal não aparece.
+
+---
 
 **D32 — decidida em 06/09/2026.** O Owner autorizou `NULL_REQUIRED`, preservando
 `NULL_DISGUISED` como achado de conversão e mantendo campos opcionais corrigíveis.

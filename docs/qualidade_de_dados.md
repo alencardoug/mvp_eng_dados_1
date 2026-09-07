@@ -201,6 +201,12 @@ efeito da geração sobre os dados dependentes foi medido, como registra
 - idempotência: reprocessar o mesmo `snapshot_id` não duplica registros;
 - `source_system` preenchido e dentro do domínio declarado em toda tabela empilhada
   ([ADR-0021](adr/0021-procedencia-no-empilhamento.md));
+- a captura lida **existe** e traz todas as 40 tabelas — o que separa tabela legitimamente vazia de
+  captura ausente, que no bruto são a mesma coisa;
+- um tratamento por versão de catálogo: resultado diferente sob a mesma versão **recusa** substituir
+  a auditoria guardada, em vez de apagá-la ([D33 a D35](pendencias.md#2-decisões-já-fechadas));
+- invariante que atravessa entidades é exigida onde a quarentena não explica a diferença — e toda
+  diferença tolerada tem contrapartida com motivo;
 - cobertura do catálogo: **cada tipo injetável de falha** — 23 dos 25 declarados; `NULL_REQUIRED` e
   `PARENT_REJECTED` nascem do contexto, e não de um valor que se possa injetar numa célula — tem ao
   menos um registro gerado e um resultado esperado

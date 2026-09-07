@@ -21,6 +21,10 @@ with expected as (
         select 1 from expected e where e.source_system = q.source_system
             and e.snapshot_id = q.snapshot_id and e.source_table = q.source_table
             and e.catalog_version = q.catalog_version
+            -- A impressão digital entra aqui para que este teste continue
+            -- falando de reconciliação: auditoria de outro tratamento sob a
+            -- mesma versão é assunto de `legacy_versao_do_tratamento_e_univoca`.
+            and e.treatment_fingerprint = q.treatment_fingerprint
     )
 )
 (select * from expected except all select * from actual)

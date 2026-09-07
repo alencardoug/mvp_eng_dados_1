@@ -28,10 +28,11 @@
     A origem principal não é afetada: ela não tem quarentena, então nada ali é
     exonerado por esta cláusula.
 
-    ── Pendência ────────────────────────────────────────────────────────────
-    Se o pai deve ou não sobreviver à rejeição de um filho é decisão do Owner,
-    registrada como pendência. Esta macro descreve o comportamento de hoje; não
-    o ratifica.
+    ── Decidido ─────────────────────────────────────────────────────────────
+    Que o pai sobreviva à rejeição de um filho é a **D35**, decidida em
+    07/09/2026 contra as duas alternativas — cascatear para cima, que descartaria
+    58 pedidos válidos, e marcar o pai com uma coluna própria. O ADR-0038 segue
+    sem inversão.
 -#}
 {% macro explicado_pela_quarentena(tabela_do_filho, colunas, alias) -%}
     exists (

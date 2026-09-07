@@ -1,0 +1,32 @@
+# Escrito à mão: não é derivado do catálogo, e o que descreve é uma medida, não
+# um contrato de tratamento.
+
+version: 2
+
+models:
+  - name: legacy_order_totals_divergence
+    description: >
+      Pedidos cujo total não fecha com os itens empilhados, com a contrapartida
+      em quarentena quando existe (D33). É **medida**, não regra: quem rejeita é
+      `invariante_02_total_do_pedido_reconcilia`. A classificação continua
+      conferindo contra a origem inteira, porque conferir contra o empilhado
+      seria circular.
+    meta:
+      domain: legado
+      owner: data_custodian
+    columns:
+      - name: source_system
+        description: Origem do pedido; a principal aparece aqui com zero linhas por não ter quarentena.
+        meta:
+          sensitivity: internal
+        data_tests: [not_null]
+      - name: divergence_amount
+        description: Total declarado menos a soma dos itens que chegaram ao armazém.
+        meta:
+          sensitivity: internal
+        data_tests: [not_null]
+      - name: explicada_pela_quarentena
+        description: Há ao menos um item deste pedido em quarentena explicando a diferença.
+        meta:
+          sensitivity: internal
+        data_tests: [not_null]

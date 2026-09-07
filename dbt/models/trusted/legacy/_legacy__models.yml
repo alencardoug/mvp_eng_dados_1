@@ -113,6 +113,12 @@ models:
       sensitivity: internal
     data_tests:
     - not_null
+  - name: treatment_fingerprint
+    description: Identidade do tratamento que produziu esta linha, derivada do SQL gerado (D34).
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
   - name: cleaned_payload
     description: Valores após conversão; inválidos preservados, nunca preenchidos por adivinhação.
     meta:
@@ -200,6 +206,12 @@ models:
     - not_null
   - name: catalog_version
     description: Versão do contrato de tratamento aplicado.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: treatment_fingerprint
+    description: Identidade do tratamento que produziu esta linha, derivada do SQL gerado (D34).
     meta:
       sensitivity: internal
     data_tests:

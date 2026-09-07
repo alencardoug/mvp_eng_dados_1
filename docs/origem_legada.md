@@ -288,10 +288,12 @@ a que aquela sincronização escreveu: o Airbyte não expõe a correspondência 
 
 **Estado em 07/09/2026:** limpeza por coluna, classificação com falhas de contexto, quarentena,
 DAG e empilhamento estão entregues. A [D32](adr/README.md#2-decisões-já-fechadas) foi decidida e
-`NULL_REQUIRED` faz parte do catálogo. Continua aberta a
-[D35](pendencias.md#d35--o-pai-sobrevive-à-rejeição-do-filho): se o pai deve sobreviver à rejeição
-de um filho — hoje sobrevive, e a divergência que isso cria só é tolerada onde a quarentena a
-explica.
+`NULL_REQUIRED` faz parte do catálogo. A [D35](pendencias.md#d35--decidida-em-07092026) foi
+decidida: o pai sobrevive à rejeição de um filho, e a divergência que isso cria é tolerada **apenas**
+onde a quarentena a explica. A [D33](pendencias.md#d33--decidida-em-07092026) manteve a classificação
+conferindo contra a origem inteira, com o número do armazém em
+`legacy_order_totals_divergence`; a [D34](pendencias.md#d34--decidida-em-07092026) acrescentou
+`treatment_fingerprint`, e foi por causa dela que a versão do catálogo avançou para 4.
 
 O dbt classifica cada registro legado em exatamente uma saída:
 

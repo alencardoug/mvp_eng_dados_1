@@ -388,3 +388,41 @@ with selecionada as (
 
 {ramos}
 """
+
+
+def impressao_digital(catalogo: Catalogo, promessas: frozenset[str]) -> str:
+    """Identidade do **tratamento**, derivada do que ele produz.
+
+    ── O problema que ela resolve (D34) ──────────────────────────────────────
+    `catalog_version` é o rótulo humano da política de tratamento, e a
+    quarentena substitui a auditoria anterior quando captura e versão
+    coincidem. Só que mudar `regras.py` ou `classification.sql` altera o
+    resultado **sem** mexer nesse número: duas auditorias diferentes passam a
+    caber sob a mesma identidade, e a segunda apaga a primeira em silêncio.
+
+    ── Por que o texto gerado, e não o código-fonte ──────────────────────────
+    Hashear `regras.py` diretamente seria mais simples e pior: renomear uma
+    variável ou corrigir um comentário mudaria a impressão sem que uma única
+    linha do armazém mudasse, e a auditoria seria invalidada por nada.
+
+    O que se hasheia aqui é o **derivado**: os 40 modelos de limpeza e o SQL de
+    classificação, que são o tratamento escrito por extenso. Refatoração que
+    não muda o resultado não muda a impressão; mudança de uma casa decimal numa
+    regra muda.
+
+    A versão continua sendo o rótulo legível e continua avançando à mão. A
+    impressão só responde a uma pergunta: *este resultado é o mesmo que a
+    auditoria guardada afirma?*
+    """
+    import hashlib
+
+    from mvp_ed1.legacy import classification
+
+    limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    textos = [modelo(catalogo, t, promessas, limites) for t in schema.tabelas()]
+    # A classificação entra com o marcador ainda no lugar: a impressão não pode
+    # depender de si mesma.
+    textos.append(classification.classification_sql(catalogo))
+
+    digest = hashlib.sha256("".join(textos).encode("utf-8")).hexdigest()
+    return digest[:16]
