@@ -11,17 +11,20 @@
 with enviado as (
 
     select
+        source_system,
         order_item_id,
         sum(quantity_shipped) as quantity_shipped
-    from {{ ref('stg_retail__shipment_items') }}
-    group by order_item_id
+    from {{ ref('shipment_items') }}
+    group by source_system, order_item_id
 
 )
 
 select
+    e.source_system,
     e.order_item_id,
     e.quantity_shipped,
     i.quantity as quantity_sold
 from enviado e
-join {{ ref('order_items') }} i on i.order_item_id = e.order_item_id
+join {{ ref('order_items') }} i
+  on i.source_system = e.source_system and i.order_item_id = e.order_item_id
 where e.quantity_shipped > i.quantity

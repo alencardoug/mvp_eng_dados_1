@@ -34,13 +34,14 @@
 
 with saldos as (
 
-    select * from {{ ref('stg_retail__inventory_balances') }}
+    {{ empilhado('inventory_balances') }}
 
 ),
 
 reconstruido as (
 
     select
+        m.source_system,
         m.warehouse_id,
         m.product_variant_id,
         sum(m.quantity_delta)                       as rebuilt_quantity_on_hand,
@@ -50,10 +51,11 @@ reconstruido as (
         max(m.occurred_at)                          as last_movement_at
     from {{ ref('inventory_movements') }} m
     join saldos s
-      on s.warehouse_id = m.warehouse_id
+      on s.source_system = m.source_system
+     and s.warehouse_id = m.warehouse_id
      and s.product_variant_id = m.product_variant_id
     where m.recorded_at <= s.ingested_at
-    group by m.warehouse_id, m.product_variant_id
+    group by m.source_system, m.warehouse_id, m.product_variant_id
 
 ),
 
@@ -61,16 +63,18 @@ reservado as (
 
     -- Invariante 8: reserva liberada, expirada ou consumida **não** ocupa saldo.
     select
+        source_system,
         warehouse_id,
         product_variant_id,
         sum(quantity_reserved) filter (where reservation_status = 'active')
                                                     as active_reserved_quantity
-    from {{ ref('stg_retail__stock_reservations') }}
-    group by warehouse_id, product_variant_id
+    from ({{ empilhado('stock_reservations') }}) sr
+    group by source_system, warehouse_id, product_variant_id
 
 )
 
 select
+    s.source_system,
     s.inventory_balance_id,
     s.warehouse_id,
     s.product_variant_id,
@@ -96,8 +100,10 @@ select
     s.source_updated_at
 from saldos s
 left join reconstruido r
-       on r.warehouse_id = s.warehouse_id
+       on r.source_system = s.source_system
+      and r.warehouse_id = s.warehouse_id
       and r.product_variant_id = s.product_variant_id
 left join reservado v
-       on v.warehouse_id = s.warehouse_id
+       on v.source_system = s.source_system
+      and v.warehouse_id = s.warehouse_id
       and v.product_variant_id = s.product_variant_id

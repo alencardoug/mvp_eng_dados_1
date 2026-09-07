@@ -4,7 +4,9 @@
 -- por linha sem responder pergunta nenhuma.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['payment_method_id']) }} as payment_method_key,
+    {{ dbt_utils.generate_surrogate_key(['source_system', 'payment_method_id']) }}
+                                                    as payment_method_key,
+    source_system,
     payment_method_id                               as payment_method_natural_key,
     payment_method_code,
     payment_method_name,

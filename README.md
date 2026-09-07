@@ -83,14 +83,20 @@ Seis cortes verticais entregues — comercial, financeiro e estoque, o caminho q
 logística, relacionamento e a **origem legada**. O modelo dimensional está completo: 10 fatos e 15
 dimensões, e as 16 perguntas de negócio têm view com `contract: enforced`. O armazém tem **36 fluxos
 de ingestão em lote** da origem principal, o **CDC de `inventory_movements`** e **40 do legado**, e o
-`dbt build` passa com **812 objetos, `WARN=0` e `ERROR=0`**.
+`dbt build` passa com **851 objetos, `WARN=0` e `ERROR=0`**.
 
-**A segunda origem atravessa da captura até a classificação** — e para ali, porque nenhum modelo
-dimensional a lê ainda. São 12.747 ocorrências capturadas: **82,0% aceitas,
-17,8% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com valor original, resultado e
-regra registrados. A equação `extraídos = aceitos + corrigidos + rejeitados` é conferida a cada
-*build*, e os modelos de limpeza encontram **74 de 74** defeitos injetados com 0,10% de falso
-positivo — medidos contra o manifesto, que a transformação nunca lê. A DAG `fluxo_batch` roda **dez
+**A segunda origem atravessa da captura até o modelo dimensional.** São 12.747 ocorrências
+capturadas: **81,9% aceitas, 17,9% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com
+valor original, resultado e regra registrados. Das 10.467 aptas, **10.233 são empilhadas** em
+`trusted` ao lado da origem principal — as outras 234 estão em quatro tabelas que o legado tem e a
+origem principal não, e por isso não têm com que se unir. A equação
+`extraídos = aceitos + corrigidos + rejeitados` é conferida a cada *build*, e agora também
+`empilhados = aceitos + corrigidos`, tabela por tabela. Os modelos de limpeza encontram os **106
+achados** injetados em 88 ocorrências — medidos contra o manifesto, que a transformação nunca lê.
+
+A procedência viaja junto: `source_system` é coluna em toda tabela empilhada, entra na chave
+substituta das dimensões e qualifica cada junção. "Quantos registros vieram do legado?" é uma
+cláusula `WHERE` — 74 clientes em `dim_customer`, 264 itens em `fact_sales_order_item`. A DAG `fluxo_batch` roda **dez
 tarefas** de ponta a ponta em **5 min 20 s**, com as duas capturas em paralelo.
 
 O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e

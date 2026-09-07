@@ -5,7 +5,9 @@
 -- destino do cliente sem duas geografias que não se somam.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['w.warehouse_id']) }} as warehouse_key,
+    {{ dbt_utils.generate_surrogate_key(['w.source_system', 'w.warehouse_id']) }}
+                                                    as warehouse_key,
+    w.source_system,
     w.warehouse_id                                  as warehouse_natural_key,
     w.warehouse_code,
     w.warehouse_name,

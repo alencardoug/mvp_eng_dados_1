@@ -9,6 +9,7 @@
 with categorias as (
 
     select distinct
+        source_system,
         product_category_id,
         leaf_category_name,
         sub_category_name,
@@ -19,7 +20,9 @@ with categorias as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['product_category_id']) }} as category_key,
+    {{ dbt_utils.generate_surrogate_key(['source_system', 'product_category_id']) }}
+                                                        as category_key,
+    source_system,
     product_category_id                                 as category_natural_key,
     leaf_category_name                                  as category_name,
     coalesce(sub_category_name, leaf_category_name)     as sub_category_name,

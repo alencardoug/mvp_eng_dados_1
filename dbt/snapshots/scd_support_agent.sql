@@ -14,7 +14,7 @@
 
 {{
     config(
-        unique_key='support_agent_id',
+        unique_key="source_system || '-' || support_agent_id",
         strategy='check',
         check_cols=[
             'agent_team',

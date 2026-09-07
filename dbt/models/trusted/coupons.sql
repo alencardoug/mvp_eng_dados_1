@@ -16,7 +16,7 @@
 
 with cupons as (
 
-    select * from {{ ref('stg_retail__coupons') }}
+    {{ empilhado('coupons') }}
 
 ),
 
@@ -29,17 +29,19 @@ campanhas as (
 uso as (
 
     select
+        source_system,
         coupon_id,
         count(*)                                    as redemption_count,
         sum(coupon_discount_amount)                 as redeemed_discount_amount,
         min(redeemed_at)                            as first_redeemed_at,
         max(redeemed_at)                            as last_redeemed_at
-    from {{ ref('stg_retail__coupon_redemptions') }}
-    group by coupon_id
+    from ({{ empilhado('coupon_redemptions') }}) cr
+    group by source_system, coupon_id
 
 )
 
 select
+    c.source_system,
     c.coupon_id,
     c.coupon_code,
     c.campaign_id,
@@ -72,5 +74,6 @@ select
     c.source_created_at,
     c.source_updated_at
 from cupons c
-join campanhas ca on ca.campaign_id = c.campaign_id
-left join uso u on u.coupon_id = c.coupon_id
+join campanhas ca
+    on ca.source_system = c.source_system and ca.campaign_id = c.campaign_id
+left join uso u on u.source_system = c.source_system and u.coupon_id = c.coupon_id

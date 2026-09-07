@@ -33,7 +33,7 @@ from sqlalchemy import create_engine, text
 
 from mvp_ed1.db import WAREHOUSE, database_url
 from mvp_ed1.generator import enums
-from mvp_ed1.legacy import dbt, schema
+from mvp_ed1.legacy import dbt, ponte, schema
 from mvp_ed1.legacy.catalogo import carregar
 from mvp_ed1.legacy.regras import regra_enum, regra_truncado, regras
 
@@ -293,18 +293,19 @@ def test_cleaned_models_materialize_every_column(engine) -> None:
         assert count > 0, f"{table}: o cenário gerado exige cobertura"
 
 
-def test_a_ponte_do_legado_expoe_o_mesmo_formato_do_staging(engine) -> None:
-    """`legado__customers` e `stg_retail__customers` expõem as mesmas colunas.
+def test_as_pontes_expoem_o_mesmo_formato_do_staging(engine) -> None:
+    """Cada `legado__<t>` expõe as colunas de `stg_retail__<t>`, na mesma ordem.
 
-    O mapa de renome vive nos dois, e não há como evitá-lo sem extrair o mapa
-    dos modelos escritos à mão da Etapa 5 — refatoração de outra etapa. A
-    duplicação é aceita e **vigiada**: uma coluna acrescentada de um lado só
-    quebra aqui, com o nome dela, e não no `union all`, onde a mensagem seria
-    sobre contagem de colunas.
+    É o que o `union all` do empilhamento exige e não verifica: ele casa por
+    **posição**, e duas relações com a mesma contagem de colunas em ordem
+    trocada se unem sem erro, escrevendo o valor de uma coluna dentro de outra.
 
-    A comparação é contra o **banco**, e não contra o texto do SQL: colunas que
-    passam sem `as` não aparecem numa leitura por expressão regular, e a
-    primeira versão deste teste falhou exatamente por isso.
+    A ponte é gerada a partir do próprio modelo de `staging`, então a igualdade
+    deveria vir de graça. Deveria — e é justamente por isso que se confere: o
+    gerador lê o texto do SQL, e o que o empilhamento une é o que o banco
+    materializou. A comparação é contra o **banco** por esse motivo, e também
+    porque coluna que passa sem `as` não aparece numa leitura por expressão
+    regular; a primeira versão deste teste falhou exatamente aí.
     """
     def colunas(schema_nome: str, relacao: str) -> list[str]:
         with engine.connect() as conexao:
@@ -320,13 +321,25 @@ def test_a_ponte_do_legado_expoe_o_mesmo_formato_do_staging(engine) -> None:
                 )
             ]
 
-    do_retail = colunas("staging", "stg_retail__customers")
-    do_legado = colunas("trusted", "legado__customers")
-    if not do_retail or not do_legado:
+    divergentes = {}
+    conferidas = 0
+    for tabela in ponte.empilhaveis():
+        do_retail = colunas("staging", f"stg_retail__{tabela}")
+        do_legado = colunas("trusted", f"legado__{tabela}")
+        if not do_retail or not do_legado:
+            continue
+        conferidas += 1
+        if do_legado != do_retail:
+            divergentes[tabela] = (
+                f"só no legado: {set(do_legado) - set(do_retail)}; "
+                f"só no retail: {set(do_retail) - set(do_legado)}; "
+                f"ordem igual: {sorted(do_legado) == sorted(do_retail)}"
+            )
+
+    if conferidas == 0:
         pytest.skip("relações não construídas; rode `make dbt-build`")
 
-    assert do_legado == do_retail, (
-        "as duas relações precisam expor as mesmas colunas, na mesma ordem; "
-        f"só no legado: {set(do_legado) - set(do_retail)}; "
-        f"só no retail: {set(do_retail) - set(do_legado)}"
+    assert not divergentes, f"pontes fora de formato: {divergentes}"
+    assert conferidas == len(ponte.empilhaveis()), (
+        f"só {conferidas} das {len(ponte.empilhaveis())} pontes foram conferidas"
     )

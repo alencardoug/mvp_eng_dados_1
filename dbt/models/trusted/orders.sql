@@ -7,7 +7,7 @@
 
 with pedidos as (
 
-    select * from {{ ref('stg_retail__orders') }}
+    {{ empilhado('orders') }}
 
 ),
 
@@ -25,12 +25,14 @@ with pedidos as (
 recompra as (
 
     select
+        source_system,
         order_id,
         customer_id,
         placed_at,
-        lead(placed_at) over (partition by customer_id order by placed_at, order_id)
-                                                as next_order_at
-    from {{ ref('stg_retail__orders') }}
+        lead(placed_at) over (
+            partition by source_system, customer_id order by placed_at, order_id
+        )                                       as next_order_at
+    from pedidos
     where order_status in ('paid', 'picking', 'shipped', 'delivered', 'returned')
 
 ),
@@ -38,17 +40,19 @@ recompra as (
 itens as (
 
     select
+        source_system,
         order_id,
         count(*)                        as item_count,
         sum(quantity)                   as unit_count,
         sum(gross_revenue_amount)       as items_gross_revenue_amount,
         sum(net_revenue_amount)         as items_net_revenue_amount
     from {{ ref('order_items') }}
-    group by order_id
+    group by source_system, order_id
 
 )
 
 select
+    p.source_system,
     p.order_id,
     p.order_number,
     p.customer_id,
@@ -103,5 +107,5 @@ select
     p.source_created_at,
     p.source_updated_at
 from pedidos p
-left join itens i on i.order_id = p.order_id
-left join recompra r on r.order_id = p.order_id
+left join itens i on i.source_system = p.source_system and i.order_id = p.order_id
+left join recompra r on r.source_system = p.source_system and r.order_id = p.order_id

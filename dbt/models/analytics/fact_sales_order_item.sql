@@ -45,6 +45,7 @@ produto as (
 vendas as (
 
     select
+        i.source_system,
         i.order_item_id,
         i.order_id,
         i.product_variant_id,
@@ -69,12 +70,15 @@ vendas as (
         p.days_to_next_order,
         cast(p.placed_at at time zone 'America/Sao_Paulo' as date) as order_date
     from itens i
-    join pedidos p on p.order_id = i.order_id
+    join pedidos p
+        on p.source_system = i.source_system and p.order_id = i.order_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['v.order_item_id']) }} as order_item_key,
+    {{ dbt_utils.generate_surrogate_key(['v.source_system', 'v.order_item_id']) }}
+                                                               as order_item_key,
+    v.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -124,19 +128,25 @@ join {{ ref('dim_date') }} d on d.full_date = v.order_date
 
 -- Versão do cliente vigente no instante da venda.
 join cliente c
-  on c.source_system = 'retail'
+  on c.source_system = v.source_system
  and c.customer_natural_key = v.customer_id
  and v.placed_at >= c.valid_from
  and (c.valid_to is null or v.placed_at < c.valid_to)
 
 -- Versão do SKU vigente no instante da venda.
 join produto pr
-  on pr.product_natural_key = v.product_variant_id
+  on pr.source_system = v.source_system
+ and pr.product_natural_key = v.product_variant_id
  and v.placed_at >= pr.valid_from
  and (pr.valid_to is null or v.placed_at < pr.valid_to)
 
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = v.sales_channel_id
-join {{ ref('dim_category') }} cat on cat.category_natural_key = pr.product_category_id
-left join {{ ref('dim_brand') }} br on br.brand_natural_key = pr.brand_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = v.source_system
+ and ch.sales_channel_natural_key = v.sales_channel_id
+join {{ ref('dim_category') }} cat
+  on cat.source_system = pr.source_system
+ and cat.category_natural_key = pr.product_category_id
+left join {{ ref('dim_brand') }} br
+  on br.source_system = pr.source_system and br.brand_natural_key = pr.brand_id
 left join {{ ref('dim_geography') }} g
   on g.country = c.country and g.state_code = c.state_code and g.city = c.city

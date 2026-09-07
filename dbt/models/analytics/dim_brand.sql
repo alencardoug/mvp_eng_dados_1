@@ -6,18 +6,20 @@
 
 with marcas as (
 
-    select distinct on (brand_id)
+    select distinct on (source_system, brand_id)
+        source_system,
         brand_id,
         brand_name,
         brand_country
     from {{ ref('product_skus') }}
     where brand_id is not null
-    order by brand_id, product_variant_id
+    order by source_system, brand_id, product_variant_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['brand_id']) }} as brand_key,
+    {{ dbt_utils.generate_surrogate_key(['source_system', 'brand_id']) }} as brand_key,
+    source_system,
     brand_id                                            as brand_natural_key,
     brand_name,
     brand_country

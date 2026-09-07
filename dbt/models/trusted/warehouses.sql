@@ -4,7 +4,12 @@
 -- é o que permite, na Etapa 8, perguntar "quanto sai de cada região e vai para
 -- qual" sem duas geografias que não se somam.
 
+with armazens as (
+    {{ empilhado('warehouses') }}
+)
+
 select
+    w.source_system,
     w.warehouse_id,
     w.warehouse_code,
     w.warehouse_name,
@@ -18,5 +23,5 @@ select
     w.is_deleted,
     w.source_created_at,
     w.source_updated_at
-from {{ ref('stg_retail__warehouses') }} w
+from armazens w
 left join {{ ref('brazilian_states') }} s on s.state_code = w.warehouse_state

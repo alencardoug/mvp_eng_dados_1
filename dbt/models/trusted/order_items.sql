@@ -8,11 +8,12 @@
 
 with itens as (
 
-    select * from {{ ref('stg_retail__order_items') }}
+    {{ empilhado('order_items') }}
 
 )
 
 select
+    source_system,
     order_item_id,
     order_id,
     product_variant_id,

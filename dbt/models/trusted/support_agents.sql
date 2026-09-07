@@ -6,23 +6,25 @@
 
 with agentes as (
 
-    select * from {{ ref('stg_retail__support_agents') }}
+    {{ empilhado('support_agents') }}
 
 ),
 
 carga as (
 
     select
+        source_system,
         support_agent_id,
         count(distinct support_ticket_id)           as ticket_event_ticket_count,
         count(*)                                    as ticket_event_count
-    from {{ ref('stg_retail__ticket_events') }}
+    from ({{ empilhado('ticket_events') }}) te
     where support_agent_id is not null
-    group by support_agent_id
+    group by source_system, support_agent_id
 
 )
 
 select
+    a.source_system,
     a.support_agent_id,
     a.agent_code,
     a.agent_first_name,
@@ -40,4 +42,6 @@ select
     a.source_created_at,
     a.source_updated_at
 from agentes a
-left join carga c on c.support_agent_id = a.support_agent_id
+left join carga c
+    on c.source_system = a.source_system
+    and c.support_agent_id = a.support_agent_id

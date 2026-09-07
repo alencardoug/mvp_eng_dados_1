@@ -11,6 +11,7 @@
 with remessas as (
 
     select
+        s.source_system,
         s.shipment_id,
         s.order_id,
         o.placed_at,
@@ -20,7 +21,8 @@ with remessas as (
         s.returned_at,
         s.estimated_delivery_at
     from {{ ref('shipments') }} s
-    join {{ ref('orders') }} o on o.order_id = s.order_id
+    join {{ ref('orders') }} o
+        on o.source_system = s.source_system and o.order_id = s.order_id
 
 )
 

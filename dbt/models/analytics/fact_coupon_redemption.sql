@@ -32,12 +32,15 @@ base as (
         o.is_realised,
         cast(r.redeemed_at at time zone 'America/Sao_Paulo' as date) as redemption_date
     from resgates r
-    join {{ ref('orders') }} o on o.order_id = r.order_id
+    join {{ ref('orders') }} o
+        on o.source_system = r.source_system and o.order_id = r.order_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['b.coupon_redemption_id']) }} as coupon_redemption_key,
+    {{ dbt_utils.generate_surrogate_key(['b.source_system', 'b.coupon_redemption_id']) }}
+                                                        as coupon_redemption_key,
+    b.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -83,20 +86,25 @@ join {{ ref('dim_date') }} d on d.full_date = b.redemption_date
 
 -- Versão do cupom vigente no instante do resgate.
 join {{ ref('dim_coupon') }} cp
-  on cp.coupon_natural_key = b.coupon_id
+  on cp.source_system = b.source_system
+ and cp.coupon_natural_key = b.coupon_id
  and b.redeemed_at >= cp.valid_from
  and (cp.valid_to is null or b.redeemed_at < cp.valid_to)
 
-join {{ ref('dim_campaign') }} cm on cm.campaign_natural_key = b.campaign_id
+join {{ ref('dim_campaign') }} cm
+  on cm.source_system = b.source_system
+ and cm.campaign_natural_key = b.campaign_id
 
 -- Versão do cliente vigente no instante da venda — mesma âncora da fato de
 -- vendas, para que as duas contem a mesma história do mesmo cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.source_system = 'retail'
+  on cu.source_system = b.source_system
  and cu.customer_natural_key = b.order_customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)
 
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = b.sales_channel_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = b.source_system
+ and ch.sales_channel_natural_key = b.sales_channel_id
 left join {{ ref('dim_geography') }} g
   on g.country = cu.country and g.state_code = cu.state_code and g.city = cu.city

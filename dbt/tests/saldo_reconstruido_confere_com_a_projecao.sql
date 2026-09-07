@@ -7,10 +7,14 @@
 -- olhando só para ela.
 
 select
-    warehouse_id,
-    product_variant_id,
-    quantity_on_hand,
-    rebuilt_quantity_on_hand,
-    balance_drift
-from {{ ref('inventory_balances') }}
-where balance_drift <> 0
+    b.source_system,
+    b.warehouse_id,
+    b.product_variant_id,
+    b.quantity_on_hand,
+    b.rebuilt_quantity_on_hand,
+    b.balance_drift
+from {{ ref('inventory_balances') }} b
+where b.balance_drift <> 0
+  -- Movimento em quarentena explica a diferença; ver a macro.
+  and not {{ explicado_pela_quarentena(
+        'inventory_movements', ['warehouse_id', 'product_variant_id'], 'b') }}

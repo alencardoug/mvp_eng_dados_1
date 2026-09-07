@@ -19,6 +19,7 @@ tratamento deve alcançar. A transformação nunca o lê.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -85,6 +86,12 @@ def _texto(valor: Any) -> str | None:
         return valor.isoformat()
     if isinstance(valor, Decimal):
         return f"{valor:f}"
+    # Documento sem esquema guardado em coluna de texto continua sendo JSON: o
+    # sistema antigo é frouxo na tipagem, não na serialização. `str(dict)` daria
+    # a representação do Python — aspas simples, `None` no lugar de `null` — que
+    # nenhum consumidor de JSON lê, e cuja recusa não é falha catalogada.
+    if isinstance(valor, (dict, list)):
+        return json.dumps(valor, ensure_ascii=False)
     return str(valor)
 
 

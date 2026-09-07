@@ -10,28 +10,15 @@
 
 {% set as_of = "date '" ~ var("as_of_date") ~ "'" %}
 
--- ── Onde as duas origens se encontram ───────────────────────────────────────
--- `trusted` é a camada do empilhamento (ADR-0021 e Origem Legada §6), e é aqui
--- que o cliente do legado se junta ao da origem principal. `source_system`
--- entra como coluna e passa a fazer parte da identidade: dois sistemas numeram
--- clientes a partir de 1, e sem a origem na chave o cliente 42 de um seria o
--- cliente 42 do outro (ADR-0039).
---
--- Só o conjunto **apto** é empilhado. O rejeitado fica em `quarantine`, com o
--- motivo — nada é descartado, e nada inválido atravessa.
 with clientes as (
 
-    select 'retail' as source_system, * from {{ ref('stg_retail__customers') }}
-
-    union all
-
-    select 'legacy' as source_system, * from {{ ref('legado__customers') }}
+    {{ empilhado('customers') }}
 
 ),
 
 segmentos as (
 
-    select * from {{ ref('stg_retail__customer_segments') }}
+    {{ empilhado('customer_segments') }}
 
 ),
 
@@ -40,20 +27,22 @@ endereco_principal as (
     -- Um principal por cliente e tipo, garantido por índice parcial na origem.
     -- `distinct on` protege o modelo mesmo assim: se a garantia cair, o
     -- resultado continua determinístico em vez de dobrar linhas de cliente.
-    select distinct on (customer_id)
+    select distinct on (source_system, customer_id)
+        source_system,
         customer_id,
         city,
         state,
         country
-    from {{ ref('stg_retail__customer_addresses') }}
+    from ({{ empilhado('customer_addresses') }}) e
     where is_primary and address_type = 'shipping' and not is_deleted
-    order by customer_id, valid_from desc
+    order by source_system, customer_id, valid_from desc
 
 ),
 
 compras as (
 
     select
+        o.source_system,
         o.customer_id,
         min(o.placed_at)                                as first_order_at,
         max(o.placed_at)                                as last_order_at,
@@ -61,7 +50,7 @@ compras as (
         sum(o.items_net_revenue_amount)                 as lifetime_net_revenue_amount
     from {{ ref('orders') }} o
     where o.is_realised
-    group by o.customer_id
+    group by o.source_system, o.customer_id
 
 ),
 
@@ -71,12 +60,14 @@ segunda_compra as (
     -- A coorte é a do mês da **estreia**, não a da recompra — é assim que a
     -- taxa de um mês para de mudar depois de fechada a janela.
     select
+        o.source_system,
         o.customer_id,
         min(o.placed_at)                                as second_order_at
     from {{ ref('orders') }} o
-    join compras c on c.customer_id = o.customer_id
+    join compras c
+        on c.source_system = o.source_system and c.customer_id = o.customer_id
     where o.is_realised and o.placed_at > c.first_order_at
-    group by o.customer_id
+    group by o.source_system, o.customer_id
 
 )
 
@@ -133,7 +124,12 @@ select
     c.source_created_at,
     c.source_updated_at
 from clientes c
-left join segmentos s on s.customer_segment_id = c.customer_segment_id
-left join endereco_principal e on e.customer_id = c.customer_id
-left join compras p on p.customer_id = c.customer_id
-left join segunda_compra r on r.customer_id = c.customer_id
+left join segmentos s
+    on s.source_system = c.source_system
+    and s.customer_segment_id = c.customer_segment_id
+left join endereco_principal e
+    on e.source_system = c.source_system and e.customer_id = c.customer_id
+left join compras p
+    on p.source_system = c.source_system and p.customer_id = c.customer_id
+left join segunda_compra r
+    on r.source_system = c.source_system and r.customer_id = c.customer_id

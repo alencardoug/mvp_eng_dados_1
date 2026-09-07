@@ -7,7 +7,10 @@
 -- ainda não entrou. Ela é aditiva e some sozinha quando a ordem fecha.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['i.purchase_order_item_id']) }} as purchase_order_item_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['i.source_system', 'i.purchase_order_item_id']
+    ) }}                                            as purchase_order_item_key,
+    i.source_system,
 
     d.date_key,
     s.supplier_key,
@@ -33,15 +36,22 @@ select
     i.ordered_cost_amount,
     i.received_cost_amount
 from {{ ref('purchase_order_items') }} i
-join {{ ref('purchase_orders') }} o on o.purchase_order_id = i.purchase_order_id
+join {{ ref('purchase_orders') }} o
+  on o.source_system = i.source_system
+ and o.purchase_order_id = i.purchase_order_id
 join {{ ref('dim_date') }} d
   on d.full_date = cast(o.ordered_at at time zone 'America/Sao_Paulo' as date)
-join {{ ref('dim_supplier') }} s on s.supplier_natural_key = o.supplier_id
+join {{ ref('dim_supplier') }} s
+  on s.source_system = o.source_system
+ and s.supplier_natural_key = o.supplier_id
 
 -- Versão do SKU vigente no momento da compra.
 join {{ ref('dim_product') }} p
-  on p.product_natural_key = i.product_variant_id
+  on p.source_system = i.source_system
+ and p.product_natural_key = i.product_variant_id
  and o.ordered_at >= p.valid_from
  and (p.valid_to is null or o.ordered_at < p.valid_to)
 
-join {{ ref('dim_category') }} cat on cat.category_natural_key = p.product_category_id
+join {{ ref('dim_category') }} cat
+  on cat.source_system = p.source_system
+ and cat.category_natural_key = p.product_category_id

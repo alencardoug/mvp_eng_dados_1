@@ -55,11 +55,15 @@ models:
         data_tests: [not_null]
 
   - name: dim_category
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, category_natural_key]
     columns:
       - name: category_key
         data_tests: [unique, not_null]
       - name: category_natural_key
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
 
   - name: dim_brand
     columns:
@@ -179,11 +183,15 @@ models:
 
   - name: dim_supplier
     description: Fornecedor. SCD tipo 1 nesta etapa — a divergência do §3.2 está declarada no modelo.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, supplier_natural_key]
     columns:
       - name: supplier_key
         data_tests: [unique, not_null]
       - name: supplier_natural_key
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
 
   - name: dim_warehouse
     description: Armazém, com a **mesma** `dim_geography` do endereço de entrega.
@@ -261,6 +269,10 @@ models:
       do projeto (ADR-0016), com as quatro proteções obrigatórias: `unique_key`,
       filtro por tempo de evento com margem, `--full-refresh` no plano da Etapa
       12, e o teste `incremental_confere_com_a_reconstrucao_completa`.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, idempotency_key]
     columns:
       - name: movement_key
         data_tests: [unique, not_null]
@@ -268,7 +280,7 @@ models:
         description: Chave do evento; é ela que torna o reprocessamento idempotente.
         data_tests: [unique, not_null]
       - name: idempotency_key
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: date_key
         data_tests:
           - not_null
@@ -299,11 +311,15 @@ models:
       Transportadora e a modalidade que ela presta. SCD tipo 1: a modalidade
       classifica o fato, mas não muda para uma transportadora contratada — o
       gatilho que a tornaria tipo 2 está escrito no próprio modelo.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, carrier_natural_key]
     columns:
       - name: carrier_key
         data_tests: [unique, not_null]
       - name: carrier_natural_key
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: service_level
         description: '{{ doc("promised_lead_time") }}'
         data_tests:
@@ -318,12 +334,16 @@ models:
       `date_key` é o despacho, `delivered_date_key` é a chegada (ADR-0033). As
       colunas de grão de pedido (`order_to_delivery_days` e as vizinhas) são
       atributos repetidos: reduza ao pedido antes de agregar.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, shipment_item_id]
     columns:
       - name: shipment_item_key
         description: Prova do grão — uma linha por item de remessa.
         data_tests: [unique, not_null]
       - name: shipment_item_id
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: date_key
         description: Data de **despacho** da remessa.
         data_tests:
@@ -379,11 +399,15 @@ models:
       **Grão: uma transição de estado do pedido.** A máquina de estados vista
       como fato: `orders.order_status` diz onde o pedido está hoje, e esta fato
       diz por onde ele passou.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, order_status_event_id]
     columns:
       - name: order_status_event_key
         data_tests: [unique, not_null]
       - name: order_status_event_id
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: date_key
         data_tests:
           - not_null
@@ -419,11 +443,15 @@ models:
   # ── Etapa 9 — relacionamento e histórico ───────────────────────────────────
   - name: dim_campaign
     description: Campanha e objetivo. SCD tipo 1 — o objetivo é fixado na criação e não muda.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, campaign_natural_key]
     columns:
       - name: campaign_key
         data_tests: [unique, not_null]
       - name: campaign_natural_key
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: campaign_objective
         data_tests:
           - not_null
@@ -487,11 +515,18 @@ models:
       **Grão: um uso de cupom**, um por pedido. Duas âncoras temporais de
       propósito — o cupom pela versão do **resgate**, o cliente pela versão da
       **venda**, que é a mesma de `fact_sales_order_item`.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, coupon_redemption_id]
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, order_id]
     columns:
       - name: coupon_redemption_key
         data_tests: [unique, not_null]
       - name: coupon_redemption_id
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: order_id
         description: Único — um cupom por pedido.
         data_tests: [unique, not_null]
@@ -530,11 +565,15 @@ models:
     description: >
       **Grão: um evento de um chamado.** Contar chamados aqui exige
       `count(distinct support_ticket_id)`; `event_count` é o que se soma.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [source_system, ticket_event_id]
     columns:
       - name: support_ticket_event_key
         data_tests: [unique, not_null]
       - name: ticket_event_id
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: date_key
         data_tests:
           - not_null

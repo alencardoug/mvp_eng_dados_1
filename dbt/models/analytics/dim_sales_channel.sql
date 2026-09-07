@@ -5,7 +5,9 @@
 -- responder pergunta nenhuma.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['sales_channel_id']) }} as sales_channel_key,
+    {{ dbt_utils.generate_surrogate_key(['source_system', 'sales_channel_id']) }}
+                                                        as sales_channel_key,
+    source_system,
     sales_channel_id                                    as sales_channel_natural_key,
     sales_channel_code,
     sales_channel_name,
@@ -23,6 +25,10 @@ union all
 -- em vez de aparecerem agrupados como o que são.
 select
     {{ chave_desconhecida() }}                          as sales_channel_key,
+    -- O membro desconhecido não é de origem nenhuma: ele existe porque a fato
+    -- não encontrou par, e atribuí-lo a `retail` ou a `legacy` seria dizer de
+    -- onde veio o que não veio de lugar algum.
+    'unknown'                                           as source_system,
     -1                                                  as sales_channel_natural_key,
     'UNK'                                               as sales_channel_code,
     'Sem canal'                                         as sales_channel_name,

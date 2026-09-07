@@ -16,7 +16,10 @@
 -- aditivas em qualquer recorte.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['t.payment_transaction_id']) }} as payment_transaction_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['t.source_system', 't.payment_transaction_id']
+    ) }}                                            as payment_transaction_key,
+    t.source_system,
 
     d.date_key,
     pm.payment_method_key,
@@ -47,17 +50,23 @@ select
     t.captured_amount,
     t.refunded_amount
 from {{ ref('payment_transactions') }} t
-join {{ ref('payments') }} p on p.payment_id = t.payment_id
-join {{ ref('orders') }} o on o.order_id = p.order_id
+join {{ ref('payments') }} p
+  on p.source_system = t.source_system and p.payment_id = t.payment_id
+join {{ ref('orders') }} o
+  on o.source_system = p.source_system and o.order_id = p.order_id
 join {{ ref('dim_date') }} d
   on d.full_date = cast(t.occurred_at at time zone 'America/Sao_Paulo' as date)
-join {{ ref('dim_payment_method') }} pm on pm.payment_method_natural_key = p.payment_method_id
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = o.sales_channel_id
+join {{ ref('dim_payment_method') }} pm
+  on pm.source_system = p.source_system
+ and pm.payment_method_natural_key = p.payment_method_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = o.source_system
+ and ch.sales_channel_natural_key = o.sales_channel_id
 
 -- Versão do cliente vigente quando o pedido foi feito, e não quando a transação
 -- ocorreu: a transação pertence ao pedido, e é o pedido que define o cliente.
 join {{ ref('dim_customer') }} c
-  on c.source_system = 'retail'
+  on c.source_system = o.source_system
  and c.customer_natural_key = o.customer_id
  and o.placed_at >= c.valid_from
  and (c.valid_to is null or o.placed_at < c.valid_to)

@@ -10,7 +10,9 @@ with versoes as (
 
     select
         *,
-        row_number() over (partition by support_agent_id order by dbt_valid_from)
+        row_number() over (
+            partition by source_system, support_agent_id order by dbt_valid_from
+        )
             as numero_da_versao
     from {{ ref('scd_support_agent') }}
 
@@ -23,8 +25,10 @@ atual as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['v.support_agent_id', 'v.dbt_valid_from']) }}
-                                                            as support_agent_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['v.source_system', 'v.support_agent_id', 'v.dbt_valid_from']
+    ) }}                                                    as support_agent_key,
+    v.source_system,
     v.support_agent_id                                      as support_agent_natural_key,
 
     -- ── Tipo 1 ──────────────────────────────────────────────────────────────
@@ -49,7 +53,9 @@ select
     v.dbt_valid_to                                          as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
-join atual a on a.support_agent_id = v.support_agent_id
+join atual a
+    on a.source_system = v.source_system
+    and a.support_agent_id = v.support_agent_id
 
 union all
 
@@ -61,6 +67,11 @@ union all
 -- A vigência cobre o período inteiro: o membro desconhecido não tem história.
 select
     {{ chave_desconhecida() }}                              as support_agent_key,
+    -- Origem nenhuma: o membro desconhecido existe porque a fato não achou
+    -- par, e atribuí-lo a `retail` ou a `legacy` diria de onde veio o que não
+    -- veio de lugar algum. Ele atende as duas — a chave natural −1 é
+    -- impossível nas duas, e por isso não precisa de origem para desempatar.
+    'unknown'                                               as source_system,
     -1                                                      as support_agent_natural_key,
     'AGT-0000'                                              as agent_code,
     'Sem'                                                   as agent_first_name,

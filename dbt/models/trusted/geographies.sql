@@ -8,13 +8,18 @@
 -- Um `left join` que não casa aqui é UF inválida na origem — e o teste
 -- `not_null` em `region` transforma isso em falha, não em nulo silencioso.
 
+-- ── Conformação, e por isso sem `source_system` ─────────────────────────────
+-- As duas origens entram aqui, mas a geografia **não** ganha coluna de origem:
+-- São Paulo é a mesma cidade nos dois sistemas, e separá-la por procedência
+-- criaria duas linhas onde o projeto quer uma (ADR-0039). O `distinct` é o
+-- ponto exato em que a conformação acontece.
 with enderecos as (
 
     select distinct
         country,
         state as state_code,
         city
-    from {{ ref('stg_retail__customer_addresses') }}
+    from ({{ empilhado('customer_addresses') }}) e
 
 ),
 

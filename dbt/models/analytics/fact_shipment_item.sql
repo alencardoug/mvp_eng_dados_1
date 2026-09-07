@@ -59,13 +59,14 @@ pedidos as (
 ciclo as (
 
     select
+        source_system,
         order_id,
         count(*)                                        as order_shipment_count,
         count(*) filter (where is_delivered)            as delivered_shipment_count,
         bool_and(is_delivered)                          as is_order_cycle_closed,
         max(delivered_at) filter (where is_delivered)   as order_delivered_at
     from remessas
-    group by order_id
+    group by source_system, order_id
 
 ),
 
@@ -75,10 +76,12 @@ ciclo as (
 fechamento as (
 
     select
+        source_system,
         shipment_id,
         order_id,
         row_number() over (
-            partition by order_id order by delivered_at desc, shipment_id desc
+            partition by source_system, order_id
+            order by delivered_at desc, shipment_id desc
         ) = 1                                           as is_cycle_closing_shipment
     from remessas
     where is_delivered
@@ -88,6 +91,7 @@ fechamento as (
 base as (
 
     select
+        i.source_system,
         i.shipment_item_id,
         i.shipment_id,
         i.order_item_id,
@@ -142,15 +146,21 @@ base as (
             then extract(epoch from c.order_delivered_at - p.placed_at) / 86400.0
         end::numeric(12, 4)                             as order_to_delivery_days
     from itens i
-    join remessas r on r.shipment_id = i.shipment_id
-    join pedidos p on p.order_id = i.order_id
-    join ciclo c on c.order_id = i.order_id
-    left join fechamento f on f.shipment_id = i.shipment_id
+    join remessas r
+        on r.source_system = i.source_system and r.shipment_id = i.shipment_id
+    join pedidos p
+        on p.source_system = i.source_system and p.order_id = i.order_id
+    join ciclo c
+        on c.source_system = i.source_system and c.order_id = i.order_id
+    left join fechamento f
+        on f.source_system = i.source_system and f.shipment_id = i.shipment_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['b.shipment_item_id']) }} as shipment_item_key,
+    {{ dbt_utils.generate_surrogate_key(['b.source_system', 'b.shipment_item_id']) }}
+                                                    as shipment_item_key,
+    b.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -207,22 +217,27 @@ from base b
 join {{ ref('dim_date') }} d on d.full_date = b.shipment_date
 left join {{ ref('dim_date') }} dd on dd.full_date = b.delivered_date
 
-join {{ ref('dim_carrier') }} cr on cr.carrier_natural_key = b.carrier_id
-join {{ ref('dim_warehouse') }} w on w.warehouse_natural_key = b.warehouse_id
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = b.sales_channel_id
+join {{ ref('dim_carrier') }} cr
+  on cr.source_system = b.source_system and cr.carrier_natural_key = b.carrier_id
+join {{ ref('dim_warehouse') }} w
+  on w.source_system = b.source_system and w.warehouse_natural_key = b.warehouse_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = b.source_system
+ and ch.sales_channel_natural_key = b.sales_channel_id
 
 -- Versão do cliente e do SKU vigentes no instante da **venda**, não da entrega:
 -- é a mesma âncora temporal de `fact_sales_order_item`, e é o que permite
 -- cruzar venda e entrega sem que as duas fatos apontem para versões diferentes
 -- do mesmo cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.source_system = 'retail'
+  on cu.source_system = b.source_system
  and cu.customer_natural_key = b.customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)
 
 join {{ ref('dim_product') }} pr
-  on pr.product_natural_key = b.product_variant_id
+  on pr.source_system = b.source_system
+ and pr.product_natural_key = b.product_variant_id
  and b.placed_at >= pr.valid_from
  and (pr.valid_to is null or b.placed_at < pr.valid_to)
 

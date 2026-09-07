@@ -22,6 +22,7 @@ with carrinhos as (
 abertura as (
 
     select
+        source_system,
         cart_id,
         'created'                       as event_type,
         cart_created_at                 as occurred_at
@@ -32,6 +33,7 @@ abertura as (
 desfecho as (
 
     select
+        source_system,
         cart_id,
         cart_status                     as event_type,
         case cart_status
@@ -55,7 +57,9 @@ eventos as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['e.cart_id', 'e.event_type']) }} as cart_event_key,
+    {{ dbt_utils.generate_surrogate_key(['e.source_system', 'e.cart_id', 'e.event_type']) }}
+                                                                  as cart_event_key,
+    e.source_system,
     e.cart_id,
     e.event_type,
     e.occurred_at,
@@ -72,4 +76,4 @@ select
     c.is_abandoned,
     c.is_deleted
 from eventos e
-join carrinhos c on c.cart_id = e.cart_id
+join carrinhos c on c.source_system = e.source_system and c.cart_id = e.cart_id

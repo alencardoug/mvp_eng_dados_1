@@ -7,13 +7,14 @@
 
 with pagamentos as (
 
-    select * from {{ ref('stg_retail__payments') }}
+    {{ empilhado('payments') }}
 
 ),
 
 operacoes as (
 
     select
+        source_system,
         payment_id,
         count(*)                                    as transaction_count,
         count(*) filter (where is_authorization)     as authorization_count,
@@ -24,11 +25,12 @@ operacoes as (
         min(occurred_at) filter (where is_authorization and is_approved) as first_authorized_at,
         min(occurred_at) filter (where is_capture and is_approved)       as first_captured_at
     from {{ ref('payment_transactions') }}
-    group by payment_id
+    group by source_system, payment_id
 
 )
 
 select
+    p.source_system,
     p.payment_id,
     p.payment_code,
     p.order_id,
@@ -60,4 +62,4 @@ select
     p.source_created_at,
     p.source_updated_at
 from pagamentos p
-left join operacoes o on o.payment_id = p.payment_id
+left join operacoes o on o.source_system = p.source_system and o.payment_id = p.payment_id

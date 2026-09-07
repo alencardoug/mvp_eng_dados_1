@@ -15,7 +15,7 @@
 
 with eventos as (
 
-    select * from {{ ref('stg_retail__order_status_history') }}
+    {{ empilhado('order_status_history') }}
 
 ),
 
@@ -23,16 +23,17 @@ ordenado as (
 
     select
         e.*,
-        row_number() over (partition by order_id order by changed_at, order_status_event_id)
+        row_number() over (partition by source_system, order_id order by changed_at, order_status_event_id)
                                                         as status_sequence,
-        lag(changed_at) over (partition by order_id order by changed_at, order_status_event_id)
+        lag(changed_at) over (partition by source_system, order_id order by changed_at, order_status_event_id)
                                                         as previous_changed_at,
-        max(changed_at) over (partition by order_id)    as last_changed_at
+        max(changed_at) over (partition by source_system, order_id)    as last_changed_at
     from eventos e
 
 )
 
 select
+    source_system,
     order_status_event_id,
     order_id,
     from_status,

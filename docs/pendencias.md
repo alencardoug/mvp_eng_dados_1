@@ -19,7 +19,7 @@
 
 ## 1. Esperando você
 
-Duas questões que a revisão da Etapa 10 levantou e que **não** são implementação: mudam o
+Três questões que a revisão da Etapa 10 levantou e que **não** são implementação: mudam o
 contrato, e por isso são suas.
 
 ### D33 — o universo da reconciliação de pedidos
@@ -41,6 +41,29 @@ catálogo — duas auditorias diferentes sob a mesma identidade.
 
 Falta decidir quando esse número avança, e se resultado distinto sob a mesma chave deve ser
 recusado ou receber identidade própria.
+
+### D35 — o pai sobrevive à rejeição do filho?
+
+Apareceu ao empilhar o legado inteiro. O ADR-0038 faz a rejeição cascatear **do pai para o filho**,
+e só nessa direção: um pedido bom com um item ruim continua no armazém, e o item ruim vai para a
+quarentena. A consequência é aritmética — a soma dos itens deixa de bater com o total do pedido.
+
+São **75 linhas**, todas do legado e todas explicadas: 58 pedidos que não reconciliam com os seus
+itens, 12 remessas sem caixa, 3 saldos que não batem com o livro e 2 reservas. Para cada uma há um
+filho em quarentena com o motivo — nenhuma divergência é inexplicada, e é isso que os testes
+passaram a exigir (macro `explicado_pela_quarentena`).
+
+As três saídas:
+
+| Saída | O que ganha | O que custa |
+|---|---|---|
+| **Manter como está** — o pai sobrevive, e a invariante é exigida só onde a quarentena não explica | Nenhum registro bom é descartado; a divergência é rastreável até o motivo | O armazém guarda pedidos cujo total não reconcilia com os itens que ele mostra |
+| **Cascatear para cima** — rejeitar o pai quando qualquer filho for rejeitado | As invariantes voltam a valer sem exceção | Descarta 58 pedidos válidos e o que depende deles; inverte a direção declarada no ADR-0038 |
+| **Marcar o pai** — coluna em `trusted` dizendo que o registro tem filho em quarentena | A incompletude vira dado consultável, não só nota de teste | Coluna nova em vários modelos, e ainda é preciso decidir o que as views fazem com ela |
+
+Minha recomendação é **manter como está**: é a leitura que não descarta dado bom e que não deixa
+buraco mudo, já que toda diferença precisa de contrapartida em quarentena. Mas a escolha é de
+contrato, e a implementação de hoje descreve o comportamento — não o ratifica.
 
 ---
 

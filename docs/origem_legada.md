@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.3 |
+| Versão | 2.4 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 06/09/2026 |
+| Última revisão | 07/09/2026 |
 
 ---
 
@@ -262,10 +262,12 @@ reprocessamento** da limpeza.
 
 ## 5. Limpeza e classificação
 
-**Estado em 06/09/2026:** a limpeza por coluna está implementada; classificação com falhas de
-contexto, quarentena, empilhamento e DAG ainda não estão entregues. A regra adicional para nulo
-obrigatório aguarda a [D32](adr/README.md#3-decisões-pendentes). As saídas descritas abaixo são o
-contrato a implementar, não uma medição concluída.
+**Estado em 07/09/2026:** limpeza por coluna, classificação com falhas de contexto, quarentena,
+DAG e empilhamento estão entregues. A [D32](adr/README.md#2-decisões-já-fechadas) foi decidida e
+`NULL_REQUIRED` faz parte do catálogo. Continua aberta a
+[D35](pendencias.md#d35--o-pai-sobrevive-à-rejeição-do-filho): se o pai deve sobreviver à rejeição
+de um filho — hoje sobrevive, e a divergência que isso cria só é tolerada onde a quarentena a
+explica.
 
 O dbt classifica cada registro legado em exatamente uma saída:
 
@@ -312,6 +314,20 @@ O alcance está no [ADR-0039](adr/0039-alcance-da-procedencia.md): `source_syste
 tabela que recebe registros de mais de um sistema, e **só nelas**. Dimensão que nasce de uma *seed*
 ou de uma série gerada — `dim_date`, `dim_geography`, `dim_support_category` — não recebe: acrescentar
 origem ali criaria duplicata onde deve haver conformação.
+
+**Como o registro apto chega ao modelo.** O conjunto apto sai da classificação como
+`cleaned_payload` em JSONB, com os nomes e a tipagem frouxa do sistema antigo; os modelos de
+`trusted` leem colunas já renomeadas pelo `staging`. Entre as duas formas há uma **ponte** por
+tabela, `legado__<tabela>`, que extrai, tipa e renomeia. Ela é gerada a partir do próprio modelo de
+`staging` da origem principal — o mapa de renome tem um dono só, e uma coluna renomeada de um lado
+não pode ficar para trás do outro. O empilhamento, no modelo, é então um `union all` entre duas
+relações do mesmo formato, escrito pela macro `empilhado`.
+
+**Quatro tabelas não são empilháveis.** `customer_contacts`, `customer_preferences`, `price_lists` e
+`product_prices` existem no legado e **não têm modelo na origem principal** — não há relação com que
+uni-las. Os seus registros aptos param na classificação: não são rejeitados, porque nada há de
+errado com eles, e não são empilhados, porque não há destino. A lista está declarada em
+`src/mvp_ed1/legacy/ponte.py`, e a reconciliação abaixo vale para as 36 restantes.
 
 A reconciliação é obrigatória e deve fechar exatamente:
 

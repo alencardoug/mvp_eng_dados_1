@@ -2,13 +2,14 @@
 
 with ordens as (
 
-    select * from {{ ref('stg_retail__purchase_orders') }}
+    {{ empilhado('purchase_orders') }}
 
 ),
 
 itens as (
 
     select
+        source_system,
         purchase_order_id,
         count(*)                                    as item_count,
         sum(quantity_ordered)                       as quantity_ordered,
@@ -16,11 +17,12 @@ itens as (
         sum(ordered_cost_amount)                    as items_ordered_cost_amount,
         sum(received_cost_amount)                   as items_received_cost_amount
     from {{ ref('purchase_order_items') }}
-    group by purchase_order_id
+    group by source_system, purchase_order_id
 
 )
 
 select
+    o.source_system,
     o.purchase_order_id,
     o.po_number,
     o.supplier_id,
@@ -43,4 +45,6 @@ select
     o.source_created_at,
     o.source_updated_at
 from ordens o
-left join itens i on i.purchase_order_id = o.purchase_order_id
+left join itens i
+    on i.source_system = o.source_system
+    and i.purchase_order_id = o.purchase_order_id

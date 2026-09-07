@@ -12,7 +12,9 @@
 -- que a decisão seja tomada com o motivo à vista.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['c.carrier_id']) }} as carrier_key,
+    {{ dbt_utils.generate_surrogate_key(['c.source_system', 'c.carrier_id']) }}
+                                                    as carrier_key,
+    c.source_system,
     c.carrier_id                                    as carrier_natural_key,
     c.carrier_code,
     c.carrier_name,

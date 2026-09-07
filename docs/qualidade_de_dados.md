@@ -201,9 +201,11 @@ efeito da geração sobre os dados dependentes foi medido, como registra
 - idempotência: reprocessar o mesmo `snapshot_id` não duplica registros;
 - `source_system` preenchido e dentro do domínio declarado em toda tabela empilhada
   ([ADR-0021](adr/0021-procedencia-no-empilhamento.md));
-- cobertura do catálogo: **cada um dos 21 tipos de falha** tem ao menos um registro gerado e um
-  resultado esperado ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — tipo sem
-  registro é tratamento sem teste;
+- cobertura do catálogo: **cada tipo injetável de falha** — 23 dos 25 declarados; `NULL_REQUIRED` e
+  `PARENT_REJECTED` nascem do contexto, e não de um valor que se possa injetar numa célula — tem ao
+  menos um registro gerado e um resultado esperado
+  ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — tipo sem registro é
+  tratamento sem teste;
 - reconciliação entre extraídos, aceitos, corrigidos, rejeitados e empilhados;
 - bloqueio do empilhamento quando a regra de correção for ambígua;
 - relatório de qualidade por tabela, coluna, tipo de erro e resultado do tratamento.

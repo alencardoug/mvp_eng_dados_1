@@ -29,6 +29,7 @@ cliente as (
 
 select
     e.cart_event_key,
+    e.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     -- Duas datas: a do evento e a da **criação do carrinho**. As views agregam
@@ -62,11 +63,13 @@ select
 from eventos e
 join {{ ref('dim_date') }} de on de.full_date = e.event_date
 join {{ ref('dim_date') }} dc on dc.full_date = e.cart_created_date
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = e.sales_channel_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = e.source_system
+ and ch.sales_channel_natural_key = e.sales_channel_id
 
 -- Sessão anônima não tem cliente: o *join* é `left`, e a chave fica nula.
 left join cliente c
-  on c.source_system = 'retail'
+  on c.source_system = e.source_system
  and c.customer_natural_key = e.customer_id
  and e.occurred_at >= c.valid_from
  and (c.valid_to is null or e.occurred_at < c.valid_to)

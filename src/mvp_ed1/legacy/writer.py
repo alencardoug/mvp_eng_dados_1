@@ -14,7 +14,6 @@ alcance das credenciais de leitura da transformação.
 
 from __future__ import annotations
 
-import csv
 import io
 import json
 import pathlib
@@ -89,10 +88,15 @@ def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> d
                 continue
             colunas = schema.colunas(tabela)
             buffer = io.StringIO()
-            escritor = csv.writer(buffer, delimiter="\t", lineterminator="\n")
+            # `COPY ... from stdin` no formato texto **não** é CSV: não há
+            # aspas, e quem cita um valor entrega as aspas junto com ele. O
+            # escape que este formato entende é o de `_limpo`, e é só ele.
             for linha in linhas:
-                escritor.writerow(
-                    ["\\N" if linha.get(c) is None else _limpo(linha[c]) for c in colunas]
+                buffer.write(
+                    "\t".join(
+                        "\\N" if linha.get(c) is None else _limpo(linha[c]) for c in colunas
+                    )
+                    + "\n"
                 )
             buffer.seek(0)
             alvo = ", ".join(f'"{c}"' for c in colunas)

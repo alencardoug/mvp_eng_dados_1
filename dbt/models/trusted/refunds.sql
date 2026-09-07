@@ -6,13 +6,14 @@
 
 with reembolsos as (
 
-    select * from {{ ref('stg_retail__refunds') }}
+    {{ empilhado('refunds') }}
 
 ),
 
 capturas as (
 
     select
+        source_system,
         payment_transaction_id,
         payment_id,
         transaction_amount                          as captured_amount,
@@ -23,6 +24,7 @@ capturas as (
 )
 
 select
+    r.source_system,
     r.refund_id,
     r.refund_code,
     r.payment_transaction_id,
@@ -44,5 +46,8 @@ select
     r.source_created_at,
     r.source_updated_at
 from reembolsos r
-left join capturas c on c.payment_transaction_id = r.payment_transaction_id
-left join {{ ref('payments') }} p on p.payment_id = c.payment_id
+left join capturas c
+    on c.source_system = r.source_system
+    and c.payment_transaction_id = r.payment_transaction_id
+left join {{ ref('payments') }} p
+    on p.source_system = c.source_system and p.payment_id = c.payment_id

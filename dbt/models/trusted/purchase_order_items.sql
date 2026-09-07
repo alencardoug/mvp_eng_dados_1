@@ -11,26 +11,30 @@
 
 with itens as (
 
-    select * from {{ ref('stg_retail__purchase_order_items') }}
+    {{ empilhado('purchase_order_items') }}
 
 ),
 
 recebido as (
 
     select
+        gri.source_system,
         gri.purchase_order_item_id,
         sum(gri.quantity_received)                  as quantity_received,
         sum(gri.quantity_received * gri.unit_cost)  as received_cost_amount,
         min(gr.received_at)                         as first_received_at,
         max(gr.received_at)                         as last_received_at
-    from {{ ref('stg_retail__goods_receipt_items') }} gri
-    join {{ ref('stg_retail__goods_receipts') }} gr using (goods_receipt_id)
+    from ({{ empilhado('goods_receipt_items') }}) gri
+    join ({{ empilhado('goods_receipts') }}) gr
+        on gr.source_system = gri.source_system
+        and gr.goods_receipt_id = gri.goods_receipt_id
     where gr.goods_receipt_status = 'completed'
-    group by gri.purchase_order_item_id
+    group by gri.source_system, gri.purchase_order_item_id
 
 )
 
 select
+    i.source_system,
     i.purchase_order_item_id,
     i.purchase_order_id,
     i.product_variant_id,
@@ -51,4 +55,6 @@ select
     i.source_created_at,
     i.source_updated_at
 from itens i
-left join recebido r on r.purchase_order_item_id = i.purchase_order_item_id
+left join recebido r
+    on r.source_system = i.source_system
+    and r.purchase_order_item_id = i.purchase_order_item_id

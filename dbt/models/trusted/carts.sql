@@ -6,24 +6,26 @@
 
 with carrinhos as (
 
-    select * from {{ ref('stg_retail__carts') }}
+    {{ empilhado('carts') }}
 
 ),
 
 itens as (
 
     select
+        source_system,
         cart_id,
         count(*)                            as item_count,
         sum(quantity)                       as unit_count,
         round(sum(quantity * unit_price), 2) as cart_value_amount,
         min(added_at)                       as first_item_added_at
-    from {{ ref('stg_retail__cart_items') }}
-    group by cart_id
+    from ({{ empilhado('cart_items') }}) ci
+    group by source_system, cart_id
 
 )
 
 select
+    c.source_system,
     c.cart_id,
     c.cart_code,
     c.customer_id,
@@ -52,4 +54,4 @@ select
     c.source_created_at,
     c.source_updated_at
 from carrinhos c
-left join itens i on i.cart_id = c.cart_id
+left join itens i on i.source_system = c.source_system and i.cart_id = c.cart_id

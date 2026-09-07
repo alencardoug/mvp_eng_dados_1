@@ -14,7 +14,7 @@
 
 {{
     config(
-        unique_key='product_variant_id',
+        unique_key="source_system || '-' || product_variant_id",
         strategy='check',
         check_cols=[
             'product_category_id',

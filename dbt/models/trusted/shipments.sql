@@ -22,7 +22,7 @@
 
 with remessas as (
 
-    select * from {{ ref('stg_retail__shipments') }}
+    {{ empilhado('shipments') }}
 
 ),
 
@@ -31,6 +31,7 @@ with remessas as (
 livro as (
 
     select
+        source_system,
         shipment_id,
         max(occurred_at) filter (where is_delivery)         as delivered_at,
         max(occurred_at) filter (where is_return)           as returned_at,
@@ -41,13 +42,14 @@ livro as (
         min(occurred_at)                                    as first_event_at,
         max(occurred_at)                                    as last_event_at
     from {{ ref('delivery_events') }}
-    group by shipment_id
+    group by source_system, shipment_id
 
 ),
 
 combinado as (
 
     select
+        r.source_system,
         r.shipment_id,
         r.shipment_code,
         r.order_id,
@@ -76,11 +78,13 @@ combinado as (
         r.source_created_at,
         r.source_updated_at
     from remessas r
-    left join livro l on l.shipment_id = r.shipment_id
+    left join livro l
+        on l.source_system = r.source_system and l.shipment_id = r.shipment_id
 
 )
 
 select
+    source_system,
     shipment_id,
     shipment_code,
     order_id,

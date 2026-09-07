@@ -1,20 +1,14 @@
--- Clientes aptos do legado, na forma que `stg_retail__customers` produz.
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  GERADO por `make legacy-models` a partir do modelo de staging da        ║
+-- ║  origem principal. Não edite: a próxima geração o sobrescreve. Erro      ║
+-- ║  aqui é sintoma — corrija em src/mvp_ed1/legacy/ponte.py.                ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+-- Registros aptos de `legacy.customers`, na forma que `stg_retail__customers`
+-- produz. É esta relação que o modelo `trusted` empilha à origem principal.
 --
--- ── Por que este modelo existe ──────────────────────────────────────────────
--- O empilhamento acontece em `trusted` (ADR-0021 e Origem Legada §6), e lá os
--- modelos leem colunas **renomeadas** pelo `staging`. O conjunto apto do legado
--- chega como `cleaned_payload` em JSONB, com os nomes da origem. Este modelo é
--- a ponte: extrai, tipa e renomeia, para que o empilhamento seja um `union all`
--- entre duas relações do mesmo formato.
---
--- ── A duplicação que ele cria, e como ela é contida ─────────────────────────
--- O mapa de renome vive em dois lugares: aqui e em `stg_retail__customers`. Não
--- há como evitá-lo sem extrair o mapa dos modelos escritos à mão da Etapa 5,
--- que é refatoração de outra etapa.
---
--- A contenção é mecânica, não disciplinar: o teste
--- `legado_e_retail_tem_o_mesmo_formato` compara as colunas dos dois e falha se
--- divergirem. Duplicata vigiada por teste envelhece com aviso.
+-- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
+-- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
 with apto as (
 
@@ -25,21 +19,19 @@ with apto as (
 )
 
 select
-    (cleaned_payload->>'id')::bigint                     as customer_id,
-    cleaned_payload->>'customer_code'                    as customer_code,
-    (cleaned_payload->>'segment_id')::bigint             as customer_segment_id,
-    cleaned_payload->>'first_name'                       as first_name,
-    cleaned_payload->>'last_name'                        as last_name,
-    cleaned_payload->>'first_name' || ' ' || (cleaned_payload->>'last_name')
-                                                        as customer_full_name,
-    cleaned_payload->>'document'                         as customer_document,
-    (cleaned_payload->>'birth_date')::date               as birth_date,
-    cleaned_payload->>'status'                           as customer_status,
-    (cleaned_payload->>'registered_at')::timestamptz     as registered_at,
-
-    (cleaned_payload->>'created_at')::timestamptz        as source_created_at,
-    (cleaned_payload->>'updated_at')::timestamptz        as source_updated_at,
-    (cleaned_payload->>'deleted_at')::timestamptz        as source_deleted_at,
-    cleaned_payload->>'deleted_at' is not null           as is_deleted,
-    snapshot_at                                          as ingested_at
+    (cleaned_payload->>'id')::bigint                    as customer_id,
+    (cleaned_payload->>'customer_code')::text           as customer_code,
+    (cleaned_payload->>'segment_id')::bigint            as customer_segment_id,
+    (cleaned_payload->>'first_name')::text              as first_name,
+    (cleaned_payload->>'last_name')::text               as last_name,
+    (cleaned_payload->>'first_name')::text || ' ' || (cleaned_payload->>'last_name')::text as customer_full_name,
+    (cleaned_payload->>'document')::text                as customer_document,
+    (cleaned_payload->>'birth_date')::date              as birth_date,
+    (cleaned_payload->>'status')::text                  as customer_status,
+    (cleaned_payload->>'registered_at')::timestamptz    as registered_at,
+    (cleaned_payload->>'created_at')::timestamptz       as source_created_at,
+    (cleaned_payload->>'updated_at')::timestamptz       as source_updated_at,
+    (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
+    (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
+    snapshot_at                                         as ingested_at
 from apto

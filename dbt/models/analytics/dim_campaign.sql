@@ -6,7 +6,9 @@
 -- atividade, e ambos descrevem o hoje.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['c.campaign_id']) }} as campaign_key,
+    {{ dbt_utils.generate_surrogate_key(['c.source_system', 'c.campaign_id']) }}
+                                                    as campaign_key,
+    c.source_system,
     c.campaign_id                                   as campaign_natural_key,
     c.campaign_code,
     c.campaign_name,

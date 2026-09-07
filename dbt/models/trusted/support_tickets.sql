@@ -17,13 +17,14 @@
 
 with chamados as (
 
-    select * from {{ ref('stg_retail__support_tickets') }}
+    {{ empilhado('support_tickets') }}
 
 ),
 
 livro as (
 
     select
+        source_system,
         support_ticket_id,
         min(occurred_at)                                    as first_event_at,
         max(occurred_at)                                    as last_event_at,
@@ -35,11 +36,12 @@ livro as (
         count(*) filter (where is_message)                  as message_count,
         count(*) filter (where is_message and is_from_customer) as customer_message_count
     from {{ ref('ticket_events') }}
-    group by support_ticket_id
+    group by source_system, support_ticket_id
 
 )
 
 select
+    t.source_system,
     t.support_ticket_id,
     t.ticket_number,
     t.customer_id,
@@ -90,4 +92,6 @@ select
     t.source_created_at,
     t.source_updated_at
 from chamados t
-left join livro l on l.support_ticket_id = t.support_ticket_id
+left join livro l
+    on l.source_system = t.source_system
+    and l.support_ticket_id = t.support_ticket_id

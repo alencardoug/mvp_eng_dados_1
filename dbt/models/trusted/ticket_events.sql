@@ -9,11 +9,12 @@
 
 with eventos as (
 
-    select * from {{ ref('stg_retail__ticket_events') }}
+    {{ empilhado('ticket_events') }}
 
 )
 
 select
+    source_system,
     ticket_event_id,
     support_ticket_id,
     support_agent_id,
@@ -29,7 +30,7 @@ select
     ticket_event_type = 'reopened'                  as is_reopening,
     support_agent_id is null                        as is_from_customer,
 
-    row_number() over (partition by support_ticket_id order by occurred_at, ticket_event_id)
+    row_number() over (partition by source_system, support_ticket_id order by occurred_at, ticket_event_id)
                                                     as event_sequence,
 
     is_deleted,

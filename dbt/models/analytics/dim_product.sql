@@ -23,7 +23,9 @@ with versoes as (
 
     select
         *,
-        row_number() over (partition by product_variant_id order by dbt_valid_from)
+        row_number() over (
+            partition by source_system, product_variant_id order by dbt_valid_from
+        )
             as numero_da_versao
     from {{ ref('scd_product') }}
 
@@ -42,26 +44,31 @@ categorias as (
     -- Nomes por categoria, para resolver a categoria **da versão**. Uma
     -- categoria tem o mesmo nome em qualquer SKU, então o `distinct on` é
     -- estável.
-    select distinct on (product_category_id)
+    select distinct on (source_system, product_category_id)
+        source_system,
         product_category_id,
         leaf_category_name,
         sub_category_name,
         root_category_name
     from atual
-    order by product_category_id, product_variant_id
+    order by source_system, product_category_id, product_variant_id
 
 ),
 
 marcas as (
 
-    select distinct on (brand_id) brand_id, brand_name, brand_country
+    select distinct on (source_system, brand_id)
+        source_system, brand_id, brand_name, brand_country
     from atual where brand_id is not null
-    order by brand_id, product_variant_id
+    order by source_system, brand_id, product_variant_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['v.product_variant_id', 'v.dbt_valid_from']) }} as product_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['v.source_system', 'v.product_variant_id', 'v.dbt_valid_from']
+    ) }}                                                    as product_key,
+    v.source_system,
     v.product_variant_id                                    as product_natural_key,
 
     -- ── Tipo 1: descrevem o SKU, não o classificam ──────────────────────────
@@ -105,6 +112,11 @@ select
     v.dbt_valid_to                                          as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
-join atual a on a.product_variant_id = v.product_variant_id
-join categorias c on c.product_category_id = v.product_category_id
-left join marcas m on m.brand_id = v.brand_id
+join atual a
+    on a.source_system = v.source_system
+    and a.product_variant_id = v.product_variant_id
+join categorias c
+    on c.source_system = v.source_system
+    and c.product_category_id = v.product_category_id
+left join marcas m
+    on m.source_system = v.source_system and m.brand_id = v.brand_id

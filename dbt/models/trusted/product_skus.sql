@@ -7,31 +7,32 @@
 
 with variantes as (
 
-    select * from {{ ref('stg_retail__product_variants') }}
+    {{ empilhado('product_variants') }}
 
 ),
 
 produtos as (
 
-    select * from {{ ref('stg_retail__products') }}
+    {{ empilhado('products') }}
 
 ),
 
 categorias as (
 
-    select * from {{ ref('stg_retail__product_categories') }}
+    {{ empilhado('product_categories') }}
 
 ),
 
 marcas as (
 
-    select * from {{ ref('stg_retail__brands') }}
+    {{ empilhado('brands') }}
 
 ),
 
 hierarquia as (
 
     select
+        c.source_system,
         c.product_category_id,
         c.product_category_name,
         c.category_depth,
@@ -44,12 +45,17 @@ hierarquia as (
         end as sub_category_name,
         c.is_deleted as category_is_deleted
     from categorias c
-    left join categorias pai on pai.product_category_id = c.parent_product_category_id
-    left join categorias avo on avo.product_category_id = pai.parent_product_category_id
+    left join categorias pai
+        on pai.source_system = c.source_system
+        and pai.product_category_id = c.parent_product_category_id
+    left join categorias avo
+        on avo.source_system = pai.source_system
+        and avo.product_category_id = pai.parent_product_category_id
 
 )
 
 select
+    v.source_system,
     v.product_variant_id,
     v.sku,
     v.variant_size,
@@ -85,6 +91,10 @@ select
     v.source_created_at,
     greatest(v.source_updated_at, p.source_updated_at) as source_updated_at
 from variantes v
-join produtos p on p.product_id = v.product_id
-join hierarquia h on h.product_category_id = p.product_category_id
-left join marcas b on b.brand_id = p.brand_id
+join produtos p
+    on p.source_system = v.source_system and p.product_id = v.product_id
+join hierarquia h
+    on h.source_system = p.source_system
+    and h.product_category_id = p.product_category_id
+left join marcas b
+    on b.source_system = p.source_system and b.brand_id = p.brand_id

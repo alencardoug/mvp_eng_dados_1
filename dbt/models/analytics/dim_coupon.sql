@@ -12,7 +12,9 @@ with versoes as (
 
     select
         *,
-        row_number() over (partition by coupon_id order by dbt_valid_from)
+        row_number() over (
+            partition by source_system, coupon_id order by dbt_valid_from
+        )
             as numero_da_versao
     from {{ ref('scd_coupon') }}
 
@@ -25,7 +27,10 @@ atual as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['v.coupon_id', 'v.dbt_valid_from']) }} as coupon_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['v.source_system', 'v.coupon_id', 'v.dbt_valid_from']
+    ) }}                                                    as coupon_key,
+    v.source_system,
     v.coupon_id                                             as coupon_natural_key,
 
     -- ── Tipo 1: descrevem o cupom, ou descrevem o hoje ──────────────────────
@@ -60,4 +65,4 @@ select
     v.dbt_valid_to                                          as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
-join atual a on a.coupon_id = v.coupon_id
+join atual a on a.source_system = v.source_system and a.coupon_id = v.coupon_id

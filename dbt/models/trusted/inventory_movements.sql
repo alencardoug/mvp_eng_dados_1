@@ -15,11 +15,12 @@
 
 with movimentos as (
 
-    select * from {{ ref('stg_retail__inventory_movements') }}
+    {{ empilhado('inventory_movements') }}
 
 )
 
 select
+    source_system,
     movement_id,
     event_sequence,
     idempotency_key,

@@ -27,7 +27,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key='movement_id',
+        unique_key=['source_system', 'movement_id'],
         incremental_strategy='merge',
         on_schema_change='fail',
     )
@@ -50,7 +50,9 @@ with movimentos as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['m.movement_id']) }} as movement_key,
+    {{ dbt_utils.generate_surrogate_key(['m.source_system', 'm.movement_id']) }}
+                                                    as movement_key,
+    m.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -92,8 +94,11 @@ join {{ ref('dim_date') }} d
 
 -- Versão do SKU vigente no instante do movimento.
 join {{ ref('dim_product') }} p
-  on p.product_natural_key = m.product_variant_id
+  on p.source_system = m.source_system
+ and p.product_natural_key = m.product_variant_id
  and m.occurred_at >= p.valid_from
  and (p.valid_to is null or m.occurred_at < p.valid_to)
 
-join {{ ref('dim_warehouse') }} w on w.warehouse_natural_key = m.warehouse_id
+join {{ ref('dim_warehouse') }} w
+  on w.source_system = m.source_system
+ and w.warehouse_natural_key = m.warehouse_id

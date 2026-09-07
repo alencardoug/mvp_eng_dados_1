@@ -11,11 +11,12 @@
 
 with eventos as (
 
-    select * from {{ ref('stg_retail__delivery_events') }}
+    {{ empilhado('delivery_events') }}
 
 )
 
 select
+    source_system,
     delivery_event_id,
     shipment_id,
     delivery_event_type,
@@ -32,7 +33,7 @@ select
 
     -- Ordem do evento dentro da remessa. É o que permite perguntar "o que veio
     -- antes da devolução" sem reordenar a tabela em cada consulta.
-    row_number() over (partition by shipment_id order by occurred_at, delivery_event_id)
+    row_number() over (partition by source_system, shipment_id order by occurred_at, delivery_event_id)
                                                             as event_sequence,
 
     is_deleted,

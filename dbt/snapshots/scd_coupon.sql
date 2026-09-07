@@ -18,7 +18,7 @@
 
 {{
     config(
-        unique_key='coupon_id',
+        unique_key="source_system || '-' || coupon_id",
         strategy='check',
         check_cols=[
             'campaign_id',

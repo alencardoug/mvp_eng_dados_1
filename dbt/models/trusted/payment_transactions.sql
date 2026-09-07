@@ -6,11 +6,12 @@
 
 with transacoes as (
 
-    select * from {{ ref('stg_retail__payment_transactions') }}
+    {{ empilhado('payment_transactions') }}
 
 )
 
 select
+    source_system,
     payment_transaction_id,
     transaction_code,
     payment_id,

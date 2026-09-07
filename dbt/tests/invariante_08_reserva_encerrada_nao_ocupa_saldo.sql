@@ -12,10 +12,14 @@
 -- ocupando espaço.
 
 select
-    warehouse_id,
-    product_variant_id,
-    quantity_reserved,
-    active_reserved_quantity,
-    reserved_drift
-from {{ ref('inventory_balances') }}
-where reserved_drift > 0
+    b.source_system,
+    b.warehouse_id,
+    b.product_variant_id,
+    b.quantity_reserved,
+    b.active_reserved_quantity,
+    b.reserved_drift
+from {{ ref('inventory_balances') }} b
+where b.reserved_drift > 0
+  -- Reserva em quarentena explica a diferença; ver a macro.
+  and not {{ explicado_pela_quarentena(
+        'stock_reservations', ['warehouse_id', 'product_variant_id'], 'b') }}

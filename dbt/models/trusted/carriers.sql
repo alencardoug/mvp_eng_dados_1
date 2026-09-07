@@ -5,7 +5,12 @@
 -- `express` de 2 a 4 e `same_day` de 0 a 1. Ela não é atributo decorativo da
 -- transportadora — é a metade da definição de **entrega no prazo**.
 
+with transportadoras as (
+    {{ empilhado('carriers') }}
+)
+
 select
+    c.source_system,
     c.carrier_id,
     c.carrier_code,
     c.carrier_name,
@@ -24,4 +29,4 @@ select
     c.is_deleted,
     c.source_created_at,
     c.source_updated_at
-from {{ ref('stg_retail__carriers') }} c
+from transportadoras c

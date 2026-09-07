@@ -4,7 +4,12 @@
 -- `clearance`) é o que classifica o cupom numa análise: dois cupons de 10% não
 -- são a mesma coisa se um busca cliente novo e o outro segura cliente antigo.
 
+with campanhas as (
+    {{ empilhado('campaigns') }}
+)
+
 select
+    c.source_system,
     c.campaign_id,
     c.campaign_code,
     c.campaign_name,
@@ -24,4 +29,4 @@ select
     c.is_deleted,
     c.source_created_at,
     c.source_updated_at
-from {{ ref('stg_retail__campaigns') }} c
+from campanhas c

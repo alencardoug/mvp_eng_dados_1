@@ -11,7 +11,9 @@
 -- passagem de tipo 1 para tipo 2 é acréscimo, não reescrita.
 
 select
-    {{ dbt_utils.generate_surrogate_key(['supplier_id']) }} as supplier_key,
+    {{ dbt_utils.generate_surrogate_key(['source_system', 'supplier_id']) }}
+                                                    as supplier_key,
+    source_system,
     supplier_id                                     as supplier_natural_key,
     supplier_code,
     supplier_legal_name,

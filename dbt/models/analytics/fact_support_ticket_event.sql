@@ -43,6 +43,7 @@ chamados as (
 base as (
 
     select
+        e.source_system,
         e.ticket_event_id,
         e.support_ticket_id,
         e.support_agent_id,
@@ -77,13 +78,18 @@ base as (
         o.placed_at                                     as order_placed_at,
         cast(e.occurred_at at time zone 'America/Sao_Paulo' as date) as event_date
     from eventos e
-    join chamados t on t.support_ticket_id = e.support_ticket_id
-    left join {{ ref('orders') }} o on o.order_id = t.order_id
+    join chamados t
+        on t.source_system = e.source_system
+        and t.support_ticket_id = e.support_ticket_id
+    left join {{ ref('orders') }} o
+        on o.source_system = t.source_system and o.order_id = t.order_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['b.ticket_event_id']) }} as support_ticket_event_key,
+    {{ dbt_utils.generate_surrogate_key(['b.source_system', 'b.ticket_event_id']) }}
+                                                    as support_ticket_event_key,
+    b.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -137,17 +143,19 @@ join {{ ref('dim_support_category') }} sc
 -- autor é o cliente.
 join {{ ref('dim_support_agent') }} ag
   on ag.support_agent_natural_key = coalesce(b.support_agent_id, -1)
+ and (ag.support_agent_natural_key = -1 or ag.source_system = b.source_system)
  and b.occurred_at >= ag.valid_from
  and (ag.valid_to is null or b.occurred_at < ag.valid_to)
 
 -- Versão do cliente vigente na abertura do chamado.
 join {{ ref('dim_customer') }} cu
-  on cu.source_system = 'retail'
+  on cu.source_system = b.source_system
  and cu.customer_natural_key = b.customer_id
  and b.opened_at >= cu.valid_from
  and (cu.valid_to is null or b.opened_at < cu.valid_to)
 
 left join {{ ref('dim_sales_channel') }} ch
-       on ch.sales_channel_natural_key = b.sales_channel_id
+       on ch.source_system = b.source_system
+      and ch.sales_channel_natural_key = b.sales_channel_id
 left join {{ ref('dim_geography') }} g
   on g.country = cu.country and g.state_code = cu.state_code and g.city = cu.city

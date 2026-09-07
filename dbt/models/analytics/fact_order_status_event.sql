@@ -32,6 +32,7 @@ pedidos as (
 base as (
 
     select
+        e.source_system,
         e.order_status_event_id,
         e.order_id,
         e.from_status,
@@ -55,12 +56,16 @@ base as (
         p.is_realised,
         cast(e.changed_at at time zone 'America/Sao_Paulo' as date) as change_date
     from eventos e
-    join pedidos p on p.order_id = e.order_id
+    join pedidos p
+        on p.source_system = e.source_system and p.order_id = e.order_id
 
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['b.order_status_event_id']) }} as order_status_event_key,
+    {{ dbt_utils.generate_surrogate_key(
+        ['b.source_system', 'b.order_status_event_id']
+    ) }}                                                as order_status_event_key,
+    b.source_system,
 
     -- ── Chaves de dimensão ───────────────────────────────────────────────────
     d.date_key,
@@ -93,12 +98,14 @@ select
     b.hours_in_previous_status
 from base b
 join {{ ref('dim_date') }} d on d.full_date = b.change_date
-join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_natural_key = b.sales_channel_id
+join {{ ref('dim_sales_channel') }} ch
+  on ch.source_system = b.source_system
+ and ch.sales_channel_natural_key = b.sales_channel_id
 
 -- Versão do cliente vigente no instante da **venda**: a transição pertence ao
 -- pedido, e o pedido foi feito por aquela versão do cliente.
 join {{ ref('dim_customer') }} cu
-  on cu.source_system = 'retail'
+  on cu.source_system = b.source_system
  and cu.customer_natural_key = b.customer_id
  and b.placed_at >= cu.valid_from
  and (cu.valid_to is null or b.placed_at < cu.valid_to)

@@ -16,7 +16,7 @@
 
 with resgates as (
 
-    select * from {{ ref('stg_retail__coupon_redemptions') }}
+    {{ empilhado('coupon_redemptions') }}
 
 ),
 
@@ -29,6 +29,7 @@ cupons as (
 pedidos as (
 
     select
+        source_system,
         order_id,
         order_total_amount,
         subtotal_amount,
@@ -45,13 +46,14 @@ ordenado as (
 
     select
         r.*,
-        row_number() over (partition by r.coupon_id order by r.redeemed_at, r.coupon_redemption_id)
+        row_number() over (partition by r.source_system, r.coupon_id order by r.redeemed_at, r.coupon_redemption_id)
             as redemption_sequence
     from resgates r
 
 )
 
 select
+    r.source_system,
     r.coupon_redemption_id,
     r.coupon_id,
     r.customer_id,
@@ -88,5 +90,5 @@ select
     r.is_deleted,
     r.source_created_at
 from ordenado r
-join cupons c on c.coupon_id = r.coupon_id
-join pedidos o on o.order_id = r.order_id
+join cupons c on c.source_system = r.source_system and c.coupon_id = r.coupon_id
+join pedidos o on o.source_system = r.source_system and o.order_id = r.order_id

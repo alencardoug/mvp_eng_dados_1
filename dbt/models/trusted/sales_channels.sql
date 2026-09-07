@@ -5,7 +5,12 @@
 -- para que `analytics` nunca leia de `staging` direto: a camada seguinte lê a
 -- anterior, sempre, e é isso que mantém a linhagem legível.
 
+with canais as (
+    {{ empilhado('sales_channels') }}
+)
+
 select
+    source_system,
     sales_channel_id,
     sales_channel_code,
     sales_channel_name,
@@ -15,4 +20,4 @@ select
     is_deleted,
     source_created_at,
     source_updated_at
-from {{ ref('stg_retail__sales_channels') }}
+from canais
