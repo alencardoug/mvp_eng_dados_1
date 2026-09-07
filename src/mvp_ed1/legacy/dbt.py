@@ -22,7 +22,14 @@ import pathlib
 from mvp_ed1.generator import enums
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.catalogo import Catalogo
-from mvp_ed1.legacy.regras import Regra, regra_enum, regra_faixa, regra_truncado, regras
+from mvp_ed1.legacy.regras import (
+    Regra,
+    regra_delimitador,
+    regra_enum,
+    regra_faixa,
+    regra_truncado,
+    regras,
+)
 
 #: Onde os modelos gerados moram. Diretório próprio: são derivados, e misturá-los
 #: com os escritos à mão faria a fronteira da revisão desaparecer.
@@ -70,6 +77,13 @@ def _aplicaveis(
         if falha.codigo == "NUM_OUT_OF_RANGE":
             saida.append(regra_faixa(f"{tabela}.{coluna}" in catalogo.quantidades_com_sinal))
             continue
+        if falha.codigo == "TEXT_DELIMITER":
+            colunas = [c for c in schema.colunas(tabela)]
+            posicao = colunas.index(coluna)
+            saida.append(
+                regra_delimitador(catalogo.delimitador, tuple(colunas[posicao + 1 : posicao + 3]))
+            )
+            continue
         if falha.codigo in valor:
             saida.append(valor[falha.codigo])
     return saida
@@ -115,6 +129,7 @@ def modelo(catalogo: Catalogo, tabela: str, promessas: frozenset[str], limites) 
     por_coluna = {c: _aplicaveis(catalogo, tabela, c, promessas, limites) for c in colunas}
 
     limpos = ",\n".join(_limpo(c, por_coluna[c]) + ' as "' + c + '"' for c in colunas)
+    referencias = ",\n".join('    l."' + c + '"' for c in colunas)
     achados = ",\n".join(
         f"            '{c}', {_achado(c, por_coluna[c]).strip()}"
         for c in colunas
@@ -142,6 +157,18 @@ with captura as (
         select max(_airbyte_generation_id) from {{{{ source('legacy', '{tabela}') }}}}
     ))
 
+),
+
+-- A limpeza vem **antes** dos achados, e não junto: o achado de rejeição
+-- precisa ser conferido contra o valor já convertido, senão uma conversão
+-- bem-sucedida esconde a invalidade do resultado dela.
+limpo as (
+
+    select
+        c.legacy_row_id,
+{limpos}
+    from captura c
+
 )
 
 select
@@ -151,7 +178,7 @@ select
     '{schema.SCHEMA}'                                    as source_system,
 
     -- ── Valores tratados ─────────────────────────────────────────────────────
-{limpos},
+{referencias},
 
     -- ── Achados por coluna, sem os nulos ─────────────────────────────────────
     jsonb_strip_nulls(
@@ -161,6 +188,7 @@ select
     )                                           as achados,
     jsonb_build_object({original})              as original_payload
 from captura c
+join limpo l on l.legacy_row_id = c.legacy_row_id
 """
 
 

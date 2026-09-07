@@ -21,6 +21,24 @@ from dataclasses import dataclass
 #: Fuso declarado da origem legada, aplicado quando o timestamp não traz o seu.
 FUSO = "America/Sao_Paulo"
 
+#: Validade de calendário em **aritmética pura**, sem `to_date`.
+#:
+#: O `to_date` do PostgreSQL 16 estoura com `date/time field value out of range`
+#: tanto para mês 13 quanto para 31 de fevereiro. Qualquer detecção que o chame
+#: derruba a consulta inteira antes de a linha virar um registro rejeitado — e
+#: como o `and` do PostgreSQL não garante curto-circuito, nem guardá-lo atrás de
+#: uma condição resolve. Só não chamá-lo resolve.
+def _valida(ano: str, mes: str, dia: str) -> str:
+    """Data válida no calendário, em aritmética pura."""
+    return (
+        f"({mes}::int between 1 and 12 and {dia}::int between 1 and 31"
+        f" and not ({mes}::int in (4, 6, 9, 11) and {dia}::int > 30)"
+        f" and not ({mes}::int = 2 and {dia}::int > 29)"
+        f" and not ({mes}::int = 2 and {dia}::int = 29"
+        f" and not ({ano}::int % 4 = 0"
+        f" and ({ano}::int % 100 <> 0 or {ano}::int % 400 = 0))))"
+    )
+
 
 @dataclass(frozen=True)
 class Regra:
@@ -34,6 +52,14 @@ class Regra:
     codigo: str
     deteccao: str
     conversao: str | None = None
+    #: A detecção olha **outras colunas** da mesma linha, e não só `{v}`.
+    #:
+    #: Só `TEXT_DELIMITER` faz isso: o deslocamento de uma linha importada só é
+    #: observável se os campos seguintes estiverem vazios. A consequência é que
+    #: a expressão dela **não** é avaliável sobre um valor isolado — quem testa
+    #: regra a regra precisa saber disso em vez de descobrir com um
+    #: `UndefinedColumn`.
+    precisa_da_linha: bool = False
 
 
 def _lista(valores: tuple[str, ...]) -> str:
@@ -95,16 +121,37 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
             "MONEY_NEGATIVE",
             deteccao="btrim(replace(replace({v}, 'R$', ''), ' ', '')) ~ '^-'",
         ),
+        # A detecção **enumera os formatos aceitos** em vez de aceitar tudo que
+        # não seja decimal puro. A primeira versão fazia o contrário, e o
+        # resultado era grave: `12,3456` virava `123456` — mil vezes o valor —
+        # porque o separador decimal só era reconhecido com uma ou duas casas,
+        # e `abc` saía "corrigido" sem nunca ter sido convertido.
+        #
+        # A escala vai a **quatro casas** porque é o que os modelos declaram:
+        # `Numeric(14, 4)` em preço unitário. Reconhecer só duas truncaria dado
+        # legítimo.
         Regra(
             "MONEY_LOCALE",
-            deteccao="{v} !~ '^-?[0-9]+(\\.[0-9]+)?$'",
-            # `1.234,56` e `1,234.56`: o separador decimal é o **último** que
-            # aparece. Trocar isso por regra fixa erraria metade dos casos.
+            deteccao=(
+                "{v} !~ '^-?[0-9]+(\\.[0-9]{{1,4}})?$' and ("
+                "   {v} ~ '^-?(R\\$)?\\s*[0-9]{{1,3}}(\\.[0-9]{{3}})*,[0-9]{{1,4}}$'"
+                "   or {v} ~ '^-?(R\\$)?\\s*[0-9]+,[0-9]{{1,4}}$'"
+                "   or {v} ~ '^-?(R\\$)?\\s*[0-9]{{1,3}}(,[0-9]{{3}})+(\\.[0-9]{{1,4}})?$'"
+                "   or {v} ~ '^-?(R\\$)?\\s*[0-9]+(\\.[0-9]{{1,4}})?$')"
+            ),
+            # O separador decimal é o **último** que aparece, e só depois de o
+            # formato inteiro ter sido reconhecido acima.
             conversao=(
-                "case when btrim(replace(replace({v}, 'R$', ''), ' ', '')) ~ ',[0-9]{{1,2}}$'"
+                "case when btrim(replace(replace({v}, 'R$', ''), ' ', '')) ~ ',[0-9]{{1,4}}$'"
                 " then replace(replace(replace(replace({v}, 'R$', ''), ' ', ''), '.', ''), ',', '.')"
                 " else replace(replace(replace({v}, 'R$', ''), ' ', ''), ',', '') end"
             ),
+        ),
+        # O que não casou com nenhum formato não é convertível. Sem esta regra,
+        # ele saía aceito com o valor original — que é pior que rejeitar.
+        Regra(
+            "MONEY_AMBIGUOUS",
+            deteccao="{v} !~ '^-?[0-9]+(\\.[0-9]{{1,4}})?$'",
         ),
 
         # ── Datas e tempo ────────────────────────────────────────────────────
@@ -117,33 +164,41 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
         #
         # A validade é aritmética, e por isso não estoura nunca. É mais verbosa
         # e é a única forma correta aqui.
+        # Duas formas de data impossível, e as duas precisam ser conferidas
+        # **sem** chamar `to_date`: em ISO e ponto (`2024-02-31`, `2024.02.31`),
+        # e em barra (`31/13/2026`). A primeira escapava desta regra e estourava
+        # no cast seguinte; a segunda já era tratada.
         Regra(
             "DATE_IMPOSSIBLE",
             deteccao=(
-                "{v} !~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' and ("
-                " {v} ~ '^[0-9]{{2}}/[0-9]{{4}}$'"
-                " or ({v} ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$' and ("
-                "   substring({v} from 4 for 2)::int not between 1 and 12"
-                "   or substring({v} from 1 for 2)::int not between 1 and 31"
-                "   or (substring({v} from 4 for 2)::int in (4, 6, 9, 11)"
-                "       and substring({v} from 1 for 2)::int > 30)"
-                "   or (substring({v} from 4 for 2)::int = 2"
-                "       and substring({v} from 1 for 2)::int > 29)"
-                "   or (substring({v} from 4 for 2)::int = 2"
-                "       and substring({v} from 1 for 2)::int = 29"
-                "       and not (substring({v} from 7 for 4)::int % 4 = 0"
-                "                and (substring({v} from 7 for 4)::int % 100 <> 0"
-                "                     or substring({v} from 7 for 4)::int % 400 = 0))))))"
+                "case"
+                " when {v} ~ '^[0-9]{{4}}[-.][0-9]{{2}}[-.][0-9]{{2}}'"
+                "   then not " + _valida("substring({v} from 1 for 4)",
+                                         "substring({v} from 6 for 2)",
+                                         "substring({v} from 9 for 2)") +
+                " when {v} ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'"
+                "   then not " + _valida("substring({v} from 7 for 4)",
+                                         "substring({v} from 4 for 2)",
+                                         "substring({v} from 1 for 2)") +
+                " when {v} ~ '^[0-9]{{2}}/[0-9]{{4}}$' then true"
+                " else false end"
             ),
         ),
+        # A validade é conferida **antes** de o `to_date` da conversão ser
+        # alcançado: `2024.02.31` casava com o formato e estourava no cast.
         Regra(
             "DATE_FORMAT_KNOWN",
             deteccao=(
-                "{v} !~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' and ("
-                " ({v} ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'"
-                "  and substring({v} from 4 for 2)::int between 1 and 12"
-                "  and substring({v} from 1 for 2)::int between 1 and 31)"
-                " or {v} ~ '^[0-9]{{4}}\\.[0-9]{{2}}\\.[0-9]{{2}}$')"
+                "case"
+                " when {v} ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'"
+                "   then " + _valida("substring({v} from 7 for 4)",
+                                     "substring({v} from 4 for 2)",
+                                     "substring({v} from 1 for 2)") +
+                " when {v} ~ '^[0-9]{{4}}\\.[0-9]{{2}}\\.[0-9]{{2}}$'"
+                "   then " + _valida("substring({v} from 1 for 4)",
+                                     "substring({v} from 6 for 2)",
+                                     "substring({v} from 9 for 2)") +
+                " else false end"
             ),
             conversao=(
                 "case when {v} ~ '^[0-9]{{2}}/'"
@@ -162,8 +217,20 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
         Regra(
             "DATE_FUTURE",
             deteccao=(
-                "{v} ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'"
-                " and left({v}, 10)::date > date '{{{{ var(\"as_of_date\") }}}}'"
+                "case when {v} ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' and "
+                + _valida("substring({v} from 1 for 4)", "substring({v} from 6 for 2)", "substring({v} from 9 for 2)")
+                + " then left({v}, 10)::date > date '{{{{ var(\"as_of_date\") }}}}'"
+                " else false end"
+            ),
+        ),
+        # O que não é nenhum formato reconhecido não é data. Sem esta regra,
+        # `sem data` num campo de tempo saía **aceito**, com o texto intacto.
+        Regra(
+            "DATE_UNPARSEABLE",
+            deteccao=(
+                "{v} !~ '^[0-9]{{4}}[-.][0-9]{{2}}[-.][0-9]{{2}}'"
+                " and {v} !~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'"
+                " and {v} !~ '^[0-9]{{2}}/[0-9]{{4}}$'"
             ),
         ),
 
@@ -172,9 +239,21 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
             "TEXT_DELIMITER",
             deteccao=f"{{v}} like '%{delim}%'",
         ),
+        # A detecção era `~ '(Ã.|Â.)'` — qualquer `Ã` ou `Â` seguido de
+        # qualquer coisa. `CÂMERA` casava, e a conversão **derrubava a view**
+        # com `invalid byte sequence` (22021), porque o par não era reversível.
+        #
+        # Agora a lista é dos pares que a dupla codificação UTF-8→Latin-1 produz
+        # de fato. `Â` seguido de letra maiúscula não está nela, e `CÂMERA`
+        # passa intacto. O risco residual é o oposto e é aceito: mojibake com
+        # um par fora da lista deixa de ser reconhecido — falha por omissão, não
+        # por corrupção.
         Regra(
             "TEXT_ENCODING",
-            deteccao="{v} ~ '(Ã.|Â.)'",
+            deteccao=(
+                "{v} ~ '(Ã[\u0083-\u00bf]|Â[\u0080-\u00bf])'"
+                " and {v} !~ '(Ã|Â)[A-ZÁÂÃÉÊÍÓÔÕÚÇ ]'"
+            ),
             conversao="convert_from(convert_to({v}, 'LATIN1'), 'UTF8')",
         ),
         Regra(
@@ -184,11 +263,26 @@ def regras(nulos: tuple[str, ...], delimitador: str) -> dict[str, Regra]:
         ),
 
         # ── Domínios ─────────────────────────────────────────────────────────
+        # Duas correções numa. A detecção era `lower(...) not in (true,false)`,
+        # e por isso `TRUE` passava sem ser canonizado — enquanto o índice
+        # parcial de `customer_addresses` exige o texto `true`, e dois endereços
+        # primários conflitantes eram aceitos. Agora a comparação é sensível a
+        # caixa, e `TRUE` é convertido.
+        #
+        # E a conversão tinha um `else 'false'` que **inventava** valor:
+        # `talvez` virava falso. O catálogo manda mapear *somente as variantes
+        # declaradas*; o que não é variante declarada não é booleano escrito de
+        # outro jeito — é valor fora do domínio, e quem o trata é o
+        # `ENUM_UNKNOWN`, que agora alcança colunas booleanas.
         Regra(
             "BOOL_VARIANT",
-            deteccao="lower(btrim({v})) not in ('true', 'false')",
+            deteccao=(
+                "btrim({v}) not in ('true', 'false')"
+                " and lower(btrim({v})) in"
+                " ('true', 'false', 'sim', 'nao', 'não', 's', 'n', '1', '0', 'y', 'yes', 'no')"
+            ),
             conversao=(
-                "case when lower(btrim({v})) in ('sim', 's', '1', 'y', 'yes')"
+                "case when lower(btrim({v})) in ('true', 'sim', 's', '1', 'y', 'yes')"
                 " then 'true' else 'false' end"
             ),
         ),
@@ -217,6 +311,35 @@ def regra_faixa(permite_negativo: bool) -> Regra:
     return Regra(
         "NUM_OUT_OF_RANGE",
         deteccao="{v} ~ '^-?[0-9]+$' and ({v}::numeric < 0 or {v}::numeric > 1000000)",
+    )
+
+
+def regra_delimitador(
+    delimitador: str, seguintes: tuple[str, ...], alias: str = "c"
+) -> Regra:
+    """`TEXT_DELIMITER` precisa olhar os **vizinhos**, e não só o campo.
+
+    A primeira versão testava apenas `like '%;%'`, e com isso rejeitava qualquer
+    texto livre que contivesse um ponto e vírgula — ainda que a linha nunca
+    tivesse sido deslocada. Era metade da condição declarada no catálogo.
+
+    O efeito observável do deslocamento é o campo carregar o resto da linha **e**
+    os seguintes ficarem vazios. Sem os vizinhos vazios, o delimitador é só
+    pontuação.
+    """
+    delim = delimitador.replace("'", "''")
+    if not seguintes:
+        # Última coluna da tabela: não há vizinho para esvaziar, então o
+        # deslocamento não é observável e a falha não se aplica.
+        return Regra("TEXT_DELIMITER", deteccao="false")
+    vazios = " and ".join(
+        f'({alias}."{coluna}" is null or btrim({alias}."{coluna}") = \'\')'
+        for coluna in seguintes
+    )
+    return Regra(
+        "TEXT_DELIMITER",
+        deteccao=f"{{v}} like '%{delim}%' and {vazios}",
+        precisa_da_linha=True,
     )
 
 

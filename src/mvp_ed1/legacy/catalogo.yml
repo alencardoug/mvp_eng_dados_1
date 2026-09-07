@@ -121,28 +121,6 @@ colunas_estreitadas:
   - warehouses.name
 
 falhas:
-
-  # ── A ordem desta lista É a precedência de detecção ─────────────────────────
-  # Uma coluna pode casar com mais de uma falha, e vale a **primeira**. O
-  # critério de ordenação é a especificidade: da falha que descreve um caso
-  # exato para a que descreve um caso amplo.
-  #
-  # Não é preferência estética, e desrespeitá-la produz erro silencioso. Três
-  # que custaram medição para aparecer:
-  #
-  #   `31/02/2024` casa com DATE_FORMAT_KNOWN (é o formato conhecido) e com
-  #   DATE_IMPOSSIBLE (o dia não existe). Se o formato vier primeiro, a data
-  #   impossível é **convertida** para 02/03/2024 em vez de rejeitada.
-  #
-  #   `   ` casa com TEXT_WHITESPACE_CASE e com NULL_DISGUISED. Se o espaço
-  #   vier primeiro, um nulo disfarçado vira string vazia em vez de nulo.
-  #
-  #   `sem@arroba` casa com as regras de texto e com EMAIL_MALFORMED. Se o
-  #   texto vier primeiro, um e-mail inválido é aceito depois de "limpo".
-  #
-  # As quatro últimas não são de valor: precisam de outras linhas, outras
-  # tabelas, ou do resultado do tratamento do pai.
-
   NULL_DISGUISED:
     grupo: texto
     arquetipo: qualquer
@@ -159,18 +137,18 @@ falhas:
     injecao: {frequencia: 4, formas: [sem_arroba, com_espaco, dominio_invalido]}
 
   # ── Integridade e consistência ────────────────────────────────────────────
-  ENUM_UNKNOWN:
-    grupo: dominios
-    arquetipo: enumerado
-    deteccao: Valor fora do domínio declarado do campo.
-    rejeicao: Estado desconhecido; mapear exigiria inventar equivalência.
-    injecao: {frequencia: 4, formas: [valor_inexistente]}
   BOOL_VARIANT:
     grupo: dominios
     arquetipo: booleano
     deteccao: Valor booleano escrito fora de `true`/`false`.
     conversao: Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.
     injecao: {frequencia: 5, formas: [sim_nao, s_n, um_zero]}
+  ENUM_UNKNOWN:
+    grupo: dominios
+    arquetipo: enumerado
+    deteccao: Valor fora do domínio declarado do campo.
+    rejeicao: Estado desconhecido; mapear exigiria inventar equivalência.
+    injecao: {frequencia: 4, formas: [valor_inexistente]}
   DATE_IMPOSSIBLE:
     grupo: datas
     arquetipo: data
@@ -197,6 +175,12 @@ falhas:
     injecao: {frequencia: 5, formas: [sem_fuso]}
 
   # ── Texto ─────────────────────────────────────────────────────────────────
+  DATE_UNPARSEABLE:
+    grupo: datas
+    arquetipo: data
+    deteccao: Valor em campo de tempo que não casa com nenhum formato reconhecido.
+    rejeicao: Não há data a inferir de um texto que não é data.
+    injecao: {frequencia: 3, formas: [texto_no_lugar_da_data]}
   NUM_OUT_OF_RANGE:
     grupo: numericos
     arquetipo: quantidade
@@ -223,12 +207,27 @@ falhas:
     injecao: {frequencia: 3, formas: [negativo]}
 
   # ── Datas e tempo ─────────────────────────────────────────────────────────
+  # `MONEY_AMBIGUOUS` e `DATE_UNPARSEABLE` nasceram da revisão de 07/09/2026, e
+  # a ausência delas era **omissão**, não decisão. O critério da §3.1 já dizia
+  # o que fazer — converte-se quando existe uma interpretação possível, rejeita-se
+  # quando existe mais de uma —, e `NUM_AMBIGUOUS` já o aplicava à quantidade.
+  # Faltava aplicá-lo ao dinheiro e à data.
+  #
+  # Sem elas, um valor sem interpretação possível **saía corrigido**: `abc` num
+  # campo monetário e `sem data` num campo de tempo passavam pelo tratamento e
+  # chegavam a `trusted` intactos, marcados como se tivessem sido consertados.
   MONEY_LOCALE:
     grupo: monetarios
     arquetipo: dinheiro
     deteccao: Valor monetário com separadores ou símbolo de moeda, em qualquer locale.
     conversao: Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.
     injecao: {frequencia: 6, formas: [pt_br, en_us, com_simbolo]}
+  MONEY_AMBIGUOUS:
+    grupo: monetarios
+    arquetipo: dinheiro
+    deteccao: Valor monetário que não casa com nenhum formato reconhecido.
+    rejeicao: Não há interpretação única para o valor; converter exigiria adivinhar o separador.
+    injecao: {frequencia: 3, formas: [texto_no_lugar_do_valor, separador_ambiguo]}
   TEXT_TRUNCATED:
     grupo: texto
     arquetipo: texto_com_limite
@@ -290,6 +289,14 @@ falhas:
     rejeicao: O total não reconcilia com os itens; corrigir exigiria escolher qual lado vale.
     tolerancia: "0.01"
     injecao: {frequencia: 3, formas: [total_alterado]}
+  NULL_REQUIRED:
+    grupo: integridade
+    arquetipo: qualquer
+    # ADR-0040: achado posterior à limpeza; não substitui NULL_DISGUISED.
+    # A obrigatoriedade sai de nullable nos modelos, nunca de outra lista.
+    deteccao: Campo obrigatório permanece nulo após a limpeza, inclusive nulo recebido sem marcador.
+    rejeicao: Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.
+    injecao: {frequencia: 0, derivado_de: [NULL_DISGUISED, TEXT_DELIMITER]}
   PARENT_REJECTED:
     grupo: integridade
     arquetipo: registro_filho
@@ -299,11 +306,3 @@ falhas:
     deteccao: O registro é íntegro, e o pai a que ele pertence foi rejeitado.
     rejeicao: O pai foi rejeitado; empilhar o filho produziria fato sem a entidade que o explica.
     injecao: {frequencia: 0, derivado_de: [TOTAL_MISMATCH, FK_ORPHAN, DUP_PARTIAL, NULL_REQUIRED]}
-  NULL_REQUIRED:
-    grupo: integridade
-    arquetipo: qualquer
-    # ADR-0040: achado posterior à limpeza; não substitui NULL_DISGUISED.
-    # A obrigatoriedade sai de nullable nos modelos, nunca de outra lista.
-    deteccao: Campo obrigatório permanece nulo após a limpeza, inclusive nulo recebido sem marcador.
-    rejeicao: Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.
-    injecao: {frequencia: 0, derivado_de: [NULL_DISGUISED, TEXT_DELIMITER]}

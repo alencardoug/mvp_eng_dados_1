@@ -2,7 +2,21 @@
 -- Conserva capturas e versões já auditadas, inclusive ao reprocessar uma
 -- captura antiga. A própria tabela anterior só é lida para retenção.
 {% set previous = adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) if execute else none %}
-with incoming as (
+-- A **captura tratada** vem da classificação inteira, não só dos rejeitados.
+--
+-- A primeira versão procurava a chave a substituir dentro de `incoming`, que já
+-- estava filtrado para `rejected`. Se uma captura passasse a ser inteiramente
+-- aceita — porque o tratamento foi corrigido —, `incoming` ficava vazio, o
+-- `not exists` era sempre verdadeiro, e **todas** as rejeições obsoletas dela
+-- sobreviviam, contradizendo a classificação corrente.
+--
+-- A identidade da captura reprocessada não pode depender de existir ao menos
+-- uma rejeição nova.
+with tratadas as (
+    select distinct source_system, snapshot_id, catalog_version
+    from {{ ref('legacy_classifications') }}
+),
+incoming as (
     select * from {{ ref('legacy_classifications') }} where classification = 'rejected'
 )
 select * from incoming
@@ -22,9 +36,9 @@ union all
 -- coisas que o tratamento vigente não afirma mais.
 select old.* from {{ previous }} old
 where not exists (
-    select 1 from incoming n
-    where n.source_system = old.source_system
-        and n.snapshot_id = old.snapshot_id
-        and n.catalog_version = old.catalog_version
+    select 1 from tratadas t
+    where t.source_system = old.source_system
+        and t.snapshot_id = old.snapshot_id
+        and t.catalog_version = old.catalog_version
 )
 {% endif %}

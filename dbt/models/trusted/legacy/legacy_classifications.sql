@@ -4,17 +4,19 @@ with recursive
 rules(code, action, reason) as (values
 ('NULL_DISGUISED', 'correct', 'Converter para nulo de verdade.'),
 ('EMAIL_MALFORMED', 'reject', 'Endereço inválido; não há correção segura.'),
-('ENUM_UNKNOWN', 'reject', 'Estado desconhecido; mapear exigiria inventar equivalência.'),
 ('BOOL_VARIANT', 'correct', 'Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.'),
+('ENUM_UNKNOWN', 'reject', 'Estado desconhecido; mapear exigiria inventar equivalência.'),
 ('DATE_IMPOSSIBLE', 'reject', 'Data impossível ou incompleta; não há valor único a inferir.'),
 ('DATE_FUTURE', 'reject', 'Fato consumado não acontece no futuro.'),
 ('DATE_FORMAT_KNOWN', 'correct', 'Interpretar pelo formato declarado e normalizar para ISO.'),
 ('DATE_TZ_MISSING', 'correct', 'Aplicar o fuso declarado da origem — `America/Sao_Paulo`.'),
+('DATE_UNPARSEABLE', 'reject', 'Não há data a inferir de um texto que não é data.'),
 ('NUM_OUT_OF_RANGE', 'reject', 'Quantidade impossível; corrigir exigiria adivinhar o valor certo.'),
 ('NUM_TEXT_EQUIV', 'correct', 'Interpretar por extenso ou com casa decimal nula; `oito`, `8.0` e `8,0` são 8.'),
 ('NUM_AMBIGUOUS', 'reject', 'Não há regra determinística válida para o grão.'),
 ('MONEY_NEGATIVE', 'reject', 'Valor negativo onde o domínio não o permite.'),
 ('MONEY_LOCALE', 'correct', 'Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.'),
+('MONEY_AMBIGUOUS', 'reject', 'Não há interpretação única para o valor; converter exigiria adivinhar o separador.'),
 ('TEXT_TRUNCATED', 'reject', 'O que foi perdido no corte não se restaura.'),
 ('TEXT_DELIMITER', 'reject', 'A linha veio deslocada na importação; o conteúdo dos campos seguintes se perdeu.'),
 ('TEXT_ENCODING', 'correct', 'Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.'),
@@ -23,8 +25,8 @@ rules(code, action, reason) as (values
 ('DUP_EXACT', 'reject', 'Ocorrência excedente de duplicata exata; a canônica foi mantida.'),
 ('DUP_PARTIAL', 'reject', 'Não há critério de desempate seguro entre as versões.'),
 ('TOTAL_MISMATCH', 'reject', 'O total não reconcilia com os itens; corrigir exigiria escolher qual lado vale.'),
-('PARENT_REJECTED', 'reject', 'O pai foi rejeitado; empilhar o filho produziria fato sem a entidade que o explica.'),
-('NULL_REQUIRED', 'reject', 'Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.')
+('NULL_REQUIRED', 'reject', 'Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.'),
+('PARENT_REJECTED', 'reject', 'O pai foi rejeitado; empilhar o filho produziria fato sem a entidade que o explica.')
 ),
 records as (
     select * from {{ ref('legacy_records') }}

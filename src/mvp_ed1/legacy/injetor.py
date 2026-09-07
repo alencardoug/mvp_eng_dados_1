@@ -286,6 +286,21 @@ def _dominio_invalido(valor: str, fonte: Fonte, **_: Any) -> str:
     return valor.split("@")[0] + "@dominio"
 
 
+def _texto_no_lugar_do_valor(valor: str, fonte: Fonte, **_: Any) -> str:
+    """O que um sistema antigo escrevia quando o número não estava fechado."""
+    return fonte.escolha(["a combinar", "sob consulta", "valor a definir"])
+
+
+def _separador_ambiguo(valor: str, fonte: Fonte, **_: Any) -> str:
+    """Dois pontos e nenhuma casa decimal: não há como saber onde ela estava."""
+    inteiro = valor.partition(".")[0]
+    return f"{inteiro}.{fonte.inteiro(100, 999)}.{fonte.inteiro(100, 999)}"
+
+
+def _texto_no_lugar_da_data(valor: str, fonte: Fonte, **_: Any) -> str:
+    return fonte.escolha(["sem data", "não informado", "data ilegível"])
+
+
 def _id_inexistente(valor: str, fonte: Fonte, **_: Any) -> str:
     return str(fonte.inteiro(900_000, 999_999))
 

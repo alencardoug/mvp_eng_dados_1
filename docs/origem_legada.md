@@ -13,7 +13,7 @@
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
 | Versão | 2.3 |
-| Catálogo de falhas | 22 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
+| Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
 | Última revisão | 06/09/2026 |
 
 ---
@@ -128,6 +128,14 @@ nunca é reaproveitado.
 | `DUP_PARTIAL` | Chave natural | Mesma chave, atributos divergentes | Rejeitar: não há critério de desempate seguro |
 | `TOTAL_MISMATCH` | Total do pedido | Total ≠ soma dos itens | Rejeitar |
 | `PARENT_REJECTED` | Registro filho | Íntegro, mas o pai foi rejeitado | Rejeitar em cascata, com vínculo ao pai |
+| `MONEY_AMBIGUOUS` | `amount` | Não casa com nenhum formato monetário reconhecido | Rejeitar: converter exigiria adivinhar o separador |
+| `DATE_UNPARSEABLE` | Campo de tempo | Texto que não é data em formato algum | Rejeitar: não há data a inferir |
+
+**`MONEY_AMBIGUOUS` e `DATE_UNPARSEABLE` nasceram da revisão de 07/09/2026**, e a ausência delas
+era omissão, não decisão: o critério da §3.1 já dizia o que fazer, e `NUM_AMBIGUOUS` já o aplicava
+à quantidade. Faltava aplicá-lo ao dinheiro e à data. Sem elas, `abc` num campo monetário e
+`sem data` num campo de tempo **saíam corrigidos** — marcados como consertados sem nunca terem sido
+convertidos.
 
 A separação entre **converter** e **rejeitar** é o problema central desta origem, e o critério é
 único: converte-se quando existe **uma** interpretação possível; rejeita-se quando existe mais de
@@ -187,7 +195,7 @@ multiplica é a ocorrência: ela é contada uma vez, e classificada uma vez, pel
 3. senão → `accepted`.
 
 O piso de cobertura do [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) exige que
-**todos os 22 tipos estejam representados em qualquer escala** — um tipo sem registro gerado é um
+**todos os tipos injetáveis estejam representados em qualquer escala** — um tipo sem registro gerado é um
 tratamento sem teste. `PARENT_REJECTED` só aparece quando existe pai rejeitado com filho íntegro, e
 a geração garante esse caso de propósito.
 

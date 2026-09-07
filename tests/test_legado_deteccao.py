@@ -245,10 +245,33 @@ def test_detection_and_cleaning_share_precedence(
     catalog = carregar()
     limits = schema.limites(catalog.limite_de_texto, catalog.colunas_estreitadas)
     rules = dbt._aplicaveis(catalog, table, column, catalog.promessas, limits)
+
+    # O arranjo espelha o modelo gerado, e precisa disso por duas razões que
+    # apareceram consertando a revisão:
+    #
+    # * o achado de rejeição é conferido contra o valor **já convertido**, que
+    #   no modelo vive numa CTE `l`. Sem ela, `-1.0` voltaria a sair corrigido;
+    # * `TEXT_DELIMITER` olha as colunas **vizinhas** — o deslocamento de uma
+    #   linha importada só é observável se os campos seguintes estiverem
+    #   vazios. Um `c` de coluna única falharia com `UndefinedColumn`.
+    #
+    # Por isso `c` traz todas as colunas da tabela, com a alvo recebendo o valor
+    # dirigido e as demais nulas.
+    vizinhas = ",\n            ".join(
+        f'null::text as "{outra}"' for outra in schema.colunas(table) if outra != column
+    )
     query = (
-        f"select {dbt._achado(column, rules)} as code,"
-        f" {dbt._limpo(column, rules)} as cleaned"
-        f' from (select cast(:value as text) as "{column}") c'
+        f"""
+        with c as (
+            select cast(:value as text) as "{column}",
+            {vizinhas}
+        ),
+        l as (
+            select {dbt._limpo(column, rules)} as "{column}" from c
+        )
+        select {dbt._achado(column, rules)} as code, l."{column}" as cleaned
+        from c cross join l
+        """
     ).replace('{{ var("as_of_date") }}', "2026-09-01")
     with engine.connect() as connection:
         actual = connection.execute(text(query), {"value": value}).one()
