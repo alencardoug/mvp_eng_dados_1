@@ -43,8 +43,8 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nenhuma decisão pendente |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 40 aceitos, 0 pendentes |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D33** e **D34**, da revisão |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 40 aceitos, 2 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.7 — reconstrução dos dois caminhos conferida |
@@ -71,7 +71,10 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Próxima: Etapa 11 — Consolidação de governança e qualidade.**
+**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026.** Ela foi declarada concluída em
+06/09, e a revisão por outro agente mostrou que não estava: doze achados bloqueantes, entre eles o
+empilhamento em `trusted`, que **não existe**. Os números abaixo continuam válidos para a captura e
+a classificação; o que eles não cobrem é a fronteira do empilhamento.
 Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).
@@ -82,7 +85,8 @@ dimensões, e as 16 perguntas de negócio têm view com `contract: enforced`. O 
 de ingestão em lote** da origem principal, o **CDC de `inventory_movements`** e **40 do legado**, e o
 `dbt build` passa com **812 objetos, `WARN=0` e `ERROR=0`**.
 
-**A segunda origem atravessa o fluxo inteiro.** São 12.747 ocorrências capturadas: **82,0% aceitas,
+**A segunda origem atravessa da captura até a classificação** — e para ali, porque nenhum modelo
+dimensional a lê ainda. São 12.747 ocorrências capturadas: **82,0% aceitas,
 17,8% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com valor original, resultado e
 regra registrados. A equação `extraídos = aceitos + corrigidos + rejeitados` é conferida a cada
 *build*, e os modelos de limpeza encontram **74 de 74** defeitos injetados com 0,10% de falso

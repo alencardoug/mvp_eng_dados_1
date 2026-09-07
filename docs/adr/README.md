@@ -82,9 +82,17 @@ decisão.
 
 ## 3. Decisões pendentes
 
-**Nenhuma.** A regra de nulo obrigatório foi decidida em 06/09/2026 no
-[ADR-0040](0040-rejeitar-nulo-em-campo-obrigatorio.md). A implementação e sua revisão são
-acompanhadas separadamente da decisão.
+| # | Decisão | Levantada em | Efeito de não decidir |
+|---|---|---|---|
+| **D33** | Contra que universo o total do pedido reconcilia — todos os itens capturados, ou só os que serão empilhados | Revisão da Etapa 10, 07/09/2026 | A reconciliação mede consistência da origem ou do armazém, e ninguém sabe qual das duas o número afirma |
+| **D34** | O que identifica uma versão auditável do tratamento, quando o código muda e o número do catálogo não | Revisão da Etapa 10, 07/09/2026 | Duas auditorias diferentes convivem sob a mesma identidade, e a segunda apaga a primeira |
+
+As duas vieram da **revisão por outro agente**, e não da construção — são o primeiro caso no
+projeto em que uma decisão nasce de alguém olhando o que já estava pronto. Nenhuma é implementação:
+as duas mudam o contrato.
+
+A regra de nulo obrigatório foi decidida em 06/09/2026 no
+[ADR-0040](0040-rejeitar-nulo-em-campo-obrigatorio.md).
 
 ### Decisões de abertura já resolvidas
 

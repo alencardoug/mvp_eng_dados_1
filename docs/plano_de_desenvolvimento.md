@@ -11,8 +11,8 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.0 |
-| Etapa atual | **Etapa 11 — Consolidação de governança e qualidade** (**M0** a **M4** concluídos) |
+| Versão | 3.1 |
+| Etapa atual | **Etapa 10 — Corte 6: origem legada**, reaberta em 07/09/2026 (**M0** a **M4** concluídos) |
 | Última revisão | 05/09/2026 |
 
 ---
@@ -236,7 +236,13 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 10 — Corte 6: origem legada
 
-*Concluída em 06/09/2026.*
+*Reaberta em 07/09/2026.* Foi declarada concluída em 06/09, e a revisão por outro agente mostrou
+que não estava: **doze achados bloqueantes**, entre eles duas ausências de escopo — o empilhamento
+em `trusted` não existe, e o schema legado ficou fora do ciclo de migrações. Os critérios abaixo
+voltam a valer, e os ✓ que dependiam de execução repetida foram retirados.
+
+O erro de processo vale registrado: encerrei a etapa com base nos testes que **eu** havia escrito.
+Teste que o próprio autor desenha mede o que ele pensou em medir.
 
 | | |
 |---|---|
@@ -245,7 +251,7 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 | **Entregas** | **E5**, **E6**, **E10** (parciais) |
 | **Decisões** | **D15** ([ADR-0021](adr/0021-procedencia-no-empilhamento.md)), **D28** ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — aceitas em 04/09/2026 · retenção das capturas ([ADR-0037](adr/0037-reter-capturas-do-legado-por-acrescimo.md)) · duplicata e cascata ([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) · alcance da procedência ([ADR-0039](adr/0039-alcance-da-procedencia.md)) — aceitas em 05/09/2026 |
 | **Artefatos** | `src/mvp_ed1/legacy/` com o catálogo declarativo, o gerador e o manifesto · `legacy_db` · *snapshot* em `raw_legacy` · schema `quarantine` · modelos de limpeza e empilhamento |
-| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente ✓ (12.747 = 10.452 + 27 + 2.268, por teste a cada *build*) · resultado confere com o manifesto, sem que a transformação o consulte ✓ (74 de 74 defeitos de valor encontrados, 0,10% de falso positivo) · `raw_legacy` intacto ✓ (11 capturas retidas lado a lado) · rejeitados preservados em quarentena com motivo ✓ (três origens discriminadas, duas versões de catálogo retidas) · reprocessar o mesmo `snapshot_id` não duplica ✓ · nenhuma correção silenciosa ✓ (toda conversão registra valor original, resultado e regra) |
+| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente ✓ na captura selecionada (12.747 = 10.452 + 27 + 2.268) — **mas não na fronteira do empilhamento**, que não existe (R01) · resultado confere com o manifesto ✓ **só para os achados de valor**; a cascata não tem oráculo (R13) · `raw_legacy` intacto ✓ · rejeitados preservados em quarentena com motivo ✓, com a ressalva de R11 · reprocessar o mesmo `snapshot_id` não duplica — **sem execução repetida medida** · nenhuma correção silenciosa — **contrariado por R04, R05 e R07**: há conversão que inventa valor e conversão que perde informação |
 | **Riscos tratados** | **R5**, **R14** |
 | **Conceitos** | *Schema-on-read* × *schema-on-write* · dicionário de conversões determinísticas · quarentena em vez de descarte · procedência · teste contra oráculo |
 

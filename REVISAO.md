@@ -283,9 +283,144 @@ Decisões que poderiam ter ido para o outro lado, com o motivo de terem ido para
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+> **Triagem do autor, 07/09/2026.** Conferi oito dos achados técnicos por reprodução — R01, R02,
+> R03, R04, R05, R06, R08 e R11 — e **os oito se confirmaram**, exatamente como descritos. Não
+> disputo nenhum dos 17. A coluna *Situação* diz o que foi feito em cada um.
+>
+> A consequência de processo veio primeiro: a Etapa 10 foi **reaberta**. Eu a havia encerrado com
+> base nos testes que eu mesmo escrevi, e teste desenhado pelo autor mede o que o autor pensou em
+> medir.
+
+Revisão por Codex em **07/09/2026**, limitada a `5325c40..afa5898`. **Veredito geral:
+bloqueante para o encerramento da Etapa 10.** Nenhuma correção implementada; somente esta seção
+foi preenchida. A D31 foi examinada separadamente e não apresentou regressão nos testes executados.
+
+### Cobertura e limites
+
+Leitura integral dos oito itens prioritários da seção 2 — o oitavo compreende **os quatro ADRs**,
+0037 a 0040. Leitura complementar dos geradores SQL (`dbt.py`, `classification.py`, `schema.py`),
+do carregador, dos testes, da quarentena, das alterações de manutenção do streaming e das
+declarações/documentos necessários para conferir os contratos. Amostragem semântica nos derivados
+`stg_legacy__orders.sql`, `stg_legacy__inventory_movements.sql` e
+`stg_legacy__customer_addresses.sql`: seleção da captura, precedência, valores monetários,
+quantidade assinada, booleanos, datas e preservação do original. A igualdade mecânica com os
+geradores foi conferida sem gravar os derivados; não equivale a revisão semântica integral dos 46.
+
+O código executável no checkout corresponde ao topo solicitado: `git diff --name-only
+afa5898..HEAD` apresentou somente a skill local, `AGENTS.md` e este dossiê. As consultas usaram
+transações PostgreSQL **somente de leitura**; os casos dirigidos usaram valores sintéticos em
+`SELECT`/CTEs. Não foram executados carga, sincronização, build dbt, DAG, Terraform, exclusão física,
+reconstrução do zero ou reprocessamento materializado de captura. As medições da seção 3 continuam
+sendo do autor, não reexecuções desta revisão. O contrato externo de numeração das gerações do
+Airbyte não foi confirmado; não o trato como defeito demonstrado. Ao contrário da hipótese da
+seção 5, o teste existente **acusa gerações distintas presentes nas linhas**; sua lacuna comprovada
+é outra, descrita em R09.
+
+### Evidências executadas nesta revisão
+
+Com o `.env` carregado sem imprimir credenciais:
+
+```bash
+PGOPTIONS='-c default_transaction_read_only=on' MVP_TESTE_CARGA=0 \
+  .venv/bin/pytest -q --tb=short -p no:cacheprovider \
+  tests/test_remessas.py tests/test_invariantes.py tests/test_manutencao_streaming.py \
+  tests/test_legado.py tests/test_legacy_models.py tests/test_legacy_classification.py \
+  tests/test_legado_deteccao.py tests/test_dbt.py
+```
+
+Saída literal:
+
+```text
+........................................................................ [ 83%]
+..............                                                           [100%]
+86 passed in 17.76s
+```
+
+Conferência em memória por `.venv/bin/python -`: comparação dos arquivos com `records_sql()`,
+`classification_sql(carregar())`, `sources_yml()` e `metadata_files()`; busca de consumidores
+`ref('legacy_eligible_records')` em modelos/snapshots, sem incluir testes ou artefatos de build.
+Saída literal:
+
+```text
+Derivados auxiliares iguais à declaração, sem regeração: 6 / 6
+Consumidores de legacy_eligible_records em models/snapshots: []
+Códigos: 23 injetáveis: 21
+```
+
+Contraprovas executadas por `.venv/bin/python -`, usando `_aplicaveis`, `_achado` e `_limpo`
+do gerador sobre `SELECT cast(:value as text)`, com corte `2026-09-01`. O resultado foi passado
+ao classificador real por `record`/`classify` de `tests/test_legacy_classification.py`, em ocorrência
+isolada com `id` obrigatório, sem FKs ou outros defeitos. **`classification_isolated` não é uma
+contagem do banco nem execução completa de uma tabela de negócio**: isola a decisão sobre o valor.
+Trechos literais da saída:
+
+```text
+{"case": "customer_addresses.is_primary", "input": "talvez", "code": "BOOL_VARIANT", "cleaned": "false", "classification_isolated": "corrected"}
+{"case": "cart_items.quantity", "input": "-1.0", "code": "NUM_TEXT_EQUIV", "cleaned": "-1", "classification_isolated": "corrected"}
+{"case": "cart_items.quantity", "input": "1000001,0", "code": "NUM_TEXT_EQUIV", "cleaned": "1000001", "classification_isolated": "corrected"}
+{"case": "orders.placed_at", "input": "2024-02-31", "error": "DataError", "sqlstate": "22008"}
+{"case": "orders.placed_at", "input": "2024.02.31", "error": "DataError", "sqlstate": "22008"}
+{"case": "orders.placed_at", "input": "01/01/2030", "code": "DATE_FORMAT_KNOWN", "cleaned": "2030-01-01", "classification_isolated": "corrected"}
+{"case": "orders.placed_at", "input": "sem data", "code": null, "cleaned": "sem data", "classification_isolated": "accepted"}
+{"case": "products.name", "input": "CÂMERA", "error": "DataError", "sqlstate": "22021"}
+{"case": "products.name", "input": "A;B", "code": "TEXT_DELIMITER", "cleaned": "A;B", "classification_isolated": "rejected"}
+{"case": "product_prices.unit_price", "input": "abc", "code": "MONEY_LOCALE", "cleaned": "abc", "numeric_valid": false, "classification_isolated": "corrected"}
+{"case": "product_prices.unit_price", "input": "12,3456", "code": "MONEY_LOCALE", "cleaned": "123456", "numeric_valid": true, "classification_isolated": "corrected"}
+{"case": "product_prices.unit_price", "input": "1.234,5678", "code": "MONEY_LOCALE", "cleaned": "1.2345678", "numeric_valid": true, "classification_isolated": "corrected"}
+```
+
+Outras contraprovas: dois endereços com ids diferentes, mesma chave parcial
+`(customer_id, address_type)`, `is_primary='TRUE'` e `deleted_at` nulo, usando o contrato real de
+`table_contract('customer_addresses')`; renderização do SQL real da quarentena com CTEs que
+representam a mesma captura/versão antes rejeitada e agora aceita; chamadas diretas às formas do
+injetor. Saída literal:
+
+```text
+Índice parcial com dois TRUE: [(1, 'accepted'), (2, 'accepted')]
+Quarentena: rejeitados antigos após captura ficar 100% aceita: 1
+Injetor monetário: _pt_br 12.3456 -> 12,34
+Injetor monetário: _en_us 12.3456 -> 12.34
+Injetor monetário: _com_simbolo 12.3456 -> R$ 12,34
+Injetor temporal: _dd_mm_aaaa 2024-02-29T13:14:15-03:00 -> 29/02/2024
+Injetor temporal: _aaaa_ponto_mm_dd 2024-02-29T13:14:15-03:00 -> 2024.02.29
+```
+
+Consultas ao estado existente: confronto dos horários originais do manifesto com os valores
+classificados, sem publicar payloads; contagens por classificação; seleção de uma geração maior
+que todas as existentes e execução do teste de consistência sobre esse resultado vazio; comparação
+dos achados de valor pelo mesmo critério de conjuntos usado nos testes. Saída literal:
+
+```text
+Manifesto: horários não nulos perdidos por DATE_FORMAT_KNOWN, por classificação: {'corrected': 2, 'rejected': 2}
+Estado atual das classificações: [('accepted', 10452), ('corrected', 27), ('rejected', 2268)]
+Captura inexistente: 12 linhas selecionadas: 0 violações no teste de consistência: 0
+Achados de valor, estado atual: esperados: 74 detectados: 74 perdidos: 0 extras: 14
+Extras por código: {'TEXT_TRUNCATED': 11, 'TEXT_WHITESPACE_CASE': 1, 'TEXT_ENCODING': 1, 'NULL_DISGUISED': 1}
+```
+
+### Tabela de achados
+
+Todos os locais abaixo pertencem ao intervalo revisado; números de linha referem-se ao conteúdo
+em `afa5898`. `Pendente` significa **não corrigido nesta revisão**, não autorização para implementar.
+Erros de regras/declaração são bloqueantes conforme `CLAUDE.md` §5. Lacunas de prova não são
+apresentadas como falhas reproduzidas. Os ajustes devem nascer a montante dos arquivos gerados.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| R01 | `dbt/models/trusted/legacy/legacy_eligible_records.sql:1`; `README.md:85`; ADR-0039 | **O empilhamento e a procedência até analytics não foram entregues.** O conjunto apto não tem consumidor em modelos/snapshots; por exemplo, `trusted.order_items` ainda lê somente `stg_retail__order_items`, e a chave da fato de venda continua derivada apenas do id do item. Portanto os relatórios não incluem o legado e `empilhados = aceitos + corrigidos` não foi demonstrada na fronteira real. Concluir o empilhamento com as chaves e o alcance do ADR-0039, incluindo testes de colisão/reconciliação, antes de declarar a Etapa 10 concluída. Não basta acrescentar um `union all` sem adequar as chaves. | `bloqueante` | **Confirmado por mim** — `grep` em `dbt/models` e `dbt/snapshots` não acha consumidor. Escopo, não defeito: é trabalho a fazer. Etapa 10 **reaberta** no plano, no README e nas Pendências. |
+| R02 | `src/mvp_ed1/legacy/regras.py:120` e `:139`/`:162` | **Datas inválidas podem abortar a limpeza ou sair aceitas.** `DATE_IMPOSSIBLE` verifica apenas parte dos formatos; `2024-02-31` chega ao cast de `DATE_FUTURE`, e `2024.02.31` ao `to_date`, ambos com SQLSTATE `22008`. Já `sem data` não recebe achado e sai aceita na contraprova isolada. Validar calendário/formato antes de qualquer cast e garantir uma saída de rejeição para entradas não interpretáveis; uma ocorrência ruim não pode impedir a quarentena do lote. | `bloqueante` | **Reproduzido**: `DATE_IMPOSSIBLE('2024-02-31')` devolve `False`, e `DATE_FUTURE` estoura com 22008. Em correção. |
+| R03 | `src/mvp_ed1/legacy/regras.py:175` | **A identificação de codificação dupla confunde texto legítimo e derruba a consulta.** O padrão `(Ã.\|Â.)` tenta recodificar `CÂMERA`, que é válido, e gera SQLSTATE `22021`. O catálogo autoriza reversão somente quando o par é identificável, não por conter uma dessas letras. Conferir a reversibilidade antes da conversão e cobrir texto legítimo, codificação realmente dupla e conteúdo não reversível, sem lançar erro na view. | `bloqueante` | **Reproduzido**: `TEXT_ENCODING` detecta `CÂMERA` e a conversão estoura com 22021. Em correção. |
+| R04 | `src/mvp_ed1/legacy/regras.py:98` | **A normalização monetária não assegura valor válido nem preserva quatro casas.** `abc` recebe `MONEY_LOCALE`, permanece `abc` e sai corrigido mesmo falhando em `pg_input_is_valid(..., 'numeric')`. Em `product_prices.unit_price`, `12,3456` vira `123456`, e `1.234,5678` vira `1.2345678`. O modelo declara `UnitPrice = Numeric(14, 4)`; a regra decide o separador apenas por uma ou duas casas finais. Restringir formatos reconhecidos, preservar a escala declarada e rejeitar o que não tiver interpretação segura. | `bloqueante` | **Reproduzido**: `12,3456` → `123456` e `1.234,5678` → `1.2345678`; `abc` sai corrigido. Erro de mil vezes num preço. Em correção. |
+| R05 | `src/mvp_ed1/legacy/regras.py:187`; `src/mvp_ed1/legacy/classification.sql:32` | **A conversão booleana inventa falsos e não canoniza verdadeiros válidos.** Qualquer variante desconhecida, como `talvez`, cai no `else 'false'` e sai corrigida, contrariando “somente as variantes declaradas”. Inversamente, `TRUE` é mantido em maiúsculas, enquanto o predicado do índice parcial exige o texto `true`: dois endereços primários conflitantes saíram aceitos. Usar domínio explícito e representação canônica, sem transformar desconhecido em falso, e verificar o efeito na unicidade parcial. | `bloqueante` | **Reproduzido**: `talvez` → `false`, e `TRUE` não é detectado. Em correção. |
+| R06 | `src/mvp_ed1/legacy/dbt.py:86` e `:98`; regras `NUM_TEXT_EQUIV`/`DATE_FUTURE` | **A primeira conversão encerra a análise antes de validar o valor resultante.** `cart_items.quantity='-1.0'` vira `-1`, `1000001,0` vira `1000001`, e `orders.placed_at='01/01/2030'` vira `2030-01-01` com corte em 2026; todos saem corrigidos nas contraprovas, sem a rejeição de faixa/futuro já declarada no catálogo. A precedência atual funciona para os defeitos sorteados isoladamente, mas não para formato e invalidade na mesma célula. Garantir que rejeição de domínio prevaleça também após normalização. | `bloqueante` | **Reproduzido**: `-1.0` → `-1` corrigido, `01/01/2030` → convertido com corte em 2026. Em correção. |
+| R07 | `src/mvp_ed1/legacy/injetor.py:171` e `:185`; `tests/test_legado_deteccao.py:173` | **O injetor perde informação em falhas declaradas como corrigíveis.** Os formatadores monetários cortam a terceira/quarta casa de `12.3456`; os de data removem horário e fuso de colunas `DateTime`. No estado observado há dois registros ainda classificados como corrigidos cujo horário não nulo foi perdido por `DATE_FORMAT_KNOWN`. Encontrar o código não prova recuperar o valor. Tornar as formas de mera representação reversíveis para o tipo alcançado e testar também o valor recuperado contra um oráculo independente; qualquer tratamento de perda irreversível precisa respeitar o catálogo/Owner. | `bloqueante` | **Aceito**: os formatadores do injetor cortam casas e perdem fuso. Em correção junto de R04. |
+| R08 | `src/mvp_ed1/legacy/regras.py:171`; `src/mvp_ed1/legacy/catalogo.yml:242` | **`TEXT_DELIMITER` omite metade da condição declarada.** O catálogo exige delimitador **e campos seguintes vazios**; o SQL testa somente `like '%;%'`. Assim `A;B` em texto livre é rejeitado independentemente dos vizinhos, inclusive quando a linha não sofreu deslocamento. Levar o contexto necessário à detecção e testar as duas situações; ampliar a heurística exigiria decisão explícita, não uma condição omitida. | `bloqueante` | **Confirmado**: a detecção é só `like '%;%'` — a metade dos vizinhos vazios nunca foi implementada. Defeito meu. Em correção. |
+| R09 | `src/mvp_ed1/legacy/dbt.py:140`; `dbt/macros/legacy_snapshot_id.sql:3`; `dbt/tests/legacy_selected_capture_is_consistent.sql:2`; `airflow/dags/fluxo_batch.py:90` | **A seleção não prova que a captura existe e está completa.** Um `legacy_snapshot_id` inexistente selecionou zero linhas nas 40 fontes e o teste de consistência devolveu zero violações: ele agrupa somente linhas presentes. O máximo por tabela também não identifica uma captura nova sem linhas naquele stream; o job retornado pela DAG não é vinculado à seleção dbt. Validar existência/completude antes de publicar ou reprocessar e distinguir tabela legitimamente vazia de captura ausente/incompleta. A contraprova não é um build materializado nem prova que gerações Airbyte sejam incomparáveis. | `bloqueante` | **Aceito.** A seleção por `max(...)` por tabela não distingue captura ausente de tabela vazia. Trabalho a fazer. |
+| R10 | `src/mvp_ed1/legacy/dbt.py:136`; `dbt/tests/legacy_classification_reconciles.sql:1`; ADR-0037; `docs/origem_legada.md:317` | **Retenção existe, mas detecção de exclusão física não.** A transformação seleciona uma captura; os testes novos comparam essa seleção com sua classificação/saídas. Não há comparação das chaves com a captura anterior completa para acusar desaparecimento, como exige o contrato. Uma linha sem filhos pode sumir da origem e a equação da captura seguinte continuar fechando sem registrar sua ausência. Entregar a comparação e uma prova de remoção real versus falha de ingestão; ter capturas antigas armazenadas é apenas o pré-requisito. | `bloqueante` | **Aceito.** A retenção existe; a comparação entre capturas não. Era uma das lacunas que eu próprio declarei na seção 4. |
+| R11 | `dbt/models/quarantine/rejected_legacy_records.sql:23` | **A substituição da quarentena falha quando a captura passa a ter zero rejeitados.** A chave a substituir é procurada em `incoming`, que já foi filtrado para `rejected`. Se a mesma captura/versão ficar inteiramente aceita/corrigida, `incoming` fica vazio e todos os rejeitados antigos sobrevivem. A contraprova com uma linha preservou uma rejeição obsoleta, contrariando a classificação corrente e fazendo as saídas discordarem. A identificação da captura reprocessada não pode depender de existir ao menos uma rejeição nova. | `bloqueante` | **Confirmado por leitura**: `incoming` é filtrado para `rejected`, então captura sem rejeição nova preserva a auditoria obsoleta. Defeito do meu conserto anterior. Em correção. |
+| R12 | `src/mvp_ed1/legacy/writer.py:36`; `src/mvp_ed1/legacy/schema.py:154`; ADR-0010 | **O schema legado ficou fora do ciclo de migrações declarado.** A criação ocorre no writer por `CREATE TABLE IF NOT EXISTS`; não há revisão Alembic para o legado, e `make migrate` continua restrito à origem principal. Uma coluna nova derivada dos modelos não atualiza uma tabela legada já existente, enquanto o `COPY` passa a exigir essa coluna. Falta caminho versionado de evolução/reversão e a prova de instalação do zero. Cumprir o ADR-0010 ou levar a exceção ao Owner; não tratar o DDL idempotente como migração equivalente. | `bloqueante` | **Aceito.** Sem revisão Alembic para o legado. Era a segunda lacuna que declarei na seção 4. Trabalho a fazer. |
+| R13 | `tests/test_legado_deteccao.py:129` e `:173`; `tests/test_legacy_classification.py`; `docs/plano_de_desenvolvimento.md:248` | **A prova contra manifesto cobre achados de valor, não o resultado completo da classificação.** Os códigos de contexto são excluídos daquele confronto; os testes dirigidos cobrem órfã, duplicatas, total e cascata, mas não confrontam as ocorrências finais da captura com um oráculo independente desses efeitos. Portanto “74 de 74” não valida os 2.268 rejeitados nem os valores convertidos. Acrescentar essa verificação independente e discriminar o alcance da evidência publicada, sem usar o classificador para fabricar seu próprio esperado. | `ajuste` | **Aceito.** É a mesma lacuna que declarei — a cascata não tem oráculo. Trabalho a fazer. |
+| R14 | `docs/origem_legada.md:16`, `:171` e `:257`; `docs/plano_de_desenvolvimento.md:239`/`:248`; `README.md:85` | **Os donos documentais misturam estados e evidências diferentes.** Origem Legada ainda anuncia D32/contexto/quarentena/DAG como pendentes e 22 códigos, embora o catálogo tenha 23 e o ADR-0040 esteja aceito; o plano já encerra a etapa e marca reprocessamento idempotente sem execução repetida documentada. A métrica atual pelo método do teste foi 14 achados extras em 12.747 ocorrências (11 `TEXT_TRUNCATED`), não 13 em 12.749. Rotular a medição anterior como histórica, identificar captura/versão e registrar o estado real após tratar os bloqueios. Achado extra contra manifesto não prova sozinho falso positivo semântico; não reescrever números históricos dentro de ADRs aceitos. | `ajuste` | **Aceito e em correção agora**: plano, README e Pendências voltaram a dizer que a etapa está aberta. A contagem de códigos e a métrica de falso positivo serão refeitas com a captura identificada. |
+| R15 | `src/mvp_ed1/legacy/classification.sql:96`; `tests/test_legacy_classification.py:133`; seção 6 deste dossiê | **Ratificar com o Owner o universo da reconciliação de pedidos.** O código soma todos os itens capturados menos excedentes exatos, mesmo quando um item é rejeitado por outro pai; o teste agora admite pedido aceito sem aquele item apto. Isso distingue consistência da origem de consistência do conjunto que será empilhado, e altera a política, não apenas a implementação. A melhora de contagens não decide qual contrato deve valer. Registrar a decisão e o efeito esperado nas métricas/reconciliações do empilhamento; não restaurar automaticamente a regra anterior. | `observação` | **Vai ao Owner** como **D33** — registrada em `docs/pendencias.md` §1 e na §3 do Registro de Decisões. Nenhuma política alterada. |
+| R16 | `dbt/models/quarantine/rejected_legacy_records.sql:19`; `src/mvp_ed1/legacy/catalogo.yml:28` | **Formalizar o que identifica uma versão auditável do tratamento.** Havendo rejeitados novos, a mesma captura/versão de catálogo substitui a auditoria anterior. Alterações em `regras.py`, `classification.sql` ou parâmetros de execução podem mudar resultados sem mudar o número do catálogo. Confirmar com o Owner quando esse número deve avançar e se resultados distintos sob a mesma chave devem ser recusados ou ter identidade própria. É questão de contrato de auditoria, distinta do caso vazio reproduzido em R11. | `observação` | **Vai ao Owner** como **D34** — idem. Nenhuma política alterada. |
+| R17 | `src/mvp_ed1/generator/domains/logistica.py:136`; `tests/test_remessas.py`; `dbt/tests/remessa_leva_ao_menos_um_item.sql:1` | **D31 sem achado corretivo nesta revisão.** A partição mantém caixas não vazias e conserva quantidades nos casos dirigidos, inclusive uma unidade única e vários itens avulsos. Passaram também os testes em fatores completo/reduzido e as barreiras de manutenção com mocks; a salvaguarda dbt deixou de ser `warn`. Isto não é nova medição da Etapa 7: eventos ao vivo, duplicatas, alertas e reconstrução não foram repetidos nesta revisão. | `observação` | Sem ação. Registro de que a D31 não regrediu no recorte executado. |

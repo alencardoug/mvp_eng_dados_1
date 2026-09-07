@@ -10,14 +10,41 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 11 — Consolidação de governança e qualidade |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 0 |
+| Decisões pendentes | 2 |
 | Última revisão | 06/09/2026 |
 
 ---
 
-## 1. Nenhuma decisão pendente
+## 1. Esperando você
+
+Duas questões que a revisão da Etapa 10 levantou e que **não** são implementação: mudam o
+contrato, e por isso são suas.
+
+### D33 — o universo da reconciliação de pedidos
+
+O total do pedido é conferido contra **todos** os itens capturados, menos as duplicatas exatas —
+inclusive itens que serão rejeitados por outro motivo. Isso mede *consistência da origem*.
+
+A alternativa é conferir contra o conjunto que será **empilhado**, o que mede *consistência do que
+chega ao armazém*. São contratos diferentes, e a escolha muda a política, não só o número.
+
+Escolhi o primeiro ao consertar uma circularidade — 114 pedidos falsamente não reconciliados
+viraram 8 —, mas melhora de contagem não decide qual contrato deve valer.
+
+### D34 — o que identifica uma versão auditável do tratamento
+
+A quarentena substitui a auditoria anterior quando captura e `catalog_version` coincidem. Mas
+mudanças em `regras.py` ou em `classification.sql` alteram o resultado **sem** mudar o número do
+catálogo — duas auditorias diferentes sob a mesma identidade.
+
+Falta decidir quando esse número avança, e se resultado distinto sob a mesma chave deve ser
+recusado ou receber identidade própria.
+
+---
+
+## 2. Decisões já fechadas
 
 **D32 — decidida em 06/09/2026.** O Owner autorizou `NULL_REQUIRED`, preservando
 `NULL_DISGUISED` como achado de conversão e mantendo campos opcionais corrigíveis.
@@ -77,7 +104,7 @@ O único número que o projeto ainda carregava rotulado como **não medido** —
 medição derrubou a hipótese: 300 s ficavam abaixo da mediana do atraso real. O valor vigente é
 1200 s ([Streaming §3.3](streaming.md#33-eventos-atrasados)).
 
-## 3. Onde cada item foi parar
+## 4. Onde cada item foi parar
 
 Registro de encerramento, para que nenhuma decisão pareça ter sumido.
 
@@ -108,7 +135,7 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 | Q3 | Perfil padrão de desenvolvimento | Absorvida pela Q2: os perfis antigos foram aposentados pelo [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Q4 | O que significa "revisado" na definição de pronto | Revisão integral do declarativo, amostragem no derivado — [`CLAUDE.md`](../CLAUDE.md) §5 e §7 |
 
-## 4. Do lado do assistente
+## 5. Do lado do assistente
 
 A D31 está encerrada. Na Etapa 10, gerador, ingestão com retenção e modelos de limpeza já existem.
 A correção da precedência entre rejeição e conversão foi validada em 06/09/2026
