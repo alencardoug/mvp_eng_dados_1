@@ -5,6 +5,9 @@ description: Prepara a passagem de uma entrega para revisão por outro agente, o
 
 # Passar uma entrega para revisão
 
+> Dúvidas de operação do Owner — o que roda sozinho, como reverter, como levar para outro
+> projeto — estão em [`como_usar_skill_revisao.md`](como_usar_skill_revisao.md).
+
 Este projeto usa dois agentes: um **gera** e outro **revisa**, com orçamentos de
 esforço diferentes. Esta skill existe para que a passagem entre os dois não
 dependa da memória de nenhum deles.
