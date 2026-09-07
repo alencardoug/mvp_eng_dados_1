@@ -89,12 +89,16 @@ def _executar(comando: str, segundos: int) -> tuple[int, str]:
     return saida.returncode, "\n".join(linhas[-12:]) or "(sem saída)"
 
 
-def gerar(desde: str, segundos: int) -> pathlib.Path:
+def gerar(desde: str, segundos: int, ate: str = "HEAD") -> pathlib.Path:
     # O topo é **fixado** no SHA, não deixado como `HEAD`. Um dossiê que diz
     # `base..HEAD` passa a descrever outro intervalo assim que um commit novo
     # entra — e quem revisa lê o diff errado sem perceber, porque a lista de
     # commits do dossiê continua parecendo certa.
-    ate = _git("rev-parse", "--short", "HEAD")
+    #
+    # `--ate` existe para o caso em que a entrega a revisar **não** é a ponta:
+    # trabalho posterior — a própria ferramenta de revisão, por exemplo — não
+    # pertence ao escopo do que se está revisando.
+    ate = _git("rev-parse", "--short", ate)
     commits = _git("log", "--reverse", "--format=%h %s", f"{desde}..{ate}")
     if not commits:
         sys.exit(f"nenhum commit em {desde}..HEAD — nada a revisar")
@@ -220,6 +224,7 @@ def conferir() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Dossiê de revisão de uma entrega.")
     parser.add_argument("--desde", help="ref a partir da qual comparar, ex.: origin/main")
+    parser.add_argument("--ate", default="HEAD", help="topo do intervalo; padrão HEAD")
     parser.add_argument("--timeout", type=int, default=1800, help="segundos por comando")
     parser.add_argument("--conferir", action="store_true", help="valida o dossiê existente")
     args = parser.parse_args()
@@ -228,7 +233,7 @@ def main() -> int:
         return conferir()
     if not args.desde:
         parser.error("informe --desde <ref> ou --conferir")
-    caminho = gerar(args.desde, args.timeout)
+    caminho = gerar(args.desde, args.timeout, args.ate)
     print(f"dossiê em {caminho.relative_to(RAIZ)} — preencha as seções marcadas com {PENDENTE}")
     return 0
 

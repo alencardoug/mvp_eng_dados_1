@@ -43,6 +43,13 @@ sair vazia, o dossiê está errado — nenhuma entrega verifica tudo.
 python3 .claude/skills/revisao/dossie.py --desde origin/main
 ```
 
+Quando a entrega a revisar **não** for a ponta — porque trabalho posterior já
+entrou e não pertence ao escopo —, fixe o topo:
+
+```bash
+python3 .claude/skills/revisao/dossie.py --desde <base> --ate <sha da entrega>
+```
+
 Ele coleta o que é mecânico — commits, arquivos, e a saída dos comandos
 declarados em `comandos.txt` — e deixa marcado com `<<PREENCHER>>` o que só
 você sabe. Preencha as quatro marcas:
