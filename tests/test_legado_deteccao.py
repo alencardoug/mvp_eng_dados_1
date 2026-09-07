@@ -343,3 +343,50 @@ def test_as_pontes_expoem_o_mesmo_formato_do_staging(engine) -> None:
     assert conferidas == len(ponte.empilhaveis()), (
         f"só {conferidas} das {len(ponte.empilhaveis())} pontes foram conferidas"
     )
+
+
+def test_a_rejeicao_de_valor_alcanca_o_resultado_da_conversao(engine) -> None:
+    """Conversão bem-sucedida não pode esconder que o resultado é inválido.
+
+    Era o R06 da segunda revisão. O modelo prometia, em comentário, conferir os
+    achados contra o valor já convertido; o SQL emitido só olhava o original. A
+    consequência é silenciosa e cara: `-1.0` não casa `NUM_OUT_OF_RANGE`, que
+    exige dígitos puros, mas casa `NUM_TEXT_EQUIV` — vira `-1`, é declarado
+    **corrigido**, e uma quantidade negativa entra no armazém como boa.
+
+    O teste executa o `case` que o gerador emite, contra valores construídos
+    para o caso. Não depende de a origem gerada conter esses defeitos: o
+    conjunto de hoje não contém nenhum deles, e por isso a correção não mudou
+    contagem nenhuma — o que a torna exatamente o tipo de conserto que regride
+    sem ninguém notar.
+    """
+    catalogo = carregar()
+    limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    aplicaveis = dbt._aplicaveis(catalogo, "order_items", "quantity", frozenset(), limites)
+
+    consulta = f"""
+        with captura(legacy_row_id, "quantity") as (values {{valores}}),
+        limpo as (
+            select c.legacy_row_id,
+{dbt._limpo("quantity", aplicaveis)} as "quantity"
+            from captura c
+        )
+        select c."quantity", l."quantity",
+{dbt._achado("quantity", aplicaveis)}
+        from captura c join limpo l on l.legacy_row_id = c.legacy_row_id
+        order by c.legacy_row_id
+    """.replace(
+        "{valores}", "(1, '-1.0'), (2, '1000001,0'), (3, 'oito'), (4, '7')"
+    )
+
+    with engine.connect() as conexao:
+        obtido = [tuple(linha) for linha in conexao.execute(text(consulta))]
+
+    assert obtido == [
+        # Convertem e o resultado é inválido: a rejeição vence a correção.
+        ("-1.0", "-1", "NUM_OUT_OF_RANGE"),
+        ("1000001,0", "1000001", "NUM_OUT_OF_RANGE"),
+        # Convertem para valor válido: seguem corrigíveis.
+        ("oito", "8", "NUM_TEXT_EQUIV"),
+        ("7", "7", None),
+    ], obtido

@@ -21,15 +21,32 @@
 -- O que rejeita continua sendo `invariante_02_total_do_pedido_reconcilia`, que
 -- tolera a diferença apenas onde a quarentena a explica (D35).
 
-with itens_em_quarentena as (
+{{ config(tags=['legado_reconciliacao']) }}
+
+with corrente as (
+
+    -- A captura e o tratamento que esta execução está medindo. A quarentena
+    -- guarda auditorias antigas de propósito; contá-las aqui atribuiria a um
+    -- pedido de hoje a rejeição de um item de outra captura.
+    select distinct source_system, snapshot_id, catalog_version, treatment_fingerprint
+    from {{ ref('legacy_classifications') }}
+
+),
+
+itens_em_quarentena as (
 
     select
-        source_system,
-        (original_payload->>'order_id')                     as order_id,
+        q.source_system,
+        (q.original_payload->>'order_id')                   as order_id,
         count(*)                                            as itens_rejeitados,
-        string_agg(distinct rejection_origin, ', ')          as motivos
-    from {{ ref('rejected_legacy_records') }}
-    where source_table = 'order_items'
+        string_agg(distinct q.rejection_origin, ', ')        as motivos
+    from {{ ref('rejected_legacy_records') }} q
+    join corrente c
+      on  c.source_system = q.source_system
+     and c.snapshot_id = q.snapshot_id
+     and c.catalog_version = q.catalog_version
+     and c.treatment_fingerprint = q.treatment_fingerprint
+    where q.source_table = 'order_items'
     group by 1, 2
 
 )

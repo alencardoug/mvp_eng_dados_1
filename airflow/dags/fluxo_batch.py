@@ -106,10 +106,17 @@ def fluxo_batch():
         ── O que esta tarefa não prova ──────────────────────────────────────
         Que a geração observada seja a que **esta** sincronização escreveu. O
         Airbyte não expõe a correspondência entre o `jobId` e o
-        `_airbyte_generation_id`, e inventá-la seria pior do que não tê-la. O
-        que sustenta a afirmação é o par de testes do dbt: a captura existe em
-        `raw_legacy` e traz todas as 40 tabelas. Uma sincronização que não
-        tivesse escrito nada cairia num deles.
+        `_airbyte_generation_id`, e inventá-la seria pior do que não tê-la.
+
+        E os testes do dbt **não fecham essa lacuna**, ao contrário do que esta
+        docstring afirmava antes. `legacy_captura_existe` e
+        `legacy_captura_completa` verificam que a geração selecionada está no
+        bruto e traz linha nas 40 tabelas — nada disso distingue uma carga nova
+        de uma que não escreveu nada e deixou a anterior no lugar. As duas
+        passam igual, e a segunda é justamente a falha que interessa.
+
+        Enquanto o vínculo não existir, a tarefa fixa **qual** captura é lida,
+        e não que ela seja recente. É menos do que parece e mais do que havia.
         """
         from sqlalchemy import create_engine, text
 

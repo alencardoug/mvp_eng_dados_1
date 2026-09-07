@@ -528,8 +528,11 @@ models:
       - name: coupon_redemption_id
         data_tests: [not_null]
       - name: order_id
-        description: Único — um cupom por pedido.
-        data_tests: [unique, not_null]
+        description: >
+          Um cupom por pedido — **por origem**. A unicidade está no teste de
+          combinação do modelo: dois sistemas numeram pedidos a partir de 1, e
+          exigi-la do id sozinho reprovaria dado correto.
+        data_tests: [not_null]
       - name: date_key
         data_tests:
           - not_null

@@ -1,3 +1,10 @@
+{{ config(tags=['legado_reconciliacao']) }}
+
+-- Depende da quarentena: a exceção tolerada precisa da contrapartida, e a DAG
+-- constrói `quarantine` **depois** de `trusted`. Sem a etiqueta, este teste
+-- roda na tarefa de `trusted` e lê a auditoria da captura anterior — ou não
+-- encontra relação nenhuma na primeira execução.
+
 -- Critério de conclusão da Etapa 6: o saldo reconstruído do livro de eventos
 -- confere com `inventory_balances`.
 --

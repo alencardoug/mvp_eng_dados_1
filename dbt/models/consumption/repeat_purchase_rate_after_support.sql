@@ -27,6 +27,7 @@
 with pedidos as (
 
     select distinct
+        f.source_system,
         f.order_id,
         f.date_key,
         f.sales_channel_key,
@@ -43,6 +44,7 @@ with pedidos as (
 com_chamado as (
 
     select distinct
+        t.source_system,
         t.order_id,
         t.support_category_key
     from {{ ref('fact_support_ticket_event') }} t
@@ -63,7 +65,10 @@ classificado as (
         true                                            as has_support_ticket,
         c.support_category_key
     from pedidos p
-    join com_chamado c on c.order_id = p.order_id
+    -- A origem entra na ligação: dois sistemas numeram pedidos a partir de 1, e
+    -- sem ela um pedido recebe o chamado de um homônimo da outra origem.
+    join com_chamado c
+      on c.source_system = p.source_system and c.order_id = p.order_id
 
     union all
 
@@ -76,7 +81,10 @@ classificado as (
         false                                           as has_support_ticket,
         null::text                                      as support_category_key
     from pedidos p
-    where not exists (select 1 from com_chamado c where c.order_id = p.order_id)
+    where not exists (
+        select 1 from com_chamado c
+        where c.source_system = p.source_system and c.order_id = p.order_id
+    )
 
 )
 

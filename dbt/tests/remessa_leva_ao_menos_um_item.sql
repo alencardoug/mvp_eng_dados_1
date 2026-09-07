@@ -1,3 +1,10 @@
+{{ config(tags=['legado_reconciliacao']) }}
+
+-- Depende da quarentena: a exceção tolerada precisa da contrapartida, e a DAG
+-- constrói `quarantine` **depois** de `trusted`. Sem a etiqueta, este teste
+-- roda na tarefa de `trusted` e lê a auditoria da captura anterior — ou não
+-- encontra relação nenhuma na primeira execução.
+
 -- Invariante 13: toda remessa contém ao menos um item.
 -- Bloqueante após a correção do gerador (D31). A fato tem grão de item;
 -- uma remessa vazia desapareceria das métricas de entrega do consumo (P13).

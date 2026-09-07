@@ -48,7 +48,11 @@ custo as (
     from {{ ref('fact_inventory_movement') }} m
     join {{ ref('dim_date') }} d using (date_key)
     join {{ ref('dim_product') }} p using (product_key)
-    join {{ ref('dim_category') }} cat on cat.category_natural_key = p.product_category_id
+    -- A origem entra na ligação com a categoria: sem ela cada SKU encontra
+    -- também a categoria homônima da outra origem, e o custo se multiplica.
+    join {{ ref('dim_category') }} cat
+      on  cat.source_system = p.source_system
+     and cat.category_natural_key = p.product_category_id
     where m.is_sale
     group by 1, 2, 3, 4, 5
 

@@ -89,19 +89,62 @@ def _aplicaveis(
     return saida
 
 
+#: Rejeições que julgam **o valor**, e por isso valem também para o resultado
+#: da conversão. É o segundo lado do R06: uma conversão bem-sucedida não pode
+#: esconder que o que ela produziu é inválido.
+#:
+#: `-1.0` casa `NUM_TEXT_EQUIV`, vira `-1`, e `-1` está fora de faixa;
+#: `01/01/2030` casa `DATE_FORMAT_KNOWN`, vira ISO, e continua no futuro. Nos
+#: dois casos a checagem contra o original não vê nada, porque o original não
+#: tem a forma que a rejeição procura.
+#:
+#: Ficam de fora, de propósito, as rejeições que julgam **como o valor foi
+#: guardado** e não o que ele vale: `TEXT_TRUNCATED` é heurística sobre a
+#: largura da coluna antiga e `TEXT_DELIMITER` é sobre a linha ter vindo
+#: deslocada. Aplicá-las ao valor já normalizado inventaria rejeição.
+JULGAM_O_RESULTADO = frozenset(
+    {
+        "NUM_OUT_OF_RANGE", "NUM_AMBIGUOUS", "DATE_FUTURE", "DATE_IMPOSSIBLE",
+        "DATE_UNPARSEABLE", "MONEY_NEGATIVE", "MONEY_AMBIGUOUS",
+        "EMAIL_MALFORMED", "ENUM_UNKNOWN",
+    }
+)
+
+
 def _referencia(coluna: str) -> str:
     """A coluna, citada — o Python 3.11 não aceita barra invertida dentro de f-string."""
     return 'c."' + coluna + '"'
 
 
 def _achado(coluna: str, aplicaveis: list[Regra]) -> str:
-    """`case` que devolve o **primeiro** código que casa, ou nulo."""
-    alvo = _referencia(coluna)
-    ramos = "\n".join(
-        "            when " + r.deteccao.format(v=alvo) + f" then '{r.codigo}'"
+    """`case` que devolve o **primeiro** código que casa, ou nulo.
+
+    Duas passagens, nesta ordem:
+
+    1. as rejeições que julgam o valor, conferidas contra o **resultado** da
+       limpeza (`l`). Se a conversão produziu algo inválido, é isso que vale —
+       e a rejeição vence a correção, porque o registro não pode ser empilhado;
+    2. todas as regras contra o valor **original** (`c`), como antes.
+
+    A primeira passagem é o que faltava. O comentário do modelo prometia essa
+    conferência e o SQL emitido nunca a fez: `_achado` só olhava `c`.
+    """
+    original = _referencia(coluna)
+    convertido = 'l."' + coluna + '"'
+
+    do_resultado = [
+        r for r in aplicaveis
+        if r.conversao is None and r.codigo in JULGAM_O_RESULTADO and not r.precisa_da_linha
+    ]
+    ramos = [
+        "            when " + r.deteccao.format(v=convertido) + f" then '{r.codigo}'"
+        for r in do_resultado
+    ]
+    ramos += [
+        "            when " + r.deteccao.format(v=original) + f" then '{r.codigo}'"
         for r in aplicaveis
-    )
-    return f"        case\n{ramos}\n        end"
+    ]
+    return "        case\n" + "\n".join(ramos) + "\n        end"
 
 
 def _limpo(coluna: str, aplicaveis: list[Regra]) -> str:
@@ -420,9 +463,39 @@ def impressao_digital(catalogo: Catalogo, promessas: frozenset[str]) -> str:
 
     limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
     textos = [modelo(catalogo, t, promessas, limites) for t in schema.tabelas()]
+    # O contrato por registro — obrigatoriedade, chaves e FKs derivadas dos
+    # modelos — decide rejeição tanto quanto uma regra de valor. Sem ele no
+    # material, tornar uma coluna opcional mudaria o veredito de registros sem
+    # mover a impressão, e a auditoria seria substituída em silêncio.
+    textos.append(classification.records_sql())
     # A classificação entra com o marcador ainda no lugar: a impressão não pode
     # depender de si mesma.
     textos.append(classification.classification_sql(catalogo))
+    textos.append(_parametros(textos))
 
     digest = hashlib.sha256("".join(textos).encode("utf-8")).hexdigest()
     return digest[:16]
+
+
+def _parametros(textos: list[str]) -> str:
+    """Os `var()` que o tratamento lê, com o **valor** que eles têm hoje.
+
+    O material hasheado é SQL com Jinja por resolver, e `DATE_FUTURE` compara a
+    data contra `var("as_of_date")`. Sem esta parte, mudar o "hoje" da simulação
+    mudaria quem é rejeitado por data futura **sem** mover a impressão digital:
+    dois resultados diferentes sob a mesma identidade, que é exatamente o que a
+    D34 existe para impedir.
+
+    Os nomes são descobertos no próprio texto em vez de listados aqui. Uma
+    variável nova entra na impressão sozinha, e ninguém precisa lembrar dela.
+    """
+    import re
+
+    import yaml
+
+    nomes = sorted(set(re.findall(r"""var\(\s*["']([a-z_]+)["']""", "".join(textos))))
+    projeto = yaml.safe_load(
+        pathlib.Path("dbt/dbt_project.yml").read_text(encoding="utf-8")
+    )
+    variaveis = projeto.get("vars") or {}
+    return "".join(f"{nome}={variaveis.get(nome, '<ausente>')}\n" for nome in nomes)

@@ -358,9 +358,215 @@ Decisões que poderiam ter ido para o outro lado, com o motivo de terem ido para
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+Revisão por Codex em **07/09/2026**, conforme a skill `revisao`, do intervalo fixado na
+seção 1: **`afa5898..38a6ec1`**. O commit posterior `fd9fbf8` altera somente este dossiê;
+suas anotações adicionais nas seções 4–6 foram relidas e consideradas. **Veredito geral:
+bloqueante para encerrar a Etapa 10.** Nenhuma correção implementada: a única edição desta
+revisão é esta seção.
+
+### Cobertura e limites da revisão
+
+Esforço concentrado nas declarações da seção 2: geradores de limpeza, contratos e pontes,
+catálogo, serialização, macros, retenção, medida D33 e DAG; conferência das alterações de
+chaves, junções, agrupamentos e janelas nos modelos manuais de `trusted`, dimensões, fatos
+e snapshots. Amostragem semântica dos derivados de pedidos, movimentos de estoque e
+endereços, incluindo as respectivas pontes. Paridade mecânica não equivale a prova de
+semântica: um gerador errado também produz arquivos perfeitamente sincronizados.
+
+Foram lidos consumidores fora do diff para verificar o efeito da mudança de identidade.
+É o caso das views P04, P07, P11, P12 e P16: o defeito exposto nelas nasce quando esta
+entrega passa a fornecer duas origens com ids naturais coincidentes. Não é exigência de
+expor `source_system` em toda saída; é exigência de preservá-lo enquanto identifica uma
+entidade, antes de agregar/conformar.
+
+Consultas PostgreSQL executadas em modo **somente de leitura**, com limite por comando;
+contraprovas em `SELECT`/CTEs sintéticas, sem materialização. Não executei carga, sync,
+build dbt, DAG, Terraform, migração, exclusão, reconstrução ou reprocessamento persistido.
+As saídas da seção 3 continuam sendo medições **do autor**, não desta revisão.
+
+As notas adicionais mudam o alcance do veredito, não substituem a verificação:
+
+- A falta de execução da DAG e de vínculo entre job e captura é reconhecida; não a
+  apresento como execução malsucedida que tenha observado. R22 é uma dependência
+  incompatível demonstrável no código, distinta dessa ausência de teste.
+- Não atribuo a lentidão ao empilhamento: falta comparação controlada. Os dois timeouts
+  abaixo são limites desta execução, não prova de perda de detecção.
+- D33, D34 e D35 estão decididas pelo Owner. R21 e R24 questionam suas implementações,
+  não propõem inverter a cascata nem trocar o universo da classificação.
+- Reter impressões antigas e testar a versão corrente é compatível com o remédio de
+  avançar a versão. Não é, por si, defeito apagar o alerta sobre uma versão histórica;
+  apagar a auditoria seria outra coisa, e não foi o que o código fez.
+- A hipótese de cliente rejeitado com pedido sobrevivente da seção 4.5 contrariaria a
+  cascata descendente. Sem ocorrência reproduzida, permanece cenário a provar no
+  oráculo de R13, não um defeito adicional afirmado aqui.
+- Não medi a falha de comparação textual citada na seção 4.6. A contraprova de R21 usa
+  chaves já canônicas e revela outro problema: a ausência de recorte da auditoria.
+
+### Evidências executadas pelo revisor
+
+Com `.env` carregado sem imprimir credenciais:
+
+```bash
+PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=30000' \
+  MVP_TESTE_CARGA=0 .venv/bin/pytest -q --tb=short -p no:cacheprovider \
+  tests/test_remessas.py tests/test_invariantes.py tests/test_manutencao_streaming.py \
+  tests/test_legado.py tests/test_legacy_models.py tests/test_legacy_classification.py \
+  tests/test_legado_deteccao.py tests/test_dbt.py
+```
+
+Trechos literais da saída, código de saída 1:
+
+```text
+E   psycopg.errors.QueryCanceled: canceling statement due to statement timeout
+FAILED tests/test_legado_deteccao.py::test_os_modelos_encontram_tudo_que_o_injetor_produziu
+FAILED tests/test_legado_deteccao.py::test_o_falso_positivo_da_heuristica_continua_marginal
+2 failed, 85 passed in 353.83s (0:05:53)
+```
+
+Ambas as falhas ocorreram na consulta que reúne os achados das 40 views, antes da
+comparação esperada. **Não há nova medição de recall ou de falsos positivos nesta
+revisão.** Não substituo os números do autor por uma extrapolação desses timeouts.
+
+Contraprovas por `.venv/bin/python -`: renderização do **modelo completo** retornado por
+`dbt.modelo()`, com fontes sintéticas em CTE, corte `2026-09-01` e seleção da captura 1.
+Saídas abaixo são achado e valor limpo da célula, não uma classificação contextual
+completa do lote. O classificador trata os códigos de conversão como corrigíveis;
+ausência de achado não protege os casts posteriores nas pontes. Trechos literais:
+
+```text
+{"field": "orders.placed_at", "input": "2024-02-31", "code": "DATE_IMPOSSIBLE", "cleaned": "2024-02-31"}
+{"field": "orders.placed_at", "input": "2024.02.31", "code": "DATE_IMPOSSIBLE", "cleaned": "2024.02.31"}
+{"field": "orders.placed_at", "input": "sem data", "code": "DATE_UNPARSEABLE", "cleaned": "sem data"}
+{"field": "orders.placed_at", "input": "0000-01-01", "sqlstate": "22008", "error": "DataError"}
+{"field": "orders.placed_at", "input": "2024-01-01T99:00:00", "sqlstate": "22008", "error": "DataError"}
+{"field": "orders.placed_at", "input": "2024-01-01 lixo", "code": null, "cleaned": "2024-01-01 lixo"}
+{"field": "products.name", "input": "CÂMERA", "code": null, "cleaned": "CÂMERA"}
+{"field": "products.name", "input": "CafÃ©", "code": "TEXT_ENCODING", "cleaned": "Café"}
+{"field": "products.name", "input": "CafÃ© e café", "sqlstate": "22021", "error": "DataError"}
+{"field": "products.name", "input": "CafÃ© 😀", "sqlstate": "22P05", "error": "DataError"}
+{"field": "product_prices.unit_price", "input": "abc", "code": "MONEY_AMBIGUOUS", "cleaned": "abc"}
+{"field": "product_prices.unit_price", "input": "12,3456", "code": "MONEY_LOCALE", "cleaned": "12.3456"}
+{"field": "product_prices.unit_price", "input": "1.234,5678", "code": "MONEY_LOCALE", "cleaned": "1234.5678"}
+{"field": "product_prices.unit_price", "input": "1,234,567", "code": "MONEY_LOCALE", "cleaned": "1.234.567"}
+{"field": "customer_addresses.is_primary", "input": "talvez", "code": null, "cleaned": "talvez"}
+{"field": "customer_addresses.is_primary", "input": "TRUE", "code": "BOOL_VARIANT", "cleaned": "true"}
+{"field": "customer_addresses.is_primary", "input": " true ", "code": null, "cleaned": " true "}
+{"field": "cart_items.quantity", "input": "-1.0", "code": "NUM_TEXT_EQUIV", "cleaned": "-1"}
+{"field": "cart_items.quantity", "input": "1000001,0", "code": "NUM_TEXT_EQUIV", "cleaned": "1000001"}
+{"field": "orders.placed_at", "input": "01/01/2030", "code": "DATE_FORMAT_KNOWN", "cleaned": "2030-01-01"}
+Formatadores ainda perdem precisão/horário: 12,34 29/02/2024
+```
+
+A última linha chama `_pt_br('12.3456', None)` e
+`_dd_mm_aaaa('2024-02-29T13:14:15-03:00', None)` diretamente; não confundir com o
+normalizador SQL, cujo tratamento de quatro casas foi parcialmente corrigido.
+
+Conferência em memória, sem regerar arquivos: auxiliares, metadados e 36 pontes comparados
+com seus geradores. Para D34, alternância temporária de `brands.name.nullable` no metadata
+SQLAlchemy **somente no processo diagnóstico**, com restauração, comparando `records_sql()`
+e `impressao_digital()` antes/depois. Saída literal:
+
+```text
+D34: mudar nullable muda contrato: True
+D34: fingerprint permanece igual: True
+Derivados auxiliares e pontes comparados: 47 divergentes: []
+Catálogo atual: 4 códigos: 25 injetáveis: 23
+```
+
+Outras contraprovas por `.venv/bin/python -`, executando SQL real renderizado em relações
+sintéticas: R08 com os dois vizinhos preenchidos/vazios; R11 com classificação inteiramente
+aceita e quarentena anterior; D35 com pai da captura 2 e rejeição apenas da captura 1; teste
+SCD com id 1 nas duas origens, cada uma com uma única versão aberta, inícios distintos.
+Os testes R09 receberam uma linha por fonte na captura 1 e nenhuma na captura 2.
+Saída literal:
+
+```text
+R11_rejeitados_retidos_fp_atual 0
+R11_rejeitados_retidos_fp_antigo 1
+D35_historico_sozinho_exonera_captura_2 True
+SCD_falsa_sobreposicao_entre_origens 1
+R08_vizinhos_vazios_False None
+R08_vizinhos_vazios_True TEXT_DELIMITER
+R09_existe_captura_1 0
+R09_existe_captura_2 1
+R09_completa_captura_1 0
+R09_completa_captura_2 40
+```
+
+Consultas ao banco existente, também por `.venv/bin/python -`/SQLAlchemy somente de
+leitura. P04 compara `count(distinct customer_natural_key)` com
+`count(distinct (source_system, customer_natural_key))` no conjunto de vendas realizadas.
+P16 conta pedidos elegíveis com chamado de mesmo id **apenas em outra origem**. P07 conta
+linhas após a junção por categoria natural e movimentos distintos antes da multiplicação.
+P12 conta pares naturais armazém/SKU presentes nas duas origens do caminho frio.
+D33 compara a soma de `itens_rejeitados` da medida com as ocorrências rejeitadas da
+classificação corrente para aqueles mesmos pedidos. P11 foi consultada por
+`select count(*) from consumption.inventory_turnover_by_sku_and_warehouse`.
+Saídas literais:
+
+```text
+captura_e_classificacao [(16, 4, 'accepted', 10441), (16, 4, 'corrected', 26), (16, 4, 'rejected', 2280)]
+P04_clientes_fundidos [(1327, 1390)]
+P16_pedidos_com_chamado_apenas_em_outra_origem [('legacy', 9), ('retail', 1)]
+P11_leitura_da_view erro ProgrammingError SQLSTATE 21000
+P12_colisoes_de_pares_no_frio [(121,)]
+P07_custo_multiplicado_por_categoria_sem_origem [(14570, 8160)]
+D33_itens_contados_da_quarentena_retida [(Decimal('843'),)]
+D33_itens_da_classificacao_corrente_para_os_pedidos [(74,)]
+D35_explicadas_so_por_historico [(0,)]
+cupom_pedidos_duplicados_sem_origem [(0,)]
+cupom_pedidos_duplicados_com_origem [(0,)]
+movimentos_legado_janela_configurada_7_dias [(553, 7)]
+```
+
+P07 acima mede **linhas**, não reais de custo. O caso D35 em que só o histórico explica
+não apareceu nos pedidos atuais consultados; sua contraprova é sintética. Também não há
+colisão atual de `order_id` na fato de cupons: R23 identifica um teste incompatível com
+uma colisão válida, não um teste que tenha falhado no build publicado. A última consulta
+aplica o filtro incremental real, com os **7 dias** declarados em `dbt_project.yml`: de
+553 movimentos legados em `trusted`, 7 seriam relidos. Isso não mede perda atual nem
+executa o reprocessamento discutido em R25.
+
+### Situação dos achados anteriores
+
+Os números R01–R17 referem-se à revisão anterior preservada no histórico (por exemplo,
+`git show 250e6e5:REVISAO.md`). Não são dezessete descobertas novas nesta entrega.
+Linhas e caminhos abaixo referem-se ao código em `38a6ec1`. “Pendente” não autoriza
+implementação. As correções de derivados devem nascer nas declarações.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
+| R01 | `src/mvp_ed1/legacy/ponte.py`; modelos de `trusted` e `analytics` | O conjunto apto ganhou 36 pontes, consumidores e identidade por origem até as fatos. A ausência original foi tratada, mas a integração não termina aí: consumidores ainda fundem identidades; ver R18–R20 e R25. As quatro tabelas sem contraparte permanecem explicitamente fora das pontes, não foram contadas como empilhadas pelo revisor. | `bloqueante` | **Parcialmente resolvido.** Não encerrar a integração com base apenas nas contagens das pontes. |
+| R02 | `src/mvp_ed1/legacy/regras.py:31`, `:172`, `:210`, `:229` | Calendário impossível e texto sem data agora têm rejeição nos exemplos originais. Persistem casts que abortam com ano zero e hora 99; o reconhecimento por prefixo deixa `2024-01-01 lixo` sem achado. Validar a entrada inteira, calendário e horário antes da conversão, inclusive para os casts das pontes. | `bloqueante` | **Parcialmente resolvido; contraprovas ainda falham.** |
+| R03 | `src/mvp_ed1/legacy/regras.py:252` | `CÂMERA` foi preservado e `CafÃ©` foi corrigido. A detecção de um par, porém, autoriza recodificar a célula inteira: misturá-lo com `café` legítimo ou emoji ainda aborta a consulta. A reversibilidade precisa valer para o conteúdo convertido, não apenas para um fragmento. | `bloqueante` | **Parcialmente resolvido; SQLSTATE 22021 e 22P05 reproduzidos.** |
+| R04 | `src/mvp_ed1/legacy/regras.py:134` | Os exemplos de quatro casas e `abc` foram tratados. A variante americana sem parte decimal `1,234,567` é reconhecida, mas vira `1.234.567`, inválido como numeric, ainda sob código corrigível. Separar a interpretação dos formatos e validar o resultado. | `bloqueante` | **Parcialmente resolvido; saída inválida reproduzida.** |
+| R05 | `src/mvp_ed1/legacy/regras.py:276`; `src/mvp_ed1/legacy/dbt.py:62` | `TRUE` agora vira `true`, mas `talvez` fica sem achado: o comentário promete `ENUM_UNKNOWN` em booleanos sem alterar o alcance da regra. Além disso, ` true ` não é canonizado e continua incompatível com a comparação textual do índice parcial. Rejeitar desconhecidos e entregar forma canônica para os predicados de contexto. | `bloqueante` | **Parcialmente resolvido.** Deixou de inventar `false`, mas ainda permite valor não conversível chegar à ponte booleana. |
+| R06 | `src/mvp_ed1/legacy/dbt.py:97`, `:134`, `:166` | A CTE `limpo` foi criada, mas `_achado()` continua referenciando exclusivamente `c`, o original, nunca `l`, o convertido. `-1.0`, `1000001,0` e `01/01/2030` continuam recebendo apenas conversão, não a rejeição de faixa/futuro aplicável ao resultado. O comentário descreve uma segunda validação que não existe no SQL emitido. | `bloqueante` | **Não resolvido; reproduzido no modelo completo**, não apenas na expressão antiga. |
+| R07 | `src/mvp_ed1/legacy/injetor.py:178`, `:192`; testes de detecção | Os formatadores ainda cortam casas monetárias e eliminam horário/fuso em falhas declaradas corrigíveis. Encontrar o código injetado não prova recuperar o valor. Cobrir o valor recuperado com esperado independente e preservar a informação nas formas meramente representacionais. | `bloqueante` | **Não resolvido.** A serialização JSON nova não altera estes formatadores. |
+| R08 | `src/mvp_ed1/legacy/regras.py:317`; `src/mvp_ed1/legacy/dbt.py:80` | A detecção passou a considerar os dois vizinhos alcançados pela injeção. `A;B` não recebe `TEXT_DELIMITER` com vizinhos preenchidos e recebe com vizinhos vazios. | `observação` | **Resolvido no recorte dirigido executado.** |
+| R09 | `src/mvp_ed1/legacy/dbt.py:265`, `:312`, `:358`; `airflow/dags/fluxo_batch.py:93` | Seleção única e testes novos fecham captura inexistente e ausência de stream. “Completa” ainda significa apenas ter alguma linha nas 40 tabelas; não prova carga integral nem que a seleção pertence ao job acabado. Uma carga que não deixe linhas novas reutiliza a anterior e passa. O dossiê reconhece isso, mas a docstring da DAG ainda afirma o contrário. | `bloqueante` | **Parcialmente resolvido.** Existência/ausência reproduzidas; vínculo job–captura e execução da DAG continuam sem prova, conforme notas do autor. |
+| R10 | Seleção de captura em `src/mvp_ed1/legacy/dbt.py`; ADR-0037 | A retenção continua sem comparação de chaves entre capturas completas que detecte exclusão física. Os novos testes de presença de stream não substituem essa comparação. | `bloqueante` | **Pendente já reconhecido pelo autor.** Nenhuma remoção foi executada nesta revisão. |
+| R11 | `dbt/models/quarantine/rejected_legacy_records.sql:25` | A chave substituída vem da classificação inteira. A contraprova agora retém zero rejeitados para a mesma captura/versão/impressão inteiramente aceita; retém a auditoria de impressão diferente, como D34 determina. | `observação` | **Resolvido no recorte dirigido executado.** Não equivale ao ciclo persistido completo de D34. |
+| R12 | `src/mvp_ed1/legacy/writer.py`; ciclo Alembic | O schema legado segue fora do ciclo versionado de evolução/reversão. A coluna dbt `treatment_fingerprint` não resolve nem agrava por si essa lacuna do schema de origem. | `bloqueante` | **Pendente já reconhecido pelo autor**, inclusive na anotação adicional 4.7. |
+| R13 | `tests/test_legado_deteccao.py`; `tests/test_legacy_classification.py` | Continua faltando esperado independente por ocorrência para órfãs, excedentes, total, cascata e valores recuperados. Paridade de gerados e testes de contagem não respondem se são as ocorrências certas. | `ajuste` | **Pendente já reconhecido.** A detecção de valor tampouco foi revalidada por completo nesta execução, devido aos timeouts. |
+| R14 | `docs/pendencias.md:25`, `:128`, `:188`; `docs/plano_de_desenvolvimento.md:254` | Estados ainda divergem: Pendências anuncia que só restam R10/R12/R13, mais abaixo considera etapas 3–10 entregues e próxima a 11; o plano ainda diz que a fronteira de empilhamento não existe e mantém a ressalva antiga de R11. Atualizar os donos documentais com estado verificado e medidas identificadas por captura/versão, preservando o histórico dos ADRs. | `ajuste` | **Parcialmente resolvido.** A reabertura no cabeçalho e as notas adicionais não corrigem esses trechos. |
+| R15 | D33 em `docs/pendencias.md:64` | O Owner ratificou reconciliação contra todos os capturados menos excedentes e medida separada para o conjunto empilhado. Não há motivo para restaurar a política anterior. O defeito da medida está em R21. | `observação` | **Questão de decisão resolvida.** Implementação ainda requer correção. |
+| R16 | D34 em `docs/pendencias.md:46` | O Owner definiu versão humana mais impressão digital, retenção de tratamentos divergentes e teste da versão corrente. Essa decisão resolve a pergunta anterior; a cobertura insuficiente da impressão é o novo R24. | `observação` | **Questão de decisão resolvida.** Não confundir com prova completa de implementação. |
+| R17 | `tests/test_remessas.py`; `dbt/tests/remessa_leva_ao_menos_um_item.sql` | Os testes dirigidos da D31 passaram na bateria desta revisão. Não foi repetida a Etapa 7 ao vivo; a mudança da exceção legada no teste de remessa é avaliada em R21/R22. | `observação` | **Sem novo achado no conserto do gerador da D31.** |
 
+### Achados adicionais desta entrega
+
+Para regressões que aparecem em consumidores inalterados, a coluna “Onde” identifica
+também a mudança de contrato no diff que as introduz.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| R18 | `dbt/models/analytics/dim_customer.sql:31`, `fact_sales_order_item.sql:78`, `fact_support_ticket_event.sql:89`; consumidores P04/P16 | **Coortes fundem entidades de origens diferentes.** P04 continua fazendo `distinct on` e recompra apenas por `customer_natural_key`: mede 1.327 identidades onde o par origem/id identifica 1.390 clientes compradores. P16 junta chamados e pedidos apenas por `order_id`: 9 pedidos legados e 1 retail recebem chamado existente somente na outra origem. Propagar a identidade composta nas CTEs e junções e testar colisões antes da agregação de negócio. | `bloqueante` | **Novo, reproduzido no banco existente.** A adequação das fatos não preservou o contrato dos consumidores. |
+| R19 | `dbt/models/analytics/dim_category.sql:23`, `dim_warehouse.sql:8`; P07 `gross_margin_by_category.sql:51` e P11 `inventory_turnover_by_sku_and_warehouse.sql:33`, `:78` | **As novas dimensões multiplicam custos e tornam P11 não consultável.** A junção categoria/id sem origem produz 14.570 linhas para 8.160 movimentos distintos no ramo de custo da P07. Na P11, procurar armazém apenas pelo nome agora retorna mais de uma linha na subconsulta escalar e gera SQLSTATE 21000; suas junções de saldo também omitem origem. Corrigir as chaves de ligação e exercitar a leitura das views: `CREATE VIEW` bem-sucedido não prova que consultá-las funciona. | `bloqueante` | **Novo, multiplicação e erro reproduzidos.** Não é só incluir uma coluna na apresentação. |
+| R20 | `dbt/models/analytics/fact_inventory_movement.sql:53`; P12 `skus_below_reorder_point.sql:30`, `:59`, `:76`, `:159` | **A união quente/frio perde a procedência que acabou de chegar à fato.** P12 descarta a origem no ramo frio, agrupa saldo apenas por armazém/SKU e faz as junções finais pelos mesmos ids. Há 121 pares naturais presentes nas duas origens. O anti-join do quente também usa somente `movement_id`, podendo suprimir evento retail por coincidência com legado. Preservar identidade nos dois ramos, no anti-join, nos saldos e nas dimensões antes de produzir reposição/cobertura. | `bloqueante` | **Novo; colisões atuais medidas e perda de identidade constatada no SQL.** Não foram reexercitados alertas/eventos ao vivo. |
+| R21 | `dbt/macros/explicado_pela_quarentena.sql:38`; `dbt/models/trusted/legacy/legacy_order_totals_divergence.sql:24` | **D33/D35 consultam toda a auditoria retida como se fosse da captura corrente.** O recorte contém apenas origem, tabela e FK; faltam captura, versão e impressão. A medida conta 843 ocorrências rejeitadas para pedidos que têm 74 na classificação corrente. A macro aceita rejeição exclusivamente histórica como explicação de pai da captura seguinte, reproduzido em CTE. Vincular a contrapartida ao tratamento/captura em análise, mantendo intacta a retenção histórica. | `bloqueante` | **Novo, reproduzido.** A aceitação do pai válido por D35 não autoriza usar rejeição obsoleta para exonerar divergência atual. |
+| R22 | `airflow/dags/fluxo_batch.py:157`, `:162`, `:191`; medida D33 e testes que chamam `explicado_pela_quarentena` | **A DAG constrói um consumidor antes da quarentena de que ele depende.** `legacy_order_totals_divergence` está em `trusted`, sem a tag excluída, mas lê `rejected_legacy_records`; as invariantes também ganharam essa dependência. `dbt_trusted` precede `dbt_quarantine`. Sem a relação anterior, a medida não pode ser construída; com ela, usa a auditoria anterior e não é reconstruída depois. Adequar a seleção/ordem às dependências e provar primeira execução e troca de captura. | `bloqueante` | **Novo, incompatibilidade estática.** A DAG não foi executada, conforme anotação 4.1; o build integral do autor tem outra ordenação e não prova essas tarefas separadas. |
+| R23 | `dbt/models/analytics/_analytics__models.yml:28`, `:47`, `:481`, `:501`, `:530` | **Parte dos testes ainda exige identidade global por id natural.** O `unique` de `fact_coupon_redemption.order_id` permaneceu mesmo após a inclusão da unicidade composta; um pedido de cada origem com o mesmo id passa no contrato novo e falha no antigo. Os quatro testes de vigência continuam recebendo somente a chave natural: duas origens válidas com início diferente produzem falsa sobreposição na contraprova. Adequar também os testes ao grão com procedência. | `bloqueante` | **Novo; falha SCD reproduzida sinteticamente.** Sem colisão atual medida nos cupons; o risco não foi apresentado como falha do build existente. |
+| R24 | `src/mvp_ed1/legacy/dbt.py:393`; `src/mvp_ed1/legacy/classification.py` (`records_sql`) | **A impressão de D34 não cobre todo o tratamento que determina o resultado.** O hash inclui limpeza e classificação, mas não `records_sql()`, onde entram obrigatoriedade, FKs e unicidade. Mudar `brands.name.nullable` altera esse contrato sem alterar o hash. Variáveis como `as_of_date` também permanecem como Jinja não resolvido no material hasheado. Resultados distintos podem conservar a mesma identidade e substituir auditoria sem o alarme prometido. Cobrir o contrato efetivo e parâmetros que mudam decisões, com contraprova independente. | `bloqueante` | **Novo, omissão do contrato reproduzida em memória.** Distinto da meia prova persistida reconhecida na anotação 4.4. |
+| R25 | `dbt/models/analytics/fact_inventory_movement.sql:27`, `:40`; empilhamento de `inventory_movements` | **O reprocessamento de uma captura completa não foi conciliado com a fato incremental.** A origem legada agora entra num `merge` filtrado pelo máximo global de tempo de evento menos 7 dias. Correção que torne apto um movimento antigo não o insere fora da janela; rejeição/ausência posterior não remove a linha já materializada. No estado consultado, só 7 de 553 movimentos legados seriam relidos. Provar o caminho de atualização/reconciliação da captura sem contrariar a exceção incremental do ADR-0016; não basta igualdade após uma reconstrução inicial. | `bloqueante` | **Novo, caminho incompatível identificado no SQL e alcance do filtro medido.** Não afirmo perda atual nem executei mudança de captura. |
+| R26 | `src/mvp_ed1/legacy/ponte.py:68`; anotação adicional 6.1 | **`event_sequence = legacy_row_id` é sequência da ocorrência física, não sequência observada do evento na origem.** A equivalência foi assumida pelo autor e não há nesta revisão prova de estabilidade entre recapturas. Não foi encontrado consumidor atual que use essa coluna legada para ordenar o saldo; por isso não afirmo corrupção reproduzida. Explicitar o contrato e confirmar com o Owner antes de atribuir-lhe garantias de ordenação/linhagem que a origem não fornece. | `observação` | **Pendente de esclarecimento do contrato**, não autorização para inventar outra sequência. |

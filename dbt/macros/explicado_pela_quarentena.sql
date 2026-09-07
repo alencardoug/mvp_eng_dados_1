@@ -38,6 +38,21 @@
     exists (
         select 1
         from {{ ref('rejected_legacy_records') }} q
+        -- ── Só a auditoria da captura e do tratamento em análise ────────────
+        -- A quarentena é destino permanente e guarda capturas antigas e versões
+        -- anteriores (ADR-0037). Sem este recorte, uma rejeição de outra captura
+        -- explicaria uma divergência de hoje: a tolerância viraria um curinga
+        -- histórico, e a garantia — toda diferença tem contrapartida — seria
+        -- mais fraca do que anuncia.
+        join (
+            select distinct
+                source_system, snapshot_id, catalog_version, treatment_fingerprint
+            from {{ ref('legacy_classifications') }}
+        ) corrente
+          on  corrente.source_system = q.source_system
+         and corrente.snapshot_id = q.snapshot_id
+         and corrente.catalog_version = q.catalog_version
+         and corrente.treatment_fingerprint = q.treatment_fingerprint
         where q.source_table = '{{ tabela_do_filho }}'
           and q.source_system = {{ alias }}.source_system
           {%- for coluna in colunas %}

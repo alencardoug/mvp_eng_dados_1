@@ -26,13 +26,15 @@
 # Versão do contrato aplicado, inclusive regras de contexto. A versão 2 da
 # primeira execução de classificação fica retida para auditoria; a 3 respeita
 # também os predicados dos índices únicos parciais declarados nos modelos; a 4
-# acrescenta `treatment_fingerprint` à saída da classificação (D34).
+# acrescenta `treatment_fingerprint` à saída da classificação (D34); a 5 confere
+# as rejeições de valor também contra o resultado da conversão (R06) e passa a
+# cobrir o contrato por registro e os `var()` na impressão digital (R24).
 #
 # **Quando avançar:** sempre que o tratamento passar a produzir resultado
 # diferente — regra nova, conversão alterada, coluna nova na classificação. É a
 # pergunta que `legacy_versao_do_tratamento_e_univoca` faz em voz alta quando
 # alguém esquece: sob uma versão, um tratamento.
-versao: 4
+versao: 5
 
 # ── Geração desta origem ──────────────────────────────────────────────────────
 # Semente **própria**, distinta da origem principal (Origem Legada §3.2): as

@@ -10,7 +10,12 @@ with estreia as (
     -- Primeira compra realizada de cada cliente, com o canal em que ela
     -- aconteceu. `distinct on` sobre a chave natural, não a da versão: um
     -- cliente com duas versões continua sendo um cliente.
-    select distinct on (c.customer_natural_key)
+    --
+    -- A chave natural é (origem, id), e não o id sozinho. Dois sistemas numeram
+    -- clientes a partir de 1: sem a origem, o cliente 42 do legado e o 42 do
+    -- retail viram uma pessoa só, e a coorte perde quem foi fundido.
+    select distinct on (c.source_system, c.customer_natural_key)
+        c.source_system,
         c.customer_natural_key,
         c.customer_segment_name,
         f.placed_at                                 as first_order_at,
@@ -19,7 +24,7 @@ with estreia as (
     from {{ ref('fact_sales_order_item') }} f
     join {{ ref('dim_customer') }} c using (customer_key)
     where f.is_realised
-    order by c.customer_natural_key, f.placed_at
+    order by c.source_system, c.customer_natural_key, f.placed_at
 
 ),
 
@@ -27,16 +32,18 @@ recompra as (
 
     -- Existe segundo pedido dentro da janela declarada, contada da estreia.
     select
+        e.source_system,
         e.customer_natural_key,
         min(f.placed_at)                            as second_order_at
     from estreia e
     join {{ ref('dim_customer') }} c
-      on c.customer_natural_key = e.customer_natural_key
+      on  c.source_system = e.source_system
+     and c.customer_natural_key = e.customer_natural_key
     join {{ ref('fact_sales_order_item') }} f
       on f.customer_key = c.customer_key
      and f.is_realised
      and f.placed_at > e.first_order_at
-    group by e.customer_natural_key
+    group by e.source_system, e.customer_natural_key
 
 )
 
@@ -63,5 +70,7 @@ select
 from estreia e
 join {{ ref('dim_date') }} d on d.date_key = e.first_order_date_key
 join {{ ref('dim_sales_channel') }} ch on ch.sales_channel_key = e.sales_channel_key
-left join recompra r on r.customer_natural_key = e.customer_natural_key
+left join recompra r
+    on  r.source_system = e.source_system
+    and r.customer_natural_key = e.customer_natural_key
 group by 1, 2, 3, 4, 5

@@ -1,3 +1,10 @@
+{{ config(tags=['legado_reconciliacao']) }}
+
+-- Depende da quarentena: a exceção tolerada precisa da contrapartida, e a DAG
+-- constrói `quarantine` **depois** de `trusted`. Sem a etiqueta, este teste
+-- roda na tarefa de `trusted` e lê a auditoria da captura anterior — ou não
+-- encontra relação nenhuma na primeira execução.
+
 -- Invariante 8 — reserva liberada, expirada ou consumida não ocupa saldo.
 --
 -- O teste é `reserved_drift <= 0`, e a direção é o ponto.

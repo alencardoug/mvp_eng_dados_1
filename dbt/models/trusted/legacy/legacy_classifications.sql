@@ -216,11 +216,11 @@ summaries as (
     group by f.source_system, f.snapshot_id, f.source_table, f.legacy_row_id
 )
 select r.source_system, r.snapshot_id, r.snapshot_at, r.source_table, r.legacy_row_id,
-    4::integer as catalog_version,
+    5::integer as catalog_version,
     -- Impressão digital do tratamento (D34): a versão é o rótulo humano, esta
     -- é a identidade do que ele de fato produz. É por ela que a quarentena
     -- recusa substituir uma auditoria sob a mesma versão.
-    '59841c98f23ac771'::text as treatment_fingerprint,
+    '6df1d183d38bb9eb'::text as treatment_fingerprint,
     r.original_payload, r.cleaned_payload,
     case when s.has_rejection then 'rejected'
          when s.has_correction then 'corrected' else 'accepted' end::text as classification,

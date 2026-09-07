@@ -30,6 +30,7 @@
 with frio as (
 
     select
+        f.source_system,
         w.warehouse_natural_key                             as warehouse_id,
         p.product_natural_key                               as product_variant_id,
         f.movement_id,
@@ -46,6 +47,9 @@ with frio as (
 quente as (
 
     select
+        -- O caminho quente transporta a origem principal, e só ela: Airbyte e
+        -- Beam carregam o mesmo `retail` (Origem Legada §6).
+        'retail'                                            as source_system,
         s.warehouse_id,
         s.product_variant_id,
         s.movement_id,
@@ -55,9 +59,11 @@ quente as (
         s.movement_type = 'sale_dispatch'                   as is_sale,
         s.occurred_at
     from {{ source('retail', 'inventory_movements_stream') }} s
+    -- O anti-join carrega a origem: `movement_id` sozinho poderia suprimir um
+    -- evento do caminho quente por coincidir com um do legado.
     where not exists (
         select 1 from {{ ref('fact_inventory_movement') }} f
-        where f.movement_id = s.movement_id
+        where f.source_system = 'retail' and f.movement_id = s.movement_id
     )
 
 ),
@@ -73,6 +79,7 @@ agora as (select max(occurred_at) as instante from livro),
 posicao as (
 
     select
+        l.source_system,
         l.warehouse_id,
         l.product_variant_id,
         sum(l.quantity_delta)                                       as quantity_on_hand,
@@ -89,7 +96,9 @@ posicao as (
                                    - interval '{{ var("cover_window_days") }} days'
         )                                                            as window_sold_units
     from livro l
-    group by l.warehouse_id, l.product_variant_id
+    -- Sem a origem no agrupamento, o saldo do par armazém/SKU do legado soma ao
+    -- do retail de mesmo id — e há 121 pares presentes nas duas origens.
+    group by l.source_system, l.warehouse_id, l.product_variant_id
 
 )
 
@@ -137,12 +146,16 @@ select
 
     pos.last_movement_at
 from posicao pos
-join {{ ref('dim_warehouse') }} w on w.warehouse_natural_key = pos.warehouse_id
+join {{ ref('dim_warehouse') }} w
+  on  w.source_system = pos.source_system
+ and w.warehouse_natural_key = pos.warehouse_id
 join {{ ref('dim_product') }} p
-  on p.product_natural_key = pos.product_variant_id
+  on  p.source_system = pos.source_system
+ and p.product_natural_key = pos.product_variant_id
  and p.is_current
 left join {{ ref('inventory_balances') }} b
-  on b.warehouse_id = pos.warehouse_id
+  on  b.source_system = pos.source_system
+ and b.warehouse_id = pos.warehouse_id
  and b.product_variant_id = pos.product_variant_id
 where pos.quantity_on_hand - coalesce(b.quantity_reserved, 0) < {{ var("reorder_point_units") }}
 order by days_of_cover nulls last, quantity_available

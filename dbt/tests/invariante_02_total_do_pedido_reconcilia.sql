@@ -1,3 +1,10 @@
+{{ config(tags=['legado_reconciliacao']) }}
+
+-- Depende da quarentena: a exceção tolerada precisa da contrapartida, e a DAG
+-- constrói `quarantine` **depois** de `trusted`. Sem a etiqueta, este teste
+-- roda na tarefa de `trusted` e lê a auditoria da captura anterior — ou não
+-- encontra relação nenhuma na primeira execução.
+
 -- Invariante 2 — o total do pedido reconcilia itens, desconto, frete e imposto.
 --
 -- A `CHECK total_reconcilia` do modelo garante a coerência **interna** dos

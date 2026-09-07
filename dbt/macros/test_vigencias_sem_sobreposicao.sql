@@ -9,12 +9,22 @@
     Duas vigências se sobrepõem quando cada uma começa antes de a outra acabar.
     `coalesce` com um horizonte distante trata a versão corrente, cujo fim é
     nulo, sem precisar de ramo separado.
+
+    ── A chave natural inclui a origem ───────────────────────────────────────
+    Desde o empilhamento (ADR-0021), a identidade de uma entidade é o par
+    (`source_system`, id). Comparar vigências só pelo id faria duas versões
+    **válidas** — uma de cada origem, com início diferente — parecerem
+    sobreposição: o teste reprovaria dado correto, que é a falha mais cara de
+    um teste, porque ensina a ignorá-lo.
+
+    `origem` é parâmetro para que dimensão conformada, que legitimamente não
+    tem procedência, possa passar `none`.
 -#}
-{% test vigencias_sem_sobreposicao(model, chave_natural, inicio='valid_from', fim='valid_to') %}
+{% test vigencias_sem_sobreposicao(model, chave_natural, inicio='valid_from', fim='valid_to', origem='source_system') %}
 
 with vigencias as (
     select
-        {{ chave_natural }} as chave,
+        {% if origem %}{{ origem }} || '-' || {% endif %}{{ chave_natural }} as chave,
         {{ inicio }}        as inicio,
         coalesce({{ fim }}, timestamptz '9999-12-31') as fim
     from {{ model }}

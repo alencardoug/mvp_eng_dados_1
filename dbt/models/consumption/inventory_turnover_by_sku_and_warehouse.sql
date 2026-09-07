@@ -18,7 +18,9 @@ with saidas as (
     select
         d.year_number,
         d.quarter_number,
+        p.source_system,
         p.product_natural_key,
+        w.warehouse_natural_key,
         p.sku,
         p.product_name,
         cat.category_name,
@@ -30,9 +32,13 @@ with saidas as (
     join {{ ref('dim_date') }} d using (date_key)
     join {{ ref('dim_product') }} p using (product_key)
     join {{ ref('dim_warehouse') }} w using (warehouse_key)
-    join {{ ref('dim_category') }} cat on cat.category_natural_key = p.product_category_id
+    -- A categoria casa por (origem, id): sem a origem, cada categoria do legado
+    -- encontra também a homônima do retail e o custo se multiplica.
+    join {{ ref('dim_category') }} cat
+      on  cat.source_system = p.source_system
+     and cat.category_natural_key = p.product_category_id
     where m.is_sale
-    group by 1, 2, 3, 4, 5, 6, 7, 8
+    group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 
 ),
 
@@ -43,16 +49,18 @@ saldo as (
     -- reconstruir a posição em cada fim de trimestre, e o ganho não se
     -- distingue nesta escala.
     select
+        b.source_system,
         b.warehouse_id,
         b.product_variant_id,
         b.quantity_on_hand,
         round(b.quantity_on_hand * avg(m.unit_cost), 2) as inventory_value_amount
     from {{ ref('inventory_balances') }} b
     join {{ ref('inventory_movements') }} m
-      on  m.warehouse_id = b.warehouse_id
+      on  m.source_system = b.source_system
+     and m.warehouse_id = b.warehouse_id
      and m.product_variant_id = b.product_variant_id
      and m.unit_cost is not null
-    group by b.warehouse_id, b.product_variant_id, b.quantity_on_hand
+    group by b.source_system, b.warehouse_id, b.product_variant_id, b.quantity_on_hand
 
 )
 
@@ -72,9 +80,16 @@ select
     coalesce(b.inventory_value_amount, 0)           as inventory_value_amount,
     round(s.cost_of_goods_sold / nullif(b.inventory_value_amount, 0), 2) as inventory_turnover
 from saidas s
+-- ── Por que a ligação não é mais pelo nome do armazém ───────────────────────
+-- A versão anterior procurava o identificador do armazém por uma subconsulta
+-- escalar sobre `warehouse_name`. Com duas origens o nome deixou de ser único,
+-- a subconsulta passou a devolver mais de uma linha, e a view — criada sem
+-- erro — falhava na primeira leitura com `CardinalityViolation`.
+--
+-- O identificador agora vem carregado desde `saidas`, onde ele já existia. A
+-- ligação é pela chave, com a origem junto; procurar entidade pelo nome era
+-- frágil antes de existir a segunda origem, e passou a ser defeito.
 left join saldo b
-    on  b.product_variant_id = s.product_natural_key
-    and b.warehouse_id = (
-        select warehouse_natural_key from {{ ref('dim_warehouse') }} w2
-        where w2.warehouse_name = s.warehouse_name
-    )
+    on  b.source_system = s.source_system
+    and b.product_variant_id = s.product_natural_key
+    and b.warehouse_id = s.warehouse_natural_key
