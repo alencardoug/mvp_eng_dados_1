@@ -90,13 +90,18 @@ def _executar(comando: str, segundos: int) -> tuple[int, str]:
 
 
 def gerar(desde: str, segundos: int) -> pathlib.Path:
-    commits = _git("log", "--reverse", "--format=%h %s", f"{desde}..HEAD")
+    # O topo é **fixado** no SHA, não deixado como `HEAD`. Um dossiê que diz
+    # `base..HEAD` passa a descrever outro intervalo assim que um commit novo
+    # entra — e quem revisa lê o diff errado sem perceber, porque a lista de
+    # commits do dossiê continua parecendo certa.
+    ate = _git("rev-parse", "--short", "HEAD")
+    commits = _git("log", "--reverse", "--format=%h %s", f"{desde}..{ate}")
     if not commits:
         sys.exit(f"nenhum commit em {desde}..HEAD — nada a revisar")
 
     arquivos = [
         linha.split("\t", 1)[1]
-        for linha in _git("diff", "--name-status", f"{desde}..HEAD").splitlines()
+        for linha in _git("diff", "--name-status", f"{desde}..{ate}").splitlines()
         if "\t" in linha
     ]
     gerados = [a for a in arquivos if _e_gerado(a)]
@@ -118,7 +123,10 @@ def gerar(desde: str, segundos: int) -> pathlib.Path:
         "",
         "## 1. Escopo",
         "",
-        f"Intervalo: `{desde}..HEAD` — leia o diff, ele não é repetido aqui.",
+        f"Intervalo: `{desde}..{ate}` — leia o diff, ele não é repetido aqui.",
+        "",
+        "Os dois extremos são SHA fixos de propósito: um dossiê que dissesse `..HEAD` passaria a",
+        "descrever outro intervalo no primeiro *commit* seguinte, sem que a lista abaixo mudasse.",
         "",
         "```",
         commits,

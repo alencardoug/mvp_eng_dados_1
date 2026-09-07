@@ -8,7 +8,12 @@
 
 ## 1. Escopo
 
-Intervalo: `3f1316b..HEAD` — leia o diff, ele não é repetido aqui.
+Intervalo: `3f1316b..afa5898` — leia o diff, ele não é repetido aqui.
+
+Os dois extremos são SHA fixos de propósito: um dossiê que dissesse `..HEAD` passaria a
+descrever outro intervalo no primeiro *commit* seguinte, sem que a lista abaixo mudasse.
+Os *commits* posteriores a `afa5898` são da ferramenta de revisão, e não fazem parte
+desta entrega.
 
 ```
 d0ccdfb feat: classifica, quarentena e empilha o legado
