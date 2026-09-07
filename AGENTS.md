@@ -27,21 +27,15 @@ do README.
 
 ### Passagem entre agentes
 
-Este projeto é trabalhado por **dois** agentes com orçamentos de esforço
-diferentes: um gera, outro revisa. A passagem entre eles não depende da memória
-de nenhum dos dois — ela tem skill própria, `revisao`.
+Este projeto é trabalhado por dois agentes com orçamentos de esforço diferentes:
+um gera, outro revisa. A passagem entre eles tem skill própria, `revisao`, e o
+procedimento vive lá — não é repetido aqui.
 
-Quem **entrega** roda `python3 .claude/skills/revisao/dossie.py --desde <ref>`,
-preenche as seções que só o autor sabe e confere com `--conferir`. Quem
-**revisa** lê o `REVISAO.md` na raiz e escreve os achados na tabela ao fim dele,
-com veredito por linha.
-
-Duas coisas que a skill impõe, e que valem repetir aqui:
-
-* **afirmação de medição precisa de saída de comando colada.** O que não tem
-  saída não é medição, e vai para a seção das suposições;
-* a seção **"o que não foi verificado"** não sai vazia. Nenhuma entrega
-  verifica tudo, e um dossiê que afirma o contrário está errado.
+**Nenhum agente tem papel fixo, e o papel de cada sessão vem do pedido do
+Owner.** Se ele pede código, você escreve código; se pede parecer, você revisa.
+Um `REVISAO.md` parado na raiz é um convite em aberto, **não** uma ordem: ele
+não substitui o que foi pedido na conversa, e começar a revisar quando pediram
+implementação é trocar a instrução viva por um arquivo esquecido.
 
 ### Quando um encaminhamento existir
 

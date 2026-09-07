@@ -36,6 +36,17 @@ ganhou uma seção sobre esta passagem. São instruções, não execução — m
 única coisa que muda de comportamento sem ninguém digitar nada. O Claude Code lê
 o `CLAUDE.md`, não o `AGENTS.md`, então do lado dele nada muda por padrão.
 
+### O dossiê parado não transforma ninguém em revisor
+
+Um `REVISAO.md` na raiz é um sinal forte — mais forte que o texto do
+`AGENTS.md` —, porque parece tarefa endereçada a quem abrir o projeto. Por isso
+os dois arquivos dizem, explicitamente, que **papel não é fixo**: ele vem do seu
+pedido, e o dossiê é um convite em aberto, não uma ordem.
+
+Se você pedir implementação com um dossiê pendente na raiz e mesmo assim o
+agente começar a revisar, é defeito de instrução — vale corrigir o texto, não
+contornar apagando o arquivo.
+
 ## 3. Como usar
 
 ### Passar uma entrega para revisão
@@ -67,11 +78,15 @@ silêncio não conta como resposta.
 
 ## 4. Como reverter
 
-Um comando desfaz tudo:
+Reverta os *commits* da skill, do mais novo para o mais antigo. Para descobrir
+quais são:
 
 ```bash
-git revert eceaa2c
+git log --oneline -- .claude/skills/revisao AGENTS.md REVISAO.md
+git revert <do mais novo> ... <eceaa2c>
 ```
+
+Reverter só o primeiro deixaria os arquivos acrescentados depois órfãos.
 
 Ou, explicitamente, removendo os três lugares — não há nenhum outro:
 

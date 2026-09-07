@@ -2,6 +2,9 @@
 
 > Dossiê gerado por `.claude/skills/revisao/dossie.py`. **Transitório**: sai no *commit*
 > que fecha a revisão. Não é documentação do projeto e não entra no mapa do README.
+>
+> **É um convite, não uma ordem.** Ele não substitui o que o Owner pediu nesta sessão: se o
+> pedido foi implementar, implemente — este arquivo continua aqui esperando quem for revisar.
 
 ## 1. Escopo
 
