@@ -89,10 +89,61 @@ def fluxo_batch():
             raise RuntimeError(f"{conexao}: sincronização terminou como {job.get('status')}")
         return {"linhas": job.get("rowsSynced", 0), "job": job.get("jobId")}
 
+    @task
+    def geracao_do_legado() -> int:
+        """A captura que esta execução acabou de produzir, observada no bruto.
+
+        ── Por que a DAG precisa dizer isto ao dbt ───────────────────────────
+        Sem esta tarefa, cada invocação do dbt escolhia a captura mais recente
+        que encontrasse. Numa DAG de sete tarefas de dbt, "mais recente" pode
+        mudar entre a primeira e a última — basta uma carga chegar no meio —, e
+        as camadas passariam a ler capturas diferentes sem que nada acusasse.
+
+        Aqui a escolha é feita **uma vez**, logo depois da sincronização, e
+        viaja para todas as tarefas como `legacy_snapshot_id`. O que o dbt lê
+        deixa de ser um palpite recalculado sete vezes.
+
+        ── O que esta tarefa não prova ──────────────────────────────────────
+        Que a geração observada seja a que **esta** sincronização escreveu. O
+        Airbyte não expõe a correspondência entre o `jobId` e o
+        `_airbyte_generation_id`, e inventá-la seria pior do que não tê-la. O
+        que sustenta a afirmação é o par de testes do dbt: a captura existe em
+        `raw_legacy` e traz todas as 40 tabelas. Uma sincronização que não
+        tivesse escrito nada cairia num deles.
+        """
+        from sqlalchemy import create_engine, text
+
+        from mvp_ed1.db import WAREHOUSE, database_url
+        from mvp_ed1.legacy import schema
+
+        consulta = " union all ".join(
+            f'select max(_airbyte_generation_id) as g from raw_legacy."{tabela}"'
+            for tabela in schema.tabelas()
+        )
+        with create_engine(database_url(WAREHOUSE)).connect() as conexao:
+            geracao = conexao.execute(
+                text(f"select max(g) from ({consulta}) t")
+            ).scalar_one_or_none()
+
+        if geracao is None:
+            raise RuntimeError(
+                "nenhuma captura do legado em raw_legacy depois da sincronização"
+            )
+        return int(geracao)
+
+    captura_legada = geracao_do_legado()
+
     def camada(nome: str, selecao: str, comando: str = "build") -> BashOperator:
+        # `--vars` em todas as tarefas, e não só nas do legado: as tarefas são
+        # por camada (não por origem), e uma variável que só valesse em algumas
+        # faria a camada seguinte reabrir a escolha que a anterior já fechou.
+        vars_ = (
+            """--vars '{legacy_snapshot_id: """
+            "{{ ti.xcom_pull(task_ids='geracao_do_legado') }}}'"
+        )
         return BashOperator(
             task_id=f"dbt_{nome}",
-            bash_command=f"{DBT} {comando} {selecao}".strip(),
+            bash_command=f"{DBT} {comando} {selecao} {vars_}".strip(),
         )
 
     # `seed` antes de tudo: `brazilian_states` é dado de referência que
@@ -134,6 +185,7 @@ def fluxo_batch():
 
     (
         capturas
+        >> captura_legada
         >> semear
         >> staging
         >> trusted

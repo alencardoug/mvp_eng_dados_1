@@ -258,6 +258,30 @@ Diferente do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único
 finalidade é restaurar o ambiente, este *snapshot* existe para **linhagem, auditoria e
 reprocessamento** da limpeza.
 
+### 4.2 Qual captura a execução lê
+
+Reter várias obriga a escolher uma, e a escolha é feita **uma vez**, no modelo
+`legacy_selected_capture`: a mais recente, ou a que `legacy_snapshot_id` indicar quando se
+reprocessa. Os 40 modelos de limpeza leem esse valor em vez de cada um tomar o máximo da sua própria
+tabela — que parecia equivalente e não é. A tabela que não vem numa carga tem o seu máximo na
+geração **anterior**, e serviria linhas velhas ao lado das novas sem que nada acusasse a mistura.
+
+Que a captura escolhida exista e esteja completa **não é assumido**:
+
+| Teste | O que afirma | O que ele separa |
+|---|---|---|
+| `legacy_captura_existe` | A geração selecionada está em `raw_legacy` | Pipeline correto de pipeline **vazio** — um `legacy_snapshot_id` inexistente selecionava zero linhas nas 40 origens, e nada falhava |
+| `legacy_captura_completa` | Todas as 40 tabelas têm linha na geração selecionada | Tabela **legitimamente vazia** de captura **ausente ou incompleta**, que no bruto são a mesma coisa: zero linhas |
+
+A segunda distinção é declarada, não inferida: as 40 tabelas do legado têm dado, e a exceção — se um
+dia uma delas legitimamente esvaziar — tem nome em `VAZIAS_LEGITIMAS`, no gerador.
+
+Na DAG, a escolha viaja da sincronização para todas as tarefas de dbt como `legacy_snapshot_id`.
+Sem isso, cada uma das sete invocações reabriria a escolha, e uma carga que chegasse no meio faria
+camadas vizinhas lerem capturas diferentes. **O que a DAG não prova** é que a geração observada seja
+a que aquela sincronização escreveu: o Airbyte não expõe a correspondência entre o `jobId` e o
+`_airbyte_generation_id`. Quem sustenta a afirmação são os dois testes acima.
+
 ---
 
 ## 5. Limpeza e classificação

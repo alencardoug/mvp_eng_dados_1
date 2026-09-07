@@ -158,7 +158,24 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 | Q3 | Perfil padrão de desenvolvimento | Absorvida pela Q2: os perfis antigos foram aposentados pelo [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Q4 | O que significa "revisado" na definição de pronto | Revisão integral do declarativo, amostragem no derivado — [`CLAUDE.md`](../CLAUDE.md) §5 e §7 |
 
-## 5. Do lado do assistente
+## 5. Medido e não explicado
+
+**Duas fatos ficaram lentas depois do empilhamento (07/09/2026).**
+`fact_payment_transaction` leva **595 s** e `fact_sales_order_item`, **186 s**; as outras oito ficam
+abaixo de 3,3 s. As tabelas envolvidas são pequenas — 7.427 transações, 3.830 pagamentos, 3.661
+pedidos e 1.574 versões de cliente —, e nada nesse tamanho justifica dez minutos.
+
+Duas hipóteses, **nenhuma verificada**: a junção temporal com `dim_customer` deixou de ter
+`source_system = 'retail'` como constante e passou a ser igualdade entre colunas, o que tira do
+planejador a seletividade que ele tinha; ou a máquina estava sob pressão de memória durante as
+medições (9,2 GB de 11,7 GB em uso, com o Airbyte segurando ~3,6 GB em JVMs).
+
+Não há medição anterior ao empilhamento para comparar, então **não afirmo que seja regressão**. O
+que está registrado é o número, não a causa.
+
+---
+
+## 6. Do lado do assistente
 
 A D31 está encerrada. Na Etapa 10, gerador, ingestão com retenção e modelos de limpeza já existem.
 A correção da precedência entre rejeição e conversão foi validada em 06/09/2026

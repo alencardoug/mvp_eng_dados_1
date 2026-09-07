@@ -18,10 +18,13 @@ with captura as (
 
     select *
     from {{ source('legacy', 'warehouses') }}
-    where _airbyte_generation_id = coalesce(
-        {{ legacy_snapshot_id() }}, (
-        select max(_airbyte_generation_id) from {{ source('legacy', 'warehouses') }}
-    ))
+    -- A captura é escolhida **uma vez**, em `legacy_selected_capture`, e não
+    -- aqui. O máximo por tabela parecia equivalente e não é: uma tabela que
+    -- não veio na carga nova cairia para a geração anterior sozinha, e o
+    -- modelo serviria linhas velhas sem que nada dissesse isso.
+    where _airbyte_generation_id = (
+        select snapshot_id from {{ ref('legacy_selected_capture') }}
+    )
 
 ),
 

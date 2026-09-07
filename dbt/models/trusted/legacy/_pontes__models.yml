@@ -1,0 +1,293 @@
+# Gerado por `make legacy-models`. Não edite: a lista sai de ponte.py.
+
+version: 2
+
+models:
+  - name: legado__brands
+    description: >
+      Registros aptos de `legacy.brands` na forma de `stg_retail__brands`,
+      empilhados em `product_skus`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__campaigns
+    description: >
+      Registros aptos de `legacy.campaigns` na forma de `stg_retail__campaigns`,
+      empilhados em `campaigns`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__carriers
+    description: >
+      Registros aptos de `legacy.carriers` na forma de `stg_retail__carriers`,
+      empilhados em `carriers`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__customer_segments
+    description: >
+      Registros aptos de `legacy.customer_segments` na forma de `stg_retail__customer_segments`,
+      empilhados em `customers`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__payment_methods
+    description: >
+      Registros aptos de `legacy.payment_methods` na forma de `stg_retail__payment_methods`,
+      empilhados em `payment_methods`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__product_categories
+    description: >
+      Registros aptos de `legacy.product_categories` na forma de `stg_retail__product_categories`,
+      empilhados em `product_skus`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__sales_channels
+    description: >
+      Registros aptos de `legacy.sales_channels` na forma de `stg_retail__sales_channels`,
+      empilhados em `sales_channels`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__suppliers
+    description: >
+      Registros aptos de `legacy.suppliers` na forma de `stg_retail__suppliers`,
+      empilhados em `suppliers`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__support_agents
+    description: >
+      Registros aptos de `legacy.support_agents` na forma de `stg_retail__support_agents`,
+      empilhados em `support_agents`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__warehouses
+    description: >
+      Registros aptos de `legacy.warehouses` na forma de `stg_retail__warehouses`,
+      empilhados em `warehouses`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__coupons
+    description: >
+      Registros aptos de `legacy.coupons` na forma de `stg_retail__coupons`,
+      empilhados em `coupons`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__customers
+    description: >
+      Registros aptos de `legacy.customers` na forma de `stg_retail__customers`,
+      empilhados em `customers`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__products
+    description: >
+      Registros aptos de `legacy.products` na forma de `stg_retail__products`,
+      empilhados em `product_skus`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__purchase_orders
+    description: >
+      Registros aptos de `legacy.purchase_orders` na forma de `stg_retail__purchase_orders`,
+      empilhados em `purchase_orders`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__carts
+    description: >
+      Registros aptos de `legacy.carts` na forma de `stg_retail__carts`,
+      empilhados em `carts`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__customer_addresses
+    description: >
+      Registros aptos de `legacy.customer_addresses` na forma de `stg_retail__customer_addresses`,
+      empilhados em `customers`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__goods_receipts
+    description: >
+      Registros aptos de `legacy.goods_receipts` na forma de `stg_retail__goods_receipts`,
+      empilhados em `purchase_order_items`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__product_variants
+    description: >
+      Registros aptos de `legacy.product_variants` na forma de `stg_retail__product_variants`,
+      empilhados em `product_skus`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__cart_items
+    description: >
+      Registros aptos de `legacy.cart_items` na forma de `stg_retail__cart_items`,
+      empilhados em `carts`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__inventory_balances
+    description: >
+      Registros aptos de `legacy.inventory_balances` na forma de `stg_retail__inventory_balances`,
+      empilhados em `inventory_balances`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__inventory_movements
+    description: >
+      Registros aptos de `legacy.inventory_movements` na forma de `stg_retail__inventory_movements`,
+      empilhados em `inventory_movements`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__orders
+    description: >
+      Registros aptos de `legacy.orders` na forma de `stg_retail__orders`,
+      empilhados em `orders`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__purchase_order_items
+    description: >
+      Registros aptos de `legacy.purchase_order_items` na forma de `stg_retail__purchase_order_items`,
+      empilhados em `purchase_order_items`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__coupon_redemptions
+    description: >
+      Registros aptos de `legacy.coupon_redemptions` na forma de `stg_retail__coupon_redemptions`,
+      empilhados em `coupon_redemptions`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__goods_receipt_items
+    description: >
+      Registros aptos de `legacy.goods_receipt_items` na forma de `stg_retail__goods_receipt_items`,
+      empilhados em `purchase_order_items`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__order_items
+    description: >
+      Registros aptos de `legacy.order_items` na forma de `stg_retail__order_items`,
+      empilhados em `order_items`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__order_status_history
+    description: >
+      Registros aptos de `legacy.order_status_history` na forma de `stg_retail__order_status_history`,
+      empilhados em `order_status_events`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__payments
+    description: >
+      Registros aptos de `legacy.payments` na forma de `stg_retail__payments`,
+      empilhados em `payments`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__shipments
+    description: >
+      Registros aptos de `legacy.shipments` na forma de `stg_retail__shipments`,
+      empilhados em `shipments`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__stock_reservations
+    description: >
+      Registros aptos de `legacy.stock_reservations` na forma de `stg_retail__stock_reservations`,
+      empilhados em `inventory_balances`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__delivery_events
+    description: >
+      Registros aptos de `legacy.delivery_events` na forma de `stg_retail__delivery_events`,
+      empilhados em `delivery_events`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__payment_transactions
+    description: >
+      Registros aptos de `legacy.payment_transactions` na forma de `stg_retail__payment_transactions`,
+      empilhados em `payment_transactions`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__shipment_items
+    description: >
+      Registros aptos de `legacy.shipment_items` na forma de `stg_retail__shipment_items`,
+      empilhados em `shipment_items`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__support_tickets
+    description: >
+      Registros aptos de `legacy.support_tickets` na forma de `stg_retail__support_tickets`,
+      empilhados em `support_tickets`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__refunds
+    description: >
+      Registros aptos de `legacy.refunds` na forma de `stg_retail__refunds`,
+      empilhados em `refunds`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian
+  - name: legado__ticket_events
+    description: >
+      Registros aptos de `legacy.ticket_events` na forma de `stg_retail__ticket_events`,
+      empilhados em `ticket_events`. As colunas são as do modelo de `staging`,
+      onde estão descritas.
+    meta:
+      domain: legado
+      owner: data_custodian

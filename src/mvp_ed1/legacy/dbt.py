@@ -152,10 +152,13 @@ with captura as (
 
     select *
     from {{{{ source('legacy', '{tabela}') }}}}
-    where _airbyte_generation_id = coalesce(
-        {{{{ legacy_snapshot_id() }}}}, (
-        select max(_airbyte_generation_id) from {{{{ source('legacy', '{tabela}') }}}}
-    ))
+    -- A captura é escolhida **uma vez**, em `legacy_selected_capture`, e não
+    -- aqui. O máximo por tabela parecia equivalente e não é: uma tabela que
+    -- não veio na carga nova cairia para a geração anterior sozinha, e o
+    -- modelo serviria linhas velhas sem que nada dissesse isso.
+    where _airbyte_generation_id = (
+        select snapshot_id from {{{{ ref('legacy_selected_capture') }}}}
+    )
 
 ),
 
@@ -201,6 +204,20 @@ def gerar(catalogo: Catalogo, promessas: frozenset[str], destino: pathlib.Path =
         caminho = destino / f"stg_legacy__{tabela}.sql"
         caminho.write_text(modelo(catalogo, tabela, promessas, limites), encoding="utf-8")
         escritos.append(caminho)
+
+    selecao = destino / "legacy_selected_capture.sql"
+    selecao.write_text(captura_selecionada(), encoding="utf-8")
+    escritos.append(selecao)
+
+    testes = pathlib.Path("dbt/tests")
+    testes.mkdir(parents=True, exist_ok=True)
+    for nome, conteudo in (
+        ("legacy_captura_existe", teste_captura_existe()),
+        ("legacy_captura_completa", teste_captura_completa()),
+    ):
+        caminho = testes / f"{nome}.sql"
+        caminho.write_text(conteudo, encoding="utf-8")
+        escritos.append(caminho)
     return escritos
 
 
@@ -233,4 +250,141 @@ sources:
     # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
     tables:
 {linhas}
+"""
+
+
+#: Tabelas que podem chegar vazias numa captura sem que isso seja incompletude.
+#:
+#: Vazia de propósito, e é essa a afirmação: as 40 tabelas do legado têm linhas,
+#: e uma que apareça sem nenhuma é captura incompleta, não tabela sem dado. O
+#: dia em que uma delas legitimamente esvaziar, o nome entra aqui — e entrar
+#: aqui é uma decisão declarada, não um teste que deixou de olhar.
+VAZIAS_LEGITIMAS: frozenset[str] = frozenset()
+
+
+def captura_selecionada() -> str:
+    """A captura que a execução inteira lê, resolvida uma vez.
+
+    ── Por que existe ────────────────────────────────────────────────────────
+    Antes, cada um dos 40 modelos resolvia `max(_airbyte_generation_id)` na sua
+    própria tabela. Parecia equivalente a uma escolha só e não é: a tabela que
+    não veio na carga nova tem o seu máximo na geração **anterior**, e serviria
+    linhas velhas ao lado das novas sem que nada acusasse a mistura.
+
+    Aqui o máximo é tomado entre todas as tabelas. A tabela que ficou para trás
+    passa a devolver zero linhas — que é visível, e é o que o teste de
+    completude procura.
+
+    ── Materializada, e não view ─────────────────────────────────────────────
+    Quarenta modelos a referenciam. Como *view*, cada referência reexecutaria a
+    varredura das 40 origens. Como tabela, o valor é decidido uma vez por
+    execução — e é isso que também impede que uma carga que chegue no meio do
+    `build` mude a captura entre uma camada e a seguinte.
+    """
+    ramos = "\n    union all\n".join(
+        f"    select max(_airbyte_generation_id) as snapshot_id"
+        f" from {{{{ source('legacy', '{tabela}') }}}}"
+        for tabela in schema.tabelas()
+    )
+    return f"""{AVISO}
+-- A captura do legado que esta execução lê.
+--
+-- `legacy_snapshot_id` escolhe explicitamente, para reprocessar uma captura
+-- antiga; sem ele, vale a mais recente. Que ela **exista** e esteja
+-- **completa** não se assume: é o que os testes `legacy_captura_existe` e
+-- `legacy_captura_completa` conferem.
+
+{{{{ config(materialized='table') }}}}
+
+with geracoes as (
+
+{ramos}
+
+)
+
+select coalesce(
+    {{{{ legacy_snapshot_id() }}}},
+    (select max(snapshot_id) from geracoes)
+)::bigint                                       as snapshot_id
+"""
+
+
+def teste_captura_existe() -> str:
+    """Selecionar uma captura que não existe não pode passar em silêncio."""
+    ramos = "\n    union all\n".join(
+        f"    select 1 from {{{{ source('legacy', '{tabela}') }}}}"
+        f" where _airbyte_generation_id = (select snapshot_id from selecionada)"
+        for tabela in schema.tabelas()
+    )
+    return f"""{AVISO}
+-- A captura selecionada existe em `raw_legacy`.
+--
+-- ── O buraco que este teste fecha ─────────────────────────────────────────
+-- Um `legacy_snapshot_id` inexistente selecionava zero linhas nas 40 origens,
+-- e o teste de consistência devolvia zero violações — porque ele agrupa o que
+-- está presente, e não havia nada presente para desmentir. Pipeline vazio
+-- passando por pipeline correto é o pior resultado possível: nada falha, e
+-- nada aconteceu.
+--
+-- Duas violações, uma consulta: a seleção não resolveu para número nenhum, ou
+-- resolveu para um número que não está em lugar nenhum do bruto.
+
+with selecionada as (
+
+    select snapshot_id from {{{{ ref('legacy_selected_capture') }}}}
+
+),
+
+presente as (
+
+{ramos}
+
+)
+
+select
+    (select snapshot_id from selecionada)       as snapshot_id,
+    'a captura selecionada não existe em raw_legacy' as violacao
+where not exists (select 1 from presente)
+
+union all
+
+select
+    null::bigint,
+    'nenhuma captura foi selecionada'
+where (select snapshot_id from selecionada) is null
+"""
+
+
+def teste_captura_completa() -> str:
+    """Captura em que falta tabela é captura incompleta, não tabela vazia."""
+    ramos = "\n\nunion all\n\n".join(
+        f"""select
+    '{tabela}'                                  as tabela,
+    (select snapshot_id from selecionada)       as snapshot_id
+where not exists (
+    select 1 from {{{{ source('legacy', '{tabela}') }}}}
+    where _airbyte_generation_id = (select snapshot_id from selecionada)
+)"""
+        for tabela in schema.tabelas()
+        if tabela not in VAZIAS_LEGITIMAS
+    )
+    return f"""{AVISO}
+-- Toda tabela declarada tem linha na captura selecionada.
+--
+-- É o que separa **tabela legitimamente vazia** de **captura ausente ou
+-- incompleta**, que do bruto sozinho são indistinguíveis: as duas aparecem
+-- como zero linhas. A separação é declarada, não inferida — as 40 tabelas do
+-- legado têm dado, e a exceção, se um dia existir, tem nome em
+-- `VAZIAS_LEGITIMAS`.
+--
+-- Uma linha no resultado é uma tabela que não veio na captura que está sendo
+-- lida.
+
+with selecionada as (
+
+    select snapshot_id from {{{{ ref('legacy_selected_capture') }}}}
+
+)
+
+{ramos}
 """
