@@ -46,13 +46,26 @@ conhecimento de causa.
 de 60 a 120 kB, e replanejar essa árvore a cada leitura esgotou a memória da estação. A exceção é
 **por origem**; o ramo `retail` continua sendo view.
 
-**Exceção de estratégia:** `fact_inventory_movement` é `incremental` com estratégia `merge`, e vem
-com as quatro proteções obrigatórias — sem elas a exceção não é concedida:
+**Exceção de estratégia:** `fact_inventory_movement` é `incremental`, e vem com as quatro proteções
+obrigatórias — sem elas a exceção não é concedida:
 
 1. `unique_key` declarada no identificador do evento;
 2. filtro por **tempo de evento**, com margem de atraso, nunca por tempo de carga;
 3. `--full-refresh` agendado e registrado no plano;
 4. teste de reconciliação que compara a tabela incremental com o resultado da reconstrução completa.
+
+**A exceção tem duas estratégias, uma por origem**, desde o
+[ADR-0042](0042-reconciliar-a-captura-legada-na-fato-incremental.md). O ramo `retail` chega por
+evento e entra por `merge`, com as quatro proteções na forma escrita acima. O ramo `legacy` chega por
+**captura** — lote inteiro, retroativo, que pode mudar de veredito entre capturas — e entra por
+`delete+insert`: a partição legada é apagada e reescrita pela captura corrente a cada execução.
+
+Para o ramo legado, portanto, a proteção nº 1 **não** é o mecanismo de idempotência — o recorte por
+captura é —, e a proteção nº 2 não se aplica: a janela por tempo de evento é o que impedia reler a
+captura inteira. As proteções nº 3 e nº 4 valem para os dois ramos, e a nº 4 ganhou uma prova por
+linha só do ramo legado, em `dbt/tests/legado_na_fato_segue_a_captura_corrente.sql`, mais a prova de
+reprocessamento em `tests/test_fato_incremental.py` — a que o achado R25 cobrava, porque agregado
+que fecha não distingue reconstrução de reconciliação.
 
 A regra geral que decorre disto: **`incremental` é exceção justificada, nunca padrão.**
 

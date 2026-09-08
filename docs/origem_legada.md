@@ -12,7 +12,7 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.5 |
+| Versão | 2.6 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
 | Última revisão | 08/09/2026 |
 
@@ -380,6 +380,19 @@ stacked_rows   = accepted_rows + corrected_rows
 ```
 
 Reprocessar o mesmo `snapshot_id` não pode duplicar registros: o tratamento é idempotente.
+
+**A captura é retroativa, e a fato incremental precisa disso escrito.** As camadas até `trusted` são
+reconstruídas por inteiro a cada execução, então a captura corrente é sempre o que elas mostram. A
+única relação do projeto que **não** é reconstruída é `fact_inventory_movement`, e nela o ramo legado
+entra por `delete+insert` — a partição é apagada e reescrita pela captura corrente — enquanto o ramo
+`retail` mantém a janela por tempo de evento
+([ADR-0042](adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md)).
+
+Sem isso, dois caminhos ficavam sem reconciliação: o registro que se torna **apto entre capturas**
+nunca era relido, porque o `occurred_at` dele é antigo demais para a janela alcançar; e o que
+**deixa de vir** na captura seguinte permanecia materializado, porque `merge` só faz *upsert*. Os
+dois são invisíveis numa fato que nasceu de reconstrução completa, e é por isso que a prova exigida
+é de **reprocessamento**, não de reconstrução — `tests/test_fato_incremental.py`.
 
 **Exclusões.** Diferente da origem principal, que pratica *soft delete*, o legado **apaga
 fisicamente** — é o comportamento verossímil de um sistema antigo. A ausência é detectada por

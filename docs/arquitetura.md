@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.3 |
+| Versão | 2.4 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 04/09/2026 |
+| Última revisão | 08/09/2026 |
 
 ---
 
@@ -79,6 +79,10 @@ Os schemas e a separação entre estágio do fluxo e schema estão fixados em
 [ADR-0017](adr/0017-chaves-substitutas-e-scd.md) — **nove ao todo**. A materialização de cada camada
 está no [ADR-0016](adr/0016-materializacao-por-camada.md); as contagens de objetos, no
 [Modelo de Dados](modelo_de_dados.md#6-camadas-no-armazém).
+
+A regra é **por camada**, mas tem duas exceções nomeadas, e as duas são **por origem** — o ramo
+legado se materializa e se reprocessa diferente do `retail`, em `staging` e na fato incremental. O
+ADR-0016 é o dono das duas; não estão repetidas aqui de propósito.
 
 | Camada | Conteúdo | Transformações permitidas | Consumidor |
 |---|---|---|---|
