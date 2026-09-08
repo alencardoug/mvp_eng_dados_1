@@ -294,6 +294,77 @@ pelo Git. O dump é uma salvaguarda desta manutenção, **não** o pacote aprova
 Etapa 12. Os resultados do cenário com eventos novos, saldos e idempotência pertencem a
 [Streaming §7.2](streaming.md#72-revalidação-da-d31).
 
+### 2.8 O número de dimensionamento não incluía o ambiente de trabalho — 07/09/2026
+
+**Correção do alcance do que está medido acima, não dos valores.** Os ~6 GB da §2.3 e os ~8 GB da
+§2.4 medem o **ambiente**: contêineres, cluster e *pipeline*. Nenhum deles conta as ferramentas com
+que se trabalha nesse ambiente, e é sobre a mesma memória que elas correm.
+
+Medido durante um travamento real da máquina, com Airbyte e *streaming* simultâneos:
+
+| Consumidor | Memória residente |
+|---|---|
+| Cluster do Airbyte (contêiner `kind`, `docker stats`) | **4,5 GB** |
+| VS Code | 3,0 GB |
+| Duas sessões de agente | 0,6 GB |
+| Navegador | 0,4 GB |
+| **Ambiente de trabalho, fora dos contêineres** | **~4,0 GB** |
+
+O total do ambiente de trabalho **não é folga disponível**: numa máquina de 11,5 GB, os 8 GB da
+Etapa 12 mais esses 4 GB são 12 GB. É déficit, não margem apertada — e foi o que se observou: o
+`kswapd` em atividade contínua, o *load average* em 32,4 sobre 4 CPUs, o OOM *killer* disparando
+151 vezes em uma hora e a sessão gráfica congelando até o botão de reinício.
+
+Duas consequências, uma tratada e uma em aberto:
+
+- **Tratada.** O tratamento do **R11** deixou de depender de quem lê a [Execução Local
+  §5](execucao_local.md#5-executando-por-partes): `make airbyte-up`, `airflow-up` e `stream-up`
+  passam por `docker/preflight.sh`, que **pausa o ambiente conflitante** antes de subir o pedido —
+  ciclo de troca medido em 18 s. Recusa só resta quando nem pausar basta, e aí `FORCE=1` autoriza,
+  no mesmo idioma de `seed-data` e `reset`.
+- **Em aberto.** A Etapa 12 exige tudo de pé ao mesmo tempo, e nessa máquina isso não cabe com o
+  ambiente de trabalho aberto. É a pendência **D36**.
+
+Um segundo achado, estrutural, sobre o custo do Airbyte: as JVMs permanentes do cluster rodam com
+`-XX:MaxRAMPercentage=75.0` dentro de um contêiner `kind` **sem limite de memória**, de modo que
+cada uma dimensiona o próprio *heap* pela memória da máquina inteira. É a mesma armadilha que a §2.4
+descreve para o Redpanda e o Kafka Connect — lá, resolvida por limite declarado no
+`docker-compose.streaming.yml`. Foi fechada no mesmo dia pelo
+[ADR-0041](adr/0041-teto-de-memoria-nos-servicos-do-airbyte.md), e o resultado está na §2.9.
+
+### 2.9 O teto de memória do Airbyte, medido — 07/09/2026
+
+Aplicados os tetos do [ADR-0041](adr/0041-teto-de-memoria-nos-servicos-do-airbyte.md), com
+`make sync-airbyte` completando **26.093 linhas** e o contêiner do cluster amostrado a cada 10 s:
+
+| Medida | Sem teto | Com teto |
+|---|---|---|
+| `server` | 662 MB | 634 MB |
+| `cron` | 624 MB | 605 MB |
+| `workload-api-server` | 553 MB | 455 MB |
+| `workload-launcher` | 484 MB | 437 MB |
+| `worker` | 480 MB | 466 MB |
+| **JVMs permanentes, ocioso** | **2.803 MB** | **2.596 MB** |
+| **Pico do cluster durante a sincronização** | 4,47 GiB | **4,95 GiB** |
+
+Nenhum *pod* morto por limite, nenhum disparo do OOM *killer* na janela, sincronização bem-sucedida.
+O único reinício foi do `workload-launcher`, e a causa foi conferida: `ConnectException` ao servidor
+que ainda subia — ordem de inicialização, não memória. A verificação importava porque o `JAVA_OPTS`
+do *chart* traz `-XX:+ExitOnOutOfMemoryError`, e OOM de *heap* apareceria como saída de código 1, não
+como `OOMKilled`.
+
+**As duas conclusões que contrariam a expectativa**, e é por isso que estão registradas:
+
+1. **O ocioso cai pouco — 7%.** Aritmética simples: o RSS já estava abaixo dos tetos declarados, e
+   teto acima do consumo não aperta nada.
+2. **O pico não cai.** Ele é dominado pelos *pods de job* da sincronização, cujos limites vivem em
+   `global.workloads.resources` e não foram tocados — `replication` 2Gi + `mainContainer` 2Gi +
+   `sidecar` 512Mi somam mais que toda a plataforma permanente.
+
+O número que sai daqui e muda o comportamento do ambiente é o **pico de 5,0 GB**, que passou a
+dimensionar o `docker/preflight.sh`. Autorizar a subida do Airbyte pelo consumo ocioso seria
+autorizar um travamento alguns minutos depois, quando a sincronização começasse.
+
 ---
 
 ## 3. Ponto único de recuperação

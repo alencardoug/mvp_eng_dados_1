@@ -77,6 +77,7 @@ decisão.
 | [0038](0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) | Fechar as equações com quarentena de excedente e rejeição em cascata | Aceita | Duplicata exata e filho de pai rejeitado |
 | [0039](0039-alcance-da-procedencia.md) | Aplicar a procedência onde as duas origens se encontram | Aceita | Alcance do `source_system` |
 | [0040](0040-rejeitar-nulo-em-campo-obrigatorio.md) | Rejeitar nulo em campo obrigatório após a limpeza | Aceita | D32 |
+| [0041](0041-teto-de-memoria-nos-servicos-do-airbyte.md) | Declarar teto de memória em todo serviço permanente do Airbyte | Aceita | Parte da D36 |
 
 ---
 

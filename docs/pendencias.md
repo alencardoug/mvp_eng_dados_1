@@ -12,14 +12,48 @@
 |---|---|
 | Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 0 |
+| Decisões pendentes | 1 — D36 |
 | Última revisão | 07/09/2026 |
 
 ---
 
 ## 1. Esperando você
 
-Nada. As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — foram decididas em
+### D36 — a Etapa 12 não cabe na máquina como está dimensionada
+
+A validação final exige tudo de pé ao mesmo tempo: ~8 GB só de ambiente
+([Capacidade §2.4](capacidade_e_recuperacao.md#24-medido-na-etapa-7--o-caminho-quente)). O que esse
+número nunca contou é o ambiente de trabalho — VS Code, sessões de agente e navegador somam ~4 GB,
+medidos em 07/09/2026. Numa máquina de 11,5 GB são 12 GB pedidos: déficit, não margem. O travamento
+que originou esta pendência está registrado na
+[Capacidade §2.8](capacidade_e_recuperacao.md#28-o-número-de-dimensionamento-não-incluía-o-ambiente-de-trabalho--07092026).
+
+Três saídas, e a escolha é de escopo, não técnica:
+
+1. **Rodar a Etapa 12 por terminal puro**, com o ambiente de trabalho fechado — sem VS Code, sem
+   agente, sem navegador. Libera os ~4 GB e faz o número de §2.4 caber com folga. Custa a
+   observabilidade de quem acompanha: a validação é conduzida por `make` e lida por log.
+2. **Fatiar a validação** em blocos que caibam, com o critério de conclusão da etapa satisfeito por
+   partes em vez de por uma execução única. Preserva o ambiente de trabalho e exige definir o que
+   uma execução completa comprova que a soma dos blocos não comprova.
+3. **Tirar do plano** a exigência de simultaneidade, assumindo que a fase local não a demonstra e
+   registrando a contrapartida na fase GCP.
+
+**O agravante estrutural foi decidido e fechado** pelo
+[ADR-0041](adr/0041-teto-de-memoria-nos-servicos-do-airbyte.md): todo serviço permanente do Airbyte
+passou a declarar teto de memória. A medição, porém, **não** resolveu o que esta pendência trata —
+o ocioso caiu 7% e o pico durante a sincronização não caiu, porque é dominado pelos *pods de job*.
+O déficit da Etapa 12 continua inteiro.
+
+O risco imediato está tratado sem decisão sua: `make airbyte-up`, `airflow-up` e `stream-up` pausam
+o ambiente conflitante antes de subir (**R11**), dimensionados pelo pico medido de 5,0 GB. Recusa só
+resta quando nem a troca basta, e aí `FORCE=1` autoriza.
+
+---
+
+## 1.1 Decididas e implementadas
+
+As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — foram decididas em
 07/09/2026 e estão implementadas; o registro delas está abaixo.
 
 Os bloqueios que restam da revisão são **implementação**, não decisão: R10 (detecção de exclusão
