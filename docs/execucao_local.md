@@ -246,6 +246,18 @@ e o conector Debezium, e a volta leva ~20 s — contra os minutos de um `airbyte
 e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo. O ciclo
 completo de troca, medido: **18 s**.
 
+**Duas salvaguardas, porque troca automática que erra custa trabalho perdido:**
+
+- **Nada é pausado com trabalho em andamento.** Antes de parar qualquer coisa, o *preflight* procura
+  sincronização ativa no Airbyte, DAG em execução no Airflow e o *pipeline* Beam ou o produtor
+  rodando no *host* — este último importa porque roda **fora** dos contêineres, e parar o transporte
+  sob ele o quebra. Achando qualquer um, recusa e não toca em nada. Verificação que não responde
+  conta como bloqueio, não como "não há trabalho": perder uma sincronização em silêncio é pior que
+  uma recusa a mais.
+- **Pausa que não resolve é desfeita.** Se, mesmo depois de pausar, a memória ainda não bastar, o
+  que foi pausado é religado antes da recusa. Quem rodou o alvo pediu para subir algo, não para
+  derrubar o resto.
+
 `make preflight ALVO=airbyte|airflow|streaming` responde à mesma pergunta sem efeito nenhum — é
 consulta, não ação.
 

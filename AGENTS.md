@@ -20,7 +20,8 @@ O mapa dos documentos está no [README](README.md). O que está parado esperando
 4. **Dois ambientes pesados nunca ficam de pé juntos** (`CLAUDE.md` §5). Airbyte, Airflow e
    *streaming* não cabem na mesma máquina (**R11**), e os alvos `airbyte-up`, `airflow-up` e
    `stream-up` **trocam sozinhos**: pausam o conflitante e retomam o que estiver pausado. Você não
-   precisa orquestrar isso. Se ainda assim vier recusa, é falta de memória real — **pausa para o
+   precisa orquestrar isso — nem temer que a troca mate trabalho: com sincronização, DAG ou
+   *pipeline* no ar ela recua sem tocar em nada. Se ainda assim vier recusa, é falta de memória real — **pausa para o
    Owner**, não obstáculo a contornar com `FORCE=1` por conta própria.
 
 ## Trabalho encaminhado

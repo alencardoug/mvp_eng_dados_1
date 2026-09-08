@@ -95,7 +95,8 @@ Airflow e o *streaming* não cabem juntos na máquina local (risco **R11**), e o
 cada cenário está em [Execução Local §5](docs/execucao_local.md#5-executando-por-partes).
 `make airbyte-up`, `airflow-up` e `stream-up` fazem a troca sozinhos: pausam o ambiente
 conflitante, esperam a memória voltar e sobem o que você pediu — pausar, nunca desmontar, e a
-retomada é `make <ambiente>-resume`. Rodar o alvo do outro ambiente também retoma sozinho o que
+retomada é `make <ambiente>-resume`. **Nada é pausado com trabalho em andamento** — sincronização,
+DAG ou *pipeline* no ar fazem a troca recuar sem tocar em nada, e pausa que não resolve é desfeita. Rodar o alvo do outro ambiente também retoma sozinho o que
 estiver pausado. `make preflight ALVO=…` responde à mesma pergunta sem efeito nenhum.
 
 **Recusa só sobra quando nem a troca resolve** — memória insuficiente mesmo depois de pausar. Aí ela
