@@ -42,7 +42,15 @@ for path, text in texts.items():
 # decisões já resolvidas não podem seguir na tabela de pendentes
 index = texts[ROOT / "docs/adr/README.md"]
 registradas, pendentes = index.split("## 3. Decisões pendentes")
-resolvidas = set(re.findall(r"\bD\d{2}\b", registradas))
+# "Parte da D36" registra resolução **parcial**: o ADR fechou um pedaço e a
+# decisão continua pendente. Contá-la como resolvida obrigaria a escolher entre
+# apagar a origem parcial da §2 e apagar a pendência real da §3 — as duas
+# perdem informação, e a que se perderia é justamente a que o R14 cobra.
+resolvidas = {
+    codigo
+    for parcial, codigo in re.findall(r"(?:(Parte da) )?\b(D\d{2})\b", registradas)
+    if not parcial
+}
 for d in sorted(resolvidas & set(re.findall(r"\bD\d{2}\b", pendentes))):
     problems.append(f"decisão resolvida ainda listada como pendente: {d}")
 
@@ -56,7 +64,9 @@ esperado = f"{n_adr} aceitos, {n_pend} pendente" + ("" if n_pend == 1 else "s")
 if esperado not in readme:
     problems.append(f"README desatualizado — esperado {esperado!r}")
 header = texts[ROOT / "docs/pendencias.md"]
-if f"| Decisões pendentes | {n_pend} |" not in header:
+# O cabeçalho pode nomear quais são — "1 — D36" —, e nomear é melhor que contar.
+# O que se confere é o número, não a ausência de contexto ao lado dele.
+if not re.search(rf"\| Decisões pendentes \| {n_pend}(?: —[^|]*)? \|", header):
     problems.append(f"pendencias.md desatualizado — esperado {n_pend} decisões pendentes")
 
 # a numeração Dnn não é densa: lacunas não indicam decisão perdida
