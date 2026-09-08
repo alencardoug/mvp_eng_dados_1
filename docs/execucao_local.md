@@ -185,6 +185,10 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
 | `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |
 | `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
+| `make preflight` | Diz se cabe subir um subconjunto; `ALVO=airbyte\|airflow\|streaming`. Consulta pura | Etapa 10 |
+| `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo | Etapa 10 |
+| `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector | Etapa 10 |
+| `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow | Etapa 10 |
 | `make test` | Testes de código Python (`pytest`); `CARGA=1` inclui a que escreve no banco | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
@@ -221,6 +225,34 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Trabalhar no streaming | `make up` + `make stream-up` + `make stream-run` |
 | Reconciliar o CDC contra a carga completa | acrescentar `make airbyte-up` e `make sync-airbyte` |
 | Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
+
+**A tabela deixou de depender de quem a lê, e a troca deixou de ser manual.** `make airbyte-up`,
+`airflow-up` e `stream-up` passam por `docker/preflight.sh`, que mede a memória, vê o que está de pé
+e **pausa o ambiente conflitante** antes de subir o que foi pedido:
+
+```
+$ make stream-up
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] Airbyte está de pé e não convive com 'streaming' — pausando.
+[preflight] Airbyte pausado — retomar com make airbyte-resume
+[preflight] RAM disponível agora: 6,4 GB — sobraria 5,9 GB
+[preflight] OK
+```
+
+**Pausar, nunca desmontar.** Um `docker stop` devolve a memória inteira, preserva contêineres, dados
+e o conector Debezium, e a volta leva ~20 s — contra os minutos de um `airbyte-down`, que é
+`abctl local uninstall` e cai na armadilha do `PG_VERSION` da seção 6. Os pares são
+`airbyte-pause`/`airbyte-resume`, `stream-pause`/`stream-resume` e `airflow-pause`/`airflow-resume`,
+e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo. O ciclo
+completo de troca, medido: **18 s**.
+
+`make preflight ALVO=airbyte|airflow|streaming` responde à mesma pergunta sem efeito nenhum — é
+consulta, não ação.
+
+**Recusa só resta quando a troca não basta:** memória insuficiente mesmo depois de pausar. Como em
+`seed-data` e `reset`, `FORCE=1` autoriza — e é autorização do Owner, não atalho de quem esbarrou na
+recusa. A execução completa da Etapa 12 é o caso em que ela se aplica, e não cabe nesta máquina com
+o ambiente de trabalho aberto: pendência **D36**.
 
 ---
 
@@ -357,6 +389,30 @@ o `dbt build` recria em seguida, não dado — o `raw` é declarado descartável
 **A consequência precisa ser dita:** a ordem `sync-airbyte` → `dbt-build` deixa de ser preferência e
 passa a ser obrigatória. Entre as duas, as views de `staging` não existem. É uma das razões de o
 [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) ter ido buscar um orquestrador.
+
+### Parei o contêiner do Airbyte para liberar memória, e agora `make airbyte-up` não volta
+
+Sintoma, depois de um `docker stop airbyte-abctl-control-plane`:
+
+```
+Validating existing cluster 'airbyte-abctl'
+ERROR  container "airbyte-abctl-control-plane" is not running (status = "exited")
+```
+
+O `abctl` **valida** o cluster existente, mas não o reinicia: para ele, cluster parado é cluster
+quebrado. Parar o contêiner é a forma mais barata de devolver memória à máquina sem desinstalar
+nada — e é o que o [preflight](#5-executando-por-partes) recomenda quando o Airbyte está no caminho
+—, então o caminho de volta precisa ser conhecido.
+
+**Solução:** subir o contêiner antes, e esperar o kubelet responder.
+
+```bash
+docker start airbyte-abctl-control-plane
+# o cluster leva ~20 s para os pods voltarem a Ready
+```
+
+Só depois disso um `make airbyte-up` faz sentido — e ele é necessário apenas quando o
+`airbyte/values.yaml` mudou, porque reiniciar o contêiner **não** reaplica o chart.
 
 ### `make airbyte-up` falha com `permission denied` no `PG_VERSION`
 

@@ -8,7 +8,7 @@ regra do projeto é que cada assunto tem um dono documental, e duplicar é defei
 O mapa dos documentos está no [README](README.md). O que está parado esperando o Owner está em
 [`docs/pendencias.md`](docs/pendencias.md).
 
-## Três coisas que costumam ser descobertas tarde
+## Quatro coisas que costumam ser descobertas tarde
 
 1. **Você não decide o que exige ADR** (`CLAUDE.md` §5). Escolha de ferramenta, mudança de camada,
    alteração de modelagem central ou de tratamento de dados são do Owner. Na dúvida, registre como
@@ -17,6 +17,11 @@ O mapa dos documentos está no [README](README.md). O que está parado esperando
    (princípio **P5**). "Planejado" e "medido" são rótulos diferentes e nunca se misturam.
 3. **ADR aceito nunca é reescrito.** Se uma medição citada dentro de um ADR mudar, o ADR fica como
    está e a mudança é registrada onde o número vive hoje.
+4. **Dois ambientes pesados nunca ficam de pé juntos** (`CLAUDE.md` §5). Airbyte, Airflow e
+   *streaming* não cabem na mesma máquina (**R11**), e os alvos `airbyte-up`, `airflow-up` e
+   `stream-up` **trocam sozinhos**: pausam o conflitante e retomam o que estiver pausado. Você não
+   precisa orquestrar isso. Se ainda assim vier recusa, é falta de memória real — **pausa para o
+   Owner**, não obstáculo a contornar com `FORCE=1` por conta própria.
 
 ## Trabalho encaminhado
 

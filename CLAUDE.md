@@ -90,6 +90,18 @@ bloqueante**; erro em derivado é sintoma, e se corrige na declaração — nunc
 modelagem central ou de tratamento de dados são decisão do Owner. Na dúvida, propor e registrar
 como pendência, não implementar.
 
+**Não subir dois ambientes pesados ao mesmo tempo — e não é você quem precisa lembrar.** Airbyte,
+Airflow e o *streaming* não cabem juntos na máquina local (risco **R11**), e o que basta subir em
+cada cenário está em [Execução Local §5](docs/execucao_local.md#5-executando-por-partes).
+`make airbyte-up`, `airflow-up` e `stream-up` fazem a troca sozinhos: pausam o ambiente
+conflitante, esperam a memória voltar e sobem o que você pediu — pausar, nunca desmontar, e a
+retomada é `make <ambiente>-resume`. Rodar o alvo do outro ambiente também retoma sozinho o que
+estiver pausado. `make preflight ALVO=…` responde à mesma pergunta sem efeito nenhum.
+
+**Recusa só sobra quando nem a troca resolve** — memória insuficiente mesmo depois de pausar. Aí ela
+**não é obstáculo a contornar**: pare, peça ao Owner que libere a máquina, espere a confirmação, e
+só então `FORCE=1` autoriza. Forçar sem isso já travou a máquina.
+
 **Não inventar.** Métrica, volume, linhagem ou resultado que não foi medido é marcado como pendente
 (princípio **P5**). "Planejado" e "medido" são rótulos diferentes e nunca se misturam.
 

@@ -40,13 +40,27 @@ CREDENCIAIS = eval "$$($(ABCTL) local credentials 2>/dev/null \
 	| sed 's/^/export /')" 
 BASE := source_db legacy_db warehouse_db
 
+# Verificação de recursos antes de subir um subconjunto pesado do ambiente (R11).
+# A lógica vive em docker/preflight.sh. O contrato daqui: `--trocar` autoriza o
+# script a **pausar** o ambiente conflitante — nunca a desmontá-lo —, de modo que
+# subir um já derruba o outro sozinho; recusa continua sendo erro; e FORCE=1 é a
+# autorização explícita do Owner, mesmo idioma de `seed-data` e `reset`.
+define preflight
+@if [ "$(FORCE)" = "1" ]; then \
+	echo "[preflight] ignorado por FORCE=1 — subida de $(1) autorizada pelo Owner."; \
+else \
+	docker/preflight.sh $(1) --trocar; \
+fi
+endef
+
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
         migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
         dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
         stream-up stream-down stream-connector stream-status stream-run stream-produce \
         stream-duplicate stream-alerts stream-reset-sink \
-        require-env require-venv require-abctl require-terraform
+        preflight airbyte-pause airbyte-resume stream-pause stream-resume \
+        airflow-pause airflow-resume require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis:"
@@ -192,8 +206,58 @@ require-abctl:
 require-terraform:
 	@test -x .tools/terraform || { echo "ERRO: Terraform ausente. Rode 'make tools'."; exit 1; }
 
-airbyte-up: require-abctl ## Sobe o Airbyte local (cluster próprio; ~9 GB de imagens na primeira vez)
-	@$(ABCTL) local install --values airbyte/values.yaml
+preflight: ## Diz se cabe subir um subconjunto do ambiente; ALVO=airbyte|airflow|streaming
+	@docker/preflight.sh $(ALVO)
+
+# ── Pausa e retomada ────────────────────────────────────────────────────────
+# Devolver memória à máquina sem desmontar nada. `airbyte-down` é
+# `abctl local uninstall`: destrói o cluster, e voltar custa uma reinstalação
+# inteira — que é justamente onde mora a armadilha do `PG_VERSION`
+# (Execução Local §6). Parar o contêiner libera a mesma memória e volta em ~20 s.
+airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-lo
+	@docker stop airbyte-abctl-control-plane >/dev/null 2>&1 && \
+		echo "Airbyte pausado. Retomar: make airbyte-resume" || \
+		echo "Airbyte já não estava de pé."
+
+airbyte-resume: ## Religa o cluster do Airbyte pausado e espera os pods
+	@docker start airbyte-abctl-control-plane >/dev/null || { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }
+	@printf "aguardando o cluster"
+	@for i in $$(seq 1 30); do \
+		if docker exec airbyte-abctl-control-plane crictl pods 2>/dev/null | grep -q Ready; then \
+			echo " pronto."; exit 0; fi; \
+		printf "."; sleep 5; done; \
+		echo " tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'."
+
+stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
+	@docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda >/dev/null 2>&1 && \
+		echo "Streaming pausado. Retomar: make stream-resume" || \
+		echo "Streaming já não estava de pé."
+
+stream-resume: ## Religa Redpanda e Kafka Connect pausados
+	@docker start mvp_ed1_redpanda mvp_ed1_kafka_connect >/dev/null || { echo "ERRO: contêineres não existem. Use 'make stream-up'."; exit 1; }
+	@echo "Streaming retomado. O conector Debezium volta do ponto em que parou."
+
+airflow-pause: ## Para os contêineres do Airflow liberando a memória
+	@docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop >/dev/null 2>&1 && \
+		echo "Airflow pausado. Retomar: make airflow-resume" || \
+		echo "Airflow já não estava de pé."
+
+airflow-resume: ## Religa os contêineres do Airflow pausados
+	@docker ps -a --format '{{.Names}}' | grep '^airflow_' | xargs -r docker start >/dev/null && \
+		echo "Airflow retomado."
+
+airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
+	$(call preflight,airbyte)
+	@# Cluster pausado — por `airbyte-pause`, ou pela troca automática que o
+	@# preflight faz ao subir o streaming — não se reinstala: o `abctl` valida o
+	@# cluster antes de qualquer coisa e recusa um contêiner parado. Retomar leva
+	@# ~20 s; reinstalar leva minutos e esbarra no `PG_VERSION` (§6).
+	@if [ -n "$$(docker ps -aq -f 'name=^airbyte-abctl-control-plane$$' -f status=exited)" ]; then \
+		echo "cluster pausado — retomando em vez de reinstalar"; \
+		$(MAKE) --no-print-directory airbyte-resume; \
+	else \
+		$(ABCTL) local install --values airbyte/values.yaml; \
+	fi
 	@echo ""
 	@echo "Interface em http://localhost:8000 — credenciais em 'make airbyte-credentials'."
 
@@ -234,6 +298,7 @@ dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 
 		$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
 
 airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, três contêineres)
+	$(call preflight,airflow)
 	@grep -q '^AIRFLOW_JWT_SECRET=' .env || { \
 		echo "acrescentando os segredos do Airflow ao .env"; \
 		pw() { LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; }; \
@@ -273,6 +338,7 @@ dag-status: require-env ## Mostra o estado das tarefas da última execução da 
 
 # ── Caminho quente (Etapa 7) ────────────────────────────────────────────────
 stream-up: require-env ## Sobe Redpanda e Kafka Connect e aplica o conector Debezium
+	$(call preflight,streaming)
 	@$(COMPOSE_STREAM) up -d --wait redpanda kafka_connect
 	@$(MAKE) --no-print-directory stream-connector
 	@echo ""
