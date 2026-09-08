@@ -18,6 +18,14 @@ x-postgres-base: &postgres-base
   image: postgres:16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
   restart: unless-stopped
   stop_grace_period: 30s
+  # Teto de memória, pelo mesmo critério do Redpanda e do Kafka Connect
+  # (ADR-0020) e dos serviços do Airbyte (ADR-0041): todo serviço permanente
+  # declara o seu. Os bancos eram a exceção que sobrou, e ela custou caro — em
+  # 08/09/2026 uma consulta sozinha levou um `backend` a 7,7 GB numa máquina de
+  # 11 GB e travou a estação, em vez de falhar. Com o teto, a consulta
+  # desgovernada morre e o contêiner reinicia; a máquina não vai junto.
+  # Carga normal do armazém roda em torno de 30 MB (ADR-0043).
+  mem_limit: 2g
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -q"]
     interval: 5s
@@ -73,6 +81,18 @@ services:
       POSTGRES_DB: ${WAREHOUSE_DB_NAME}
       POSTGRES_USER: ${WAREHOUSE_DB_USER}
       POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    # `jit=off` não é ajuste fino, é o que impede o armazém de derrubar a
+    # máquina (ADR-0043). Os modelos de limpeza do legado são código gerado de
+    # 60 a 120 kB, com dezenas de expressões regulares por coluna; o LLVM
+    # compila essa árvore e não devolve o que alocou. Medido em 08/09/2026, uma
+    # única dessas views numa sessão recém-aberta custa 281 MB com o JIT
+    # desligado e passa de 2 GB com ele ligado. O ganho que o JIT existe para
+    # dar — amortizar compilação sobre muitas linhas — não se aplica: aqui a
+    # expressão é enorme e as linhas são poucas.
+    command:
+      - postgres
+      - -c
+      - jit=off
     ports:
       - "${WAREHOUSE_DB_PORT}:5432"
     volumes:

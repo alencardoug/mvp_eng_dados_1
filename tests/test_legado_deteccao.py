@@ -30,6 +30,7 @@ import pathlib
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 
 from mvp_ed1.db import WAREHOUSE, database_url
 from mvp_ed1.generator import enums
@@ -51,7 +52,17 @@ def manifesto() -> dict:
 
 @pytest.fixture(scope="module")
 def engine():
-    motor = create_engine(database_url(WAREHOUSE))
+    """Motor **sem pool**: cada `connect()` é um `backend` novo, e fechá-lo devolve a memória.
+
+    Contenção, não conserto. O que estoura a máquina é o JIT do PostgreSQL sobre
+    estas views (ver `_achados_dos_modelos`), e `NullPool` não o desliga: medido
+    em 08/09/2026, uma única view pesada numa sessão recém-aberta já passa de
+    2 GB com `jit=on`. O que o `NullPool` evita é o acúmulo **entre** consultas —
+    com o pool padrão as quarenta caem no mesmo `backend` e somam; sem ele, o
+    pico de cada uma é independente. Enquanto a causa não é decidida, este
+    arquivo ao menos não soma quarenta.
+    """
+    motor = create_engine(database_url(WAREHOUSE), poolclass=NullPool)
     with motor.connect() as conexao:
         existe = conexao.execute(
             text(
@@ -136,15 +147,43 @@ DE_CONTEXTO = frozenset(
 
 
 def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
-    uniao = "
-union all
-".join(
-        f"select '{tabela}' as tabela, legacy_row_id, chave as coluna, valor as codigo "
-        f"from staging.stg_legacy__{tabela}, jsonb_each_text(achados) as e(chave, valor)"
-        for tabela in schema.tabelas()
-    )
-    with engine.connect() as conexao:
-        return {tuple(linha) for linha in conexao.execute(text(uniao))}
+    """Lê o `achados` de cada modelo de limpeza — **uma consulta por tabela**.
+
+    A forma óbvia é um `union all` das quarenta views numa consulta só, e foi
+    assim até 08/09/2026, quando travou a estação duas vezes: um `backend` do
+    armazém chegou a 7,7 GB numa máquina de 11 GB, e o que morreu não foi a
+    consulta, foi o ambiente de trabalho junto.
+
+    A causa não é volume — cada view tem uma linha. São **duas**, medidas em
+    08/09/2026 nesta máquina, e só a segunda é tratada aqui:
+
+    * **o JIT do PostgreSQL** (`jit=on`, padrão). A view de limpeza é código
+      gerado de 60 a 120 kB, com dezenas de expressões regulares por coluna; o
+      LLVM compila essa árvore e não devolve o que alocou. A mesma view, na
+      mesma sessão nova, custa **281 MB com `jit=off` e passa de 2 GB com
+      `jit=on`**. É a causa raiz, vale para `dbt build` também, e é decisão do
+      Owner — não se conserta em teste.
+    * **a união de quarenta braços**. O planejador embute a view no lugar da
+      referência, e unir as quarenta dá uma árvore de três megabytes para
+      pré-processar de uma vez: passa de 2 GB *mesmo com o JIT desligado*. Por
+      tabela, o pico volta para o de uma view só.
+
+    Consulta por tabela não perde nada: o resultado é um conjunto, e a união
+    passa a acontecer em Python, onde quarenta conjuntos de dezenas de tuplas
+    não custam nada. O modelo `legacy_records` tem a mesma forma e o mesmo
+    problema, e esse não dá para resolver em Python.
+    """
+    achados: set[tuple[str, int, str, str]] = set()
+    for tabela in schema.tabelas():
+        consulta = (
+            f"select '{tabela}' as tabela, legacy_row_id, chave as coluna, valor as codigo "
+            f"from staging.stg_legacy__{tabela}, jsonb_each_text(achados) as e(chave, valor)"
+        )
+        # Uma conexão por tabela — e o `NullPool` do `engine` é que faz disso um
+        # `backend` novo de fato. Sem ele, `connect()` devolve o mesmo do pool.
+        with engine.connect() as conexao:
+            achados.update(tuple(linha) for linha in conexao.execute(text(consulta)))
+    return achados
 
 
 def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
@@ -164,9 +203,13 @@ def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
       já estavam nelas.
     """
     with engine.connect() as conexao:
+        # `tables`, não `views`: a pergunta é se o modelo existe, não como ele
+        # foi materializado. Perguntar por `views` fazia este teste **pular em
+        # silêncio** assim que o ADR-0043 tornou o staging legado tabela — e
+        # pular em silêncio é o modo de falha que este arquivo existe para pegar.
         existe = conexao.execute(
             text(
-                "select count(*) from information_schema.views "
+                "select count(*) from information_schema.tables "
                 "where table_schema = 'staging' and table_name like 'stg_legacy__%'"
             )
         ).scalar_one()
