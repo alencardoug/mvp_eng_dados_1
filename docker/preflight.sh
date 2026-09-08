@@ -57,6 +57,52 @@ CUSTO="${!custo_var}"
 # --- o que já está de pé -----------------------------------------------------
 _no_ar() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "$1"; }
 
+# Um ambiente pelo nome, para reconsultar depois de agir sobre ele.
+_ainda_no_ar() {
+	case "$1" in
+	Airbyte)   _no_ar '^airbyte-abctl-control-plane$' ;;
+	Airflow)   _no_ar '^airflow_' ;;
+	streaming) _no_ar '_(redpanda|kafka_connect)$' ;;
+	*) return 1 ;;
+	esac
+}
+
+# Parar e religar respondem pelo **estado resultante**, não pelo código de saída
+# do `docker`. O código não basta: `xargs` sobre lista vazia sai 0 sem parar
+# nada, e uma parada parcial deixa metade do ambiente de pé. Anunciar "pausado"
+# sem conferir é pior que não pausar — o preflight libera o alvo achando que
+# desfez o conflito, e os dois ambientes sobem juntos, que é o R11.
+_parar() {
+	case "$1" in
+	streaming) docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda >/dev/null 2>&1 ;;
+	Airbyte)   docker stop airbyte-abctl-control-plane >/dev/null 2>&1 ;;
+	Airflow)   docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop >/dev/null 2>&1 ;;
+	esac
+	! _ainda_no_ar "$1"
+}
+
+_religar() {
+	case "$1" in
+	streaming) docker start mvp_ed1_redpanda mvp_ed1_kafka_connect >/dev/null 2>&1 ;;
+	Airbyte)   docker start airbyte-abctl-control-plane >/dev/null 2>&1 ;;
+	Airflow)   docker ps -a --format '{{.Names}}' | grep '^airflow_' | xargs -r docker start >/dev/null 2>&1 ;;
+	esac
+	_ainda_no_ar "$1"
+}
+
+# Desfaz as pausas já feitas. Restauração que falha é dita em voz alta e por
+# nome: o ambiente ficou pior do que estava, e quem opera precisa saber qual.
+_restaurar() {
+	local nome
+	for nome in "$@"; do
+		if _religar "$nome"; then
+			echo "[preflight] $nome restaurado."
+		else
+			echo "[preflight] ATENÇÃO: falhei em restaurar $nome — ele ficou parado."
+		fi
+	done
+}
+
 # Trabalho em andamento no ambiente que seria pausado. Pausar é barato para um
 # serviço ocioso e caro para um que está no meio de alguma coisa: `docker stop`
 # durante uma sincronização a mata, e durante uma DAG mata a execução. Ecoa a
@@ -155,17 +201,35 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
   done
 
   PAUSADOS=()
+  FALHOU=""
   for c in "${CONFLITO[@]}"; do
     nome="${c%%:*}"
     echo "[preflight] $nome está de pé e ocioso — pausando."
-    case "$nome" in
-      streaming) docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda >/dev/null 2>&1 ;;
-      Airbyte)   docker stop airbyte-abctl-control-plane >/dev/null 2>&1 ;;
-      Airflow)   docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop >/dev/null 2>&1 ;;
-    esac
+    if ! _parar "$nome"; then
+      FALHOU="$nome"
+      echo "[preflight] falhei em pausar $nome — ele continua de pé."
+      break
+    fi
     PAUSADOS+=("$nome")
     echo "[preflight] $nome pausado — retomar com ${c#*:}"
   done
+
+  # Pausa que não aconteceu não elimina conflito. Recua tudo e recusa: liberar o
+  # alvo aqui subiria o segundo ambiente por cima do primeiro.
+  if [ -n "$FALHOU" ]; then
+    [ ${#PAUSADOS[@]} -gt 0 ] && _restaurar "${PAUSADOS[@]}"
+    echo ""
+    echo "RECUSADO — não consegui pausar $FALHOU, e ele continua de pé."
+    echo "  Subir '$ALVO' em cima dele é o que o R11 diz não caber."
+    echo ""
+    echo "  Veja o que houve e pause você mesmo:"
+    case "$FALHOU" in
+      streaming) echo "    docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda" ;;
+      Airbyte)   echo "    docker stop airbyte-abctl-control-plane" ;;
+      Airflow)   echo "    docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop" ;;
+    esac
+    exit 1
+  fi
 
   # O kernel não devolve a memória no instante do stop; espera estabilizar.
   ANTES="$DISPONIVEL"
@@ -183,14 +247,7 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
     # Pausar e desistir deixaria o ambiente pior do que estava: quem rodou o
     # alvo não pediu para derrubar nada, pediu para subir. Desfaz.
     echo "[preflight] não cabe mesmo assim — restaurando o que foi pausado."
-    for nome in "${PAUSADOS[@]}"; do
-      case "$nome" in
-        streaming) docker start mvp_ed1_redpanda mvp_ed1_kafka_connect >/dev/null 2>&1 ;;
-        Airbyte)   docker start airbyte-abctl-control-plane >/dev/null 2>&1 ;;
-        Airflow)   docker ps -a --format '{{.Names}}' | grep '^airflow_' | xargs -r docker start >/dev/null 2>&1 ;;
-      esac
-      echo "[preflight] $nome restaurado."
-    done
+    [ ${#PAUSADOS[@]} -gt 0 ] && _restaurar "${PAUSADOS[@]}"
     RECUSA="mesmo depois de pausar $(IFS=' e '; echo "${PAUSADOS[*]}"), sobraria menos que a folga mínima de $(_gb "$FOLGA_MINIMA")"
   fi
 fi
