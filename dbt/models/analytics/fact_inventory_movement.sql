@@ -8,15 +8,44 @@
 -- alimenta esta fato por *streaming*, e reconstruí-la por inteiro a cada
 -- execução contradiria o propósito do fluxo contínuo.
 --
--- A exceção veio com quatro proteções **obrigatórias**. Sem elas ela não é
--- concedida, e por isso as quatro estão aqui, nomeadas:
+-- ═══ Uma exceção, duas estratégias — uma por origem ══════════════════════════
+-- O [ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md)
+-- partiu a exceção em duas, porque as duas origens têm naturezas diferentes:
 --
---   1. `unique_key` no identificador do evento — `movement_id`, logo abaixo.
+--   * **`retail` chega por evento**, em ordem aproximada, e continua entrando
+--     por `merge` com filtro por tempo de evento e margem de atraso;
+--   * **`legacy` chega por captura** — um lote inteiro e retroativo, que pode
+--     mudar de veredito entre capturas. Entra por `delete+insert`: a partição
+--     legada é apagada e reescrita pela captura corrente a cada execução.
+--
+-- **Por que o `config` diz `merge` e o ADR diz `delete+insert`.** O dbt admite
+-- uma estratégia por modelo, e a do `config` é a do ramo `retail`. O
+-- `delete+insert` do ramo legado é literalmente isso, escrito em duas partes: o
+-- `pre_hook` apaga a partição, e o `select` abaixo a reinsere inteira. Não é
+-- rodeio — é a única forma de ter as duas no mesmo modelo.
+--
+-- **O que a estratégia antiga não reconciliava.** O filtro usava
+-- `max(occurred_at)` **global**, e o `retail` está dias à frente da captura
+-- legada: medido em 08/09/2026, a janela de sete dias alcançava 7 dos 553
+-- movimentos legados. Ficavam de fora dois caminhos — o registro que se torna
+-- apto fora da janela, que nunca era relido, e o que deixa de vir na captura
+-- seguinte, que o `merge` nunca apagaria porque `merge` só faz *upsert*.
+--
+-- ═══ As quatro proteções obrigatórias ════════════════════════════════════════
+-- Sem elas a exceção não é concedida, e por isso as quatro estão aqui,
+-- nomeadas — com a ressalva que o ADR-0042 registra:
+--
+--   1. `unique_key` no identificador do evento — logo abaixo. **Vale para o
+--      ramo `retail`.** A idempotência do ramo legado não vem daqui: vem do
+--      recorte por captura, que reescreve a partição inteira.
 --   2. Filtro por **tempo de evento** com margem de atraso, nunca por tempo de
---      carga. Está no bloco `is_incremental()`.
+--      carga. Está no bloco `is_incremental()`, e agora **só se aplica ao
+--      `retail`** — a marca d'água é lida das linhas de `retail`, não do
+--      máximo global, que era o que arrastava a janela do legado.
 --   3. `--full-refresh` agendado e registrado no plano — Etapa 12.
 --   4. Teste de reconciliação contra a reconstrução completa — em
---      `_analytics__models.yml`.
+--      `_analytics__models.yml`. A remoção ganhou prova própria em
+--      `dbt/tests/legado_na_fato_segue_a_captura_corrente.sql`.
 --
 -- **Por que tempo de evento e não tempo de carga.** Filtrar por `recorded_at`
 -- pareceria mais simples e perderia o evento atrasado: um movimento que ocorreu
@@ -30,6 +59,7 @@
         unique_key=['source_system', 'movement_id'],
         incremental_strategy='merge',
         on_schema_change='fail',
+        pre_hook="{% if is_incremental() %}delete from {{ this }} where source_system = 'legacy'{% endif %}",
     )
 }}
 
@@ -38,13 +68,27 @@ with movimentos as (
     select * from {{ ref('inventory_movements') }}
 
     {% if is_incremental() %}
-    -- Margem de atraso: reprocessa a janela inteira em vez de confiar que o
-    -- evento chegou em ordem. `merge` com `unique_key` torna o reprocessamento
-    -- idempotente, então reler é barato e perder não é.
-    where occurred_at >= (
-        select coalesce(max(occurred_at), timestamptz '{{ var("period_start") }}')
-        from {{ this }}
-    ) - interval '{{ var("atraso_maximo_dias") }} days'
+    -- Uma condição por origem, e é o ADR-0042 que as separa.
+    --
+    -- `legacy` entra **inteiro**: o `pre_hook` já apagou a partição, e o que
+    -- chega aqui é a captura corrente por completo — é assim que o registro que
+    -- se tornou apto fora da janela aparece, e que o ausente não volta.
+    -- A relação de origem já está recortada pela captura selecionada, então
+    -- "tudo que vem do legado" e "a captura corrente" são o mesmo conjunto.
+    --
+    -- `retail` mantém a margem de atraso: reprocessa a janela inteira em vez de
+    -- confiar que o evento chegou em ordem. `merge` com `unique_key` torna esse
+    -- reprocessamento idempotente, então reler é barato e perder não é.
+    --
+    -- A marca d'água sai das linhas de `retail`, e não do máximo global: era o
+    -- máximo global que deixava o `retail`, dias à frente, empurrar a janela
+    -- para fora de quase toda a captura legada.
+    where source_system = 'legacy'
+       or occurred_at >= (
+              select coalesce(max(occurred_at), timestamptz '{{ var("period_start") }}')
+              from {{ this }}
+              where source_system = 'retail'
+          ) - interval '{{ var("atraso_maximo_dias") }} days'
     {% endif %}
 
 )

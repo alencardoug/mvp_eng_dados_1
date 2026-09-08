@@ -269,6 +269,12 @@ models:
       do projeto (ADR-0016), com as quatro proteções obrigatórias: `unique_key`,
       filtro por tempo de evento com margem, `--full-refresh` no plano da Etapa
       12, e o teste `incremental_confere_com_a_reconstrucao_completa`.
+      A exceção tem **duas estratégias, uma por origem** (ADR-0042): `retail`
+      chega por evento e entra por `merge` com a janela de atraso; `legacy` chega
+      por captura e entra por `delete+insert`, com a partição reescrita inteira a
+      cada execução. Para o ramo legado a idempotência vem do recorte por
+      captura, não da `unique_key`, e a reconciliação por linha está em
+      `legado_na_fato_segue_a_captura_corrente`.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
