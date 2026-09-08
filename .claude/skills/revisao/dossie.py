@@ -16,6 +16,11 @@ das suposições por construção, não por virtude do autor.
 Uso:
     python3 .claude/skills/revisao/dossie.py --desde <ref>   # gera
     python3 .claude/skills/revisao/dossie.py --conferir      # valida
+
+`--saida` desvia o dossiê para outro arquivo. Existe para o caso em que o
+`REVISAO.md` está ocupado por uma revisão ainda aberta: sobrescrevê-lo apagaria
+achados que ninguém respondeu, e o histórico do `git` não substitui um achado
+que o autor precisa ter na frente. Duas revisões em curso são dois arquivos.
 """
 
 from __future__ import annotations
@@ -34,6 +39,9 @@ ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 RAIZ = pathlib.Path(__file__).resolve().parents[3]
 COMANDOS = pathlib.Path(__file__).with_name("comandos.txt")
 DESTINO = RAIZ / "REVISAO.md"
+
+#: Onde o dossiê cai quando `--saida` não diz outra coisa.
+PADRAO = DESTINO
 
 #: Marca que o autor precisa substituir. O dossiê não fecha com ela dentro.
 PENDENTE = "<<PREENCHER>>"
@@ -89,7 +97,37 @@ def _executar(comando: str, segundos: int) -> tuple[int, str]:
     return saida.returncode, "\n".join(linhas[-12:]) or "(sem saída)"
 
 
-def gerar(desde: str, segundos: int, ate: str = "HEAD") -> pathlib.Path:
+def _achados_preenchidos(destino: pathlib.Path) -> int:
+    """Quantos achados já escritos existem no dossiê que se pretende sobrescrever.
+
+    A pergunta importa porque o dossiê é transitório mas os achados **não**: eles
+    são o que o revisor produziu e o que o autor ainda deve responder. Regenerar
+    por cima apaga o trabalho da outra ponta, e "está no `git`" não é resposta —
+    achado que saiu da frente do autor é achado que não é respondido.
+    """
+    if not destino.exists():
+        return 0
+    corpo = destino.read_text(encoding="utf-8").split("## Achados da revisão", 1)
+    if len(corpo) < 2:
+        return 0
+    achados = 0
+    for linha in corpo[1].splitlines():
+        if not linha.startswith("|"):
+            continue
+        primeira = linha.split("|")[1].strip()
+        # Cabeçalho, separador e a linha-legenda do gabarito não são achados.
+        if primeira and primeira != "#" and not set(primeira) <= {"-", ":"}:
+            achados += 1
+    return achados
+
+
+def gerar(
+    desde: str,
+    segundos: int,
+    ate: str = "HEAD",
+    destino: pathlib.Path = PADRAO,
+    forcar: bool = False,
+) -> pathlib.Path:
     # O topo é **fixado** no SHA, não deixado como `HEAD`. Um dossiê que diz
     # `base..HEAD` passa a descrever outro intervalo assim que um commit novo
     # entra — e quem revisa lê o diff errado sem perceber, porque a lista de
@@ -98,6 +136,15 @@ def gerar(desde: str, segundos: int, ate: str = "HEAD") -> pathlib.Path:
     # `--ate` existe para o caso em que a entrega a revisar **não** é a ponta:
     # trabalho posterior — a própria ferramenta de revisão, por exemplo — não
     # pertence ao escopo do que se está revisando.
+    achados = _achados_preenchidos(destino)
+    if achados and not forcar:
+        sys.exit(
+            f"{destino.relative_to(RAIZ)} tem {achados} achado(s) de uma revisão ainda "
+            "aberta — gerar por cima os apagaria.\n"
+            "Use --saida <outro arquivo> para a revisão nova, feche a atual antes, "
+            "ou --forcar se souber que estes achados já foram respondidos."
+        )
+
     ate = _git("rev-parse", "--short", ate)
     commits = _git("log", "--reverse", "--format=%h %s", f"{desde}..{ate}")
     if not commits:
@@ -200,15 +247,15 @@ def gerar(desde: str, segundos: int, ate: str = "HEAD") -> pathlib.Path:
         "",
     ]
 
-    DESTINO.write_text("\n".join(partes) + "\n", encoding="utf-8")
-    return DESTINO
+    destino.write_text("\n".join(partes) + "\n", encoding="utf-8")
+    return destino
 
 
-def conferir() -> int:
-    if not DESTINO.exists():
-        print(f"sem dossiê em {DESTINO.relative_to(RAIZ)}")
+def conferir(destino: pathlib.Path = PADRAO) -> int:
+    if not destino.exists():
+        print(f"sem dossiê em {destino.relative_to(RAIZ)}")
         return 1
-    texto = DESTINO.read_text(encoding="utf-8")
+    texto = destino.read_text(encoding="utf-8")
     pendencias = texto.count(PENDENTE)
     falhas = texto.count("✗")
     if pendencias:
@@ -227,13 +274,24 @@ def main() -> int:
     parser.add_argument("--ate", default="HEAD", help="topo do intervalo; padrão HEAD")
     parser.add_argument("--timeout", type=int, default=1800, help="segundos por comando")
     parser.add_argument("--conferir", action="store_true", help="valida o dossiê existente")
+    parser.add_argument(
+        "--saida",
+        help="arquivo do dossiê; padrão REVISAO.md. Use outro quando ele já tiver revisão aberta",
+    )
+    parser.add_argument(
+        "--forcar",
+        action="store_true",
+        help="gera por cima de achados não respondidos; só depois de conferir que foram",
+    )
     args = parser.parse_args()
 
+    destino = RAIZ / args.saida if args.saida else PADRAO
+
     if args.conferir:
-        return conferir()
+        return conferir(destino)
     if not args.desde:
         parser.error("informe --desde <ref> ou --conferir")
-    caminho = gerar(args.desde, args.timeout, args.ate)
+    caminho = gerar(args.desde, args.timeout, args.ate, destino, args.forcar)
     print(f"dossiê em {caminho.relative_to(RAIZ)} — preencha as seções marcadas com {PENDENTE}")
     return 0
 
