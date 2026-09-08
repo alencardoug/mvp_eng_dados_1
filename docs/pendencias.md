@@ -63,6 +63,24 @@ física), R12 (migração Alembic do schema legado) e R13 (oráculo independente
 
 ## 2. Decisões já fechadas
 
+### D38 — decidida em 08/09/2026
+
+**O armazém roda com `jit=off`, o `staging` do ramo legado é materializado como tabela, e os três
+contêineres PostgreSQL declaram teto de 2 GB.** Fechada pelo
+[ADR-0043](adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md), que registra o custo
+aceito: o [ADR-0016](adr/0016-materializacao-por-camada.md) passa a ter uma exceção **por origem**, e
+`jit=off` vale para o armazém inteiro, inclusive para consultas que poderiam se beneficiar do JIT.
+
+Levantada e decidida no mesmo dia, porque a estação travou duas vezes antes de a causa ser
+encontrada. O que a motivou, medido em 08/09/2026: a mesma view de limpeza, na mesma sessão nova,
+custa **281 MB com `jit=off` e passa de 2 GB com `jit=on`**; e a união de quarenta braços do
+`legacy_records` passa de 2 GB sobre views mesmo com o JIT desligado, contra **180 MB** sobre
+tabelas. Um `backend` chegou a **7,7 GB numa máquina de 11,5 GB**, e o que morreu foi o ambiente de
+trabalho, não a consulta.
+
+É também o que desbloqueia o **R13**: os `timeouts` que a segunda e a terceira revisões registraram
+como "detecção integral no banco não medida" eram esta falha.
+
 ### D37 — decidida em 08/09/2026
 
 **A captura legada é reconciliada na fato incremental por `delete+insert` no ramo legado**, com o

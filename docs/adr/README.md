@@ -79,6 +79,7 @@ decisão.
 | [0040](0040-rejeitar-nulo-em-campo-obrigatorio.md) | Rejeitar nulo em campo obrigatório após a limpeza | Aceita | D32 |
 | [0041](0041-teto-de-memoria-nos-servicos-do-airbyte.md) | Declarar teto de memória em todo serviço permanente do Airbyte | Aceita | Parte da D36 |
 | [0042](0042-reconciliar-a-captura-legada-na-fato-incremental.md) | Reconciliar a captura legada na fato incremental por `delete+insert` | Aceita | D37 |
+| [0043](0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md) | Impedir que o tratamento do legado esgote a memória da estação | Aceita | D38 |
 
 ---
 

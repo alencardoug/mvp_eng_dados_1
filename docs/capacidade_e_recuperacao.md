@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.9 |
-| Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7. Recuperação da Etapa 12 ainda não entregue |
-| Última revisão | 05/09/2026 |
+| Versão | 2.10 |
+| Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7; custo de memória do tratamento do legado medido na §2.10. Recuperação da Etapa 12 ainda não entregue |
+| Última revisão | 08/09/2026 |
 
 ---
 
@@ -364,6 +364,60 @@ como `OOMKilled`.
 O número que sai daqui e muda o comportamento do ambiente é o **pico de 5,0 GB**, que passou a
 dimensionar o `docker/preflight.sh`. Autorizar a subida do Airbyte pelo consumo ocioso seria
 autorizar um travamento alguns minutos depois, quando a sincronização começasse.
+
+### 2.10 O JIT do PostgreSQL sobre os modelos do legado — 08/09/2026
+
+A estação travou duas vezes na madrugada de 08/09/2026 — 23:12 e 01:25 —, e as duas vezes o OOM
+*killer* escolheu um `backend` do `warehouse_db`, com **7,7 e 7,85 GB de RSS anônimo** numa máquina
+de 11,5 GB. O armazém reiniciou em recuperação de *crash*; o ambiente de trabalho ficou inutilizável
+por minutos antes disso, com o núcleo empurrando tudo para o *zram*.
+
+Não é volume: cada relação envolvida tem **uma linha**. O que custa é a forma do SQL. Os modelos de
+limpeza do legado são código gerado — 60 a 120 kB por modelo, 3,1 MB no conjunto —, com dezenas de
+expressões regulares por coluna.
+
+Medições, com o contêiner amostrado a cada 0,2–0,3 s e teto de *cgroup* de 2 GB para que a falha
+coubesse na máquina. O valor lido é o `memory.current` do *cgroup*, que **soma anônima e cache de
+página** — para consulta que passa, ele superestima; o que não é ambíguo é a linha que **estoura**,
+porque ali o `backend` morreu de fato: conexão perdida, e o registro do núcleo apontando 7,85 GB de
+`anon-rss` no episódio que travou a estação.
+
+| Consulta | Contexto | Pico |
+|---|---|---|
+| `stg_legacy__carts`, todas as colunas | sessão nova, `jit=on` | **estourou 2 GB** |
+| `stg_legacy__carts`, todas as colunas | sessão nova, `jit=off` | **281 MB** |
+| as 40 views, uma por vez, mesma sessão | `jit=on` | estourou 2 GB na 4ª |
+| as 40 views, uma por vez, mesma sessão | `jit=off` | **475 MB** |
+| `union all` de 40 braços sobre as **views** | `jit=on` | **7,7 GB** — matou a estação |
+| `union all` de 40 braços sobre as **views** | `jit=off` | estourou 2 GB |
+| `union all` de 40 braços sobre **tabelas** | `jit=off` | **179 MB** |
+| `union all` de 40 braços sobre **tabelas** | `jit=on` | **180 MB** |
+
+**As três conclusões**, e é por isso que estão registradas:
+
+1. **A causa raiz é o JIT.** Isolada com uma variável só — mesma view, mesma consulta, sessão
+   recém-aberta —, a diferença é 281 MB contra mais de 2 GB. O LLVM compila a árvore de expressão e
+   não devolve o que alocou, e o ganho que o JIT existe para dar, amortizar compilação sobre muitas
+   linhas, não se aplica quando a expressão é enorme e as linhas são poucas.
+2. **Desligar o JIT não basta sozinho.** O `union all` de quarenta braços do `legacy_records` embute
+   as quarenta definições de view numa árvore de três megabytes e passa de 2 GB **mesmo com o JIT
+   desligado**. Materializar resolve isso — e, materializado, o JIT deixa de importar: 179 contra
+   180 MB.
+3. **Sem teto de *cgroup*, a falha não era do banco, era da máquina.** Os três contêineres subiam com
+   `mem_limit=0`. Com teto, a consulta desgovernada morre e o contêiner reinicia; foi o que permitiu
+   medir tudo acima sem travar a estação de novo.
+
+As três medidas decorrentes estão no
+[ADR-0043](adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md).
+
+**Depois das três medidas aplicadas**, `make dbt-build` completo — 136 modelos de tabela, 52 de
+view, 4 *snapshots*, 3 *seeds* e 666 testes de dados, 862 nós ao todo — terminou em **23 min 17 s**
+com `PASS=862 ERROR=0`. A memória **anônima** do armazém, que é a que não se recupera, teve pico de
+**433 MB**, e o *cgroup* registrou **zero** disparos de OOM. É o mesmo comando que travava a estação.
+
+Um efeito colateral que vale registrar: os `timeouts` que a segunda e a terceira revisões anotaram
+como "detecção integral no banco não medida" eram esta falha. O achado **R13** estava bloqueado por
+ela, não por falta de teste.
 
 ---
 

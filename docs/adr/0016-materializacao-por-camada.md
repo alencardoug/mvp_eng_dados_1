@@ -35,13 +35,19 @@ conhecimento de causa.
 
 | Camada | Materialização | Razão |
 |---|---|---|
-| `staging` | `view` | Só renomeia e tipa; reexecutar é barato e nunca serve dado velho |
+| `staging` | `view` | Só renomeia e tipa; reexecutar é barato e nunca serve dado velho — **exceto o ramo legado**, ver abaixo |
 | `trusted` | `table` | Aplica invariantes e trata o legado; é lógica pesada e muito referenciada |
 | `analytics` | `table` | O datamart é lido por gente e por BI; o custo se paga uma vez no *build* |
 | `consumption` | `view` | O contrato é interface, não cópia |
 
-**Exceção única:** `fact_inventory_movement` é `incremental` com estratégia `merge`, e vem com as
-quatro proteções obrigatórias — sem elas a exceção não é concedida:
+**Exceção de camada:** o `staging` do ramo legado é `table`, não `view`, pelo
+[ADR-0043](0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md). A razão da regra — "reexecutar
+é barato" — é justamente o que deixa de valer ali: os modelos de limpeza do legado são código gerado
+de 60 a 120 kB, e replanejar essa árvore a cada leitura esgotou a memória da estação. A exceção é
+**por origem**; o ramo `retail` continua sendo view.
+
+**Exceção de estratégia:** `fact_inventory_movement` é `incremental` com estratégia `merge`, e vem
+com as quatro proteções obrigatórias — sem elas a exceção não é concedida:
 
 1. `unique_key` declarada no identificador do evento;
 2. filtro por **tempo de evento**, com margem de atraso, nunca por tempo de carga;

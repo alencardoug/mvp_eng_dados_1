@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.4 |
+| Versão | 2.5 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 07/09/2026 |
+| Última revisão | 08/09/2026 |
 
 ---
 
@@ -321,6 +321,14 @@ linhas.
 A duplicata exata elege uma **ocorrência canônica** por regra determinística — a de menor
 identificador físico dentro da captura —, que segue como `accepted` ou `corrected`; cada excedente é
 uma linha `rejected` com o código `DUP_EXACT` e o vínculo à canônica.
+
+**Os modelos de limpeza são `table`, não `view`** — exceção por origem ao
+[ADR-0016](adr/0016-materializacao-por-camada.md), concedida pelo
+[ADR-0043](adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md). A razão é o tamanho do
+código gerado: cada `stg_legacy__<t>` tem de 60 a 120 kB de SQL, e como *view* essa árvore era
+replanejada a cada leitura, o que esgotava a memória da estação em vez de falhar. O ramo `retail` do
+`staging` continua sendo *view*. O custo medido está na
+[Capacidade §2.10](capacidade_e_recuperacao.md#210-o-jit-do-postgresql-sobre-os-modelos-do-legado--08092026).
 
 Regras invioláveis:
 
