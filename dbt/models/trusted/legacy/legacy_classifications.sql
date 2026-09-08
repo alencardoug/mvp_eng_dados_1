@@ -1,5 +1,16 @@
 -- Gerado por make legacy-models; altere legacy/classification.py ou classification.sql.
 -- Classificação exclusiva com todos os achados; não consulta o manifesto.
+{%- set parametros_da_impressao = {'as_of_date': '2026-09-01'} %}
+{%- for nome, gravado in parametros_da_impressao.items() %}
+{%- set efetivo = var(nome, '<ausente>') | string %}
+{%- if efetivo != gravado %}
+{{ exceptions.raise_compiler_error(
+    "Configuração e artefato divergem: nesta execução " ~ nome ~ " vale " ~ efetivo ~
+    ", mas a impressão digital deste modelo foi gerada com " ~ nome ~ "=" ~ gravado ~
+    ". Rode `make legacy-models` para regerar, ou retire o --vars. D34: a mesma"
+    " identidade de tratamento não pode cobrir dois resultados.") }}
+{%- endif %}
+{%- endfor %}
 with recursive
 rules(code, action, reason) as (values
 ('NULL_DISGUISED', 'correct', 'Converter para nulo de verdade.'),
@@ -20,6 +31,7 @@ rules(code, action, reason) as (values
 ('TEXT_TRUNCATED', 'reject', 'O que foi perdido no corte não se restaura.'),
 ('TEXT_DELIMITER', 'reject', 'A linha veio deslocada na importação; o conteúdo dos campos seguintes se perdeu.'),
 ('TEXT_ENCODING', 'correct', 'Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.'),
+('TEXT_ENCODING_AMBIGUOUS', 'reject', 'Reverter só o trecho reconhecido corromperia o resto da célula.'),
 ('TEXT_WHITESPACE_CASE', 'correct', 'Padronizar espaçamento e caixa conforme a convenção do campo.'),
 ('FK_ORPHAN', 'reject', 'A linha aponta para um registro que não existe.'),
 ('DUP_EXACT', 'reject', 'Ocorrência excedente de duplicata exata; a canônica foi mantida.'),
@@ -216,11 +228,11 @@ summaries as (
     group by f.source_system, f.snapshot_id, f.source_table, f.legacy_row_id
 )
 select r.source_system, r.snapshot_id, r.snapshot_at, r.source_table, r.legacy_row_id,
-    5::integer as catalog_version,
+    7::integer as catalog_version,
     -- Impressão digital do tratamento (D34): a versão é o rótulo humano, esta
     -- é a identidade do que ele de fato produz. É por ela que a quarentena
     -- recusa substituir uma auditoria sob a mesma versão.
-    '6df1d183d38bb9eb'::text as treatment_fingerprint,
+    'f1714cf5e32351a6'::text as treatment_fingerprint,
     r.original_payload, r.cleaned_payload,
     case when s.has_rejection then 'rejected'
          when s.has_correction then 'corrected' else 'accepted' end::text as classification,

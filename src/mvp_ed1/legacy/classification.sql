@@ -1,4 +1,5 @@
 -- Classificação exclusiva com todos os achados; não consulta o manifesto.
+__PARAMETROS__
 with recursive
 rules(code, action, reason) as (values
 __RULES__

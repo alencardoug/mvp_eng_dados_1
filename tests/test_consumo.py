@@ -59,9 +59,15 @@ def views(motor) -> list[str]:
 def test_toda_view_de_consumo_responde(engine) -> None:
     """Consultar cada view, uma a uma, e nomear a que falhar.
 
-    `select count(*)` obriga o Postgres a executar o corpo inteiro. Um `limit 0`
-    ou um `explain` não serviriam: o erro que interessa nasce na execução, não
-    no planejamento.
+    O erro que interessa nasce na execução, não no planejamento — `limit 0` e
+    `explain` não serviriam. Mas `count(*)` também não serve, e a diferença
+    custou o achado R27/R28: o Postgres **elimina da projeção** o que a contagem
+    não usa, então uma subconsulta escalar que devolve duas linhas passa
+    despercebida e a view só quebra quando alguém a lê de verdade.
+
+    `to_jsonb` da linha inteira obriga a avaliar **toda** coluna, e o `md5`
+    impede que a serialização seja descartada por sua vez. É a diferença entre
+    "a view existe" e "a view responde".
 
     O teste roda view a view, e não numa consulta só, para que a mensagem diga
     **qual** quebrou. Falha agregada obrigaria a repetir o trabalho à mão.
@@ -70,7 +76,12 @@ def test_toda_view_de_consumo_responde(engine) -> None:
     for view in views(engine):
         try:
             with engine.connect() as conexao:
-                conexao.execute(text(f'select count(*) from consumption."{view}"'))
+                conexao.execute(
+                    text(
+                        "select count(md5(to_jsonb(s)::text))"
+                        f' from consumption."{view}" s'
+                    )
+                )
         except Exception as erro:
             quebradas[view] = str(erro).splitlines()[0]
 

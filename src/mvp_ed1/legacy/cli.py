@@ -103,15 +103,25 @@ def main(argv: list[str] | None = None) -> int:
         from mvp_ed1.legacy import dbt
         from mvp_ed1.legacy import classification
         from mvp_ed1.legacy import ponte
+        from mvp_ed1.legacy import schema
 
         catalogo = carregar()
         promessas = _promessas()
         escritos = dbt.gerar(catalogo, promessas)
         fontes = dbt.DESTINO / "_legacy__sources.yml"
         fontes.write_text(dbt.sources_yml(), encoding="utf-8")
+        # A guarda leva os mesmos parâmetros que entraram na impressão digital:
+        # quem decide quais variáveis contam é `parametros_do_tratamento`, e uma
+        # vez só — listar de novo aqui seria a segunda lista que diverge.
+        limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+        material = [dbt.modelo(catalogo, t, promessas, limites) for t in schema.tabelas()]
+        material.append(classification.records_sql())
+        material.append(classification.classification_sql(catalogo))
         escritos.extend(
             classification.generate(
-                catalogo, fingerprint=dbt.impressao_digital(catalogo, promessas)
+                catalogo,
+                fingerprint=dbt.impressao_digital(catalogo, promessas),
+                parametros=dbt.parametros_do_tratamento(material),
             )
         )
         escritos.extend(ponte.gerar())

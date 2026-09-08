@@ -37,7 +37,9 @@ itens_em_quarentena as (
 
     select
         q.source_system,
-        (q.original_payload->>'order_id')                   as order_id,
+        -- Canônica, e não bruta: agrupar pelo texto separaria `08` de `8`
+        -- e a junção seguinte multiplicaria o pedido. Ver a macro.
+        {{ identidade_canonica("q.original_payload->>'order_id'") }} as order_id,
         count(*)                                            as itens_rejeitados,
         string_agg(distinct q.rejection_origin, ', ')        as motivos
     from {{ ref('rejected_legacy_records') }} q
@@ -66,5 +68,6 @@ select
     q.order_id is not null                                  as explicada_pela_quarentena
 from {{ ref('orders') }} o
 left join itens_em_quarentena q
-    on q.source_system = o.source_system and q.order_id = o.order_id::text
+    on q.source_system = o.source_system
+   and q.order_id = {{ identidade_canonica('o.order_id::text') }}
 where abs(o.subtotal_amount - o.items_gross_revenue_amount) > 0.01

@@ -28,13 +28,28 @@
 # também os predicados dos índices únicos parciais declarados nos modelos; a 4
 # acrescenta `treatment_fingerprint` à saída da classificação (D34); a 5 confere
 # as rejeições de valor também contra o resultado da conversão (R06) e passa a
-# cobrir o contrato por registro e os `var()` na impressão digital (R24).
+# cobrir o contrato por registro e os `var()` na impressão digital (R24); a 6
+# fecha os quatro achados de valor da segunda revisão — valida ano, relógio e a
+# string inteira antes de qualquer conversão de data (R02); exige que a célula
+# **inteira** sobreviva à volta de codificação e rejeita o que não sobrevive
+# (R03); despacha a conversão monetária pelo formato reconhecido, e não pela
+# cauda da string (R04); e faz `ENUM_UNKNOWN` alcançar colunas booleanas, com
+# `BOOL_VARIANT` entregando forma canônica (R05).
+#
+# A 7 fecha o que a terceira revisão mostrou que a 6 não tinha fechado — os três
+# achados foram reabertos como parcialmente resolvidos, e cada um continuava
+# derrubando consulta ou rejeitando valor bom: o momento passa a ser lido por
+# componente, e não por posição fixa, com o deslocamento de fuso validado antes
+# do `cast` (R02); a gramática de reversibilidade passa a ser a do UTF-8 da RFC
+# 3629, recusando codificação longa, substituto e ponto acima de U+10FFFF (R03);
+# e a moeda que cabe em dois formatos com valores diferentes é **rejeitada**, em
+# vez de convertida por uma das duas leituras em silêncio (R04).
 #
 # **Quando avançar:** sempre que o tratamento passar a produzir resultado
 # diferente — regra nova, conversão alterada, coluna nova na classificação. É a
 # pergunta que `legacy_versao_do_tratamento_e_univoca` faz em voz alta quando
 # alguém esquece: sob uma versão, um tratamento.
-versao: 5
+versao: 7
 
 # ── Geração desta origem ──────────────────────────────────────────────────────
 # Semente **própria**, distinta da origem principal (Origem Legada §3.2): as
@@ -258,6 +273,18 @@ falhas:
     deteccao: Sequência de codificação dupla reconhecível — UTF-8 lido como Latin-1.
     conversao: Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.
     injecao: {frequencia: 5, formas: [utf8_como_latin1]}
+  # Nasceu da segunda revisão (R03), e a ausência era **omissão**: a §3.1 já
+  # dizia "reparar quando o par de codificações é conhecido; rejeitar se
+  # ambíguo", e só a metade reparável existia. A metade que faltava não era
+  # inofensiva — a conversão derrubava a consulta inteira quando a célula
+  # misturava mojibake com acento legítimo (SQLSTATE 22021) ou com emoji
+  # (22P05), porque detectar um par autorizava recodificar tudo.
+  TEXT_ENCODING_AMBIGUOUS:
+    grupo: texto
+    arquetipo: texto
+    deteccao: Dupla codificação numa célula que não se reverte por inteiro.
+    rejeicao: Reverter só o trecho reconhecido corromperia o resto da célula.
+    injecao: {frequencia: 3, formas: [utf8_como_latin1_parcial]}
   TEXT_WHITESPACE_CASE:
     grupo: texto
     arquetipo: texto

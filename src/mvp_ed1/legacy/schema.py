@@ -56,6 +56,11 @@ ALCANCE: dict[str, frozenset[str]] = {
     "data_de_fato_consumado": frozenset({"data_de_fato_consumado"}),
     "texto": frozenset({"texto", "texto_com_limite", "email"}),
     "texto_com_limite": frozenset({"texto_com_limite"}),
+    # Booleano **é** enumerado, com domínio de dois valores. Sem esta linha,
+    # `ENUM_UNKNOWN` só alcançava as colunas com `CHECK`, e `talvez` num campo
+    # booleano não recebia achado nenhum: `BOOL_VARIANT` não o mapeia — de
+    # propósito, para não inventar valor — e ninguém mais olhava. Era o R05.
+    "enumerado": frozenset({"enumerado", "booleano"}),
 }
 
 

@@ -77,10 +77,45 @@ from {{{{ ref('stg_legacy__{table}') }}}} r""")
     return HEADER + "\nunion all\n".join(parts) + "\n"
 
 
+def guarda_de_parametros(parametros: dict[str, str] | None) -> str:
+    """Recusa a compilação quando a execução não usa a configuração da impressão.
+
+    Foi o R24. A impressão digital é gravada como **literal** no modelo, no
+    instante da geração; `--vars as_of_date=…`, ou uma edição do
+    `dbt_project.yml` sem regerar, mudam o tratamento e preservam a impressão.
+    Medido: para `placed_at = 2026-09-02`, o corte 01/09 devolve `DATE_FUTURE` e
+    o corte 03/09 não devolve achado nenhum — sob o mesmo hash. Dois resultados
+    diferentes com a mesma identidade é o que a D34 existe para impedir.
+
+    Vincular a impressão à configuração efetiva exigiria hashear em tempo de
+    execução, o que o SQL não faz. A outra saída que o parecer aponta é esta:
+    **recusar a divergência**. A guarda é Jinja e roda na compilação, que é onde
+    `--vars` já foi resolvido — divergência não vira aviso, vira build recusado,
+    antes de qualquer linha ser escrita.
+
+    Fora da geração o marcador continua no lugar: a impressão digital hasheia
+    este texto, e ela não pode depender de si mesma.
+    """
+    if parametros is None:
+        return "-- __pendente__ — a guarda de parâmetros é preenchida na geração."
+    return f"""{{%- set parametros_da_impressao = {parametros!r} %}}
+{{%- for nome, gravado in parametros_da_impressao.items() %}}
+{{%- set efetivo = var(nome, '<ausente>') | string %}}
+{{%- if efetivo != gravado %}}
+{{{{ exceptions.raise_compiler_error(
+    "Configuração e artefato divergem: nesta execução " ~ nome ~ " vale " ~ efetivo ~
+    ", mas a impressão digital deste modelo foi gerada com " ~ nome ~ "=" ~ gravado ~
+    ". Rode `make legacy-models` para regerar, ou retire o --vars. D34: a mesma"
+    " identidade de tratamento não pode cobrir dois resultados.") }}}}
+{{%- endif %}}
+{{%- endfor %}}"""
+
+
 def classification_sql(
     catalog: Catalogo,
     relation: str = "{{ ref('legacy_records') }}",
     fingerprint: str = "__pendente__",
+    parametros: dict[str, str] | None = None,
 ) -> str:
     rules = ",\n".join(
         f"({sql_literal(f.codigo)}, {sql_literal('correct' if f.converte else 'reject')}, "
@@ -92,16 +127,19 @@ def classification_sql(
         "__VERSION__", str(catalog.versao)
     ).replace("__TOLERANCE__", str(catalog.falhas["TOTAL_MISMATCH"].tolerance)).replace(
         "__FINGERPRINT__", sql_literal(fingerprint)
-    )
+    ).replace("__PARAMETROS__", guarda_de_parametros(parametros))
 
 
 def generate(
-    catalog: Catalogo, root: Path = ROOT, fingerprint: str = "__pendente__"
+    catalog: Catalogo,
+    root: Path = ROOT,
+    fingerprint: str = "__pendente__",
+    parametros: dict[str, str] | None = None,
 ) -> list[Path]:
     outputs = {
         root / "trusted/legacy/legacy_records.sql": records_sql(),
         root / "trusted/legacy/legacy_classifications.sql": classification_sql(
-            catalog, fingerprint=fingerprint
+            catalog, fingerprint=fingerprint, parametros=parametros
         ),
     }
     outputs.update(metadata_files(root))

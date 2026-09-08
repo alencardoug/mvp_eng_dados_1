@@ -23,6 +23,7 @@ from mvp_ed1.generator import enums
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.catalogo import Catalogo
 from mvp_ed1.legacy.regras import (
+    DOMINIO_BOOLEANO,
     Regra,
     regra_delimitador,
     regra_enum,
@@ -70,7 +71,13 @@ def _aplicaveis(
                 saida.append(regra_truncado(largura))
             continue
         if falha.codigo == "ENUM_UNKNOWN":
-            dominio = enums.enumeracoes().get(tabela, {}).get(coluna)
+            # Coluna booleana tem domínio de dois valores e nenhuma `CHECK` que
+            # o escreva. Sem esta linha o domínio vinha vazio e a regra era
+            # descartada em silêncio — a metade do R05 que o alcance sozinho
+            # não resolve.
+            dominio = enums.enumeracoes().get(tabela, {}).get(coluna) or (
+                DOMINIO_BOOLEANO if arquetipo == "booleano" else None
+            )
             if dominio:
                 saida.append(regra_enum(dominio))
             continue
@@ -477,6 +484,25 @@ def impressao_digital(catalogo: Catalogo, promessas: frozenset[str]) -> str:
     return digest[:16]
 
 
+def parametros_do_tratamento(textos: list[str]) -> dict[str, str]:
+    """Os `var()` que o tratamento lê, com o valor declarado hoje no projeto.
+
+    Devolve o mapa porque ele tem **dois** consumidores: a impressão digital,
+    que o hasheia, e a guarda emitida no modelo, que compara o valor efetivo da
+    execução contra este. Um só lugar decide quais variáveis contam.
+    """
+    import re
+
+    import yaml
+
+    nomes = sorted(set(re.findall(r"""var\(\s*["']([a-z_]+)["']""", "".join(textos))))
+    projeto = yaml.safe_load(
+        pathlib.Path("dbt/dbt_project.yml").read_text(encoding="utf-8")
+    )
+    variaveis = projeto.get("vars") or {}
+    return {nome: str(variaveis.get(nome, "<ausente>")) for nome in nomes}
+
+
 def _parametros(textos: list[str]) -> str:
     """Os `var()` que o tratamento lê, com o **valor** que eles têm hoje.
 
@@ -489,13 +515,6 @@ def _parametros(textos: list[str]) -> str:
     Os nomes são descobertos no próprio texto em vez de listados aqui. Uma
     variável nova entra na impressão sozinha, e ninguém precisa lembrar dela.
     """
-    import re
-
-    import yaml
-
-    nomes = sorted(set(re.findall(r"""var\(\s*["']([a-z_]+)["']""", "".join(textos))))
-    projeto = yaml.safe_load(
-        pathlib.Path("dbt/dbt_project.yml").read_text(encoding="utf-8")
+    return "".join(
+        f"{nome}={valor}\n" for nome, valor in parametros_do_tratamento(textos).items()
     )
-    variaveis = projeto.get("vars") or {}
-    return "".join(f"{nome}={variaveis.get(nome, '<ausente>')}\n" for nome in nomes)

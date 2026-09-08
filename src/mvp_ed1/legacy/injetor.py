@@ -175,28 +175,90 @@ def _absurdamente_alto(valor: str, fonte: Fonte, **_: Any) -> str:
     return str(fonte.inteiro(10_000_000, 99_999_999))
 
 
-def _pt_br(valor: str, fonte: Fonte, **_: Any) -> str:
+#: Casas decimais que as regras monetárias reconhecem: `Numeric(14, 4)` nos
+#: modelos, e `[0-9]{1,4}` nos padrões de `regras.py`.
+CASAS_MONETARIAS = 4
+
+
+def _partes_monetarias(valor: str) -> tuple[str, str]:
+    """Parte inteira e decimal, **sem truncar**.
+
+    Truncar em duas casas foi o R07: `12.3456` virava `12,34`, e `MONEY_LOCALE`
+    é declarado **corrigível** — a limpeza devolveria `12.34`, que não é o valor
+    original. Falha meramente representacional que perde informação deixa de ser
+    representacional, e o teste que confere a recuperação passa a comparar o
+    defeito consigo mesmo.
+    """
     inteiro, _, decimal = valor.partition(".")
-    return f"{int(inteiro):,}".replace(",", ".") + f",{(decimal or '00')[:2]:0<2}"
+    if len(decimal) > CASAS_MONETARIAS:
+        raise ValueError(
+            f"{valor!r} tem {len(decimal)} casas decimais e as regras monetárias "
+            f"reconhecem até {CASAS_MONETARIAS}: injetar assim entregaria valor "
+            "irrecuperável sob um código declarado corrigível."
+        )
+    return inteiro, decimal.ljust(2, "0")
+
+
+def _pt_br(valor: str, fonte: Fonte, **_: Any) -> str:
+    inteiro, decimal = _partes_monetarias(valor)
+    return f"{int(inteiro):,}".replace(",", ".") + f",{decimal}"
 
 
 def _en_us(valor: str, fonte: Fonte, **_: Any) -> str:
-    inteiro, _, decimal = valor.partition(".")
-    return f"{int(inteiro):,}" + f".{(decimal or '00')[:2]:0<2}"
+    """A forma americana **só existe** quando há separador de milhar.
+
+    Abaixo de mil ela coincide com o decimal canônico: `12` viraria `12.00`, que
+    difere do original — então o injetor o aceitaria — e não casa nenhuma regra
+    monetária, porque é exatamente a forma que as regras consideram correta. O
+    manifesto declararia `MONEY_LOCALE` numa célula sem falha alguma a detectar,
+    e o oráculo de recuperação acusaria `None` onde esperava o código.
+
+    Recusar é o caminho certo e já está previsto: o laço de injeção trata
+    `ValueError` escolhendo outra célula. Achado colhido pela contraprova de
+    recuperação do R07, não pelo parecer.
+    """
+    inteiro, decimal = _partes_monetarias(valor)
+    if abs(int(inteiro)) < 1000:
+        raise ValueError(
+            f"{valor!r} não tem parte de milhar: a forma americana seria "
+            "indistinguível do decimal canônico e não haveria falha a detectar."
+        )
+    return f"{int(inteiro):,}" + f".{decimal}"
 
 
 def _com_simbolo(valor: str, fonte: Fonte, **_: Any) -> str:
     return f"R$ {_pt_br(valor, fonte)}"
 
 
+def _data_pura(valor: str) -> dt.date:
+    """A data de um valor que precisa ser **só** data.
+
+    A outra metade do R07. `DATE_FORMAT_KNOWN` é corrigível e sua conversão é
+    `to_date`, que devolve data pura: formatar um momento aqui descartaria
+    horário e fuso e entregaria valor irrecuperável sob um código que promete
+    recuperação — `2024-02-29T13:45:00-03:00` virava `29/02/2024`.
+
+    O arquétipo do catálogo já separa as colunas (`data`, não `momento`), e é
+    por isso que a origem gerada hoje não exibe o defeito. A verificação existe
+    para que a separação não **dependa** disso: catálogo é declaração, e
+    declaração muda.
+    """
+    momento = dt.datetime.fromisoformat(valor)
+    if momento.tzinfo is not None or momento.time() != dt.time(0, 0):
+        raise ValueError(
+            f"{valor!r} carrega horário ou fuso, e a forma de data pura os "
+            "descartaria sob um código declarado corrigível. A falha de formato "
+            "com horário pertence ao arquétipo `momento`."
+        )
+    return momento.date()
+
+
 def _dd_mm_aaaa(valor: str, fonte: Fonte, **_: Any) -> str:
-    d = dt.datetime.fromisoformat(valor)
-    return d.strftime("%d/%m/%Y")
+    return _data_pura(valor).strftime("%d/%m/%Y")
 
 
 def _aaaa_ponto_mm_dd(valor: str, fonte: Fonte, **_: Any) -> str:
-    d = dt.datetime.fromisoformat(valor)
-    return d.strftime("%Y.%m.%d")
+    return _data_pura(valor).strftime("%Y.%m.%d")
 
 
 def _mes_invalido(valor: str, fonte: Fonte, **_: Any) -> str:
@@ -227,6 +289,26 @@ def _sem_fuso(valor: str, fonte: Fonte, **_: Any) -> str:
 
 def _utf8_como_latin1(valor: str, fonte: Fonte, **_: Any) -> str:
     return valor.encode("utf-8").decode("latin-1")
+
+
+def _utf8_como_latin1_parcial(valor: str, fonte: Fonte, **_: Any) -> str:
+    """Só o começo da célula é redecodificado; o resto fica íntegro.
+
+    É o arquivo remontado de duas origens, com uma só delas redecodificada — e
+    é o caso que o R03 encontrou: existe um par de mojibake reconhecível, mas a
+    célula **inteira** não volta, porque o acento que sobrou íntegro vira byte
+    solto e derruba `convert_from`.
+
+    Precisa de dois caracteres não-ASCII: um para estragar e um para sobrar.
+    Sem o segundo a célula seria inteiramente reversível, e o defeito injetado
+    seria `TEXT_ENCODING`, não este. Quando não há, levanta — e o injetor tenta
+    outro alvo, como faz com qualquer forma que não se aplique.
+    """
+    acentuados = [i for i, c in enumerate(valor) if ord(c) > 127]
+    if len(acentuados) < 2:
+        raise ValueError("a célula não tem dois não-ASCII")
+    corte = acentuados[0] + 1
+    return _utf8_como_latin1(valor[:corte], fonte) + valor[corte:]
 
 
 def _espaco_a_volta(valor: str, fonte: Fonte, **_: Any) -> str:

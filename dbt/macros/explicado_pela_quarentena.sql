@@ -56,9 +56,13 @@
         where q.source_table = '{{ tabela_do_filho }}'
           and q.source_system = {{ alias }}.source_system
           {%- for coluna in colunas %}
-          -- Comparação como texto: o valor pode ter sido rejeitado justamente
-          -- por não ser conversível, e converter aqui derrubaria o teste.
-          and q.original_payload->>'{{ coluna }}' = {{ alias }}.{{ coluna }}::text
+          -- Identidade canônica dos dois lados, e não texto cru contra valor
+          -- tipado: era o R29. O payload guarda `08`, o pai empilhado é o
+          -- `bigint 8`, e a contrapartida não era encontrada. A canonização não
+          -- converte o que não é inteiro — o valor pode ter sido rejeitado
+          -- justamente por não ser conversível.
+          and {{ identidade_canonica("q.original_payload->>'" ~ coluna ~ "'") }}
+            = {{ identidade_canonica(alias ~ '.' ~ coluna ~ '::text') }}
           {%- endfor %}
     )
 {%- endmacro %}

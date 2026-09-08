@@ -189,3 +189,110 @@ def test_partial_unique_index_does_not_reject_secondary_or_deleted_addresses(cla
     assert actual[1]["classification"] == ("rejected" if conflict else "accepted")
     if conflict:
         assert codes(actual[1]) == codes(actual[4]) == {"DUP_PARTIAL"}
+
+
+def test_configuracao_divergente_da_impressao_recusa_a_compilacao(tmp_path):
+    """R24 da terceira revisão: `--vars` mudava o tratamento e preservava o hash.
+
+    A impressão digital é gravada como **literal** no modelo, no instante da
+    geração. Nada impedia rodar o build com outro `as_of_date`: o tratamento
+    passava a rejeitar um conjunto diferente por data futura, e a auditoria
+    resultante carregava a mesma identidade da anterior. É a substituição
+    silenciosa que a D34 existe para impedir.
+
+    Hashear a configuração efetiva exigiria calcular a impressão em tempo de
+    execução, coisa que o SQL não faz. A saída adotada é a outra que o parecer
+    aponta: **recusar a divergência**, na compilação, que é onde o `--vars` já
+    foi resolvido.
+
+    O teste roda o `dbt compile` de verdade, duas vezes. Um `assert` sobre o
+    texto emitido provaria só que a string existe — não que o dbt a executa.
+    """
+    if not os.environ.get("WAREHOUSE_DB_PASSWORD"):
+        pytest.skip("carregue o .env: o `dbt compile` abre conexão")
+
+    import subprocess
+
+    def compila(*extra: str):
+        return subprocess.run(
+            [".venv/bin/dbt", "--quiet", "compile", "--project-dir", "dbt",
+             "--profiles-dir", "dbt", "--no-partial-parse",
+             "--select", "legacy_classifications", *extra],
+            capture_output=True, text=True, timeout=300,
+            env=os.environ | {
+                "DBT_TARGET_PATH": str(tmp_path / "target"),
+                "DBT_LOG_PATH": str(tmp_path / "logs"),
+            },
+        )
+
+    igual = compila()
+    assert igual.returncode == 0, igual.stdout + igual.stderr
+
+    divergente = compila("--vars", "{as_of_date: 2026-09-03}")
+    assert divergente.returncode != 0, divergente.stdout
+    saida = divergente.stdout + divergente.stderr
+    assert "Configuração e artefato divergem" in saida, saida
+    assert "as_of_date vale 2026-09-03" in saida, saida
+
+
+def _identidade_canonica(expressao: str) -> str:
+    """Renderiza a macro `identidade_canonica` a partir do arquivo dbt.
+
+    Lê a macro em vez de recopiar a expressão: a regra tem um dono, e um teste
+    que reescreve a regra passa a testar a cópia.
+    """
+    import jinja2
+    from pathlib import Path
+
+    fonte = Path("dbt/macros/identidade_do_vinculo.sql").read_text(encoding="utf-8")
+    return jinja2.Environment().from_string(fonte).module.identidade_canonica(expressao)
+
+
+def test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai(classifier_engine):
+    """R29 da terceira revisão: auditoria bruta contra pai tipado nunca casava.
+
+    A quarentena guarda o `original_payload` como veio — `order_id` textual `08`
+    continua `08`, e é esse o ponto de guardá-lo. O pai empilhado chegou à ponte
+    como `bigint 8`. `q.original_payload->>'order_id' = o.order_id::text`
+    comparava `08` com `8`: mesmo com captura, versão e impressão iguais, a
+    contrapartida não era encontrada, a divergência ficava sem explicação e a
+    invariante acusava um defeito inexistente.
+
+    O terceiro caso é o que impede o conserto de virar outro defeito: payload
+    não conversível precisa **passar intacto**, sem `cast`, porque ele pode ter
+    sido rejeitado justamente por não ser conversível — converter aqui derrubaria
+    a consulta inteira, que é o custo que a comparação textual evitava.
+    """
+    bruto = _identidade_canonica("v.payload")
+    tipado = _identidade_canonica("v.pai::text")
+
+    consulta = f"""
+        with v(caso, payload, pai) as (values
+            ('zero à esquerda', '08',  cast('08' as bigint)),
+            ('já canônico',     '8',   cast('8'  as bigint)),
+            ('outro pedido',    '80',  cast('8'  as bigint))
+        )
+        select v.caso,
+               v.payload = v.pai::text                   as comparacao_antiga,
+               {bruto} = {tipado}                        as comparacao_nova
+        from v order by v.caso
+    """
+    with classifier_engine.connect() as conexao:
+        obtido = [tuple(linha) for linha in conexao.execute(text(consulta))]
+
+    assert obtido == [
+        ("já canônico", True, True),
+        # O achado: era falso, e a rejeição do filho não explicava o pai.
+        ("outro pedido", False, False),
+        ("zero à esquerda", False, True),
+    ], obtido
+
+    # Payload não conversível passa intacto, sem `cast` e sem derrubar nada.
+    nao_conversivel = f"""
+        with v(payload) as (values ('abc'), ('2024-01-01'), (''))
+        select v.payload, {bruto} from v order by v.payload
+    """
+    with classifier_engine.connect() as conexao:
+        assert [tuple(l) for l in conexao.execute(text(nao_conversivel))] == [
+            ("", ""), ("2024-01-01", "2024-01-01"), ("abc", "abc"),
+        ]

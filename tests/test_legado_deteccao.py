@@ -136,7 +136,9 @@ DE_CONTEXTO = frozenset(
 
 
 def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
-    uniao = "\nunion all\n".join(
+    uniao = "
+union all
+".join(
         f"select '{tabela}' as tabela, legacy_row_id, chave as coluna, valor as codigo "
         f"from staging.stg_legacy__{tabela}, jsonb_each_text(achados) as e(chave, valor)"
         for tabela in schema.tabelas()
@@ -390,3 +392,233 @@ def test_a_rejeicao_de_valor_alcanca_o_resultado_da_conversao(engine) -> None:
         ("oito", "8", "NUM_TEXT_EQUIV"),
         ("7", "7", None),
     ], obtido
+
+
+def test_a_validacao_de_data_olha_a_entrada_inteira(engine) -> None:
+    """Calendário, relógio e a string toda — antes de qualquer `cast`.
+
+    Era o R02 da segunda revisão, e os três casos falhavam de formas
+    diferentes:
+
+    * `0000-01-01` tinha mês e dia válidos e ninguém olhava o ano. O Postgres
+      não tem ano zero, e o `cast` seguinte **abortava a consulta inteira** —
+      não a linha, a consulta: um valor derrubava o modelo;
+    * `2024-01-01 99:00` casava o padrão de `DATE_TZ_MISSING`, que convertia
+      com `::timestamp` sem nunca olhar o relógio. Também abortava;
+    * `2024-01-01 lixo` tinha dez caracteres de data e sujeira no resto. O
+      reconhecimento era por **prefixo**, então nenhuma regra casava: o
+      registro saía aceito, com o texto intacto, para estourar no `cast` da
+      ponte três camadas adiante.
+
+    Os três últimos casos guardam contra o conserto ir longe demais: data
+    válida, formato conhecido e formato pontuado precisam continuar passando.
+    """
+    catalogo = carregar()
+    limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    aplicaveis = dbt._aplicaveis(catalogo, "customers", "birth_date", frozenset(), limites)
+
+    valores = (
+        "(1, '0000-01-01'), (2, '2024-01-01 99:00'), (3, '2024-01-01 lixo'),"
+        " (4, '1990-05-12'), (5, '31/12/1990'), (6, '2024-02-31'), (7, '1990.05.12')"
+    )
+    consulta = f"""
+        with captura(legacy_row_id, "birth_date") as (values {valores}),
+        limpo as (
+            select c.legacy_row_id,
+{dbt._limpo("birth_date", aplicaveis)} as "birth_date"
+            from captura c
+        )
+        select c."birth_date", l."birth_date",
+{dbt._achado("birth_date", aplicaveis)}
+        from captura c join limpo l on l.legacy_row_id = c.legacy_row_id
+        order by c.legacy_row_id
+    """.replace('{{ var("as_of_date") }}', "2026-09-01")
+
+    with engine.connect() as conexao:
+        obtido = [tuple(linha) for linha in conexao.execute(text(consulta))]
+
+    assert obtido == [
+        ("0000-01-01", "0000-01-01", "DATE_IMPOSSIBLE"),
+        ("2024-01-01 99:00", "2024-01-01 99:00", "DATE_IMPOSSIBLE"),
+        ("2024-01-01 lixo", "2024-01-01 lixo", "DATE_UNPARSEABLE"),
+        ("1990-05-12", "1990-05-12", None),
+        ("31/12/1990", "1990-12-31", "DATE_FORMAT_KNOWN"),
+        ("2024-02-31", "2024-02-31", "DATE_IMPOSSIBLE"),
+        ("1990.05.12", "1990-05-12", "DATE_FORMAT_KNOWN"),
+    ], obtido
+
+
+def _sobre_a_linha(engine, tabela: str, coluna: str, entradas: list[str]):
+    """Roda o `case` emitido para uma coluna, com a linha inteira em volta.
+
+    A linha inteira, e não só a coluna, porque `TEXT_DELIMITER` olha as colunas
+    vizinhas: sem elas o SQL emitido nem compila. As demais entram nulas, que é
+    o vizinho vazio que a heurística de deslocamento espera.
+    """
+    catalogo = carregar()
+    limites = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    aplicaveis = dbt._aplicaveis(catalogo, tabela, coluna, frozenset(), limites)
+
+    outras = [c for c in schema.colunas(tabela) if c != coluna]
+    declaracao = ", ".join(f'"{c}"' for c in [coluna] + outras)
+    valores = ", ".join(
+        f"(:i{n}, :v{n}" + ", null" * len(outras) + ")" for n in range(len(entradas))
+    )
+    consulta = f"""
+        with captura(legacy_row_id, {declaracao}) as (values {valores}),
+        limpo as (
+            select c.legacy_row_id,
+{dbt._limpo(coluna, aplicaveis)} as "{coluna}"
+            from captura c
+        )
+        select c."{coluna}", l."{coluna}",
+{dbt._achado(coluna, aplicaveis)}
+        from captura c join limpo l on l.legacy_row_id = c.legacy_row_id
+        order by c.legacy_row_id
+    """.replace('{{ var("as_of_date") }}', "2026-09-01")
+
+    parametros = {}
+    for n, valor in enumerate(entradas):
+        parametros[f"i{n}"] = n
+        parametros[f"v{n}"] = valor
+    with engine.connect() as conexao:
+        return [tuple(linha) for linha in conexao.execute(text(consulta), parametros)]
+
+
+def test_o_momento_e_lido_por_componente_e_nao_por_posicao(engine) -> None:
+    """R02 da terceira revisão: o validador derrubava consulta e rejeitava válido.
+
+    Três defeitos distintos, todos vindos de ler o momento por **posição fixa**
+    e de exigir quatro dígitos de fuso:
+
+    * `substring(v from 18 for 2)` devolve **string vazia** quando os segundos
+      não vêm, e `coalesce` não trata vazio — `2024-01-01 12:30` abortava a
+      consulta com 22P02, `invalid input syntax for type integer: ""`;
+    * `at time zone` devolve `+00`, com duas casas. A forma exigia quatro, então
+      o resultado da **própria conversão** era reprovado como `DATE_UNPARSEABLE`
+      — o valor era corrigido e rejeitado no mesmo passe;
+    * `+99:99` casava a forma, não recebia achado nenhum e abortava adiante no
+      `cast` para `timestamptz` com 22009.
+
+    Os dois últimos casos guardam o conserto: fuso completo e data futura
+    precisam continuar respondendo como antes.
+    """
+    obtido = _sobre_a_linha(engine, "orders", "placed_at", [
+        "2024-01-01 12:30",
+        "2024-01-01T12:30Z",
+        "2024-01-01T12:30:00",
+        "2024-01-01T12:30:00+00",
+        "2024-01-01T12:30:00+99:99",
+        "2024-01-01T12:30:00+00:00",
+        "01/01/2030",
+    ])
+
+    assert obtido == [
+        # Segundos ausentes: converte, em vez de abortar.
+        ("2024-01-01 12:30", "2024-01-01 15:30:00+00", "DATE_TZ_MISSING"),
+        ("2024-01-01T12:30Z", "2024-01-01T12:30Z", None),
+        # O resultado da conversão é aceito pela forma que a conversão produz.
+        ("2024-01-01T12:30:00", "2024-01-01 15:30:00+00", "DATE_TZ_MISSING"),
+        ("2024-01-01T12:30:00+00", "2024-01-01T12:30:00+00", None),
+        # Deslocamento impossível é data impossível, não data a converter.
+        ("2024-01-01T12:30:00+99:99", "2024-01-01T12:30:00+99:99", "DATE_IMPOSSIBLE"),
+        ("2024-01-01T12:30:00+00:00", "2024-01-01T12:30:00+00:00", None),
+        ("01/01/2030", "2030-01-01", "DATE_FUTURE"),
+    ], obtido
+
+
+def test_a_reversibilidade_recusa_utf8_invalido(engine) -> None:
+    """R03 da terceira revisão: a gramática admitia sequências que o UTF-8 proíbe.
+
+    Os ramos de três e quatro bytes aceitavam qualquer continuação depois do
+    primeiro byte, o que autoriza três famílias que `convert_from` recusa com
+    **22021 — e 22021 aborta a consulta inteira**, não a linha:
+
+    * codificação excessivamente longa: `E0 80 80` e `F0 80 80 80`;
+    * substituto UTF-16: `ED A0 80`;
+    * ponto acima de U+10FFFF: `F4 90 80 80`.
+
+    Os bytes chegam como texto Latin-1, que é como estão em `raw_legacy`. O
+    primeiro caso guarda o conserto: mojibake genuíno continua sendo reparado.
+    """
+    obtido = _sobre_a_linha(engine, "products", "name", [
+        "CafÃ©",
+        "CafÃ© " + bytes.fromhex("eda080").decode("latin1"),
+        "CafÃ© " + bytes.fromhex("e08080").decode("latin1"),
+        "CafÃ© " + bytes.fromhex("f4908080").decode("latin1"),
+    ])
+
+    assert obtido == [
+        ("CafÃ©", "Café", "TEXT_ENCODING"),
+        # Não reversível é rejeitado — e, sobretudo, não é convertido.
+        ("CafÃ© í\xa0\x80", "CafÃ© í\xa0\x80", "TEXT_ENCODING_AMBIGUOUS"),
+        ("CafÃ© à\x80\x80", "CafÃ© à\x80\x80", "TEXT_ENCODING_AMBIGUOUS"),
+        ("CafÃ© ô\x90\x80\x80", "CafÃ© ô\x90\x80\x80", "TEXT_ENCODING_AMBIGUOUS"),
+    ], obtido
+
+
+def test_moeda_com_duas_leituras_e_rejeitada_em_vez_de_escolhida(engine) -> None:
+    """R04 da terceira revisão: `1,234` cabe nos dois formatos e eles discordam.
+
+    Um inteiro e 234 milésimos, na leitura brasileira; mil duzentos e trinta e
+    quatro, na americana. A regra escolhia o primeiro ramo do `case` e entregava
+    `1.234` marcado como **corrigido** — uma das duas leituras, em silêncio.
+
+    A Origem Legada §3.1 manda o contrário: reparar quando o par é conhecido,
+    rejeitar quando é ambíguo. Os demais casos guardam o conserto: formato de
+    leitura única continua sendo corrigido.
+    """
+    obtido = _sobre_a_linha(engine, "product_prices", "unit_price", [
+        "1,234", "1,234,567", "12,34", "1.234,56", "1234.56",
+    ])
+
+    assert obtido == [
+        ("1,234", "1,234", "MONEY_AMBIGUOUS"),
+        # Milhar americano sem parte decimal: leitura única, corrige.
+        ("1,234,567", "1234567", "MONEY_LOCALE"),
+        ("12,34", "12.34", "MONEY_LOCALE"),
+        ("1.234,56", "1234.56", "MONEY_LOCALE"),
+        ("1234.56", "1234.56", None),
+    ], obtido
+
+
+def test_falha_representacional_devolve_o_valor_original(engine) -> None:
+    """R07 da terceira revisão: injetar e detectar não prova **recuperar**.
+
+    `MONEY_LOCALE` e `DATE_FORMAT_KNOWN` são declarados corrigíveis, e os
+    formatadores do injetor descartavam informação: `12.3456` virava `12,34` —
+    duas casas a menos —, e a forma de data pura descartava horário e fuso.
+    Encontrar o código injetado provava que a detecção funciona; não provava que
+    a limpeza devolve o valor que havia antes.
+
+    O esperado aqui é **independente**: é o valor original, não o que o injetor
+    produziu. É o que separa recuperar de reencontrar o próprio defeito.
+    """
+    from mvp_ed1.legacy import injetor
+
+    class _SemFonte:
+        pass
+
+    fonte = _SemFonte()
+    # Cada forma recebe os valores em que ela **é** uma falha. A americana
+    # recusa o que não tem milhar, e a recusa é parte do contrato: ver `_en_us`.
+    por_forma = {
+        injetor._pt_br: ["12.3456", "1234.5", "12", "1999.99"],
+        injetor._com_simbolo: ["12.3456", "1234.5", "12", "1999.99"],
+        injetor._en_us: ["1234.5", "1999.99", "12345.6789"],
+    }
+
+    for forma, originais_moeda in por_forma.items():
+        injetados = [forma(v, fonte) for v in originais_moeda]
+        obtido = _sobre_a_linha(engine, "product_prices", "unit_price", injetados)
+        for original, (entrada, limpo, achado) in zip(originais_moeda, obtido):
+            assert achado == "MONEY_LOCALE", (forma.__name__, original, entrada, achado)
+            assert float(limpo) == float(original), (forma.__name__, entrada, limpo)
+
+    originais_data = ["1990-05-12", "2024-02-29", "2001-01-01"]
+    for forma in (injetor._dd_mm_aaaa, injetor._aaaa_ponto_mm_dd):
+        injetados = [forma(v, fonte) for v in originais_data]
+        obtido = _sobre_a_linha(engine, "customers", "birth_date", injetados)
+        for original, (entrada, limpo, achado) in zip(originais_data, obtido):
+            assert achado == "DATE_FORMAT_KNOWN", (forma.__name__, entrada, achado)
+            assert limpo == original, (forma.__name__, entrada, limpo)
