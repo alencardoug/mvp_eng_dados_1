@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D36** — o dimensionamento da Etapa 12 |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 41 aceitos, 1 pendente |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 42 aceitos, 1 pendente |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.7 — reconstrução dos dois caminhos conferida |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**41 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**42 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -65,16 +65,25 @@ SCD tipo 2 por *snapshot* · Cloud Composer e Airbyte em contêiner na nuvem, em
 modelos · **entrega medida em dois grãos** — no prazo pela remessa, ciclo pelo pedido — com a data
 realizada tirada do livro de eventos, e não da coluna da remessa · **dimensão que nenhuma pergunta
 recorta não é construída**, e a recompra pós-atendimento é ancorada no pedido · **nulo obrigatório
-após a limpeza é rejeitado**, sem apagar a evidência da conversão.
+após a limpeza é rejeitado**, sem apagar a evidência da conversão · **a captura legada é
+reconciliada na fato incremental por `delete+insert`**, com o *streaming* mantendo o filtro por
+tempo de evento.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026.** Ela foi declarada concluída em
-06/09, e a revisão por outro agente mostrou que não estava: doze achados bloqueantes, entre eles o
-empilhamento em `trusted`, que **não existe**. Os números abaixo continuam válidos para a captura e
-a classificação; o que eles não cobrem é a fronteira do empilhamento.
+**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026, em terceira revisão.** Foi declarada
+concluída em 06/09 e duas revisões por outro agente mostraram que não estava. O empilhamento em
+`trusted`, ausente na primeira revisão, existe desde 07/09 e teve a identidade por origem conferida
+no SQL pela terceira. Esta, de 08/09, deixou treze achados abertos; nove foram fechados com
+contraprova — validação de data, reversibilidade de codificação, ambiguidade monetária, recuperação
+do valor injetado, identidade do vínculo com a auditoria, guarda de configuração da impressão
+digital, avaliação real das views, e dois na troca automática de ambientes. Continuam abertos
+**R09, R10, R12, R13 e R14**, e o R25 está decidido (ADR-0042) mas não implementado. Os números
+abaixo descrevem a captura e a classificação; **o estado do armazém não foi remedido desde a
+reabertura** — o banco tem 2 das 16 views publicadas e o tratamento na versão 5, enquanto a árvore
+está na 7.
 Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).

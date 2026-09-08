@@ -13,7 +13,7 @@
 | Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 — D36 |
-| Última revisão | 07/09/2026 |
+| Última revisão | 08/09/2026 |
 
 ---
 
@@ -62,6 +62,18 @@ física), R12 (migração Alembic do schema legado) e R13 (oráculo independente
 ---
 
 ## 2. Decisões já fechadas
+
+### D37 — decidida em 08/09/2026
+
+**A captura legada é reconciliada na fato incremental por `delete+insert` no ramo legado**, com o
+ramo de *streaming* mantendo o filtro por tempo de evento. Fechada pelo
+[ADR-0042](adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md), que registra o custo
+aceito: a exceção do [ADR-0016](adr/0016-materializacao-por-camada.md) passa a ter duas estratégias,
+uma por origem, e a idempotência do ramo legado deixa de vir da `unique_key`.
+
+Levantada pelo achado R25 da terceira revisão. O que a motivou, medido em 08/09/2026: a janela
+incremental alcançava **7 de 553** movimentos legados, porque o corte usa `max(occurred_at)` global e
+o retail está quatro dias à frente da captura legada.
 
 ### D35 — decidida em 07/09/2026
 

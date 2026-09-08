@@ -78,6 +78,7 @@ decisão.
 | [0039](0039-alcance-da-procedencia.md) | Aplicar a procedência onde as duas origens se encontram | Aceita | Alcance do `source_system` |
 | [0040](0040-rejeitar-nulo-em-campo-obrigatorio.md) | Rejeitar nulo em campo obrigatório após a limpeza | Aceita | D32 |
 | [0041](0041-teto-de-memoria-nos-servicos-do-airbyte.md) | Declarar teto de memória em todo serviço permanente do Airbyte | Aceita | Parte da D36 |
+| [0042](0042-reconciliar-a-captura-legada-na-fato-incremental.md) | Reconciliar a captura legada na fato incremental por `delete+insert` | Aceita | D37 |
 
 ---
 
@@ -85,15 +86,12 @@ decisão.
 
 | # | Decisão | Levantada em | Efeito de não decidir |
 |---|---|---|---|
-| **D33** | Contra que universo o total do pedido reconcilia — todos os itens capturados, ou só os que serão empilhados | Revisão da Etapa 10, 07/09/2026 | A reconciliação mede consistência da origem ou do armazém, e ninguém sabe qual das duas o número afirma |
-| **D34** | O que identifica uma versão auditável do tratamento, quando o código muda e o número do catálogo não | Revisão da Etapa 10, 07/09/2026 | Duas auditorias diferentes convivem sob a mesma identidade, e a segunda apaga a primeira |
+| **D36** | Como a Etapa 12 cabe na máquina, já que o ambiente de trabalho não estava no dimensionamento | Medição de capacidade, 07/09/2026 | A validação final é planejada sobre um número que não fecha, e trava a máquina em vez de falhar |
 
-As duas vieram da **revisão por outro agente**, e não da construção — são o primeiro caso no
-projeto em que uma decisão nasce de alguém olhando o que já estava pronto. Nenhuma é implementação:
-as duas mudam o contrato.
-
-A regra de nulo obrigatório foi decidida em 06/09/2026 no
-[ADR-0040](0040-rejeitar-nulo-em-campo-obrigatorio.md).
+Decisões nascidas da **revisão por outro agente**, e não da construção, já são maioria nesta etapa —
+quatro delas, todas de alguém olhando o que estava pronto, e nenhuma era implementação: as quatro
+mudaram contrato. Estão todas registradas na §2 acima, com o ADR que as fechou; a tabela desta seção
+lista apenas o que continua em aberto.
 
 ### Decisões de abertura já resolvidas
 

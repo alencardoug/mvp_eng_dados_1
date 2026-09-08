@@ -130,12 +130,21 @@ nunca é reaproveitado.
 | `PARENT_REJECTED` | Registro filho | Íntegro, mas o pai foi rejeitado | Rejeitar em cascata, com vínculo ao pai |
 | `MONEY_AMBIGUOUS` | `amount` | Não casa com nenhum formato monetário reconhecido | Rejeitar: converter exigiria adivinhar o separador |
 | `DATE_UNPARSEABLE` | Campo de tempo | Texto que não é data em formato algum | Rejeitar: não há data a inferir |
+| `TEXT_ENCODING_AMBIGUOUS` | Qualquer texto | Mojibake numa célula que não se reverte por inteiro | Rejeitar: reverter só o trecho reconhecido corromperia o resto |
 
 **`MONEY_AMBIGUOUS` e `DATE_UNPARSEABLE` nasceram da revisão de 07/09/2026**, e a ausência delas
 era omissão, não decisão: o critério da §3.1 já dizia o que fazer, e `NUM_AMBIGUOUS` já o aplicava
 à quantidade. Faltava aplicá-lo ao dinheiro e à data. Sem elas, `abc` num campo monetário e
 `sem data` num campo de tempo **saíam corrigidos** — marcados como consertados sem nunca terem sido
 convertidos.
+
+**`TEXT_ENCODING_AMBIGUOUS` nasceu da segunda revisão da mesma data**, e a omissão era da mesma
+natureza: a linha de `TEXT_ENCODING` acima sempre disse "rejeitar se ambíguo", e só a metade
+reparável existia. A metade que faltava não era inofensiva. Detectar um par de mojibake autorizava
+recodificar a **célula inteira**, e a conversão derrubava a consulta quando a célula misturava o
+par com um acento legítimo (`SQLSTATE 22021`) ou com um emoji (`22P05`) — não a linha: a consulta.
+Agora a conversão só age quando a célula inteira sobrevive à ida e volta, e o que não sobrevive é
+rejeitado em vez de sair aceito com o texto corrompido intacto.
 
 A separação entre **converter** e **rejeitar** é o problema central desta origem, e o critério é
 único: converte-se quando existe **uma** interpretação possível; rejeita-se quando existe mais de
