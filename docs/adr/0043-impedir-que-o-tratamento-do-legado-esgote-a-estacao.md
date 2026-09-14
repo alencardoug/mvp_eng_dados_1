@@ -8,6 +8,24 @@
 | Decisão pendente resolvida | D38 |
 | Substitui / é substituída por | — |
 
+> **Retificação — 14/09/2026.** A revisão da entrega (achados MR01 e MR03 do dossiê
+> `REVISAO_memoria_e_reconciliacao.md`, fechado no *commit* que trouxe esta nota) encontrou dois
+> erros de fato na fundamentação. A **decisão não muda**; o que estava errado era o que a sustentava,
+> e fica registrado aqui o que dizia antes, porque ADR aceito não se reescreve em silêncio.
+>
+> 1. **Paridade com o GCP.** Dizia que "o `jit` é parâmetro de instância no Cloud SQL, onde também
+>    vem ligado por padrão" e que "o BigQuery não entra: o ramo legado é tratado antes dele". As duas
+>    afirmações estão erradas: o Cloud SQL for PostgreSQL lista LLVM/JIT entre as funcionalidades
+>    **não suportadas** ([documentação oficial](https://docs.cloud.google.com/sql/docs/postgres/features#unsupported-features-for-postgres),
+>    consultada em 08/09/2026), e o tratamento do legado vive no `warehouse_db`, cujos nove schemas
+>    o [mapa de paridade](../arquitetura.md#5-mapa-de-paridade-local--gcp) leva ao BigQuery. O
+>    parágrafo de paridade foi reescrito abaixo; nenhuma mudança de camada foi presumida.
+> 2. **Alternativa `jit_above_cost`.** Dizia que elevar o limiar "mantém o JIT para consulta normal
+>    e o desliga só para as monstruosas". É o contrário: o PostgreSQL 16 compila quando o custo
+>    estimado **supera** o limiar ([When to JIT?](https://www.postgresql.org/docs/16/jit-decision.html)),
+>    então elevá-lo poupa as consultas pequenas e continua compilando as grandes. A linha da tabela
+>    foi corrigida; a alternativa continua rejeitada, agora pelo motivo certo.
+
 ## Contexto
 
 Em 08/09/2026 a estação travou duas vezes — 23:12 e 01:25 —, sempre do mesmo jeito: o OOM *killer*
@@ -56,7 +74,7 @@ eram a exceção que sobrou.
 | **`jit=off` no armazém e `staging` legado como tabela** (escolhida) | Ataca as duas causas medidas, cada uma no seu nível: o custo por view e o custo do leque de quarenta. Ambas declarativas e versionadas — uma linha no `docker-compose.yml`, um bloco no `dbt_project.yml` | Abre exceção por origem no ADR-0016, que até aqui tinha uma regra por camada e nenhuma por origem; e o `staging` legado passa a ocupar disco e a exigir reconstrução |
 | Só `jit=off` | Uma linha; resolve o custo por view, que é a causa raiz | Não resolve o `legacy_records`: a união de quarenta braços sobre views continua acima de 2 GB com o JIT desligado, então `make dbt-build` seguiria capaz de travar a estação |
 | Só materializar o `staging` legado | Resolve tudo que está medido hoje — sobre tabelas o pico é 180 MB com JIT ligado ou desligado | Deixa de pé a armadilha do JIT para qualquer consulta futura de expressão grande sobre view, e a próxima ocorrência voltaria a aparecer como travamento sem causa aparente |
-| `jit_above_cost` alto em vez de desligar | Mantém o JIT para consulta normal e o desliga só para as monstruosas | O limiar é um número arbitrário que ninguém saberá revalidar quando os modelos mudarem de tamanho; e não resolve a união de quarenta braços |
+| `jit_above_cost` alto em vez de desligar | Preserva o JIT para as consultas de custo estimado **acima** do limiar, que são as que ele existe para acelerar (retificado em 14/09/2026 — ver nota no cabeçalho) | O sentido do limiar é o oposto do que este caso pede: o PostgreSQL compila quando o custo estimado **supera** `jit_above_cost`, então elevá-lo poupa as consultas pequenas e continua compilando as maiores — e a view de limpeza é exatamente uma consulta de custo alto e poucas linhas. Além disso, o limiar é um número arbitrário que ninguém saberá revalidar quando os modelos mudarem de tamanho; e não resolve a união de quarenta braços |
 | Cercar só no teste, sem tocar no banco | Não mexe em configuração de armazém | Trata o sintoma no lugar errado: quem estoura a memória é `make dbt-build`, não o `pytest`. O teste é onde o defeito aparece, não onde ele mora |
 | Aumentar a memória da máquina | Resolveria por força bruta | Não é decisão de engenharia disponível, e o defeito continuaria — só mudaria o limiar em que ele derruba a estação |
 
@@ -83,11 +101,18 @@ gerado de tamanho patológico — não por ser legado.
   troca é aceita porque o custo do JIT aqui é travar a máquina e o ganho é hipotético; e um teto de
   2 GB transforma consulta desgovernada em contêiner reiniciado, o que é falha visível, mas ainda é
   falha.
-- **Paridade com o GCP:** as três medidas têm equivalente direto. O `jit` é parâmetro de instância no
-  Cloud SQL, onde também vem ligado por padrão — a armadilha viaja junto com o projeto, e a decisão
-  precisa viajar com ela; a materialização é a mesma configuração `dbt`, sem mudança nenhuma; e o
-  teto de memória, que localmente é `mem_limit` de *cgroup*, na fase GCP é o *tier* da instância
-  Cloud SQL, que já é um limite declarado. O BigQuery não entra: o ramo legado é tratado antes dele.
+- **Paridade com o GCP** (retificada em 14/09/2026 — ver nota no cabeçalho)**:** as três medidas
+  se traduzem de forma diferente, e uma delas não viaja. O tratamento do legado vive no
+  `warehouse_db`, e o [mapa de paridade](../arquitetura.md#5-mapa-de-paridade-local--gcp) leva os
+  nove schemas do armazém ao **BigQuery** — não ao Cloud SQL. Então: **`jit=off` é medida local**,
+  sem equivalente e sem necessidade dele, porque o BigQuery não tem JIT do LLVM nem o parâmetro; a
+  **materialização** do `staging` legado como tabela é a mesma configuração `dbt`, sem mudança
+  nenhuma, e é a medida que viaja; e o **teto de memória** se desdobra em dois — para `source_db` e
+  `legacy_db`, que vão para o Cloud SQL, o equivalente é o *tier* da instância, que já é um limite
+  declarado; para o armazém, o BigQuery não tem teto de memória por consulta, e o mecanismo análogo
+  de contenção de consulta desgovernada é o limite de bytes faturados (`maximum_bytes_billed`),
+  que é outro controle e será fixado quando a fase GCP definir custos, como
+  [Arquitetura §4](../arquitetura.md#4-componentes--fase-gcp) já prevê.
 - **Documentos a atualizar:** [Capacidade e Recuperação](../capacidade_e_recuperacao.md) — medições
   na §2, que é o dono documental delas; [Origem Legada](../origem_legada.md) — a materialização dos
   modelos de limpeza; [ADR-0016](0016-materializacao-por-camada.md) — a exceção por origem, apontada
