@@ -7,10 +7,10 @@
 > Regime de leitura: o que está marcado **[medido]** tem saída de comando por trás; o que está
 > marcado **[planejado]** é intenção. Os dois não se misturam (P5).
 >
-> **Revisão 2 — 14/09/2026, mesma data.** As seis decisões que a primeira versão deixava ao Owner
-> (§12) foram tomadas antes de o plano ir à revisão. Onde a primeira versão dizia "proponho",
-> esta diz "decidido", e a §12 registra a resposta de cada uma. O que o revisor recebe é o plano
-> que vai ser executado.
+> **Revisão 3 — 14/09/2026.** Reescrito depois do parecer do revisor (§13, preservado na íntegra
+> como veio) e de mais uma rodada de decisões do Owner sobre as consequências que o parecer
+> devolveu. A §12 tem as onze decisões; a §14 diz o que foi feito com cada um dos 23 achados
+> P01–P23. As duas primeiras revisões estão no `git` (`f51fc2a`, `819b88f`).
 
 ---
 
@@ -28,12 +28,25 @@ reavaliada em 08/09). Os achados que restam, com o veredito **do revisor**:
 | R14 | ajuste | Documentos em estados incompatíveis (Pendências, Plano §Etapa 10, Origem Legada §4.2) |
 | R26 | observação | `event_sequence = legacy_row_id` é identidade física, não ordem observada; o contrato precisa ser dito pelo Owner |
 
-Já fechado e **fora deste plano**: R25 (ADR-0042) e a quarta revisão (memória/reconciliação,
-`2fb6f55`). Também fora: **D36** (Etapa 12 não cabe na máquina) e a Etapa 11.
+Já fechado e **fora deste plano**: R25 (ADR-0042 — e a decisão P13 o mantém como está) e a quarta
+revisão (memória/reconciliação, `2fb6f55`). Também fora: **D36** e a Etapa 11.
 
-**[medido]** em 14/09/2026: armazém com captura 16, tratamento v7, 16/16 views, fato 16.453;
-`make test CARGA=1` → 149 passed; `raw_legacy.customers` retém as 16 gerações, 75 linhas cada —
-nenhuma sobrescreveu a anterior.
+**[medido]** em 14/09/2026 (por mim e reproduzido pelo revisor, §13.2 V03–V05): armazém com
+captura **16**, tratamento **v7**, **16/16** views, fato **16.453** (15.900 `retail` + 553
+`legacy`); `raw_legacy` retém as gerações 1–16 (`customers`: 75 linhas em cada); a geração **15
+tem 39 tabelas** (`brands` ausente) e o *job* 25 dela terminou `succeeded` com `rowsSynced`
+exato — é uma **contraprova real já retida** para o R09. Manifesto: 106 achados, dos quais **80
+de valor** no recorte do teste e 26 de contexto; 88 ocorrências diretamente atingidas.
+`trusted.legacy_classifications`: 10.441 `accepted`, 26 `corrected`, 67 `own_invalid`, 3
+`duplicate_excess`, 2.210 `parent_rejected`.
+
+**Um estado que este plano herdou e consertou hoje:** `make test CARGA=1` substitui `source_db`
+pela carga reduzida (fator 0,05; `test_carga.py:53`), e a Execução Local §3.2 já dizia "só em banco
+isolado". Foi executado contra a origem de trabalho em 08/09 e de novo em 14/09. Restaurado em
+14/09 por `make seed-data FORCE=1` (252.955 linhas); `customers`, `orders`, `order_items` e
+`products` conferem com o `raw` por chave e `updated_at` (mesmo `md5`). **O "149 passed" citado
+nas versões anteriores não vale como medição da base** — o revisor reproduziu 31 (leitura), e este
+plano trata a suíte de carga como o que ela é: destrutiva, só em banco isolado (§9).
 
 ---
 
@@ -41,23 +54,23 @@ nenhuma sobrescreveu a anterior.
 
 ```
 R13 ──┐
-      ├──► R10 ──► validação de ponta a ponta ──► R14 (último, com estado medido)
-R12 ──┤              ▲
-R09 ──┘              │
-R26 (decisão do Owner; entra onde a resposta cair)
+      ├──► ADR-0044 ──► R10 ──► validação ──► R14 (estado medido; "aguardando revisão", não "aceita")
+R12 ──┤                  ▲
+R09 ──┘                  │
+R26 (nota de referência; entra no commit do R14)
 ```
 
-1. **R13 primeiro.** É só código local (gerador + testes), não precisa de ambiente pesado, e
-   produz o oráculo por ocorrência que **R10 vai reutilizar** para dizer "estas são as linhas que
-   sumiram, e eram estas que deviam sumir".
-2. **R12 em paralelo lógico** — independente de tudo, também sem ambiente pesado.
-3. **R09 antes de R10**, porque a prova do R10 exige duas sincronizações reais, e cada uma delas
-   precisa passar a ser verificável (é o que o R09 entrega).
-4. **R10** é o único que exige o Airbyte de pé duas vezes; concentra-se o custo de troca de
-   ambiente num bloco só.
-5. **Validação de ponta a ponta** com tudo entregue — é a lista "o que permanece sem validação" do
-   `REVISAO.md`, que nenhuma revisão fechou.
-6. **R14 por último**, porque documenta estado, e estado se documenta depois de medido.
+1. **R13 primeiro.** Só código local; produz o oráculo do lote que a validação final usa.
+2. **R12 em paralelo lógico**, em banco isolado — não toca no armazém nem no `legacy_db` até a
+   equivalência estar provada.
+3. **R09 antes de R10**: o registro de captura por *stream* é o que define "anterior completa".
+4. **ADR-0044 antes do código do R10** — a implementação nasce do ADR.
+5. **Validação** com tudo entregue, no cenário `batch` (bancos + Airbyte + Airflow), com a máquina
+   liberada pelo Owner.
+6. **R14 por último**, e o que ele declara é "implementado e medido, **aguardando revisão**" — a
+   entrega técnica não encerra revisão nem aceite (P08). O `REVISAO.md` e este plano saem no
+   *commit* de entrega porque são transitórios, **não** porque a etapa foi aceita; o parecer e as
+   situações ficam no histórico antes de sair.
 
 ---
 
@@ -65,83 +78,91 @@ R26 (decisão do Owner; entra onde a resposta cair)
 
 ### O que existe hoje **[medido]**
 
-- `data/legacy/manifesto.json`: `achados` (106 falhas de valor, com `valor_original`,
-  `valor_legado`, `resultado_esperado`) e `ocorrencias` (88, só as **diretamente** atingidas).
-- `tests/test_legado_deteccao.py::test_os_modelos_encontram_tudo_que_o_injetor_produziu` compara
-  achados de valor do `staging` com o manifesto, **excluindo** `FK_ORPHAN`, `DUP_EXACT`,
-  `DUP_PARTIAL`, `TOTAL_MISMATCH`, `NULL_REQUIRED` (`DE_CONTEXTO`).
-- **Nenhum teste** compara `trusted.legacy_classifications` (`classification`,
-  `rejection_origin`, `findings`) com um esperado por ocorrência. A cascata (`PARENT_REJECTED`)
-  não tem oráculo nenhum. Valores recuperados são conferidos por amostra dirigida
-  (`test_falha_representacional_devolve_o_valor_original`), não pelo lote.
-- `tests/test_legacy_classification.py` prova a semântica em casos sintéticos pequenos — útil,
-  mas é o autor desenhando o caso.
+- Manifesto com `achados` (106; 80 de valor no recorte `DE_CONTEXTO`) e `ocorrencias` (88).
+- `test_os_modelos_encontram_tudo_que_o_injetor_produziu` compara **só** achados de valor do
+  `staging`, excluindo os cinco códigos de contexto.
+- **Nenhum teste** compara `trusted.legacy_classifications` com um esperado por ocorrência; a
+  cascata (2.210 linhas, 17% da captura) não tem oráculo; valores recuperados são conferidos por
+  amostra dirigida. `test_legacy_classification.py` é especificação por casos do autor — útil, não
+  lote.
+- Caso decisivo (P06, V05): `product_variants` #27, coluna `color`, original `Vermelho`, injetado
+  `'NULL'` (`NULL_DISGUISED`), resultado **nulo** e `corrected`. Está certo pelo ADR-0040: o
+  esperado **não** é o original.
 
 ### O que muda **[planejado]**
 
 **Declaração (revisão integral):**
 
-1. `src/mvp_ed1/legacy/injetor.py` — `Resultado` ganha `esperado_por_ocorrencia()` que devolve,
-   para **toda** ocorrência gerada (não só as atingidas), o veredito esperado:
-   `{tabela, legacy_row_id, classification, rejection_origin, causa}`. A cascata é calculada
-   **a partir do grafo de FKs do `Base.metadata`** (o mesmo de onde `record_contract` nasce) e da
-   semântica do ADR-0038/0040 — **não** lendo o SQL. Fecho transitivo: filho íntegro de pai
-   rejeitado é `rejected/parent_rejected`; excedente de `DUP_EXACT` é `rejected/duplicate_excess`;
-   o resto `rejected/own_invalid`, `corrected` ou `accepted`.
-2. O manifesto passa a gravar essa lista como `veredito` (12.747 entradas; o arquivo continua fora
-   do `git`, como hoje). `ocorrencias` sai — vira subconjunto redundante.
-3. `valor_esperado_tipado`: para cada achado `corrected`, o manifesto já tem `valor_original`; o
-   teste passa a compará-lo com `cleaned_payload->>coluna` **depois de normalizar pelo tipo do
-   modelo SQLAlchemy** (decimal como decimal, data como data), não por igualdade de texto.
+1. **`catalogo.yml`** — cada falha declara `recuperacao: original | canonico`, e para `canonico` o
+   alvo (`nulo`, `forma_canonica`…). É a semântica de cada transformação dita **uma vez**, no
+   catálogo, e é de lá que o oráculo tira o valor esperado. `NULL_DISGUISED` → `canonico: nulo`;
+   `TEXT_ENCODING`, `TEXT_WHITESPACE_CASE`, `MONEY_LOCALE`, `DATE_FORMAT_KNOWN`, `BOOL_VARIANT`,
+   `NUM_TEXT_EQUIV` → `original` (a informação foi preservada). Revisão integral desta tabela pelo
+   Owner: ela é o contrato de recuperação (R07 já cobrava).
+2. **`injetor.py`** — `Resultado.esperado_por_ocorrencia()` devolve, para **toda** ocorrência
+   gerada, o **multiconjunto de achados esperados** — `(codigo, coluna, vinculo_causal)` —, a
+   `classification`, a `rejection_origin` e, por achado corrigível, o `valor_esperado` derivado do
+   item 1. Calculado a partir das **mutações que o próprio injetor aplicou**, do conjunto íntegro
+   anterior à injeção e do grafo declarativo (`Base.metadata`: FKs, PKs, unicidades parciais,
+   obrigatoriedade; totais de pedido pela regra do catálogo) — **sem importar nada de
+   `classification.py`, `dbt.py` ou `ponte.py`**. O grafo é declaração comum; os *helpers* do
+   classificador não são (13.4).
+3. **Semântica da cascata — decidida pelo Owner em 14/09/2026**, e é o que o oráculo implementa:
+
+   | Caso | Decisão |
+   |---|---|
+   | Filho aponta para `id` que existe numa excedente de `DUP_EXACT` rejeitada **e** numa canônica apta | **Não cascateia** |
+   | `DUP_PARTIAL` rejeita as duas versões | Filhos **cascateiam** (`parent_rejected`) |
+   | Pai rejeitado por `NULL_REQUIRED` na própria chave | Filhos são **`FK_ORPHAN` / `own_invalid`** — o vínculo não resolve |
+   | Ciclo de auto-referência com raiz rejeitada | Toda a componente é `rejected`; **a raiz conserva a causa própria** (`own_invalid`), os alcançados são `parent_rejected` — é o que o SQL faz hoje (V04) |
+
+   As quatro são **compatíveis** com ADR-0038/0040 — nota de referência nos donos, sem ADR (P16).
+4. **Manifesto ligado ao lote (P18):** ganha `lote: {semente, fator, versao_catalogo, geradas_por_tabela,
+   hash_das_identidades}`; o teste confere que a captura selecionada tem as mesmas contagens e o
+   mesmo conjunto de `legacy_row_id` por tabela **antes** de comparar vereditos. Manifestos são
+   gravados com o `hash` no nome (`manifesto-<hash>.json`), e o mais recente é um *symlink* —
+   regerar não apaga o anterior, que o R10 precisa.
 
 **Derivado (amostragem):**
 
-4. `tests/test_legado_deteccao.py` ganha três testes sobre `trusted.legacy_classifications`:
-   - `test_o_veredito_de_toda_ocorrencia_confere_com_o_esperado` — igualdade de conjuntos
-     `(tabela, legacy_row_id, classification, rejection_origin)`; a diferença é impressa dos dois
-     lados (falsos negativos **e** falsos positivos — é o *recall* e a precisão que o revisor pediu);
-   - `test_a_cascata_aponta_para_o_pai_certo` — para cada `parent_rejected`, o `findings` vincula
-     ao pai que o oráculo diz;
-   - `test_todo_valor_corrigido_e_recuperado` — igualdade tipada com `valor_original` para os
-     `corrected`, sem exceção.
-   Os testes rodam contra a captura selecionada (`legacy_selected_capture`), uma consulta por
-   tabela como hoje (ADR-0043).
-5. `docs/origem_legada.md` §3.2 — o manifesto passa a declarar veredito por ocorrência; §5 ganha a
-   frase de que a cascata tem oráculo independente. `docs/qualidade_de_dados.md` — a medição.
-
-### Semântica da cascata — **decidida pelo Owner em 14/09/2026**
-
-São casos em que a documentação vigente não decidia, e o oráculo independente **não pode** copiar o
-que o SQL faz por acaso. O que vale, e o que o oráculo implementa:
-
-| Caso | Decisão | Alternativa recusada |
-|---|---|---|
-| Filho aponta para `id` de negócio que existe numa linha rejeitada **e** numa canônica aceita (excedente de `DUP_EXACT`) | **Não cascateia** — o pai de negócio existe e está apto | Cascatear se qualquer ocorrência do pai foi rejeitada |
-| `DUP_PARTIAL` rejeita as duas versões; filhos delas | **Cascateiam** (nenhuma versão está apta) | — |
-| Pai rejeitado por `NULL_REQUIRED` na própria chave (`id` nulo) | Filhos que apontariam para ele são **`FK_ORPHAN` (`own_invalid`)**, não `PARENT_REJECTED` — o vínculo não resolve para ocorrência nenhuma | Tratar como cascata |
-| Ciclo de auto-referência com raiz rejeitada | **Toda a componente é `parent_rejected`** (é o que `test_self_reference_cycle_terminates_with_rejected_root` já fixa) | — |
-
-A semântica é **declaração**, e vai para o dono documental (`origem_legada.md` §5, e o ADR-0038
-ganha nota datada apontando para lá) antes do código. **Se o SQL de `legacy_classifications`
-divergir dela, o SQL está errado e se corrige na mesma entrega** — decisão do Owner, um *commit*
-`fix:` por defeito, com a divergência medida antes e depois no dossiê.
+5. Três testes novos em `tests/test_legado_deteccao.py`, sobre `trusted.legacy_classifications`
+   da captura selecionada, uma consulta por tabela (ADR-0043):
+   - **veredito e achados**: para cada ocorrência, `(classification, rejection_origin)` e o
+     **multiconjunto** de `(code, column, vínculo)` de `findings` iguais ao esperado — a
+     diferença é impressa dos dois lados (precisão e *recall* no grão da ocorrência × achado);
+   - **cascata**: cada `parent_rejected` aponta (`context.parent_table/parent_row_id`) para o pai
+     que o oráculo diz;
+   - **recuperação**: `cleaned_payload->>coluna` igual ao `valor_esperado`, com comparação tipada
+     pelo tipo do modelo SQLAlchemy, **inclusive** em ocorrências cujo veredito final é rejeição
+     (a conversão é preservada pelo ADR-0040).
+6. **Contraprova por mutação (13.4):** um teste que injeta um defeito deliberado no oráculo
+   (inverte um caso da cascata) e outro que o injeta no SQL compilado (troca um código) e afirma
+   que os testes do item 5 **falham**. Sem isso, dois algoritmos do mesmo autor concordando não
+   provam nada.
+7. `DE_CONTEXTO` sai: os cinco códigos passam a ser cobertos pelo teste de veredito.
+8. Se o oráculo e o SQL divergirem, **o SQL se corrige na mesma entrega** (decisão do Owner), um
+   `fix:` por defeito — e a correção exige o ciclo inteiro (P17): regerar modelos, subir a
+   `versao` do catálogo (v8) porque o tratamento mudou, `make dbt-build`, e só então comparar.
+   Tratamento diferente sob a **mesma** versão é o que a D34 recusa — e essa recusa é medida uma
+   vez de propósito no §7, não contornada aqui.
 
 ### Prova
 
 ```
-make test                                          # os três testes novos, com contagens em record_property
-make dbt-test DBT_ARGS='--select path:models/trusted/legacy path:models/quarantine'   # equações continuam fechando
+make seed-legacy FORCE=1                                   # manifesto novo, com lote identificado
+make dbt-build DBT_ARGS='--select legacy_selected_capture+'  # o legado inteiro, na captura corrente
+make test                                                  # os testes novos + mutação
 ```
 
-Saída esperada: `perdidos = []`, `sobrando = []`, `recuperados = N/N`. Se o oráculo e o SQL
-divergirem, a **primeira** saída mostrará a divergência — e ela vai para o dossiê como está.
+Saída esperada: `faltando = []`, `sobrando = []`, `recuperados = N/N`, e os dois testes de mutação
+**falhando de propósito e passando por isso**.
 
 ### Critério de pronto
 
-- [ ] Toda ocorrência da captura tem veredito esperado, calculado sem ler SQL.
-- [ ] Os três testes passam **ou** a divergência está registrada e corrigida na declaração.
-- [ ] `DE_CONTEXTO` deixa de existir como exclusão silenciosa — os códigos de contexto passam a
-      ser cobertos pelo teste de veredito.
+- [ ] Toda ocorrência da captura tem veredito e achados esperados, calculados sem ler o classificador.
+- [ ] `recuperacao` declarada no catálogo para todo código corrigível, revisada pelo Owner.
+- [ ] Os testes passam sobre a captura selecionada, **depois** de regerar e reconstruir; e falham sob mutação.
+- [ ] Manifesto identificado pelo lote; a captura conferida contra ele antes de comparar.
 
 ---
 
@@ -149,47 +170,48 @@ divergirem, a **primeira** saída mostrará a divergência — e ela vai para o 
 
 ### O que existe hoje **[medido]**
 
-- `alembic.ini` → `db/migrations`, uma revisão (`20260904_deae0e5943e0`, schema `oltp`), alvo
-  `source_db`.
-- `legacy_db` nasce de `writer.criar_schema(engine)` executando `schema.ddl()` — DDL derivado
-  dos modelos, mas sem versão, sem `downgrade`, sem `make migrate` que o alcance.
+`alembic.ini` → `db/migrations`, uma revisão (schema `oltp`), alvo `source_db`. `legacy_db` tem
+as 40 tabelas e **nenhuma `alembic_version`** (V04). O ADR que fixa o Alembic é o **0010**.
 
 ### O que muda **[planejado]**
 
-**Declaração:**
+1. Segundo ambiente, `db/migrations_legacy/`, com `env.py` apontando para `legacy_db` e
+   `target_metadata` derivado de `schema.py`. No `alembic.ini`, a seção `[alembic]` existente
+   **continua** sendo a da origem principal (nenhum chamador muda); entra `[legacy]`, usada por
+   `-n legacy`.
+2. Revisão inicial gerada por *autogenerate* **num banco isolado vazio** e revisada (é derivado;
+   a declaração é `schema.py`). `downgrade` derruba o schema.
+3. **Adoção do `legacy_db` existente, em três passos medidos (P05):** (a) catálogo físico do banco
+   isolado migrado; (b) catálogo físico de um segundo banco isolado criado por `schema.ddl()` —
+   o caminho de referência; (c) catálogo físico do `legacy_db` atual. Os três comparados por
+   `information_schema` (tabelas, colunas, tipos, nulabilidade, *constraints*, ordem). **Só se os
+   três forem idênticos** o `legacy_db` recebe `alembic stamp head`; se não forem, o que diverge
+   é achado e se conserta na declaração antes de qualquer `stamp`.
+4. `writer.criar_schema` deixa de emitir DDL: exige `alembic_version` na cabeça e falha apontando
+   `make migrate-legacy`. `schema.ddl()` permanece como **referência de teste** (item 3b), não
+   como caminho de criação.
+5. `Makefile`: `migrate-legacy`, `migrate-legacy-status`, `migrate-legacy-down`; `seed-legacy`
+   depende de `migrate-legacy`. Execução Local §3 ganha a linha.
+6. `tests/test_migracao_legado.py`: em banco isolado (`createdb` efêmero no próprio contêiner
+   `legacy_db`), `upgrade head` → carga representativa → `downgrade base` → `upgrade head`, e a
+   comparação tripla do item 3 como teste, não só como procedimento.
 
-1. Segundo ambiente Alembic, `db/migrations_legacy/`, com `env.py` próprio apontando para
-   `legacy_db` e `target_metadata` construído de `schema.py` (as 40 tabelas em `text`, mais
-   `legacy_row_id`). Um `alembic.ini` só, duas seções (`[oltp]`, `[legacy]`) — Alembic suporta
-   `-n <seção>`.
-2. Primeira revisão `cria_o_schema_legacy_com_as_40_tabelas_frouxas`, **gerada por autogenerate
-   e revisada** (é derivado; a declaração é `schema.py`). `downgrade` derruba o schema.
-3. `writer.criar_schema` **deixa de emitir DDL**: passa a exigir que a revisão esteja aplicada
-   (`alembic_version` presente e na cabeça) e falhar com mensagem que aponta `make migrate-legacy`.
-4. `Makefile`: `migrate-legacy`, `migrate-legacy-status`, `migrate-legacy-down`; `seed-legacy`
-   passa a depender de `migrate-legacy`. `make up`/ciclo completo em `execucao_local.md` §3
-   ganha a linha.
-5. Teste: `tests/test_migracao_legado.py` — `upgrade head` do zero num banco vazio, `downgrade
-   base`, `upgrade head` de novo, e **`schema.ddl()` e o resultado do autogenerate não divergem**
-   (`alembic check` sai limpo), que é o que impede o DDL derivado e a migração de se separarem.
-
-**Não é ADR novo:** o ADR-0009 já fixa Alembic para a origem; isto é aplicar a mesma decisão à
-segunda origem. Fica registrado como nota datada no dono (`origem_legada.md` §2) e nas
-Pendências como "R12 fechado".
+Não é ADR novo: aplica o ADR-0010 à segunda origem. Nota datada em `origem_legada.md` §2.
 
 ### Prova
 
 ```
-make migrate-legacy-down && make migrate-legacy && make seed-legacy FORCE=1
-.venv/bin/alembic -n legacy check
-make test
+.venv/bin/alembic -n legacy upgrade head     # no banco isolado; saída literal
+<comparação tripla>                          # 0 diferenças
+.venv/bin/alembic -n legacy stamp head       # só depois do zero acima
+make migrate-legacy-status && make test
 ```
 
 ### Critério de pronto
 
-- [ ] `legacy_db` sobe do zero **só** por migração; `criar_schema` não emite DDL.
-- [ ] `downgrade` e `upgrade` de novo, medidos.
-- [ ] `alembic check` limpo contra `schema.py`.
+- [ ] `legacy_db` isolado sobe do zero só por migração; `downgrade`/`upgrade` medidos.
+- [ ] Equivalência tripla provada **antes** do `stamp` no banco existente.
+- [ ] `criar_schema` não emite DDL.
 
 ---
 
@@ -197,66 +219,79 @@ make test
 
 ### O que existe hoje **[medido]**
 
-- `geracao_do_legado` na DAG lê `max(_airbyte_generation_id)` **depois** da sincronização. A
-  docstring já admite: não distingue carga nova de anterior reutilizada.
-- O *job* do Airbyte devolve `rowsSynced` (`airbyte.acompanhar`), que hoje só é impresso.
-- `legacy_captura_completa` = "toda tabela tem ≥ 1 linha na captura".
+- `geracao_do_legado` lê `max(_airbyte_generation_id)` depois da sincronização; `rowsSynced` já
+  vai ao XCom como `linhas` (`fluxo_batch.py:90`), **mas não certifica nada** (P10).
+- **V04:** em todas as linhas das gerações 15 e 16, `_airbyte_meta->>'sync_id'` é igual ao
+  `jobId` (25 e 26). A documentação do Airbyte descreve `sync_id` como identificador monotônico
+  da sincronização, sem prometer essa igualdade — é **contrato observado na versão instalada**, e
+  entra como tal: fixado por teste, não presumido universal.
+- **Geração 15:** *job* `succeeded`, `rowsSynced` = 12.746 = total da geração, **39 tabelas** —
+  `brands` não veio. Máximo crescente e total exato **aceitariam** essa captura.
 
 ### O que muda **[planejado]**
 
-O Airbyte não expõe `jobId ↔ generation_id`. Mas expõe **duas coisas que juntas fecham o vínculo**:
-a geração máxima **antes** do *job* e o `rowsSynced` **do job**.
-
 **Declaração:**
 
-1. `src/mvp_ed1/airbyte.py` ganha `captura_do_legado(antes: int | None, job: dict) -> int` que
-   aplica a regra, usada pela DAG **e** por `make sync-legacy` (uma implementação, dois chamadores —
-   a mesma razão de a DAG já importar o cliente):
-   - lê a geração máxima depois; exige `depois > antes` (carga nova escreveu);
-   - exige `sum(count(*) por tabela na geração depois) == job.rowsSynced` (o que o *job* diz ter
-     escrito é o que está na geração — este é o vínculo *job* ↔ captura);
-   - exige que **nenhuma** tabela tenha geração entre `antes` e `depois` que não seja `depois`
-     (carga parcial de um *job* anterior abortado não passa por captura).
-2. DAG: tarefa `geracao_antes_do_legado` antes de `sincronizar('legacy_para_raw_legacy')`;
-   `geracao_do_legado(antes, job)` passa a chamar a função acima. A docstring perde o parágrafo
-   "o que esta tarefa não prova" e ganha o que ela prova e com que evidência.
-3. `teste_captura_completa()` em `legacy/dbt.py` ganha a segunda metade: além de "≥ 1 linha por
-   tabela", **a contagem por tabela da captura selecionada é igual à contagem que o *job* reportou**
-   — via *seed* pequeno? Não: via tabela `raw_legacy._capturas` escrita pela função do item 1
-   (`snapshot_id, job_id, rows_synced, capturado_em`). É a única escrita fora do Airbyte em
-   `raw_legacy`, e é **metadado de ingestão**, não dado — precisa estar dito no ADR-0008/`origem_legada.md` §4.1.
+1. **Registro de captura por *stream*, em `governance.legacy_captures`** — decidido pelo Owner em
+   14/09/2026, pelo ADR-0023 (log de execução: "cada execução de pipeline, início, fim,
+   resultado"). Uma linha por `(job_id, source_table)`:
+   `snapshot_id, source_rows_before, source_rows_after, received_rows, sync_id_matches, status,
+   captured_at`. Escrita por `mvp_ed1/airbyte.py::registrar_captura(job)`, chamada pela DAG e por
+   `make sync-legacy` — uma implementação, dois chamadores.
+   - `source_rows_before/after`: contagem em `legacy_db` por tabela, **antes de disparar** o *job*
+     e **depois** de ele terminar. Diferentes → a origem mudou durante a carga → `status =
+     unstable`, captura **não elegível** (nem como selecionada nem como anterior). É o esperado
+     de extração **independente do destino** que o P02 pede.
+   - `received_rows`: linhas em `raw_legacy.<t>` com `_airbyte_generation_id = snapshot_id` **e**
+     `_airbyte_meta->>'sync_id' = job_id`. `sync_id_matches = false` se alguma linha da geração
+     tiver outro `sync_id`, ou se linhas com este `sync_id` estiverem noutra geração → `status =
+     inconsistent`.
+   - `status = complete` só se, para **todas** as 40 tabelas, `received_rows = source_rows_after`
+     e `source_rows_before = source_rows_after` e `sync_id_matches`. Tabela com 0 na origem e 0
+     recebida é **completa** — `VAZIAS_LEGITIMAS` deixa de ser lista declarada e vira medida
+     (resolve a tensão que o P02 apontou: apagar a última linha de uma tabela é remoção, não
+     ingestão incompleta, porque a origem também diz 0).
+   - Criação: DDL idempotente e versionado em `mvp_ed1/governance.py` (o armazém não tem
+     Alembic, e o ADR-0010 não o exige lá); evolução por função de migração no mesmo módulo, com
+     teste. O revisor decide no parecer se isso basta ou se o armazém precisa entrar no Alembic —
+     é escopo da Etapa 11, e fica dito.
+   - **Nota datada no ADR-0023:** a tabela é a primeira do conjunto "log de execução", e é **lida
+     pelo fluxo** (os modelos do legado a declaram como `source` para decidir elegibilidade) — a
+     única leitura de `governance` pelo pipeline, dita e justificada. Paridade: *dataset*
+     `governance` no BigQuery, mesma tabela, escrita pelo mesmo Python.
+2. **DAG:** `contar_origem_do_legado` antes de `sincronizar`, `registrar_captura(job)` depois;
+   `geracao_do_legado` passa a devolver o `snapshot_id` **do registro `complete`**, e falha se o
+   *job* não produziu um. A docstring perde "o que esta tarefa não prova" e ganha o que prova.
+3. **Testes dbt** (`legacy/dbt.py`): `legacy_captura_existe` mantido; `legacy_captura_completa`
+   passa a exigir `status = complete` no registro da captura selecionada **e** as contagens por
+   tabela iguais — a geração 15 falha aqui, medido. Capturas 1–16 **não têm registro** e não têm
+   como ter (as contagens de origem passaram): para elas a elegibilidade como "anterior completa"
+   é **negada por construção**; a primeira comparação do R10 acontece entre duas capturas novas.
+   Fica dito no ADR-0044.
+4. **Premissas e o que não se exercita:** tentativa repetida (*retry*) do mesmo *job* — o teste de
+   `sync_id_matches` recusa mistura entre gerações, mas um *retry* que reescreva a mesma geração
+   com o mesmo `sync_id` não é reproduzível localmente sem forçar falha no destino. Registrado
+   como premissa no dossiê, não como prova.
 
-   > **Decidido pelo Owner em 14/09/2026:** tabela de controle **`raw_legacy._capturas`**. É
-   > acrescentar uma tabela a um schema declarado como "snapshot imutável do Airbyte", e é
-   > metadado de ingestão, não dado — o `_` a separa das 40 e o ADR-0008 ganha **nota datada**
-   > dizendo isso; não é ADR novo. Alternativas recusadas: schema de controle próprio (schema
-   > novo, exigiria ADR) e verificar só em tempo de execução (a prova não sobreviveria para o
-   > teste dbt nem para o R10, que precisa saber quais capturas conferiram). Criada por migração
-   > Alembic no ambiente do armazém? **Não** — o armazém não tem Alembic; nasce por `create table
-   > if not exists` na própria função de ingestão, versionada em `airbyte.py`, e o teste dbt
-   > declara-a como `source`. Se o revisor considerar isso DDL fora de ciclo (mesma família do R12),
-   > a alternativa é um `seed` vazio do dbt com `post_hook` de carga — a decidir no parecer.
-
-4. `src/mvp_ed1/legacy/dbt.py::teste_captura_completa` passa a comparar contagens com
-   `_capturas`; e `VAZIAS_LEGITIMAS` continua valendo para o "≥ 1".
-
-### Prova (exige Airbyte — bloco compartilhado com R10)
+### Prova (Airbyte de pé — bloco compartilhado com R10)
 
 ```
-make airbyte-up            # troca de ambiente; preflight decide
-make sync-legacy           # 1ª: antes=16, depois=17, rowsSynced=12.747, contagens conferem
-make sync-legacy           # 2ª: antes=17, depois=18
-make dbt-test DBT_ARGS='--select legacy_captura_completa legacy_captura_existe'
+make sync-legacy      # captura A: status=complete, 40 linhas em legacy_captures, sync_id = job
+make dbt-build DBT_ARGS='--select legacy_selected_capture legacy_captura_completa legacy_captura_existe'
 ```
 
-E a **contraprova**: interromper a origem (pausar `legacy_db`) e rodar `make sync-legacy` — o *job*
-falha ou escreve zero, e a função recusa (`depois == antes`). Saída colada no dossiê.
+**Contraprovas:** (a) a geração 15 retida — `legacy_snapshot_id=15` → `legacy_captura_completa`
+falha por `brands` e por ausência de registro; (b) captura **incompleta mas `succeeded`**:
+desabilitar o *stream* `brands` na conexão pela API, `make sync-legacy` (captura C) → registro com
+`status = incomplete`, `geracao_do_legado` recusa; reabilitar o *stream* e sincronizar de novo
+antes de qualquer *build* positivo (P21). Renomear tabela e pausar o banco **não** servem: só
+produzem *job* falho, que já é recusado hoje.
 
 ### Critério de pronto
 
-- [ ] "Captura nova" e "captura anterior reutilizada" produzem resultados diferentes, medidos.
-- [ ] `rowsSynced` do *job* == linhas da geração, conferido por teste dbt a cada *build*.
-- [ ] DAG e `make sync-legacy` usam a mesma função.
+- [ ] Captura nova, reutilizada, `unstable` e `incomplete` produzem resultados diferentes, medidos.
+- [ ] `sync_id = job_id` fixado por teste na versão instalada.
+- [ ] Geração 15 recusada pelo teste dbt.
 
 ---
 
@@ -264,110 +299,111 @@ falha ou escreve zero, e a função recusa (`depois == antes`). Saída colada no
 
 ### O que existe hoje **[medido]**
 
-- `raw_legacy` retém todas as capturas (ADR-0037) — a matéria-prima existe.
-- Nenhum modelo compara duas capturas. Registro apagado na origem simplesmente **não está** na
-  captura seguinte, e como `trusted` nasce só da captura selecionada, ele some do armazém sem
-  rastro — exatamente o "descartado em silêncio" da regra 4 do `CLAUDE.md`.
-- O gerador não tem como apagar linhas de propósito; `legacy_row_id` é renumerado de 1 a cada
-  geração (`degradar`), então **não serve** como identidade entre capturas.
+`raw_legacy` retém tudo; nenhum modelo compara capturas; registro apagado some do armazém sem
+rastro. `legacy_row_id` é renumerado a cada geração. **`inventory_movements` não tem coluna
+`id`** — a PK é `movement_id` (V06). Quatro *snapshots* SCD existem (`scd_customer`,
+`scd_product`, `scd_coupon`, `scd_support_agent`), sem tratamento de *hard delete*; `dim_customer`
+faz *inner join* com o cadastro atual (`dim_customer.sql:73`).
 
-### D39 — **decidida pelo Owner em 14/09/2026**
+### D39 — decidida pelo Owner em 14/09/2026, refinada na segunda rodada
 
-As Pendências diziam que R10 é "implementação, não decisão". O *se* era; o *como* tinha três
-escolhas de modelagem, e o Owner as fechou:
+| # | Decisão |
+|---|---|
+| D39-a′ | **Remoção é ausência física no bruto.** `legacy_removed_records` compara presença em `raw_legacy`, pela **PK declarada no SQLAlchemy por tabela** (`id` em 39, `movement_id` na 40ª — lida de `Base.metadata`, nunca literal), entre a anterior completa e a selecionada. Chave nula ou não conversível não entra na comparação e é reportada como `sem identidade` (é `NULL_REQUIRED`, rejeição própria). Três transições **disjuntas** por tabela: `removida` (presente antes, ausente agora), `adicionada`, `mantida` — e a equação física `presentes(anterior) − removidas + adicionadas = presentes(selecionada)` fecha por construção. Aptidão **não** entra na detecção: rejeição nova não é remoção (P03), e a captura anterior não é classificada (P04) |
+| D39-b | "Anterior completa" = maior `snapshot_id < selecionada` com `status = complete` em `governance.legacy_captures`. Sem registro (gerações 1–16) → não elegível |
+| D39-c′ | **A fato segue o ADR-0042** — o movimento que sumiu sai do ramo legado por `delete+insert`, aparece em `legacy_removed_records` e a reconciliação explica (P13). **A marca é nas dimensões**, e persiste por construção pelo mecanismo nativo do dbt: os quatro *snapshots* passam a `hard_deletes: new_record` — membro que some da entrada ganha versão nova com `dbt_is_deleted = true`, e ela dura em toda captura seguinte (P14). A dimensão lê a última versão do *snapshot* (o *inner join* com o cadastro atual sai) e marca `is_deleted = true` **só** quando a chave está em `legacy_removed_records` — ausência **sem** remoção física (perda de aptidão) mantém o membro na última versão válida, não marcado, e é contada na reconciliação como `perdeu_aptidao = sumiu_do_snapshot − removidas`. Reaparecimento: versão nova, `dbt_is_deleted = false`, `is_deleted = false` |
 
-| # | Pergunta | Decisão | Alternativas recusadas |
-|---|---|---|---|
-| D39-a | **Qual identidade diz "mesmo registro" entre capturas?** | A chave de negócio da origem (`id`), **depois do tratamento** — só entre ocorrências aptas (`accepted`/`corrected`) das duas capturas. Rejeição nova não é remoção | `legacy_row_id` (renumerado a cada geração); `original_payload` inteiro; bruto contra bruto |
-| D39-b | **O que é "captura anterior completa"?** | A maior `snapshot_id < selecionada` que passa em `legacy_captura_completa` **e** cujas contagens conferem com `_capturas` (R09). Captura incompleta é pulada, nunca comparada — é isto que "distingue remoção real de falha de ingestão" | Sempre `selecionada − 1` |
-| D39-c | **Onde o removido aparece, e o que acontece com ele adiante?** | Modelo `trusted.legacy_removed_records` (`source_table, business_id, last_seen_snapshot_id, removed_in_snapshot_id, last_payload`), lido pela reconciliação; e **marca `is_deleted`/`deleted_at`** carregada até a dimensão pelo mesmo caminho do ADR-0029 — a origem apagou, o datamart lembra. Fato não se apaga | Só reportar (o datamart esqueceria o membro; fatos antigas órfãs — contra o ADR-0029); `quarantine` (ausência não é rejeição) |
-
-**É ADR:** a marca de exclusão passa a nascer de **ausência entre capturas**, não de coluna. D39
-entra em `pendencias.md` como decidida e é registrada como **ADR-0044** por `/adr` **antes** do
-código do R10 — a implementação nasce do ADR, não o contrário.
+**ADR-0044** registra as três, a chave por tabela, o universo coberto (presença física; aptidão
+é outra pergunta), a relação com ADR-0015/0029/0037/0038/0042 (nenhum é substituído; 0042 é
+**confirmado**), o custo (mais uma versão por membro removido nos *snapshots*) e a paridade
+(BigQuery: mesma comparação entre partições por `snapshot_at`; `hard_deletes` é do dbt, igual lá).
+Entra em `pendencias.md` como D39 decidida e é fechado por `/adr` **antes** do código.
 
 ### O que muda **[planejado]**
 
 **Declaração:**
 
-1. `src/mvp_ed1/legacy/cli.py` ganha `remover --tabela T --quantidade N` (determinístico pela
-   semente do catálogo): apaga N linhas de negócio em `legacy_db` **e grava no manifesto**
-   `removidas: [{tabela, id, legacy_row_id_na_captura_anterior}]`. É o oráculo do R10, pelo mesmo
-   princípio do manifesto de falhas: quem apaga é quem sabe o que apagou. Escolhe linhas **aptas**
-   (o oráculo do R13 sabe quais são) — remover uma rejeitada não testaria nada.
-2. Modelo `trusted/legacy/legacy_removed_records.sql`: aptas da captura anterior completa
-   (D39-b) que não têm `id` apto na captura selecionada. Materialização `table`; reconstrói a
-   cada execução (é comparação entre duas fotografias, não histórico).
-3. `dbt/tests/legado_removidos_explicam_a_diferenca.sql`: `aptos(anterior) − aptos(atual)
-   = removidos + rejeitados_novos`, por tabela — a equação que faz a ausência ser explicada.
-4. Pontes (`ponte.py`) passam a projetar `deleted_at = snapshot_at da captura em que sumiu`
-   para os removidos, entrando no mesmo caminho do ADR-0029 até `is_deleted` na dimensão.
-5. **Unit test dbt** (`unit_tests:` em `_legacy__models.yml`, dbt 1.12 suporta; é a primeira vez
-   no projeto — vale uma linha no `qualidade_de_dados.md`) para `legacy_removed_records` com duas
-   capturas fictícias: uma completa com remoção, uma incompleta que deve ser ignorada. Roda sem
-   Airbyte, em todo `make dbt-build`.
-6. `tests/test_legado_remocao.py` (integração, `CARGA=1`): confere `legacy_removed_records`
-   contra `manifesto.removidas` depois do ciclo real.
+1. `cli.py` ganha `remover --tabela T --quantidade N`: escolhe N chaves **aptas** (pelo oráculo
+   do R13) de forma determinística, executa o `DELETE … RETURNING`, **grava no manifesto o que o
+   banco devolveu** (chaves e payloads efetivamente apagados, confirmação pós-*commit* de que não
+   existem mais) — não o que sorteou (P18). Manifesto anterior preservado (§2 item 4).
+2. `trusted/legacy/legacy_removed_records.sql` (`table`): as três transições da D39-a′, com
+   `source_table, business_key, last_seen_snapshot_id, removed_in_snapshot_id, last_payload`
+   (o `original_payload` bruto da última captura em que existiu — não é tratado, e o dicionário
+   diz isso).
+3. `dbt/tests/legado_presenca_fisica_reconcilia.sql`: a equação física por tabela.
+4. *Snapshots*: `hard_deletes: new_record` nos quatro; dimensões leem a última versão; `is_deleted`
+   conforme D39-c′. `dim_customer` e as outras três ganham a coluna onde ainda não existe, com
+   classificação de sensibilidade e descrição **no gerador do YAML** onde for gerado (P22).
+5. **Unit tests dbt** para `legacy_removed_records`, declarados **em `classification.py`**, que
+   gera `_legacy__models.yml` (P22) — duas capturas fictícias: anterior completa com remoção;
+   anterior `incomplete`, que deve ser ignorada. Primeiro uso de `unit_tests:` no projeto — nota
+   em `qualidade_de_dados.md`.
+6. `tests/test_legado_remocao.py` (integração, banco de trabalho, **só leitura**): compara
+   `legacy_removed_records` com `manifesto.removidas` depois do ciclo real; e confere as marcas
+   nas dimensões.
 
-### Prova (exige Airbyte — mesmo bloco do R09)
+### Prova (Airbyte de pé; a máquina liberada — §9)
 
-```
-make sync-legacy                                   # captura A, completa
-.venv/bin/python -m mvp_ed1.legacy.cli remover --tabela customers --quantidade 5
-make sync-legacy                                   # captura B, completa
-make dbt-build && make test CARGA=1                # removidos = 5, iguais ao manifesto
-```
+Sequência única, cada passo com captura e *job* conferidos antes do seguinte (P21):
 
-**Contraprova obrigatória** (é o critério da etapa): pausar uma tabela da origem (renomear
-`legacy.campaigns`), sincronizar (captura C, **incompleta**), e mostrar que: o *build* falha em
-`legacy_captura_completa` **e** `legacy_removed_records` não acusa as linhas de `campaigns` como
-removidas — porque C nunca foi elegível como "anterior completa" nem como selecionada.
+| Passo | O que prova |
+|---|---|
+| captura **A** (`complete`) → `dbt build --select legacy_selected_capture+` | linha de base materializada, marcas zero |
+| `remover customers 5` (manifesto grava as 5 devolvidas) + **rejeição nova sem apagar** (`UPDATE` que torna 1 cliente inválido) + **inserção** de 1 cliente → captura **B** → *build* incremental | `removidas = 5` iguais ao manifesto; `perdeu_aptidao = 1`; `adicionadas = 1`; `is_deleted` só nas 5; a fato perdeu os movimentos das 5 e a reconciliação explica |
+| captura **C** sem mudança → *build* | as 5 marcas **persistem** (P14); `removidas` de C contra B = 0 |
+| reinserir 1 dos 5 → captura **D** → *build* | reaparecimento: `is_deleted = false`, versão nova |
+| `remover` a **última** linha de uma tabela pequena → captura **E** | tabela com 0 na origem e 0 recebida é `complete`; a remoção é detectada como remoção |
+| desabilitar *stream* → captura **F** `incomplete` → tentar *build* | `legacy_captura_completa` falha; `legacy_removed_records` **não** acusa a tabela ausente; reabilitar antes de seguir |
 
 ### Critério de pronto
 
-- [ ] Remoção real aparece em `legacy_removed_records` com o *snapshot* em que sumiu, igual ao
-      manifesto.
-- [ ] Captura incompleta **não** gera falso removido, medido.
-- [ ] A ausência viaja como marca até a dimensão (se D39-c confirmar).
-- [ ] Equação da diferença entre capturas fecha por tabela.
+- [ ] As seis provas medidas, com saída literal.
+- [ ] Equação física fecha por tabela em todo *build*.
+- [ ] Unit tests dbt no gerador; ADR-0044 aceito antes do código.
 
 ---
 
 ## 6. R26 — o contrato de `event_sequence` no legado
 
-Não é implementação: é o Owner dizer o que a coluna promete. Três respostas possíveis, e o
-código de cada uma:
+**Decidido pelo Owner em 14/09/2026 (D40):** `event_sequence` nas linhas legadas é desempate
+técnico **dentro da captura** — sem promessa de ordem entre capturas nem de ordem observada do
+evento. Nota datada **de referência** no ADR-0039, apontando para o dono (`origem_legada.md` §4.1);
+nenhum ADR aceito promete o contrário (13.3).
 
-| Resposta | O que muda | Custo |
-|---|---|---|
-| **"É só desempate técnico dentro da captura, sem promessa de ordem entre capturas"** (**recomendo** — é o que a origem fornece) | Renomear o comentário em `ponte.py:68` para dizer exatamente isso; nota em `origem_legada.md` §4.1 e no dicionário; teste que **nenhum** consumidor ordena saldo por `event_sequence` em linhas legadas (`grep` estrutural sobre os modelos, fixado em teste) | Uma sessão |
-| "Precisa ser estável entre recapturas" | Não há como: `legacy_row_id` é renumerado. Exigiria chave de negócio + `snapshot_at`, e ainda assim seria ordem de captura, não de evento | Modelagem — ADR |
-| "Precisa ser ordem observada do evento" | A origem não tem; qualquer coisa seria inventada | Recusar |
-
-**Decidido pelo Owner em 14/09/2026: a primeira linha.** `event_sequence` no legado é desempate
-técnico dentro da captura, sem promessa de ordem entre capturas nem de ordem observada do evento.
-Entra como **D40** decidida em `pendencias.md`, fechada por **nota datada no ADR-0039** (alcance da
-procedência), sem ADR novo. O que se entrega: comentário em `ponte.py:68` reescrito; nota em
-`origem_legada.md` §4.1 e no dicionário de dados; e um teste estrutural que falha se algum modelo
-de `analytics`/`consumption` ordenar por `event_sequence` sem restringir a `source_system = 'retail'`.
+Entrega: comentário em `ponte.py:68` reescrito; dicionário de dados (no gerador que o produz);
+e um teste **delimitado** (P09): nas linhas `source_system = 'legacy'`, `event_sequence` é único
+por `(snapshot_id, source_table)` e igual a `legacy_row_id` — o contrato como está escrito, nada
+além. O teste estrutural "nenhum consumidor ordena por `event_sequence`" **sai**: proibia mais do
+que a decisão e confundiria colunas homônimas.
 
 ---
 
-## 7. Validação de ponta a ponta
+## 7. Validação
 
-É a lista "o que permanece sem validação" do `REVISAO.md`, executada **uma vez, em sequência, com
-saída colada**. Ordem respeitando a troca de ambientes (R11/ADR-0041):
+Separada em **simulada** (sem ambiente pesado) e **ao vivo** (cenário `batch`), e a lista de
+`REVISAO.md:835–849` marcada item a item (P23):
 
-| Passo | Ambiente | O que prova |
-|---|---|---|
-| `make down && docker volume rm …` (só os três bancos) → `make up && make migrate && make migrate-legacy && make seed-data && make seed-legacy` | leve | Migrações do zero, inclusive a legada (R12) |
-| `make airbyte-up` → `sync-airbyte` → `sync-legacy` ×2 com remoção entre elas → contraprova incompleta | Airbyte | R09, R10 |
-| `make dbt-build` do zero → `make test CARGA=1` | leve | Oráculo por ocorrência (R13), 16 views, reconciliação, fato |
-| `make airflow-up` → `fluxo_batch` do zero | Airflow | DAG com `geracao_antes`/`geracao_do_legado` novos; vínculo *job*–captura ao vivo |
-| Ciclo D34: mudar tratamento (v8), *build*, recusa da auditoria, voltar a v7 | leve | Já exigido pela terceira revisão e nunca executado |
+| Item da lista | Situação neste plano |
+|---|---|
+| Build integral, 16 views, reconciliação | **Aqui**, `make dbt-build` completo depois do R13 (v8) |
+| DAG do zero, vínculo *job*–captura | **Aqui, ao vivo** (§4/§5), cenário `batch` |
+| Carga incompleta; duas capturas com exclusão física | **Aqui** (§4 contraprovas, §5 sequência) |
+| Reprocessamento da fato incremental | **Coberto** em 08/09 (ADR-0042, `2fb6f55`); a sequência do §5 o exercita de novo com remoção real |
+| Ciclo D34 | **Aqui, medido de propósito**: mesmo rótulo v7 com tratamento alterado → recusa e retenção; subir para v8 → sucesso; reverter identificado (P17) |
+| Oráculo completo da cascata e valores; *recall*/falsos positivos | **Aqui** (§2) |
+| Troca real de ambientes, concorrência, restauração parcial | **Pendente** — fora desta rodada; continua no `REVISAO.md`/Pendências |
+| Aplicação dos valores do Airbyte ao chart, picos/OOM sob limite | **Pendente** — Etapa 12 / D36 |
+| Streaming ao vivo | **Pendente** — não é desta rodada |
+| Migrações do zero | **Aqui**, em banco isolado (§3); o armazém **não** é destruído (P20) |
+| Paridade GCP | **Não é medível localmente**; declarada no ADR-0044 e nas notas |
 
-Números que saem daqui vão para os donos (Capacidade §2, Qualidade, Origem Legada) **com data e
-captura** — é o que R14 pede.
+**O que não se faz:** apagar volumes dos três bancos. O `raw.inventory_movements_stream` é criado
+pelo *sink* do streaming e o dbt o lê; cursores do Airbyte e *offsets* não são limpos por apagar
+banco (P20). A prova de migração é isolada; a de fluxo é sobre o estado corrente, conferido.
+
+Depois de cada sincronização: `dbt build --select legacy_selected_capture+` (ou o subconjunto
+declarado no passo) — `dbt test` sozinho **não** rematerializa a seleção (P21).
 
 ---
 
@@ -375,71 +411,80 @@ captura** — é o que R14 pede.
 
 Depois de tudo acima, e só depois:
 
-- `docs/pendencias.md`: §1 (D36 continua), §2 ganha D39/D40, o parágrafo "R10, R12, R13 são
-  implementação" sai; §6 "do lado do assistente" descreve o estado real.
-- `docs/plano_de_desenvolvimento.md` §Etapa 10: critérios reescritos com ✓ **só** onde há medição
-  nesta rodada, citando captura e versão; a ressalva de R11 e a frase "fronteira de empilhamento
-  não existe" saem (R01 foi tratado em 07/09).
-- `docs/origem_legada.md` §4.2: a frase "quem sustenta a afirmação são os dois testes acima"
-  **contradiz** a DAG desde 08/09 — passa a descrever o vínculo do R09.
-- `README.md` status: Etapa 10, quarta rodada, com o que ficou aberto (se ficar).
-- `REVISAO.md`: coluna *Situação* dos seis achados preenchida; o arquivo **sai** no *commit* de
-  fechamento, como manda a skill.
+- `docs/pendencias.md`: D39 e D40 decididas; o parágrafo "R10, R12, R13 são implementação" sai;
+  §6 descreve o estado real: **"implementado e medido em <data>, aguardando revisão"** (P08).
+- `docs/plano_de_desenvolvimento.md` §Etapa 10: critérios com ✓ **só** onde há medição nesta
+  rodada, citando captura e versão; a frase "fronteira de empilhamento não existe" e a ressalva de
+  R11 saem; a etapa **continua reaberta** até a revisão do desenvolvimento e o aceite.
+- `docs/origem_legada.md` §4.2: "quem sustenta a afirmação são os dois testes" passa a descrever o
+  vínculo do R09; §4.1 o D40; §5 a semântica da cascata; §3.2 o manifesto por lote.
+- Geradores, não derivados (P22): `classification.py` (YAML dos modelos legados, unit tests,
+  colunas novas com sensibilidade), o gerador do dicionário, `docs/arquitetura.md` §5 (linha de
+  `governance.legacy_captures` e de `hard_deletes`), `docs/adr/README.md` (0044 e as notas).
+- `README.md` status: Etapa 10, quarta rodada, **aguardando revisão** — nunca "aceita".
+- `REVISAO.md`: coluna *Situação* dos seis achados; sai no *commit* de entrega junto com este
+  plano, com o parecer e as situações já no histórico.
 
 ---
 
 ## 9. Ambiente e memória
 
-- R13, R12, R26 e R14: **só os três bancos**. Nada pesado.
-- R09 + R10 + validação: Airbyte de pé (~4,5 GB) — `make airbyte-up` decide pelo `preflight`; se
-  recusar, é parada e pedido ao Owner, não `FORCE=1`. Airflow só no passo da DAG, depois de o
-  Airbyte ser pausado.
-- Nenhum `make dbt-build` seletivo sem `+` (Execução Local §6, lição de 14/09).
+- R13, R12, R26, R14: só os três bancos.
+- **R09, R10 e a DAG: cenário `batch` = bancos + Airbyte + Airflow, juntos** — é assim que
+  Execução Local §5 e o `preflight` os tratam (mesma família; `airflow-up` **não** pausa o
+  Airbyte). O pico aceito do Airbyte é **4,95 GiB** (ADR-0041; `CUSTO_airbyte=5000`), não 4,5; a
+  DAG dispara as duas sincronizações em paralelo, e o pico de duas + Airflow + ambiente de trabalho
+  **não foi medido**. Na revisão havia **1,03 GiB disponíveis**. Conclusão: esse bloco só começa
+  **depois de o Owner liberar a máquina** (fechar editor/navegador), com `make preflight` antes;
+  recusa é parada, nunca `FORCE=1` (P19).
+- **`make test CARGA=1` só em banco isolado**, e o Makefile passa a garantir: o alvo exige
+  `CARGA_DB=<nome>` diferente de `SOURCE_DB_NAME`, cria o banco efêmero, roda e o derruba;
+  `conftest.py` recusa `MVP_TESTE_CARGA=1` contra o banco de trabalho. É o que impede repetir o que
+  aconteceu em 08/09 e 14/09 (P11).
+- Nenhuma reconstrução seletiva sem `+` (Execução Local §6).
 
 ---
 
 ## 10. Commits previstos
 
-Um por assunto, na ordem:
+Um por assunto; **o número efetivo** e a versão final vão no dossiê (P23):
 
-1. `feat: calcula o veredito esperado de toda ocorrência do legado no gerador` (R13, declaração)
-2. `test: confere veredito, cascata e valores recuperados contra o oráculo` (R13, derivado)
-3. `fix: …` — se o oráculo achar divergência no SQL (um por defeito)
-4. `feat: leva o schema legado para o ciclo Alembic` (R12)
-5. `feat: vincula a captura do legado ao job que a escreveu` (R09)
-6. `docs: registra ADR-0044 — exclusão física do legado como marca até a dimensão` (D39)
-7. `feat: detecta exclusão física entre capturas completas do legado` (R10)
-8. `docs: registra a resposta ao contrato de event_sequence` (R26/D40)
-9. `docs: atualiza o estado da Etapa 10 com as medições e fecha a terceira revisão` (R14; apaga
-   `REVISAO.md` e este plano)
+1. `fix: exige banco isolado para o teste de carga` (P11 — primeiro, para não repetir o erro)
+2. `feat: declara a recuperação esperada por falha no catálogo do legado` (R13, catálogo)
+3. `feat: calcula o veredito e os achados esperados de toda ocorrência no gerador` (R13, oráculo)
+4. `test: confere veredito, cascata e recuperação contra o oráculo, com contraprova por mutação` (R13)
+5. `fix: …` — um por divergência que o oráculo encontrar, com v8 do catálogo
+6. `feat: leva o schema legado para o ciclo Alembic` (R12)
+7. `feat: registra cada captura do legado por stream e a vincula ao job` (R09; `governance.legacy_captures`, nota no ADR-0023)
+8. `docs: registra ADR-0044 — exclusão física do legado como marca nas dimensões` (D39)
+9. `feat: detecta exclusão física entre capturas completas e a leva às dimensões` (R10)
+10. `docs: registra o contrato de event_sequence no legado` (R26/D40)
+11. `docs: atualiza o estado da Etapa 10 com as medições — aguardando revisão` (R14; apaga
+    `REVISAO.md` e este plano)
 
-Dossiê de revisão para o Codex ao fim: `dossie.py --desde a66f869`, um só, cobrindo os nove.
+Dossiê para o revisor ao fim: `dossie.py --desde a66f869`, um só.
 
 ---
 
 ## 11. O que este plano **não** decide
 
-- D36 (Etapa 12 na máquina).
-- Política de descarte de capturas antigas em `raw_legacy` (ADR-0037 adiou de propósito).
-- Se `jit=off` deve valer para `source_db`/`legacy_db` (dossiê da quarta revisão, §4.6).
-- Qualquer mudança no agendamento da Etapa 12.
+- D36; descarte de capturas antigas (ADR-0037); `jit` nas origens; agendamento da Etapa 12.
+- Se o armazém entra no Alembic (Etapa 11) — o `governance.py` do §4 é DDL versionado e
+  idempotente, e o revisor diz se basta.
+- Aceite da Etapa 10 — é do Owner, depois da revisão do desenvolvimento.
 
-## 12. Decisões do Owner — tomadas em 14/09/2026
+## 12. Decisões do Owner — 14/09/2026, duas rodadas
 
-| Decisão | Resposta | Onde fica registrada |
+| Decisão | Resposta | Onde fica |
 |---|---|---|
-| D39-a identidade entre capturas | Chave de negócio `id`, só entre aptas | ADR-0044 |
-| D39-b captura anterior completa | Maior `snapshot_id < selecionada` completa e conferida com `_capturas` | ADR-0044 |
-| D39-c destino do removido | `legacy_removed_records` **e** marca `is_deleted`/`deleted_at` até a dimensão (caminho do ADR-0029) | **ADR-0044**, novo |
-| D40 contrato de `event_sequence` no legado | Só desempate técnico dentro da captura | Nota datada no ADR-0039 |
-| Vínculo *job* ↔ captura (R09) | Tabela de controle `raw_legacy._capturas` | Nota datada no ADR-0008 |
-| Semântica da cascata (R13), quatro casos | Excedente de `DUP_EXACT` não cascateia · `DUP_PARTIAL` cascateia · pai com `id` nulo dá `FK_ORPHAN` · ciclo com raiz rejeitada cai inteiro | `origem_legada.md` §5 + nota no ADR-0038 |
-| SQL divergente do oráculo (R13) | Corrigir na mesma entrega, um `fix:` por defeito | Dossiê |
-
-Tudo o mais neste plano é implementação do que já está decidido. **O que o revisor pode
-contestar** são os fundamentos das respostas — se houver ADR aceito que já decida diferente, ou
-consequência que a recomendação não viu —, e isso volta ao Owner como achado, não como nova
-pergunta minha.
+| D39-a′ identidade e detecção | PK declarada por tabela (`Base.metadata`); remoção = ausência **física** no bruto; três transições disjuntas | ADR-0044 |
+| D39-b anterior completa | Maior `snapshot_id < selecionada` com `status = complete` em `legacy_captures`; sem registro, não elegível | ADR-0044 |
+| D39-c′ destino do removido | Fato segue o **ADR-0042**; marca nas dimensões via *snapshots* com `hard_deletes: new_record`; `is_deleted` só com remoção física confirmada | **ADR-0044** |
+| D40 `event_sequence` | Desempate técnico dentro da captura | Nota de referência no ADR-0039 |
+| Registro de captura (R09) | **`governance.legacy_captures`**, por *stream*, pelo ADR-0023 | Nota datada no ADR-0023 |
+| Cascata (R13), quatro casos | Excedente exato não cascateia · `DUP_PARTIAL` cascateia · pai com chave nula dá `FK_ORPHAN` · ciclo: tudo `rejected`, **raiz conserva a causa própria** | `origem_legada.md` §5 + notas de referência |
+| SQL divergente do oráculo | Corrigir na mesma entrega, com o ciclo de versão (v8) | Dossiê |
+| Origem principal reduzida pelo teste de carga | Restaurada em 14/09 (`seed-data FORCE=1`); guarda no Makefile | §0, §9 |
 
 ---
 
@@ -908,3 +953,36 @@ observação: 1
 unique_ids: True
  M PLANO_fechamento_etapa_10.md
 ~~~
+
+
+---
+
+## 14. Situação dos achados do parecer — 14/09/2026
+
+Todos os 23 foram aplicados na revisão 3 ou devolvidos ao Owner e decididos. Nenhum recusado.
+
+| # | Veredito | Situação |
+|---|---|---|
+| P01 | bloqueante | **Aplicado, §4.** O vínculo passa a ser `_airbyte_meta.sync_id = job_id`, fixado por teste na versão instalada e conferido linha a linha (`sync_id_matches`); máximo e total deixam de ser a prova. *Retry* registrado como premissa não exercitável. |
+| P02 | bloqueante | **Aplicado, §4.** Registro **por stream** com contagem na origem antes/depois do *job* e recebida; `complete` exige igualdade nas 40; tabela 0/0 é completa e `VAZIAS_LEGITIMAS` vira medida, não lista. Geração 15 é a contraprova retida. |
+| P03 | bloqueante | **Aplicado, §5 / D39-a′.** Detecção por presença física; três transições disjuntas; equação física; rejeição nova é `perdeu_aptidao`, contada à parte. |
+| P04 | bloqueante | **Devolvido ao Owner e decidido (D39-a′):** a captura anterior **não** é classificada; a aptidão anterior vem do histórico SCD. Gerações sem registro não são elegíveis; primeira comparação entre duas capturas novas. |
+| P05 | ajuste | **Aplicado, §3.** Banco isolado, comparação física tripla antes do `stamp`, `[alembic]` preservada, ADR-0010. |
+| P06 | bloqueante | **Aplicado, §2.** `recuperacao: original \| canonico` declarada no catálogo por falha; o oráculo tira o esperado de lá; `NULL_DISGUISED → nulo`. Nenhum "conserto" do SQL para satisfazer esperado errado. |
+| P07 | ajuste | **Aplicado, §2.** Multiconjunto de achados por ocorrência, vínculos, valores inclusive em rejeitadas; oráculo sem *helpers* do classificador; contraprova por mutação. |
+| P08 | ajuste | **Aplicado, §§1, 8.** "Implementado e medido, aguardando revisão"; retirada dos transitórios não é aceite; parecer e situações no histórico antes. |
+| P09 | ajuste | **Aplicado, §6.** Teste delimitado ao contrato; o estrutural sai. |
+| P10 | ajuste | **Aplicado, §0.** 106/80/26/88 corrigidos; `rowsSynced` "só impresso", não "inexistente". |
+| P11 | ajuste | **Aplicado e agido.** Origem restaurada em 14/09 (`seed-data FORCE=1`, conferida contra `raw`); "149 passed" retirado como medição; guarda de banco isolado no Makefile é o **primeiro** commit. |
+| P12 | bloqueante | **Devolvido ao Owner e decidido:** PK declarada no SQLAlchemy por tabela; chave nula = `sem identidade`. ADR-0044. |
+| P13 | bloqueante | **Devolvido ao Owner e decidido:** o ADR-0042 vale; a fato segue a captura; marca só nas dimensões. R25 continua fechado. |
+| P14 | bloqueante | **Devolvido ao Owner e decidido:** `hard_deletes: new_record` nos *snapshots*; persistência por construção; reaparecimento e terceira captura na sequência de prova. |
+| P15 | bloqueante | **Devolvido ao Owner e decidido:** `governance.legacy_captures`, pelo ADR-0023, com nota datada declarando a leitura pelo fluxo; DDL versionado em `governance.py`; se o armazém deve entrar no Alembic fica para o parecer/Etapa 11. `raw_legacy._capturas` descartado. |
+| P16 | bloqueante | **Devolvido ao Owner e decidido:** componente toda `rejected`, raiz conserva `own_invalid`. Compatível com o SQL atual; sem ADR. |
+| P17 | ajuste | **Aplicado, §§2, 7.** Correção exige regerar, v8, *build*; D34 medida de propósito com mesmo rótulo e tratamento alterado. |
+| P18 | ajuste | **Aplicado, §§2, 5.** Manifesto por lote com hash, preservado; captura conferida contra ele; remoção grava o `RETURNING` e confirma pós-*commit*. |
+| P19 | bloqueante | **Aplicado, §9.** Cenário `batch` = bancos + Airbyte + Airflow; 4,95 GiB; bloco só com a máquina liberada pelo Owner e `preflight`; nunca `FORCE=1`. |
+| P20 | bloqueante | **Aplicado, §§3, 7.** Nenhum volume apagado; migração provada em banco isolado. |
+| P21 | ajuste | **Aplicado, §§4, 5, 7.** `dbt build --select legacy_selected_capture+` após cada captura; contraprova incompleta por *stream* desabilitado, não por renomear/pausar; restauração antes de *build* positivo. |
+| P22 | ajuste | **Aplicado, §§5, 8.** Unit tests e colunas novas nos **geradores**; dicionário, paridade e índice de ADR listados; critério "passa **ou** corrigiu" retirado. |
+| P23 | observação | **Aplicado, §§7, 10.** Lista de `REVISAO.md:835–849` marcada item a item; número efetivo de commits vai ao dossiê. |
