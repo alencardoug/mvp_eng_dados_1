@@ -389,6 +389,39 @@ A sequência completa depois de regerar a origem é:
 make seed-data FORCE=1 && make sync-airbyte RESET=1 && make dbt-build RESET=1
 ```
 
+### Reconstruí um modelo sozinho e views de `consumption` sumiram — e o dbt disse `PASS`
+
+Um `dbt run --select <modelo>` que reconstrói uma **tabela** de `analytics` — qualquer uma, com ou
+sem `--full-refresh` — troca a tabela por outra e apaga a antiga com `cascade`. As views de
+`consumption` que a referenciam vão junto, e **o dbt reporta sucesso**, porque só o nó pedido está
+sendo executado. Nada avisa; a view só falta quando alguém a consulta.
+
+Medido em 14/09/2026, com o armazém íntegro (16 views publicadas):
+
+```text
+$ dbt run --select dim_warehouse
+1 of 1 OK created sql table model analytics.dim_warehouse ... [SELECT 10 in 0.27s]
+Done. PASS=1 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=1
+views em consumption depois: 13
+
+$ dbt run --select dim_warehouse+
+Done. PASS=8 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=8
+views em consumption depois: 16
+```
+
+O mesmo acontece com `--select fact_inventory_movement --full-refresh`, que é o comando de
+recuperação da fato incremental: as três views que a leem somem. Por isso **toda reconstrução
+seletiva de tabela leva o sufixo `+`** — `--select <modelo>+` reconstrói os descendentes na mesma
+execução —, e a operação confere as views publicadas depois:
+
+```sql
+select count(*) from information_schema.views where table_schema = 'consumption';  -- 16
+```
+
+O `make dbt-build` completo não tem o problema: ele recria as views depois das tabelas, na ordem do
+grafo. O agendamento do `--full-refresh` da fato (proteção nº 3 da exceção incremental no
+[ADR-0016](adr/0016-materializacao-por-camada.md)) precisa nascer já com o `+`.
+
 ### A sincronização falha com "cannot drop table because other objects depend on it"
 
 O modo `full_refresh_overwrite` **derruba** a tabela de destino a cada carga, e as views de

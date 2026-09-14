@@ -10,8 +10,10 @@
 --
 -- O teste compara contra `trusted.inventory_movements`, que é reconstruído
 -- inteiro a cada execução por ser `table`. Divergência aqui significa: rode
--- `dbt build --full-refresh --select fact_inventory_movement`, e investigue a
--- margem de atraso antes de aceitar o resultado.
+-- `dbt build --full-refresh --select fact_inventory_movement+`, e investigue
+-- a margem de atraso antes de aceitar o resultado. O `+` não é opcional: sem
+-- ele a reconstrução derruba as views de `consumption` que leem a fato e
+-- reporta sucesso (Execução Local §6).
 
 with fato as (
 
