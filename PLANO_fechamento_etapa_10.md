@@ -6,6 +6,11 @@
 >
 > Regime de leitura: o que está marcado **[medido]** tem saída de comando por trás; o que está
 > marcado **[planejado]** é intenção. Os dois não se misturam (P5).
+>
+> **Revisão 2 — 14/09/2026, mesma data.** As seis decisões que a primeira versão deixava ao Owner
+> (§12) foram tomadas antes de o plano ir à revisão. Onde a primeira versão dizia "proponho",
+> esta diz "decidido", e a §12 registra a resposta de cada uma. O que o revisor recebe é o plano
+> que vai ser executado.
 
 ---
 
@@ -104,21 +109,22 @@ R26 (decisão do Owner; entra onde a resposta cair)
 5. `docs/origem_legada.md` §3.2 — o manifesto passa a declarar veredito por ocorrência; §5 ganha a
    frase de que a cascata tem oráculo independente. `docs/qualidade_de_dados.md` — a medição.
 
-### Perguntas de semântica que o oráculo obriga a fechar (antes de codificar)
+### Semântica da cascata — **decidida pelo Owner em 14/09/2026**
 
-São casos em que a documentação vigente não decide, e o oráculo independente **não pode** copiar o
-que o SQL faz por acaso. Proponho e peço confirmação:
+São casos em que a documentação vigente não decidia, e o oráculo independente **não pode** copiar o
+que o SQL faz por acaso. O que vale, e o que o oráculo implementa:
 
-| Caso | Proposta | Alternativa |
+| Caso | Decisão | Alternativa recusada |
 |---|---|---|
 | Filho aponta para `id` de negócio que existe numa linha rejeitada **e** numa canônica aceita (excedente de `DUP_EXACT`) | **Não cascateia** — o pai de negócio existe e está apto | Cascatear se qualquer ocorrência do pai foi rejeitada |
-| `DUP_PARTIAL` rejeita as duas versões; filhos delas | Cascateiam (nenhuma versão está apta) | — |
-| Pai rejeitado por `NULL_REQUIRED` na própria chave (`id` nulo) | Filhos que apontariam para ele são `FK_ORPHAN`, não `PARENT_REJECTED` (o vínculo não resolve) | Tratar como cascata |
-| Ciclo de auto-referência com raiz rejeitada | Toda a componente é `parent_rejected` (é o que `test_self_reference_cycle_terminates_with_rejected_root` já fixa) | — |
+| `DUP_PARTIAL` rejeita as duas versões; filhos delas | **Cascateiam** (nenhuma versão está apta) | — |
+| Pai rejeitado por `NULL_REQUIRED` na própria chave (`id` nulo) | Filhos que apontariam para ele são **`FK_ORPHAN` (`own_invalid`)**, não `PARENT_REJECTED` — o vínculo não resolve para ocorrência nenhuma | Tratar como cascata |
+| Ciclo de auto-referência com raiz rejeitada | **Toda a componente é `parent_rejected`** (é o que `test_self_reference_cycle_terminates_with_rejected_root` já fixa) | — |
 
-Se alguma resposta for diferente do que o SQL faz hoje, **o SQL está errado e o achado é bloqueante**
-— é o que o oráculo existe para descobrir. A resposta vai para o dono documental
-(`origem_legada.md` §5), não para o teste.
+A semântica é **declaração**, e vai para o dono documental (`origem_legada.md` §5, e o ADR-0038
+ganha nota datada apontando para lá) antes do código. **Se o SQL de `legacy_classifications`
+divergir dela, o SQL está errado e se corrige na mesma entrega** — decisão do Owner, um *commit*
+`fix:` por defeito, com a divergência medida antes e depois no dossiê.
 
 ### Prova
 
@@ -220,13 +226,16 @@ a geração máxima **antes** do *job* e o `rowsSynced` **do job**.
    (`snapshot_id, job_id, rows_synced, capturado_em`). É a única escrita fora do Airbyte em
    `raw_legacy`, e é **metadado de ingestão**, não dado — precisa estar dito no ADR-0008/`origem_legada.md` §4.1.
 
-   > **Decisão do Owner:** escrever `raw_legacy._capturas` é acrescentar uma tabela a um schema
-   > declarado como "snapshot imutável do Airbyte". Alternativas: (a) tabela de controle em
-   > `raw_legacy` (**recomendo** — fica ao lado do que descreve, e o nome com `_` a separa das
-   > 40); (b) em `trusted` como *seed*/modelo — mas é escrita de ingestão, não de transformação;
-   > (c) não persistir e verificar só em tempo de DAG — perde a prova para `make sync-legacy` e
-   > para o teste dbt. Se (a), é **nota no ADR-0008** (o schema ganha uma tabela de controle), não
-   > ADR novo; se o Owner discordar, vira Dnn.
+   > **Decidido pelo Owner em 14/09/2026:** tabela de controle **`raw_legacy._capturas`**. É
+   > acrescentar uma tabela a um schema declarado como "snapshot imutável do Airbyte", e é
+   > metadado de ingestão, não dado — o `_` a separa das 40 e o ADR-0008 ganha **nota datada**
+   > dizendo isso; não é ADR novo. Alternativas recusadas: schema de controle próprio (schema
+   > novo, exigiria ADR) e verificar só em tempo de execução (a prova não sobreviveria para o
+   > teste dbt nem para o R10, que precisa saber quais capturas conferiram). Criada por migração
+   > Alembic no ambiente do armazém? **Não** — o armazém não tem Alembic; nasce por `create table
+   > if not exists` na própria função de ingestão, versionada em `airbyte.py`, e o teste dbt
+   > declara-a como `source`. Se o revisor considerar isso DDL fora de ciclo (mesma família do R12),
+   > a alternativa é um `seed` vazio do dbt com `post_hook` de carga — a decidir no parecer.
 
 4. `src/mvp_ed1/legacy/dbt.py::teste_captura_completa` passa a comparar contagens com
    `_capturas`; e `VAZIAS_LEGITIMAS` continua valendo para o "≥ 1".
@@ -262,22 +271,22 @@ falha ou escreve zero, e a função recusa (`depois == antes`). Saída colada no
 - O gerador não tem como apagar linhas de propósito; `legacy_row_id` é renumerado de 1 a cada
   geração (`degradar`), então **não serve** como identidade entre capturas.
 
-### Decisões que precisam do Owner antes do código
+### D39 — **decidida pelo Owner em 14/09/2026**
 
-As Pendências dizem que R10 é "implementação, não decisão". Concordo quanto ao *se*; o *como*
-tem três escolhas que mudam modelagem, e eu não as tomo sozinho:
+As Pendências diziam que R10 é "implementação, não decisão". O *se* era; o *como* tinha três
+escolhas de modelagem, e o Owner as fechou:
 
-| # | Pergunta | Recomendação | Alternativas |
+| # | Pergunta | Decisão | Alternativas recusadas |
 |---|---|---|---|
-| D39-a | **Qual identidade diz "mesmo registro" entre capturas?** | A chave de negócio da origem (`id`), **depois do tratamento** — só entre ocorrências aptas (`accepted`/`corrected`) das duas capturas. Comparar bruto contra bruto acusaria como "removido" o que na verdade passou a ser rejeitado, e são coisas diferentes | `legacy_row_id` (não é estável — descartado); `original_payload` inteiro (frágil a qualquer correção) |
-| D39-b | **O que é "captura anterior completa"?** | A maior `snapshot_id < selecionada` que passa em `legacy_captura_completa` **e** cujas contagens conferem com `_capturas` (R09). Captura incompleta é pulada, nunca comparada — é isto que "distingue remoção real de falha de ingestão" | Sempre `selecionada − 1` (compararia contra carga quebrada) |
-| D39-c | **Onde o removido aparece, e o que acontece com ele adiante?** | Modelo `trusted.legacy_removed_records` (`source_table, business_id, last_seen_snapshot_id, removed_in_snapshot_id, last_payload`), lido pela reconciliação; e **marca `is_deleted`/`deleted_at`** carregada até a dimensão, pelo mesmo caminho do ADR-0029 — a origem apagou, o datamart lembra. Fato não se apaga | Só reportar, sem marca (o datamart esqueceria o membro, e as fatos antigas ficariam órfãs — contradiz o ADR-0029); enviar para `quarantine` (não é rejeição, é ausência) |
+| D39-a | **Qual identidade diz "mesmo registro" entre capturas?** | A chave de negócio da origem (`id`), **depois do tratamento** — só entre ocorrências aptas (`accepted`/`corrected`) das duas capturas. Rejeição nova não é remoção | `legacy_row_id` (renumerado a cada geração); `original_payload` inteiro; bruto contra bruto |
+| D39-b | **O que é "captura anterior completa"?** | A maior `snapshot_id < selecionada` que passa em `legacy_captura_completa` **e** cujas contagens conferem com `_capturas` (R09). Captura incompleta é pulada, nunca comparada — é isto que "distingue remoção real de falha de ingestão" | Sempre `selecionada − 1` |
+| D39-c | **Onde o removido aparece, e o que acontece com ele adiante?** | Modelo `trusted.legacy_removed_records` (`source_table, business_id, last_seen_snapshot_id, removed_in_snapshot_id, last_payload`), lido pela reconciliação; e **marca `is_deleted`/`deleted_at`** carregada até a dimensão pelo mesmo caminho do ADR-0029 — a origem apagou, o datamart lembra. Fato não se apaga | Só reportar (o datamart esqueceria o membro; fatos antigas órfãs — contra o ADR-0029); `quarantine` (ausência não é rejeição) |
 
-Se o Owner confirmar as três recomendações, **isto é ADR** — muda a modelagem do empilhamento
-(marca de exclusão vinda de ausência, não de coluna). Proponho registrar como **D39** e fechar por
-`/adr` antes de codificar. Se preferir só reportar (sem marca), continua sendo nota no ADR-0015.
+**É ADR:** a marca de exclusão passa a nascer de **ausência entre capturas**, não de coluna. D39
+entra em `pendencias.md` como decidida e é registrada como **ADR-0044** por `/adr` **antes** do
+código do R10 — a implementação nasce do ADR, não o contrário.
 
-### O que muda **[planejado]**, assumindo as recomendações
+### O que muda **[planejado]**
 
 **Declaração:**
 
@@ -335,8 +344,12 @@ código de cada uma:
 | "Precisa ser estável entre recapturas" | Não há como: `legacy_row_id` é renumerado. Exigiria chave de negócio + `snapshot_at`, e ainda assim seria ordem de captura, não de evento | Modelagem — ADR |
 | "Precisa ser ordem observada do evento" | A origem não tem; qualquer coisa seria inventada | Recusar |
 
-Entra no plano como **D40** (decisão de contrato), fechada por nota no ADR-0039 ou ADR próprio se
-a resposta for a segunda.
+**Decidido pelo Owner em 14/09/2026: a primeira linha.** `event_sequence` no legado é desempate
+técnico dentro da captura, sem promessa de ordem entre capturas nem de ordem observada do evento.
+Entra como **D40** decidida em `pendencias.md`, fechada por **nota datada no ADR-0039** (alcance da
+procedência), sem ADR novo. O que se entrega: comentário em `ponte.py:68` reescrito; nota em
+`origem_legada.md` §4.1 e no dicionário de dados; e um teste estrutural que falha se algum modelo
+de `analytics`/`consumption` ordenar por `event_sequence` sem restringir a `source_system = 'retail'`.
 
 ---
 
@@ -394,7 +407,7 @@ Um por assunto, na ordem:
 3. `fix: …` — se o oráculo achar divergência no SQL (um por defeito)
 4. `feat: leva o schema legado para o ciclo Alembic` (R12)
 5. `feat: vincula a captura do legado ao job que a escreveu` (R09)
-6. `docs: registra ADR-0044 — exclusão física do legado como marca` (D39, se confirmado)
+6. `docs: registra ADR-0044 — exclusão física do legado como marca até a dimensão` (D39)
 7. `feat: detecta exclusão física entre capturas completas do legado` (R10)
 8. `docs: registra a resposta ao contrato de event_sequence` (R26/D40)
 9. `docs: atualiza o estado da Etapa 10 com as medições e fecha a terceira revisão` (R14; apaga
@@ -411,8 +424,19 @@ Dossiê de revisão para o Codex ao fim: `dossie.py --desde a66f869`, um só, co
 - Se `jit=off` deve valer para `source_db`/`legacy_db` (dossiê da quarta revisão, §4.6).
 - Qualquer mudança no agendamento da Etapa 12.
 
-## 12. Perguntas ao Owner, resumidas
+## 12. Decisões do Owner — tomadas em 14/09/2026
 
-Antes de codificar, preciso de resposta para: **D39-a, D39-b, D39-c** (R10), **D40** (R26), a
-**tabela de controle `raw_legacy._capturas`** (R09) e as **quatro semânticas de cascata** (R13).
-Tudo o mais é implementação do que já está decidido.
+| Decisão | Resposta | Onde fica registrada |
+|---|---|---|
+| D39-a identidade entre capturas | Chave de negócio `id`, só entre aptas | ADR-0044 |
+| D39-b captura anterior completa | Maior `snapshot_id < selecionada` completa e conferida com `_capturas` | ADR-0044 |
+| D39-c destino do removido | `legacy_removed_records` **e** marca `is_deleted`/`deleted_at` até a dimensão (caminho do ADR-0029) | **ADR-0044**, novo |
+| D40 contrato de `event_sequence` no legado | Só desempate técnico dentro da captura | Nota datada no ADR-0039 |
+| Vínculo *job* ↔ captura (R09) | Tabela de controle `raw_legacy._capturas` | Nota datada no ADR-0008 |
+| Semântica da cascata (R13), quatro casos | Excedente de `DUP_EXACT` não cascateia · `DUP_PARTIAL` cascateia · pai com `id` nulo dá `FK_ORPHAN` · ciclo com raiz rejeitada cai inteiro | `origem_legada.md` §5 + nota no ADR-0038 |
+| SQL divergente do oráculo (R13) | Corrigir na mesma entrega, um `fix:` por defeito | Dossiê |
+
+Tudo o mais neste plano é implementação do que já está decidido. **O que o revisor pode
+contestar** são os fundamentos das respostas — se houver ADR aceito que já decida diferente, ou
+consequência que a recomendação não viu —, e isso volta ao Owner como achado, não como nova
+pergunta minha.
