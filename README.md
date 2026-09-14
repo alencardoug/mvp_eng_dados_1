@@ -80,10 +80,15 @@ no SQL pela terceira. Esta, de 08/09, deixou treze achados abertos; nove foram f
 contraprova — validação de data, reversibilidade de codificação, ambiguidade monetária, recuperação
 do valor injetado, identidade do vínculo com a auditoria, guarda de configuração da impressão
 digital, avaliação real das views, e dois na troca automática de ambientes. Continuam abertos
-**R09, R10, R12, R13 e R14**, e o R25 está decidido (ADR-0042) mas não implementado. Os números
-abaixo descrevem a captura e a classificação; **o estado do armazém não foi remedido desde a
-reabertura** — o banco tem 2 das 16 views publicadas e o tratamento na versão 5, enquanto a árvore
-está na 7.
+**R09, R10, R12, R13 e R14**. O R25 foi implementado em 08/09 pelo
+[ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
+reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
+sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém remedido
+em 14/09/2026:** captura 16, tratamento na versão 7 — a mesma da árvore —, 16 das 16 views
+publicadas, fato com 16.453 linhas conferindo com a origem; o `make dbt-build` completo de 08/09
+terminou com `PASS=863 ERROR=0` depois do
+[ADR-0043](docs/adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md). A observação de
+08/09 — 2 das 16 views, tratamento na versão 5 — descrevia o banco **antes** dessa reconstrução.
 Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).
@@ -92,7 +97,7 @@ Seis cortes verticais entregues — comercial, financeiro e estoque, o caminho q
 logística, relacionamento e a **origem legada**. O modelo dimensional está completo: 10 fatos e 15
 dimensões, e as 16 perguntas de negócio têm view com `contract: enforced`. O armazém tem **36 fluxos
 de ingestão em lote** da origem principal, o **CDC de `inventory_movements`** e **40 do legado**, e o
-`dbt build` passa com **851 objetos, `WARN=0` e `ERROR=0`**.
+`dbt build` passa com **863 objetos, `WARN=0` e `ERROR=0`** (medido em 08/09/2026).
 
 **A segunda origem atravessa da captura até o modelo dimensional.** São 12.747 ocorrências
 capturadas: **81,9% aceitas, 17,9% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com
