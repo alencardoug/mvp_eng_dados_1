@@ -22,8 +22,10 @@ fechava:
 
 O teste escreve na fato e exige autorização explícita, pelo mesmo critério de
 `test_carga.py`: um teste não pode ser mais permissivo que o comando que ele
-testa. E devolve a fato ao estado correto mesmo quando falha — o `finally`
-reprocessa, que é a própria operação sob teste.
+testa. E devolve a fato ao estado anterior mesmo quando falha — por SQL direto,
+**não** pela operação sob teste: a revisão (achado MR02) mostrou que um `finally`
+que reprocessa "passa" justamente quando a estratégia é a defeituosa, e deixa o
+fantasma e a divergência dentro da fato.
 """
 
 from __future__ import annotations
@@ -189,14 +191,48 @@ def test_o_reprocessamento_remove_e_corrige_o_ramo_legado(engine, record_propert
             "captura poderia relê-lo"
         )
     finally:
-        # A própria operação sob teste é o que devolve a fato ao estado correto.
-        # O reparo é conferido: se ele falhar, a fato fica com o fantasma e a
-        # divergência dentro dela, e sair daqui em silêncio deixaria o próximo
-        # `make dbt-build` acusando um defeito que este teste plantou. Quando o
-        # corpo já falhou, o erro original continua visível como causa.
-        reparo = _reprocessar()
-        assert reparo.returncode == 0, (
-            "o reprocessamento de reparo falhou e a fato ficou com o estado que "
-            f"este teste plantou; rode `make dbt-build --select fact_inventory_movement`"
-            f"\n{reparo.stdout}\n{reparo.stderr}"
+        _desfazer_o_estrago(engine, movimento, valor_correto)
+
+
+def _desfazer_o_estrago(engine, movimento: str, valor_correto) -> None:
+    """Devolve a fato ao estado anterior ao teste, sem passar pelo dbt.
+
+    O reparo é independente da operação sob teste de propósito: se ela é a
+    defeituosa, reprocessar de novo "passa" e deixa o estrago onde está — foi o
+    que a revisão reproduziu. Aqui se desfaz exatamente o que o teste fez, e
+    nada mais: o fantasma sai pela identidade que só ele tem, e o valor volta
+    ao que foi lido antes da adulteração. Quando o reprocessamento já consertou,
+    as duas operações não tocam linha nenhuma. O estado é conferido depois, e
+    sair daqui com a fato ainda adulterada é erro — o próximo `make dbt-build`
+    acusaria um defeito que este teste plantou. Quando o corpo já falhou, o erro
+    original continua visível como causa.
+    """
+    with engine.begin() as conexao:
+        conexao.execute(
+            text(f"delete from {FATO} where movement_id = :m"), {"m": FANTASMA}
+        )
+        conexao.execute(
+            text(
+                f"update {FATO} set quantity_delta = :v "
+                "where source_system = 'legacy' and movement_id = :m "
+                "and quantity_delta is distinct from :v"
+            ),
+            {"m": movimento, "v": valor_correto},
+        )
+    with engine.connect() as conexao:
+        fantasmas = conexao.execute(
+            text(f"select count(*) from {FATO} where movement_id = :m"), {"m": FANTASMA}
+        ).scalar_one()
+        valor = conexao.execute(
+            text(
+                f"select quantity_delta from {FATO} "
+                "where source_system = 'legacy' and movement_id = :m"
+            ),
+            {"m": movimento},
+        ).scalar_one_or_none()
+    if fantasmas != 0 or valor != valor_correto:
+        raise RuntimeError(
+            "a fato ficou com o estado que este teste plantou "
+            f"(fantasmas={fantasmas}, quantity_delta={valor!r}, esperado={valor_correto!r}); "
+            "rode `make dbt-build DBT_ARGS='--select fact_inventory_movement+ --full-refresh'`"
         )
