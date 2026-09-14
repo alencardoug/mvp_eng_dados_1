@@ -279,11 +279,187 @@ respondeu.
 
 ---
 
-## Achados da revisão
+## 7. Parecer do revisor — 08/09/2026
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+**A implementação local da reconciliação passou nas sondas; a entrega ainda tem bloqueantes.**
+O `pre_hook` é transacional, a primeira construção funciona, a origem legada é relida inteira e
+o ramo `retail` preserva o resultado. Os problemas confirmados estão na limpeza do teste de
+regressão e nas premissas do ADR-0043. Erro no declarativo é bloqueante pelo `CLAUDE.md` §5;
+isso inclui o raciocínio registrado nas alternativas, mesmo quando a alternativa não foi escolhida.
+
+Revisão integral das declarações indicadas na §2, leitura dos demais diffs e conferência da
+cadeia de seleção da captura. Intervalo mantido em `1d91102..b733046`; o HEAD encontrado foi
+`a85b700`, que acrescenta este dossiê. Nenhuma correção de implementação ou alteração de ADR aceito
+foi realizada pelo revisor. Os identificadores `MR` abaixo pertencem somente a este dossiê.
+
+### 7.1 Verificações executadas pelo revisor
+
+```text
+$ python3 .claude/skills/revisao/dossie.py --conferir --saida REVISAO_memoria_e_reconciliacao.md
+dossiê completo: sem pendências e sem verificação falhando
+
+$ python3 .claude/skills/adr/verificar.py
+ADRs aceitos: 43  ·  decisões pendentes: 1  ·  Dnn citados: 38
+
+Integridade conferida: links, ADRs citados, tabela de pendentes e contadores.
+
+$ make test
+147 passed, 2 skipped in 81.79s (0:01:21)
+
+$ make dbt-test DBT_ARGS='--select fact_inventory_movement'
+Finished running 17 data tests in 0 hours 0 minutes and 1.83 seconds (1.83s).
+Done. PASS=17 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=17
+```
+
+`--conferir` verifica marcas de preenchimento e falhas declaradas no texto; **não executa novamente
+os comandos nem certifica o mérito das afirmações**. O verificador de ADRs também confere
+integridade documental, não a validade técnica da paridade. A primeira tentativa de `make test`
+no sandbox não conseguiu conectar aos bancos: `12 failed, 112 passed, 6 skipped, 19 errors`.
+A execução acima foi repetida com acesso local autorizado e passou. Essa falha de ambiente não é
+atribuída ao código.
+
+Somente os três bancos estavam ativos. Limites efetivos, consultados por `docker inspect`:
+
+```text
+/mvp_ed1_source_db memory=2147483648 swap=4294967296 oom=false
+/mvp_ed1_legacy_db memory=2147483648 swap=4294967296 oom=false
+/mvp_ed1_warehouse_db memory=2147483648 swap=4294967296 oom=false
+```
+
+`SHOW jit` retornou `off` no armazém. A leitura de `memory.events` retornou `oom 0` e
+`oom_kill 0`; são contadores do contêiner observado, não uma nova medição de pico sob carga.
+O manifesto declarou 40 `stg_legacy__*` como `table` e 36 `stg_retail__*` como `view`.
+`information_schema.tables` confirmou as 40 tabelas de limpeza no banco. A captura selecionada
+era **16**, a fato tinha **16.453 linhas**, e estavam publicadas **16 views** em `consumption`.
+
+### 7.2 Reprocessamento, rollback e contraprova da limpeza
+
+Sondas executadas por `.venv/bin/python /tmp/revisao_memoria_reconciliacao_20260908.py`.
+O script criou um projeto dbt temporário e um schema exclusivo, copiando
+`trusted.inventory_movements`. Usou o SQL original da fato, os dois testes SQL e o corpo do teste
+Python entregue; somente os destinos foram redirecionados. As dimensões existentes foram lidas.
+O schema foi removido ao terminar, e a assinatura de todas as linhas da fato real permaneceu igual.
+Não houve escrita em `analytics.fact_inventory_movement`.
+
+Artefatos locais da execução: `/tmp/revisao_memoria_28jtgq69/commands.log` e
+`/tmp/revisao_memoria_28jtgq69/dbt/logs/dbt.log`. São apoio temporário; as saídas relevantes ficam
+preservadas abaixo. Uma tentativa anterior parou na compilação porque o projeto de sondagem
+não incluía `package-lock.yml`; o schema foi removido, o lockfile foi incluído e a execução refeita.
+
+**Modelo atual, primeira construção e teste entregue:**
+
+```text
+dbt run --select fact_inventory_movement: {"returncode": 0}
+target_movement_outside_window_by_days: 971
+teste_entregue_modelo_atual: {"passou": true, "dbt_retornos": [0, 0]}
+dbt test: {"returncode": 0}
+```
+
+**Mudança no conjunto apto de origem da cópia:** removido um movimento legado, alterado o valor de
+outro antigo e acrescentado um terceiro movimento antigo com identidade nova. Execução incremental,
+sem `--full-refresh`; comparação do ramo `retail` por assinatura de todas as colunas.
+
+```text
+mudanca_na_origem_isolada: {"removido_na_fato": 0, "novo_antigo_na_fato": 1, "valor_corrigido": 363, "valor_esperado": 363, "retail_identico": true}
+dbt test: {"returncode": 0}
+```
+
+Isso acrescenta prova de inserção de movimento antigo ausente e de mudança a montante da fato.
+**Não é recaptura pelo Airbyte nem mudança de veredito pela classificação**: a cópia do conjunto
+apto foi alterada diretamente para isolar a materialização.
+
+**Falha após o `delete`:** injetada divisão por zero na projeção da cópia do modelo. O log registra
+o `DELETE`, depois o erro e `ROLLBACK` na conexão do nó. A assinatura da fato isolada permaneceu igual.
+
+```text
+dbt run --select fact_inventory_movement: {"returncode": 1}
+erro_apos_delete: {"erro_divisao": true, "fato_identica": true}
+```
+
+**Contraprova do MR02:** substituído somente o SQL da fato isolada pelo de `1d91102`, com `merge`
+e janela global, e executado o mesmo teste Python. Tanto o processamento quanto o reparo retornaram
+zero; a asserção detectou o defeito, mas a limpeza final deixou as duas adulterações no banco isolado.
+
+```text
+contraprova_limpeza_final: {"asserção": "o movimento ausente da captura sobreviveu ao reprocessamento — é o caminho que o `merge` sozinho nunca fecha, porque `merge` só faz upsert", "dbt_retornos": [0, 0], "fantasmas_apos_finally": 1, "valores_divergentes_apos_finally": 1}
+```
+
+O teste discrimina a estratégia antiga, como o autor afirmou. A afirmação de que seu `finally`
+devolve a fato ao estado correto **mesmo quando falha**, porém, foi refutada. O reparo precisa
+independer da operação sob teste e verificar o estado restaurado; usar um destino isolado também
+evita contaminar as camadas de trabalho.
+
+### 7.3 Premissas do ADR-0043 verificadas em fontes primárias
+
+**MR01 — a paridade descrita não existe na forma escrita.** A documentação oficial do Google
+lista LLVM/JIT entre as funcionalidades **não suportadas** pelo Cloud SQL for PostgreSQL.
+Logo, a afirmação de que ele oferece JIT ligado por padrão como parâmetro de instância não é
+uma hipótese de desempenho ainda não medida: é uma premissa de produto incorreta.
+Fonte consultada em 08/09/2026:
+[funcionalidades não suportadas do Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/features#unsupported-features-for-postgres).
+
+O mesmo parágrafo diz que o legado é tratado antes do BigQuery. Isso contradiz
+`docs/arquitetura.md` §5, que mapeia **os nove schemas do `warehouse_db` para datasets no BigQuery**.
+O `staging` legado está no armazém. Transferir essa transformação para Cloud SQL seria mudança de
+camada/topologia; o revisor não presume essa decisão a partir de uma frase de paridade.
+A correção deve explicitar o alcance local de `jit=off`, a tradução da materialização no armazém
+GCP e o tratamento dos limites dos bancos de origem, preservando o ADR aceito por meio de registro
+corretivo submetido ao Owner.
+
+**MR03 — a alternativa de limiar está descrita ao contrário.** A linha de `jit_above_cost`
+afirma que elevar o limiar mantém JIT em consultas normais e o desliga nas maiores. O PostgreSQL
+16 habilita a compilação quando o **custo estimado supera o limiar**: elevá-lo exclui as consultas
+abaixo dele e continua admitindo as de custo superior. Isso não invalida o `jit=off` implementado,
+mas torna incorreta uma alternativa apresentada ao decisor. Fonte:
+[PostgreSQL 16 — When to JIT?](https://www.postgresql.org/docs/16/jit-decision.html).
+
+### 7.4 Limites e achados anteriores
+
+Os dois testes SQL comparam conjuntos de identificadores e agregados; **não comparam todo o payload
+por movimento**. Na cópia isolada, somar 1 em um `quantity_delta` e subtrair 1 de outro manteve
+ambos passando. É o limite observado dos oráculos, sem afirmar defeito adicional na estratégia atual:
+
+```text
+alcance_dos_oraculos: {"dbt_test_returncode": 0, "medidas_divergentes": 2}
+```
+
+O desaparecimento de dependentes por reconstrução seletiva, já relatado pelo autor na §4.1,
+foi confirmado com uma view de sondagem ligada à fato isolada:
+
+```text
+dbt run --select fact_inventory_movement --full-refresh: {"returncode": 0}
+full_refresh_selecionado: {"returncode": 0, "view_dependente_existe": false}
+limpeza_sondas: {"schema_removido": true, "fato_real_identica": true}
+```
+
+É um problema anterior ao intervalo, registrado como MR04 para que não desapareça com este
+dossiê. A recomendação antiga em `dbt/tests/incremental_confere_com_a_reconstrucao_completa.sql`
+também orienta reconstruir apenas a fato. A operação deve contemplar os descendentes necessários
+e conferir a publicação das views; isso não exige presumir agora como a Etapa 12 será agendada.
+
+**R25:** o mecanismo de materialização está tecnicamente validado neste recorte; a ressalva nova
+é a limpeza do teste, MR02. **R09, R10, R12, R13, R14 e R26** permanecem com o alcance registrado em
+`REVISAO.md`. Em particular, a medição destravada não fornece o oráculo independente de R13, e o
+sucesso destas sondas não comprova integridade de uma recaptura nem detecção de exclusão física.
+
+**R14 continua visível no recorte documental:** o README ainda diz que R25 não foi implementado e
+que o armazém não foi remedido, apesar das evidências desta entrega. A consulta do revisor encontrou
+16 views; ela não reescreve a observação histórica de 2 views da revisão anterior. Os documentos
+vigentes precisam distinguir essas datas/execuções. Não foi aberta uma duplicata de R14.
+
+Não foram reexecutados pelo revisor o `make dbt-build` completo, a construção de todo o ambiente
+do zero, `make test CARGA=1` contra os bancos de trabalho, a recaptura real, nem as medições de pico
+com JIT ligado ou ambientes pesados. A execução do teste de reprocessamento nesta revisão foi
+isolada, como descrito na §7.2. O aceite do Owner e o encerramento formal da Etapa 10 continuam
+separados desta validação técnica.
+
+---
+
+## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| MR01 | `docs/adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md:86` | **A paridade GCP depende de premissa incorreta e contradiz o mapa de camadas.** Cloud SQL não suporta LLVM/JIT; o trecho ainda desloca o tratamento legado para antes do BigQuery, embora o mapa vigente leve as nove camadas do armazém a ele. Corrigir a paridade em registro próprio, preservando o ADR aceito; eventual mudança de camada é do Owner. Evidência na §7.3. | `bloqueante` | **Resolvido em 14/09/2026** (`46c3ee4`). O Owner escolheu retificação datada dentro do ADR-0043, preservando o texto anterior numa nota no cabeçalho. A paridade foi reescrita coerente com Arquitetura §5: `jit=off` é medida **local**, sem equivalente nem necessidade dele no BigQuery; a materialização é a mesma configuração dbt e é o que viaja; o teto se desdobra por destino — *tier* do Cloud SQL para `source_db`/`legacy_db`, e para o armazém o análogo é o limite de bytes faturados, fixado quando a fase GCP definir custos. Nenhuma mudança de camada foi presumida; a implementação local não mudou. |
+| MR02 | `tests/test_fato_incremental.py:191` | **O reparo reutiliza a operação defeituosa e deixa a fato adulterada quando a regressão é detectada.** Com a estratégia antiga, as duas chamadas dbt retornam 0, o teste falha e o `finally` deixa 1 fantasma e 1 valor divergente. Isolar a escrita ou restaurar por mecanismo independente, verificando o estado mesmo no caminho de falha. Evidência na §7.2. | `bloqueante` | **Resolvido em 14/09/2026** (`6c53ff7`). O `finally` deixou de reprocessar: `_desfazer_o_estrago` apaga o fantasma pela identidade e devolve o valor lido antes da adulteração, por SQL direto, e confere o estado — se a fato ficar adulterada, levanta `RuntimeError` sem esconder a causa original. Contraprova refeita com o modelo de `1d91102`: o teste **falha** na asserção do fantasma e a fato sai **idêntica** (16.453 linhas, mesmo `md5` da tabela inteira antes e depois; `fantasmas_apos_finally: 0`). Com o modelo atual: `1 passed`; `make test CARGA=1`: `149 passed`. |
+| MR03 | `docs/adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md:59` | **A alternativa `jit_above_cost` descreve o sentido do limiar ao contrário.** JIT é admitido acima do custo configurado; elevar o limiar não preserva as consultas menores enquanto exclui as maiores. Retificar a fundamentação em registro corretivo, preservando o ADR aceito. Fonte primária na §7.3. | `bloqueante` | **Resolvido em 14/09/2026** (`46c3ee4`), na mesma retificação do MR01. A linha da alternativa passou a dizer o que o limiar faz — compila **acima** do custo, então elevá-lo poupa as pequenas e continua compilando as grandes, que é exatamente a view de limpeza — e a alternativa continua rejeitada, pelo motivo certo. `jit=off` não mudou. |
+| MR04 | §4.1 deste dossiê; `dbt/tests/incremental_confere_com_a_reconstrucao_completa.sql:12` | **A reconstrução seletiva remove views dependentes e retorna sucesso.** Problema anterior ao intervalo, reproduzido na cópia. Transferir o achado para o dono operacional e revisar a orientação de recuperação, incluindo descendentes e conferência das views, antes de apagar este dossiê. | `observação` | **Resolvido em 14/09/2026** (`a647492`), e medido além do recorte: **qualquer** `dbt run --select` de tabela em `analytics`, com ou sem `--full-refresh`, derruba as views dependentes e reporta `PASS` — `dim_warehouse` sozinho levou `consumption` de 16 a 13 views; `dim_warehouse+` devolveu 16. Entrou como problema conhecido em Execução Local §6, com a regra operacional (toda reconstrução seletiva leva `+`, e confere-se `information_schema.views`); a orientação do teste `incremental_confere_com_a_reconstrucao_completa.sql` passou a `fact_inventory_movement+`. O agendamento da Etapa 12 não foi tocado; a nota diz que ele precisa nascer com o `+`. |
