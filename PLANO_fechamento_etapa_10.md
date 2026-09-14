@@ -986,3 +986,295 @@ Todos os 23 foram aplicados na revisão 3 ou devolvidos ao Owner e decididos. Ne
 | P21 | ajuste | **Aplicado, §§4, 5, 7.** `dbt build --select legacy_selected_capture+` após cada captura; contraprova incompleta por *stream* desabilitado, não por renomear/pausar; restauração antes de *build* positivo. |
 | P22 | ajuste | **Aplicado, §§5, 8.** Unit tests e colunas novas nos **geradores**; dicionário, paridade e índice de ADR listados; critério "passa **ou** corrigiu" retirado. |
 | P23 | observação | **Aplicado, §§7, 10.** Lista de `REVISAO.md:835–849` marcada item a item; número efetivo de commits vai ao dossiê. |
+
+---
+
+## 15. Parecer final do revisor — 14/09/2026
+
+**A revisão 3 ainda não está pronta para execução integral: restam seis bloqueantes e seis
+ajustes.** Este parecer avalia o plano em `186d8d7`, depois da atualização do Claude Code;
+não é revisão de uma implementação nova. A restauração da origem principal foi reproduzida.
+As decisões do Owner são tratadas como tomadas; as devoluções abaixo apontam consequências e
+contradições que o registro dessas decisões ainda precisa resolver.
+
+As seções anteriores, inclusive o parecer da §13 e a resposta do executor na §14, foram
+preservadas. “Aplicado” na §14 não equivale ao aceite do revisor. No nível do **plano**, considero
+respondidos P03, P05–P10, P13, P16, P17, P19, P20, P22 e P23. P01 avançou para vínculo por linha
+na versão instalada, com a limitação de retry expressamente pendente; P04 foi respondido para a
+**detecção física**, que deixou de depender da classificação anterior. A cobertura da aptidão
+histórica ainda depende do universo discutido em P26. Permanecem P02, P11, P12, P14, P15, P18
+e P21, nos recortes precisados abaixo. P24–P28 são achados desta rodada.
+
+### 15.1. Fidelidade aos seis achados
+
+| Achado original | Avaliação da revisão 3 |
+|---|---|
+| R09 — `REVISAO.md:823` | A §4 agora trata vínculo por linha, registro por stream e vazio legítimo. Isso responde melhor ao pedido. A integralidade continua reduzida a cardinalidade: perdas compensadas por duplicatas e alterações sem mudança de contagem passam na regra proposta (P02). A localização do controle foi decidida, mas a exceção à fronteira de `governance` ainda exige registro adequado (P15). |
+| R10 — `REVISAO.md:824` | A §5 corrigiu o objeto da comparação: presença física pela PK declarada, independentemente da aptidão, entre duas capturas novas certificadas. A detecção atende ao objeto do achado; a propagação proposta ainda contradiz a própria prova de C e contratos dimensionais aceitos (P14, P24–P27). O cenário com clientes também não prova a remoção de movimentos que anuncia (P21). |
+| R12 — `REVISAO.md:825` | A §3 responde ao pedido: migração do zero, evolução/reversão, equivalência física tripla e adoção do banco existente somente depois da conferência, preservando `[alembic]`. P05 está respondido no planejamento. Nenhuma dessas migrações foi executada nesta revisão. |
+| R13 — `REVISAO.md:826,843–844` | A §2 passou a exigir multiconjunto de achados, vínculos causais, recuperação por transformação e contraprova por mutação. P06/P07 estão respondidos no desenho. Falta ligar o esperado ao **conteúdo** efetivamente capturado (P18), e a sequência de prova ainda não sincroniza o lote regenerado (P21). |
+| R14 — `REVISAO.md:827` | As §§7–8 distinguem estado medido, entrega, revisão e aceite; explicitam as validações deixadas para outra rodada. A atualização documental proposta atende ao achado, condicionada às medições futuras. A afirmação de execução já medida em §4 precisa ser corrigida (P28). |
+| R26 — `REVISAO.md:830` | A §6 atende ao esclarecimento pedido e retirou o teste que proibia usos permitidos pelo Owner. O contrato limita o desempate à captura; não promete ordem do evento nem identidade entre recapturas. A nota de referência é adequada. |
+
+### 15.2. Verificações executadas e saídas literais
+
+Reli `CLAUDE.md` §§5–7 e o plano atualizado; confrontei o diff com o parecer anterior,
+`REVISAO.md`, os ADRs, os declarativos, os modelos consumidores, os testes e a implementação
+instalada do dbt. As consultas aos bancos usaram `default_transaction_read_only=on`,
+`statement_timeout=20000` e `jit=off`, com credenciais carregadas do `.env` sem imprimi-las.
+A conexão inicial foi bloqueada pelo sandbox e a mesma consulta foi repetida com a permissão
+necessária para acessar os bancos locais.
+
+Houve somente leitura, SELECTs e diagnósticos pequenos em memória. Não executei seed, migração,
+suíte destrutiva, build dbt, sincronização, DAG ou alvo que ligue ambientes. A única alteração
+documental desta rodada é este acréscimo.
+
+**VF01 — revisão examinada e decisões vigentes.** `git rev-parse HEAD`,
+`git diff --name-only e65efa5 HEAD` e busca em `docs/adr/`. A atualização entre os dois
+commits mudou somente o plano, não código ou ADR aceito.
+
+~~~text
+186d8d7d6af1095c173e53b60b4b249c21c0b340
+PLANO_fechamento_etapa_10.md
+docs/adr/0037-reter-capturas-do-legado-por-acrescimo.md:40:| Snapshot pelo banco, fora do Airbyte | Controle total sobre o instante e a consistência entre tabelas | Acrescenta um componente ao fluxo, contra a regra 5 do [`CLAUDE.md`](../../CLAUDE.md), para resolver o que a ferramenta já resolve. E cria um segundo caminho de ingestão que o `streams.yml` não descreve — a declaração deixaria de ser única |
+docs/adr/0029-exclusao-logica-como-marca-na-dimensao.md:59:2. `trusted` e as **dimensões preservam todos os membros**, excluídos inclusive, marcados com
+docs/adr/0017-chaves-substitutas-e-scd.md:39:Cada fato carrega a chave substituta **vigente no instante do evento**, resolvida por *join*
+docs/adr/0007-catalogo-como-codigo.md:23:| Contêiner de catálogo local (OpenMetadata, DataHub) | Interface rica desde o início | Contêiner pesado — agrava o risco **R11**; metadados fora do versionamento; sem contrapartida direta no fluxo de migração |
+docs/adr/0023-escopo-do-schema-governance.md:55:  dbt; e o schema precisa ser mantido **fora** do fluxo de dados — nenhum modelo de `analytics` pode
+~~~
+
+**VF02 — restauração da origem e estrutura dos snapshots.** Contagem das 40 tabelas de
+`oltp`; comparação com `raw` nas quatro tabelas citadas na §0; consulta ao catálogo de
+colunas dos quatro snapshots. O MD5 foi calculado sobre os pares `id:updated_at`, ordenados
+por `id::bigint`, separados por quebra de linha, com timestamp convertido para UTC e seis
+casas fracionárias; nulo representado por `<null>`. A comparação reproduz o recorte anunciado,
+não uma igualdade de todos os campos das 40 tabelas. A execução histórica de `seed-data`
+não foi repetida.
+
+~~~text
+read_only: on on on
+source: tables=40 rows=252955
+customers: source=(1500, 'eac3def3b2db89d4b575fd5cd7ff2f87') raw=(1500, 'eac3def3b2db89d4b575fd5cd7ff2f87') equal=True
+orders: source=(3500, 'c06c7a75587352a4b1d46782febde380') raw=(3500, 'c06c7a75587352a4b1d46782febde380') equal=True
+order_items: source=(7500, 'aba15be3e89517cf20dff7bd35816405') raw=(7500, 'aba15be3e89517cf20dff7bd35816405') equal=True
+products: source=(300, 'e10920a97044c7baa83d0a7248f3c38a') raw=(300, 'e10920a97044c7baa83d0a7248f3c38a') equal=True
+snapshot columns:
+('snapshots', 'scd_coupon', False, 27)
+('snapshots', 'scd_customer', False, 32)
+('snapshots', 'scd_product', False, 31)
+('snapshots', 'scd_support_agent', False, 19)
+warehouse capture: [(16,)]
+legacy tables/version: 40 []
+~~~
+
+**VF03 — estado atual do armazém e das capturas.** Consultas de contagem/agrupamento nas
+relações indicadas pela saída; contagem por geração nas 40 tabelas físicas de `raw_legacy`.
+A consulta `dimension_deleted` leu `analytics.dim_customer`: as marcas lógicas já existem
+antes do trabalho proposto. `snapshot_history` leu `snapshots.scd_product`; não há versões
+encerradas nessa amostra atual, portanto a preservação de múltiplas versões ainda precisa
+de um cenário dirigido.
+
+~~~text
+read_only: on
+classifications: [(16, 7, 'accepted', None, 10441), (16, 7, 'corrected', None, 26), (16, 7, 'rejected', 'duplicate_excess', 3), (16, 7, 'rejected', 'own_invalid', 67), (16, 7, 'rejected', 'parent_rejected', 2210)]
+facts: [('legacy', 553), ('retail', 15900)]
+views: [(16,)]
+dimension_deleted: [('legacy', 74, 1), ('retail', 1500, 6)]
+customer_captures: [(1, 75, '9', '9'), (2, 75, '10', '10'), (3, 75, '11', '11'), (4, 75, '12', '12'), (5, 75, '13', '13'), (6, 75, '14', '14'), (7, 75, '15', '15'), (8, 75, '16', '16'), (9, 75, '17', '17'), (10, 75, '18', '18'), (11, 75, '21', '21'), (12, 75, '22', '22'), (13, 75, '23', '23'), (14, 75, '24', '24'), (15, 75, '25', '25'), (16, 75, '26', '26')]
+snapshot_history: [('legacy', 25, 25, 0), ('retail', 600, 600, 0)]
+dbt_governance_models: []
+raw_generation: 15 tables= 39 rows= 12746 absent= ['brands']
+raw_generation: 16 tables= 40 rows= 12747 absent= []
+~~~
+
+**VF04 — manifesto atual.** Leitura de `data/legacy/manifesto.json`, contagem dos arrays e
+agrupamento de `achados[].codigo`. Confirma os números corrigidos na §0; o vínculo por lote
+continua sendo trabalho planejado.
+
+~~~text
+manifest keys: ['achados', 'ocorrencias']
+findings: 106 occurrences: 88
+findings_by_code: {'BOOL_VARIANT': 5, 'DATE_FORMAT_KNOWN': 5, 'DATE_FUTURE': 3, 'DATE_IMPOSSIBLE': 4, 'DATE_TZ_MISSING': 5, 'DATE_UNPARSEABLE': 3, 'DUP_EXACT': 4, 'DUP_PARTIAL': 2, 'EMAIL_MALFORMED': 4, 'ENUM_UNKNOWN': 4, 'FK_ORPHAN': 5, 'MONEY_AMBIGUOUS': 3, 'MONEY_LOCALE': 6, 'MONEY_NEGATIVE': 3, 'NULL_DISGUISED': 7, 'NULL_REQUIRED': 12, 'NUM_AMBIGUOUS': 4, 'NUM_OUT_OF_RANGE': 4, 'NUM_TEXT_EQUIV': 5, 'TEXT_DELIMITER': 3, 'TEXT_ENCODING': 5, 'TEXT_TRUNCATED': 1, 'TEXT_WHITESPACE_CASE': 6, 'TOTAL_MISMATCH': 3}
+~~~
+
+**VF05 — contraprovas reduzidas, sem escrita no banco.** Executei a validação de estratégia do
+`BaseAdapter` instalado com uma relação simulada que contém as três colunas SCD obrigatórias,
+mas não `dbt_is_deleted` — ausência também observada nos quatro destinos reais em VF02.
+A validação anterior da relação foi substituída por um stub; foi exercitada a guarda específica
+de `new_record`, não um `dbt snapshot`.
+
+Nos outros diagnósticos, traduzi literalmente as condições do plano para conjuntos/listas:
+A contém a chave 1, B e C não a contêm; na prova de contagem, origem antes = {1,2}, depois =
+{1,3}, recebido = [1,1], com metadados do job assumidos válidos; na prova do lote, duas linhas
+têm o mesmo `legacy_row_id=1` e diferem apenas no nome, A/B. São contraprovas das regras
+**propostas**, não alegações de execução de modelos ainda inexistentes. A PK e as FKs de
+estoque foram lidas de `Base.metadata`.
+
+~~~text
+dbt-core=1.12.3
+strategy_check_without_dbt_is_deleted: SnapshotTargetNotSnapshotTableError
+Compilation Error
+  Snapshot target is missing configured columns (missing "dbt_is_deleted"). See https://docs.getdbt.com/docs/build/snapshots#snapshot-meta-fields for more information.
+inventory primary key: movement_id
+inventory foreign keys: product_variants.id, warehouses.id
+counterexample: keys(A)={1}; keys(B)=empty; keys(C)=empty
+B: removed=[1], dbt_is_deleted=True, planned_is_deleted=True
+C: removed=[], dbt_is_deleted=True, planned_is_deleted=False
+counterexample counts: 2 2 2 complete_by_plan= True same_source_keys= False received_matches_after= False
+counterexample lot: same_counts= True same_identity_hash= True same_payload_hash= False
+~~~
+
+A macro instalada chama essa guarda em `snapshot.sql:40`, antes da adição de colunas em
+`:57–61`. A documentação oficial também exige migração explícita de snapshots existentes
+ao habilitar `hard_deletes`; não há migração automática.
+[Referência oficial do dbt](https://docs.getdbt.com/reference/resource-configs/hard-deletes).
+
+**VF06 — escritas autorizadas pela flag de carga e contratos afetados.** Saída literal das
+buscas por flag, conexão, DML, restrições dos ADRs, definição de `NULL_REQUIRED` e fontes
+das dimensões sem snapshot:
+
+~~~text
+tests/test_fato_incremental.py:47:AUTORIZA_ESCRITA = "MVP_TESTE_CARGA"
+tests/test_fato_incremental.py:56:    motor = create_engine(database_url(WAREHOUSE), poolclass=NullPool)
+tests/test_fato_incremental.py:149:                    f"insert into {FATO} select {projecao} from {FATO} "
+tests/test_fato_incremental.py:156:                    f"update {FATO} set quantity_delta = quantity_delta + 1000 "
+tests/test_fato_incremental.py:216:                f"update {FATO} set quantity_delta = :v "
+docs/adr/0029-exclusao-logica-como-marca-na-dimensao.md:59:2. `trusted` e as **dimensões preservam todos os membros**, excluídos inclusive, marcados com
+docs/adr/0029-exclusao-logica-como-marca-na-dimensao.md:60:   `is_deleted`. Uma dimensão nunca perde linha por exclusão na origem.
+docs/adr/0017-chaves-substitutas-e-scd.md:39:Cada fato carrega a chave substituta **vigente no instante do evento**, resolvida por *join*
+docs/adr/0023-escopo-do-schema-governance.md:55:  dbt; e o schema precisa ser mantido **fora** do fluxo de dados — nenhum modelo de `analytics` pode
+docs/adr/README.md:20:3. Um ADR aceito **nunca é apagado nem reescrito**. Se for revertido, passa a `Substituída` e o
+docs/adr/README.md:22:4. Toda *mudança relevante*, no sentido do [Termo de Abertura](../../Abertura_de_projeto.md), exige
+docs/adr/README.md:24:5. Todo ADR declara a sua **contrapartida na fase GCP**. Decisão sem equivalente na nuvem não é
+src/mvp_ed1/legacy/catalogo.yml:327:  NULL_REQUIRED:
+src/mvp_ed1/legacy/catalogo.yml:332:    deteccao: Campo obrigatório permanece nulo após a limpeza, inclusive nulo recebido sem marcador.
+src/mvp_ed1/legacy/catalogo.yml:333:    rejeicao: Ausência de valor obrigatório; preencher exigiria inventar um valor de negócio.
+dbt/models/analytics/dim_warehouse.sql:23:from {{ ref('warehouses') }} w
+dbt/models/analytics/dim_carrier.sql:26:from {{ ref('carriers') }} c
+dbt/models/analytics/dim_supplier.sql:25:from {{ ref('suppliers') }}
+dbt/models/analytics/dim_sales_channel.sql:17:from {{ ref('sales_channels') }}
+dbt/models/analytics/dim_payment_method.sql:18:from {{ ref('payment_methods') }}
+dbt/models/analytics/dim_campaign.sql:23:from {{ ref('campaigns') }} c
+~~~
+
+Além desses trechos, conferi `dim_customer.sql:1–73`, `dim_product.sql:1–125`,
+`product_skus.sql`, os quatro snapshots e `fact_inventory_movement.sql:136–148`.
+Os dois primeiros documentam atributos de tipo 1 lidos do cadastro corrente e atributos de
+tipo 2 vindos de **todas** as versões. A fato de estoque usa SKU/armazém e vigência temporal;
+não referencia cliente.
+
+**VF07 — memória e preservação do parecer anterior, antes da escrita.** Leitura de
+`/proc/meminfo` e comparação binária com o Git. A memória disponível desta amostra é
+aproximadamente 2,85 GiB; o valor histórico de 1,03 GiB continua corretamente identificado
+como histórico na §9. Não foi medido pico do cenário batch.
+
+~~~text
+MemTotal:       12021776 kB
+MemAvailable:    2987044 kB
+SwapTotal:      16215540 kB
+SwapFree:       13358796 kB
+head_sha256: 51050660f9ddf7acfc8afc1f42215ce19f1c4f01e2dfbd7b08d9c363e120304a
+working_copy_equals_HEAD: True
+section_13_preserved_from_e65efa5: True
+~~~
+
+As medições numéricas corrigidas das §§0/2/3/5 foram reproduzidas no alcance acima ou já
+têm as reproduções literais da §13, que não foram convertidas em novas execuções. O estado
+`succeeded` dos jobs 25/26 e a correspondência de todas as linhas com seus `sync_id`
+continuam sustentados pela consulta da rodada anterior (§13, V04), não por nova chamada à
+API nesta rodada. A afirmação que não se reproduz como execução do procedimento novo está
+individualizada em P28.
+
+### 15.3. Consequências das decisões do Owner e forma de registro
+
+| Decisão da §12 | Confronto com ADRs, consequência e registro |
+|---|---|
+| D39-a′ — PK declarada e ausência física | Compatível com a detecção por comparação de capturas dos ADRs 0015/0037. O novo ADR é adequado. A exclusão de chaves sem identidade está explícita, mas a tipagem/canonização e a equiparação de não conversível a `NULL_REQUIRED` ainda precisam do contrato indicado em P12, também para o BigQuery. |
+| D39-b — anterior certificada | Compatível com ADR-0037. A decisão de não certificar retrospectivamente 1–16 resolve o bootstrap da detecção: a comparação começa com duas novas capturas. Cabe no ADR-0044. É preciso aplicar essa restrição também à ordem das provas, conforme P21. |
+| D39-c′ — fato corrente e marcas dimensionais | A preservação do ADR-0042 responde a P13. Contudo, “última versão” conflita com ADR-0017; “`is_deleted` só com remoção física” conflita com a exclusão lógica do ADR-0029. A implementação nativa não resolve persistência da **causa física**, migração, atributos de tipo 1 ou dimensões sem snapshot. P14/P24–P27 voltam ao Owner como consequências da decisão. O ADR-0044 deve explicitar a interação e os limites; não pode declarar ausência de mudança nos ADRs enquanto prescreve comportamento contrário. |
+| D40 — desempate dentro da captura | Não encontrei ADR aceito que atribua ordem observada ao campo legado. Nota datada de referência no ADR-0039, apontando para `origem_legada.md`, é suficiente se não reescrever a decisão histórica. |
+| R09 — registro em `governance` | Guardar o log cabe no ADR-0023; usá-lo como entrada de elegibilidade contraria sua restrição de ficar fora do fluxo. A decisão do Owner autoriza a escolha, mas uma nota datada não substitui o ADR novo que registra essa exceção. P15. A contrapartida BigQuery precisa incluir a escrita/atualização do controle, não apenas o nome do dataset. |
+| R13 — quatro casos de cascata | As respostas são compatíveis com ADR-0038/0040: existência de canônica apta evita a cascata; duplicata parcial rejeitada a provoca; referência à chave ausente é órfã; a raiz inválida conserva causa própria no ciclo. As notas de referência e o contrato no dono documental bastam. P16 está respondido. |
+| SQL divergente do oráculo | A autorização para corrigir permanece válida. A §2 agora exige declaração de recuperação, revisão dessa declaração e ciclo de versão/build; a §7 descreve a recusa sob o mesmo rótulo. Não exige novo ADR para consertar defeito dentro dos contratos aceitos. Uma divergência não autoriza alterar um desses contratos para fazer o teste passar. |
+| Restauração e isolamento dos testes | O estado anunciado foi confirmado em VF02. Registro de execução e guarda operacional são adequados; não é nova escolha de arquitetura. A guarda precisa cobrir todos os destinos de escrita ativados pela flag (P11). |
+
+Pelo `docs/adr/README.md:20–25`, mudança relevante exige ADR e contrapartida GCP; um ADR
+aceito não é reescrito. No caso de P15, o registro novo precisa preceder a implementação do
+R09 afetada pela exceção, não apenas o R10. Não imponho Alembic ao warehouse: o ADR-0010
+não o determina ali. DDL versionado com evolução testada pode ser avaliado como solução
+técnica; a escolha de ampliar o escopo do Alembic continua sendo do Owner.
+
+### 15.4. Oráculos, ambiente e escopo
+
+A §2 melhorou a independência do esperado: catálogo e grafo são declarações compartilhadas,
+e não há problema em ambos os caminhos lerem o mesmo contrato. A separação dos helpers,
+o multiconjunto por ocorrência e as mutações deliberadas devem permanecer. O que ainda
+é insuficiente é verificar o transporte por contagem, vincular lotes por identidades
+renumeráveis e apresentar uma equação derivada das próprias diferenças de conjuntos
+como prova de que os **conjuntos de entrada** estão corretos.
+
+Há oráculos mais fortes viáveis nesta escala: manifesto imutável do conteúdo entregue,
+conferido após a gravação na origem; comparação por stream das identidades físicas,
+multiplicidades e payloads recebidos; diário das mutações efetivamente confirmadas,
+incluindo inserção e alteração além do DELETE; e valores esperados de atributos/chaves
+dimensionais antes e depois, calculados a partir desse diário. `DELETE RETURNING` com
+confirmação posterior é uma melhora concreta, mas não certifica sozinho os sobreviventes
+nem o lote após os outros tipos de mutação. Uma contraprova deve trocar conteúdo sem mudar
+a contagem ou `legacy_row_id`, além das mutações de achados já planejadas.
+
+A §9 corrigiu a descrição dos ambientes: Airbyte e Airflow integram a família batch, e
+streaming é o conflitante. O pico de 4,95 GiB é o do ADR-0041; não é medição do pico conjunto
+da DAG com as duas sincronizações e as ferramentas de trabalho. A condição de liberar
+memória, conferir o preflight para o alvo concreto e parar diante de recusa deve ser
+mantida. P19 está respondido como **condição de execução**, não como certificação de
+capacidade. Nesta revisão nenhum ambiente foi ligado, pausado ou retomado.
+
+A propagação dimensional, a migração necessária para `new_record` e a guarda dos testes
+excedem a formulação mínima de R10/R12/R13, mas decorrem das decisões do Owner ou são
+pré-requisitos das provas escolhidas; não são motivo para cortar o trabalho em silêncio.
+A §7 agora declara corretamente o que deixa para outra rodada: troca real de ambientes,
+chart/OOM, streaming e medição no GCP. Permanecem sem delimitação suficiente o universo
+dimensional e o grão de `perdeu_aptidao` (P26). A revisão de código posterior deve cobrar
+as provas de desenvolvimento e a definição de pronto, sem tratar este parecer como
+encerramento da Etapa 10.
+
+### 15.5. Achados remanescentes e novos
+
+Os identificadores antigos são mantidos quando o problema permanece. Os novos começam em P24.
+“Owner” identifica consequência contratual a devolver ao decisor, sem substituir a decisão
+dele por uma escolha do revisor.
+
+| # | Seção do plano | Achado | Veredito |
+|---|---|---|---|
+| P02 | §4, item 1, linhas 241–253 | **Contagem independente ainda não certifica conteúdo integral ou origem estável.** A origem pode trocar {1,2} por {1,3}, e a extração entregar [1,1], mantendo as três contagens iguais e o mesmo job em todas as linhas. VF05 mostra a regra aceitando esse caso. A geração 15 prova falta de stream inteiro, não esse defeito dentro de stream. Exigir equivalência verificável das ocorrências/conteúdo por tabela, preservando multiplicidade, ou condições de extração que sustentem essa garantia; incluir alteração sem mudança de contagem e perda compensada por duplicata nas contraprovas. O manifesto do produtor e uma conferência da origem são viáveis. R09 pede integralidade, `REVISAO.md:823`. | bloqueante |
+| P11 | §9, linhas 440–443; §10, commit 1 | **Isolar somente `SOURCE_DB_NAME` não isola `make test CARGA=1`.** A mesma flag ativa `test_fato_incremental.py:47,56,149–168`, que conecta a `WAREHOUSE`, adultera a fato e chama `dbt run` com o ambiente herdado. VF06 confirma esses destinos. A restauração da origem está confirmada, mas não fecha a guarda planejada. Declarar isolamento também do warehouse e do subprocesso, com seus pré-requisitos, ou delimitar a seleção da suíte isolada e a autorização separada do teste da fato. Uma troca apenas de `CARGA_DB` não pode ser anunciada como proteção de todos os bancos de trabalho. | ajuste |
+| P12 | §5/D39-a′, linha 312; §12 | **Owner — a PK foi corrigida, mas o domínio da identidade ainda mistura causas.** O catálogo atual define `NULL_REQUIRED` como valor nulo após limpeza (`catalogo.yml:332`, ADR-0040); uma chave textual não conversível não é automaticamente nula. Explicitar no ADR-0044 representação canônica por tipo, tratamento de não conversível e a classificação/contagem de `sem identidade`, sem relabelar silenciosamente o achado. Provar `08` versus `8`, UUID, alteração real de PK e múltiplas ocorrências com a mesma chave; a equação deve dizer se conta entidades distintas ou linhas físicas. Essa distinção também precisa sobreviver no BigQuery. | ajuste |
+| P14 | §5/D39-c′, linhas 314, 335 e 354 | **Owner — a marca continua durando só uma comparação.** A versão nativa com `dbt_is_deleted=true` persiste, mas a regra adicional exige que a chave esteja nas remoções da comparação corrente. Em C contra B esse conjunto é vazio; VF05 produz `planned_is_deleted=False`. Usar apenas a marca nativa também não resolve, pois ela pode nascer de perda de aptidão. Definir persistência da causa física confirmada até reaparecimento, consulta desse estado e regra para reprocessamento de captura antiga. A prova C deve demonstrar a regra escolhida; hoje contradiz a implementação descrita. R10, `REVISAO.md:824`. | bloqueante |
+| P15 | §4, linhas 235–261; §§10–12 | **Owner — nota datada não pode criar a exceção ao ADR-0023.** A proibição está em `0023:54–56`: governance fica fora do fluxo de dados. O plano torna o controle entrada do pipeline, inclusive da seleção usada por analytics. Registrar a exceção em ADR novo antes desse código, delimitando leitura de controle versus auditoria e sua relação com a Etapa 11. “Mesma tabela, escrita pelo mesmo Python” também não especifica como a atual conexão PostgreSQL escreve/atualiza BigQuery: declarar o caminho de escrita, evolução e recuperação do registro na nuvem. A escolha da localização já foi feita; o achado é seu contrato e registro, não uma sugestão de outra camada. | bloqueante |
+| P18 | §2, item 4, linhas 120–124; §5, item 1 | **Hash de identidades não identifica o lote de conteúdo.** `injetor.py:98–113` renumera `legacy_row_id` a partir de 1; contagem e conjunto dessas identidades podem se repetir com valores diferentes. VF05 reproduz essa colisão de significado sem colisão criptográfica. Preservar arquivos e registrar o DELETE efetivo respondeu parte do achado. Falta vincular captura e manifesto ao payload canônico completo e aos parâmetros efetivos, e atualizar esse vínculo para as inserções/alterações da sequência B/D. Testar explicitamente um lote com mesmas identidades e achados finais, mas conteúdo diferente. R13, `REVISAO.md:826`. | ajuste |
+| P21 | §1; §2/prova, linhas 152–154; §5/prova, linha 353 | **A sequência ainda não prepara os estados que anuncia provar.** `seed-legacy` grava na origem; o build seguinte lê o bruto da captura anterior, pois não há sync entre eles. Depois do R09, a captura 16 também será inelegível por falta de registro. Separar testes locais do gerador da integração, que exige sincronizar o novo manifesto e conferir a captura antes do build. Além disso, apagar clientes não apaga “os movimentos das 5”: o contrato de estoque só referencia SKU/armazém (VF05/VF06). Incluir DELETE real por `movement_id` para a prova incremental e manter a exclusão de clientes como prova dimensional/cascata, com esperados próprios por tabela. `REVISAO.md:839–844`. | ajuste |
+| P24 | §5, configuração dos snapshots; §10 | **Falta migrar os quatro snapshots já existentes.** VF02 confirma ausência de `dbt_is_deleted` em todos; VF05 reproduz a recusa da implementação instalada ao ativar `new_record` sem essa coluna. A validação acontece antes da expansão automática de colunas. Incluir migração versionada, inicialização coerente da marca e prova sobre cópia isolada de histórico existente, preservando `dbt_scd_id`, vigências e chaves usadas pelas fatos. Validar também criação do zero e caminho equivalente no BigQuery. Apenas acrescentar a configuração abortará a primeira execução sobre o estado atual; reconstruir apagando snapshots eliminaria a história que a decisão quer preservar. | bloqueante |
+| P25 | §5/D39-c′ e item 4; §12 | **Owner — “dimensões leem a última versão” suprime o contrato SCD vigente.** ADR-0017:31–40 exige chave por versão e join temporal, usado de fato por `fact_inventory_movement.sql:139–144`. Filtrar pela última versão remove versões necessárias às fatos históricas. Ler todos os atributos somente do snapshot também congela os de tipo 1 fora de `check_cols`; os comentários de `dim_customer` e `dim_product` explicam por que o modelo atual é misto. Preservar versões, vigências e chaves, mantendo os atributos correntes onde o membro existe e definindo o fallback apto para ausentes. Provar evento anterior à mudança, múltiplas versões e atualização apenas de atributo de tipo 1. Se o Owner quiser alterar esses contratos, o ADR-0044 deve emendar o ADR-0017 explicitamente. | bloqueante |
+| P26 | §5/D39-c′; §5, itens 2–4; §14/P04 | **Owner — o universo dimensional e o grão da perda de aptidão não estão fechados.** A detecção cobre 40 tabelas, mas a retenção só atua nos quatro snapshots. Supplier, warehouse, carrier, payment method, sales channel e campaign continuam lendo apenas cadastros correntes (VF06). Tampouco uma PK removida de `products` é a chave do snapshot de SKU, que usa `product_variant_id`. Definir quais dimensões devem reter membros, como mapear tabela/PK para cada membro e em que universo se calcula `sumiu_do_snapshot − removidas`; os conjuntos não são intercambiáveis. Se houver exclusões dessa cobertura, registrá-las no ADR-0044 e no escopo, em vez de prometer genericamente “marca nas dimensões” ou aptidão anterior para todo o lote. | ajuste |
+| P27 | §5/D39-c′; prova A/B/D; §12 | **Owner — a nova regra pode apagar a exclusão lógica já aceita.** “`is_deleted=true` só quando a chave está em `legacy_removed_records`” e reaparecimento sempre falso desconsideram `source_deleted_at` e as marcas já propagadas pelo ADR-0029. VF03 encontra 1 marca legada e 6 retail em `dim_customer` antes de qualquer DELETE; “marcas zero” em A não é o estado atual. Especificar a composição entre exclusão lógica e ausência física, preservando o contrato aceito nas duas origens. A prova deve comparar as novas marcas físicas com a linha de base e incluir reinserção de payload que continua logicamente excluído. A decisão pode acrescentar causa de exclusão; não pode zerar a anterior sem assumir essa mudança no ADR. | bloqueante |
+| P28 | §4, item 3, linha 267 | **“A geração 15 falha aqui, medido” mistura dado observado com teste futuro.** Está reproduzido que 15 tem 39 tabelas e que `governance.legacy_captures` não existe no estado atual. Não existe ainda a versão proposta de `legacy_captura_completa` que lê o registro e compara origem/destino; sua execução não foi reproduzida. Trocar a afirmação por expectativa planejada, vinculando a evidência já medida ao fato exato que ela sustenta. Depois da implementação, colar o comando e a falha observada desse novo teste. | ajuste |
+
+Nenhum desses achados foi implementado nesta revisão. A revisão do desenvolvimento e o aceite
+da Etapa 10 permanecem posteriores às correções do plano e às provas executadas.
+
+Conferência da alteração documental: `git diff --check` terminou com código 0 e sem saída.
+A comparação binária confirmou que o arquivo de `HEAD` permanece prefixo intacto, e
+`git status --short` mostrou somente o plano modificado. Saída literal da conferência:
+
+~~~text
+original_sha256: 51050660f9ddf7acfc8afc1f42215ce19f1c4f01e2dfbd7b08d9c363e120304a
+prefix_preserved: True
+section_15_count: 1
+findings: 12
+ajuste: 6
+bloqueante: 6
+unique_ids: True
+section_15_line: 992
+findings_line: 1241
+ M PLANO_fechamento_etapa_10.md
+~~~
