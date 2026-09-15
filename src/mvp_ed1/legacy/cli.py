@@ -5,7 +5,7 @@ conexão sai do ambiente, carregado do `.env` (regra inviolável 1).
 
     plan       mostra o que seria gerado e injetado, sem tocar no banco
     manifesto  recalcula o manifesto do lote determinístico, sem tocar no banco
-    seed       gera, injeta, carrega em `legacy_db` e escreve o manifesto
+    seed       gera, injeta, escreve o manifesto e só então carrega em `legacy_db`
     remover    apaga linhas de negócio por chave e grava no diário o que o banco devolveu
     inserir    insere uma linha de negócio (JSON) e grava o que o banco devolveu
     alterar    altera uma célula de uma linha de negócio e grava antes e depois
@@ -191,13 +191,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nmanifesto: {caminho} (nenhum banco foi tocado)")
         return 0
 
+    # A ordem é o contrato (plano da Etapa 10, §2 item 5): destino conferido,
+    # manifesto gravado, **depois** a carga — e o hash do banco conferido no
+    # fim. O esperado durável precede o que ele descreve; uma falha ao gravar
+    # o manifesto deixa o banco como estava.
     engine = create_engine(database_url(LEGACY))
     try:
-        medida = writer.escrever(engine, resultado, forcar=args.force)
+        writer.exigir_destino(engine, forcar=args.force)
     except writer.DestinoNaoVazio as erro:
         print(f"\n{erro}", file=sys.stderr)
         return 1
     caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS)
+    medida = writer.escrever(engine, resultado, forcar=args.force)
     print(
         f"\ncarregado: {medida['linhas']:,} linhas em {medida['segundos']} s; "
         "conteúdo conferido por hash".replace(",", ".")

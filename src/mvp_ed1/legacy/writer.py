@@ -88,8 +88,14 @@ def truncar(engine: Engine) -> None:
         conexao.execute(text(f"truncate table {alvos} restart identity"))
 
 
-def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> dict[str, Any]:
-    """Carrega o conjunto degradado num schema já migrado."""
+def exigir_destino(engine: Engine, *, forcar: bool = False) -> dict[str, int]:
+    """O destino está migrado e vazio — ou a carga foi autorizada a esvaziá-lo.
+
+    Separado de `escrever` para que a CLI possa conferir o destino **antes** de
+    gravar o manifesto, e gravar o manifesto **antes** de carregar: o esperado
+    durável nasce primeiro, e uma carga recusada não deixa manifesto órfão
+    (RV10-07). Devolve as contagens das tabelas ocupadas.
+    """
     exigir_migracao(engine)
     ocupadas = {n: c for n, c in contagens(engine).items() if c}
     if ocupadas and not forcar:
@@ -97,7 +103,12 @@ def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> d
             f"{len(ocupadas)} tabelas do legado já contêm dados "
             f"({sum(ocupadas.values()):,} linhas). Use FORCE=1 para truncar antes."
         )
-    if ocupadas:
+    return ocupadas
+
+
+def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> dict[str, Any]:
+    """Carrega o conjunto degradado num schema já migrado."""
+    if exigir_destino(engine, forcar=forcar):
         truncar(engine)
 
     marca = time.perf_counter()
@@ -148,7 +159,7 @@ def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> d
         raise RuntimeError(
             "o conteúdo carregado difere do gerado em "
             + ", ".join(divergentes)
-            + "; o manifesto não foi gravado"
+            + "; o manifesto gravado antes da carga não descreve o que está no banco"
         )
 
     return {

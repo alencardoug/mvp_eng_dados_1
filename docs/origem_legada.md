@@ -242,10 +242,11 @@ tratado convidaria a transformação a consultá-lo, e o teste passaria a medir 
 
 O arquivo chama-se `manifesto-<hash do lote>.json`, e `manifesto.json` é um *link* para o corrente.
 Nenhum é apagado: regerar a origem produz outro arquivo, e o anterior continua descrevendo a captura
-que já está retida em `raw_legacy`. O mesmo hash é conferido pelo `writer` no `legacy_db` logo
-depois do `COPY` — carga cujo conteúdo não é o gerado não ganha manifesto — e pelos testes de
-integração na captura selecionada: **captura cujo conteúdo não é o do manifesto não tem veredito
-comparado**, é recusada. `python -m mvp_ed1.legacy.cli manifesto` recalcula o manifesto do lote
+que já está retida em `raw_legacy`. O manifesto é gravado **antes** da carga (desde 15/09/2026,
+achado RV10-07: o esperado durável precede o que descreve), e o mesmo hash é conferido pelo `writer`
+no `legacy_db` logo depois do `COPY` — carga cujo conteúdo não é o gerado falha, e o manifesto já
+gravado não descreve o que ficou no banco — e pelos testes de integração na captura selecionada:
+**captura cujo conteúdo não é o do manifesto não tem veredito comparado**, é recusada. `python -m mvp_ed1.legacy.cli manifesto` recalcula o manifesto do lote
 determinístico sem tocar o banco.
 
 O **valor esperado** de um achado corrigível não é "o valor antes": sai do contrato `recuperacao`

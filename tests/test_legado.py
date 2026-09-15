@@ -205,3 +205,39 @@ def test_schema_legado_nao_tem_constraint_que_recuse_defeito() -> None:
             f"o legado não pode declarar {proibido!r}: tornaria uma falha do catálogo impossível"
         )
     assert corpo.count(" text") >= 400, "as colunas do legado são texto"
+
+
+def test_o_seed_grava_o_manifesto_antes_da_carga_e_nao_carrega_se_o_manifesto_falhar(catalogo, resultado, monkeypatch, tmp_path) -> None:
+    """RV10-07: o esperado durável nasce antes do que ele descreve (plano da Etapa 10, §2 item 5)."""
+    from mvp_ed1.legacy import cli, writer
+
+    ordem: list[str] = []
+    monkeypatch.setattr(cli, "_gerar", lambda: (catalogo, resultado, {"as_of": "2026-09-01"}))
+    monkeypatch.setattr(cli, "_resumo", lambda *_: None)
+    monkeypatch.setattr(cli, "create_engine", lambda *_: object())
+    monkeypatch.setattr(cli, "database_url", lambda *_: "postgresql://simulado")
+    monkeypatch.setattr(cli, "MANIFESTOS", tmp_path)
+    monkeypatch.setattr(writer, "exigir_destino", lambda *a, **k: ordem.append("destino") or {})
+    monkeypatch.setattr(writer, "gravar_manifesto", lambda *a, **k: ordem.append("manifesto") or tmp_path / "m.json")
+    monkeypatch.setattr(writer, "escrever", lambda *a, **k: ordem.append("COPY/hash/commit") or {"linhas": 0, "segundos": 0})
+
+    assert cli.main(["seed"]) == 0
+    assert ordem == ["destino", "manifesto", "COPY/hash/commit"]
+
+    # Destino ocupado sem FORCE: nem manifesto, nem carga.
+    ordem.clear()
+
+    def recusa(*a, **k):
+        ordem.append("destino")
+        raise writer.DestinoNaoVazio("ocupado")
+
+    monkeypatch.setattr(writer, "exigir_destino", recusa)
+    assert cli.main(["seed"]) == 1 and ordem == ["destino"]
+
+    # Manifesto que falha ao gravar: a carga não acontece.
+    ordem.clear()
+    monkeypatch.setattr(writer, "exigir_destino", lambda *a, **k: ordem.append("destino") or {})
+    monkeypatch.setattr(writer, "gravar_manifesto", lambda *a, **k: (_ for _ in ()).throw(OSError("disco cheio")))
+    with pytest.raises(OSError):
+        cli.main(["seed"])
+    assert ordem == ["destino"]
