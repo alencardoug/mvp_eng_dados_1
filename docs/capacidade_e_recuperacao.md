@@ -166,8 +166,9 @@ executor Prism em processo próprio.
 
 **Memória com tudo simultaneamente de pé** — três bancos, cluster do Airbyte, quatro contêineres do
 Airflow, Redpanda, Kafka Connect e o *pipeline* Beam com o Prism: cerca de **8 GB**. É o número a
-usar para dimensionar a máquina da fase local, e é o estado que a Etapa 12 exige; nas demais, o
-[Execução Local §5](execucao_local.md#5-executando-por-partes) diz o que basta subir.
+usar para dimensionar uma máquina que sustente tudo de pé — o que **nenhuma etapa exige** desde o
+[ADR-0046](adr/0046-validar-a-fase-local-por-partes.md): a Etapa 12 valida por partes, e a
+[Execução Local §5](execucao_local.md#5-executando-por-partes) diz o que basta subir em cada cenário.
 
 O tempo do *snapshot* é dominado pela escrita em lote e pelo autocheckpoint do executor local, não
 pelo transporte. Como avisa o [Streaming §2.1](streaming.md#21-limites-honestos-da-execução-local),
@@ -191,8 +192,8 @@ Com o disco fora de questão, a memória é o segundo limite do ambiente local. 
 de RAM a mais que a alternativa autônoma — custo aceito por **P10**.
 
 Tratamento, que é o do risco **R11**: os alvos do `Makefile` sobem apenas o subconjunto necessário à
-etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente, exceto na validação
-final da Etapa 12.
+etapa em curso. *Batch* e *streaming* não precisam estar no ar simultaneamente — nem na validação
+final: a Etapa 12 valida por partes ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)).
 
 ### 2.6 Custo da janela na nuvem
 
@@ -310,8 +311,8 @@ Medido durante um travamento real da máquina, com Airbyte e *streaming* simult�
 | Navegador | 0,4 GB |
 | **Ambiente de trabalho, fora dos contêineres** | **~4,0 GB** |
 
-O total do ambiente de trabalho **não é folga disponível**: numa máquina de 11,5 GB, os 8 GB da
-Etapa 12 mais esses 4 GB são 12 GB. É déficit, não margem apertada — e foi o que se observou: o
+O total do ambiente de trabalho **não é folga disponível**: numa máquina de 11,5 GB, os 8 GB de
+tudo de pé (o que a Etapa 12 exigia até o ADR-0046) mais esses 4 GB são 12 GB. É déficit, não margem apertada — e foi o que se observou: o
 `kswapd` em atividade contínua, o *load average* em 32,4 sobre 4 CPUs, o OOM *killer* disparando
 151 vezes em uma hora e a sessão gráfica congelando até o botão de reinício.
 

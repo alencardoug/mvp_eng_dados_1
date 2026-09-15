@@ -102,9 +102,10 @@ desenvolvimento; a etapa não está aceita.** O R25 foi implementado em 08/09 pe
 [ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
 reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
 sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém medido em
-15/09/2026:** captura selecionada 36 (*job* da DAG), tratamento na versão 8 — a árvore está na 9 desde o
-[ADR-0047](docs/adr/0047-materializar-o-cte-de-limpeza-do-legado.md), sem regra nova, e o armazém a
-receberá no próximo *build* completo —,
+15/09/2026:** captura selecionada 36 (*job* da DAG), tratamento na versão 9 desde o *build* completo da noite de
+15/09 (`PASS=891` em 12 min 15 s; a 9 vem do
+[ADR-0047](docs/adr/0047-materializar-o-cte-de-limpeza-do-legado.md), sem regra nova, e a quarentena
+guarda as auditorias v8 e v9 lado a lado, iguais linha a linha),
 16 das 16 views publicadas, fato com 16.403 linhas (15.900 `retail` + 503 `legacy`); `make dbt-build`
 completo com `PASS=891 ERROR=0`. As observações anteriores — 2 das 16 views e tratamento na versão 5
 em 08/09; captura 16 e versão 7 em 14/09 — descrevem o banco **antes** das reconstruções seguintes.
@@ -151,8 +152,8 @@ make env && make install && make up && make migrate && make seed-data
 make tools && make airbyte-up && make airbyte-config && make airflow-up && make dag-run
 ```
 
-E o caminho quente, que sobe separado do frio de propósito — os dois não precisam conviver fora da
-validação final (risco **R11**):
+E o caminho quente, que sobe separado do frio de propósito — os dois não convivem, nem na validação
+final, que é por partes (risco **R11**, [ADR-0046](docs/adr/0046-validar-a-fase-local-por-partes.md)):
 
 ```bash
 make stream-up && make stream-run          # o pipeline fica em primeiro plano

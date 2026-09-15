@@ -266,8 +266,9 @@ consulta, não ação.
 
 **Recusa só resta quando a troca não basta:** memória insuficiente mesmo depois de pausar. Como em
 `seed-data` e `reset`, `FORCE=1` autoriza — e é autorização do Owner, não atalho de quem esbarrou na
-recusa. A execução completa da Etapa 12 é o caso em que ela se aplica, e não cabe nesta máquina com
-o ambiente de trabalho aberto: pendência **D36**.
+recusa. Não há cenário previsto em que ela se aplique: a Etapa 12 valida **por partes**, cada
+cenário no seu subconjunto ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — *batch* e
+*streaming* juntos nesta máquina foi o que a travou em 07/09/2026 (D36, fechada).
 
 ---
 
