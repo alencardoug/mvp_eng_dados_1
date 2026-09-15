@@ -1,4 +1,4 @@
-"""Criação do schema legado e carga por `COPY`.
+"""Carga do legado por `COPY`, num schema que a migração Alembic criou.
 
 Mesma fronteira do ADR-0009 que a origem principal usa: o ORM é o caminho
 normal, a carga em massa passa por `COPY` na conexão bruta. A diferença é que
@@ -32,10 +32,33 @@ class DestinoNaoVazio(Exception):
     """Há dados no legado e a carga não foi autorizada a apagá-los."""
 
 
-def criar_schema(engine: Engine) -> None:
-    with engine.begin() as conexao:
-        for comando in schema.ddl():
-            conexao.execute(text(comando))
+class SchemaNaoMigrado(Exception):
+    """O schema legado não está na cabeça das migrações; a carga não cria DDL."""
+
+
+def exigir_migracao(engine: Engine) -> str:
+    """O schema legado nasce da migração Alembic, nunca daqui.
+
+    Até 14/09/2026 esta função **criava** as tabelas por `schema.ddl()`, e o
+    schema ficava fora do ciclo de evolução e reversão (achado R12). Agora ela só
+    confere: a revisão aplicada no banco tem de ser a cabeça de
+    `db/migrations_legacy/`. Se não for, a mensagem diz o alvo do Makefile, e a
+    carga não acontece — DDL por caminho paralelo é exatamente o que se quer
+    impossibilitar.
+    """
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    cabeca = ScriptDirectory.from_config(Config("alembic.ini", ini_section="legacy")).get_current_head()
+    with engine.connect() as conexao:
+        aplicada = MigrationContext.configure(conexao).get_current_revision()
+    if aplicada != cabeca:
+        raise SchemaNaoMigrado(
+            f"legacy_db está na revisão {aplicada or 'nenhuma'} e a cabeça é {cabeca}; "
+            "rode `make migrate-legacy` antes de carregar"
+        )
+    return cabeca
 
 
 def contagens(engine: Engine) -> dict[str, int]:
@@ -66,8 +89,8 @@ def truncar(engine: Engine) -> None:
 
 
 def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> dict[str, Any]:
-    """Cria o schema se preciso e carrega o conjunto degradado."""
-    criar_schema(engine)
+    """Carrega o conjunto degradado num schema já migrado."""
+    exigir_migracao(engine)
     ocupadas = {n: c for n, c in contagens(engine).items() if c}
     if ocupadas and not forcar:
         raise DestinoNaoVazio(

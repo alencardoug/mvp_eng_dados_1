@@ -39,6 +39,17 @@ mas representa uma origem antiga sem governança adequada:
 A tipagem frouxa é necessária: uma coluna PostgreSQL tipada como número ou data rejeitaria os
 exemplos defeituosos antes da engenharia de limpeza — que é exatamente o que se quer exercitar.
 
+**O schema nasce de migração, desde 14/09/2026.** Até então `legacy_db` era criado por DDL emitido
+na carga (`schema.ddl()`), fora do ciclo de evolução e reversão — o achado R12 da terceira revisão.
+Agora a declaração é `legacy/schema.py::metadata()`, o histórico é `db/migrations_legacy/`
+(`alembic -n legacy`, seção própria no `alembic.ini`, porque é outro banco com outra história), e a
+carga **recusa** um banco que não esteja na cabeça das migrações. O `ddl()` continua existindo como
+caminho de referência: o teste de migração cria dois bancos isolados — um pelo `upgrade`, outro pelo
+`ddl()` — e compara os catálogos físicos (tabelas, colunas, tipos, nulabilidade, identidade,
+*constraints*, índices); o `legacy_db` que já existia só recebeu `stamp` depois de o seu catálogo
+ser igual aos dois (**medido em 14/09/2026: zero diferenças nas três comparações**). É o ADR-0010
+aplicado à segunda origem, sem ADR novo.
+
 **As colunas de texto do legado são mais estreitas que as de hoje.** É daí que o truncamento vem: um
 `varchar(24)` recebendo um endereço de quarenta caracteres perde o fim dele, e o que sobra é o
 começo. A largura é declarada uma vez no catálogo, e vale como teto — a coluna antiga nunca é mais

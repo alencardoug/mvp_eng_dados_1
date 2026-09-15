@@ -16,6 +16,7 @@ COMPOSE_AIRFLOW := docker compose --env-file .env -f docker/docker-compose.airfl
 COMPOSE_STREAM := docker compose --env-file .env -f docker/docker-compose.streaming.yml
 # O .env é carregado em cada receita: `make` roda um shell novo por linha.
 ALEMBIC := set -a; . ./.env; set +a; .venv/bin/alembic
+ALEMBIC_LEGACY := set -a; . ./.env; set +a; .venv/bin/alembic -n legacy
 # O gerador lê a conexão do ambiente, nunca de argumento (mvp_ed1/db.py).
 GERADOR := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.generator.cli
 # O caminho quente lê conexão e parâmetros do ambiente e de streaming/*.yml.
@@ -54,7 +55,8 @@ fi
 endef
 
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
-        migrate migrate-down migrate-new migrate-status catalog seed-data seed-plan size-report test \
+        migrate migrate-down migrate-new migrate-status migrate-legacy migrate-legacy-down \
+        migrate-legacy-status migrate-legacy-new catalog seed-data seed-plan size-report test test-carga \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
         dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
         stream-up stream-down stream-connector stream-status stream-run stream-produce \
@@ -164,9 +166,10 @@ seed-data: require-env require-venv ## Gera e carrega os dados sintéticos; SCAL
 		$(if $(AS_OF),--as-of $(AS_OF)) $(if $(filter 1,$(FORCE)),--force) \
 		$(if $(filter 1,$(DRY_RUN)),--dry-run)
 
-seed-legacy: require-env require-venv ## Gera a origem legada com as falhas do catálogo; FORCE=1 trunca antes
+seed-legacy: require-env require-venv migrate-legacy ## Gera a origem legada com as falhas do catálogo; FORCE=1 trunca antes
 	@# O legado tem semente e fator próprios, declarados no catálogo — não são
 	@# argumentos. Duas origens compartilhando sequência deixariam de ser duas.
+	@# O schema vem da migração (dependência acima), nunca da carga.
 	@set -a; . ./.env; set +a; \
 		.venv/bin/python -m mvp_ed1.legacy.cli seed $(if $(filter 1,$(FORCE)),--force)
 
@@ -418,6 +421,19 @@ test-carga: require-env require-venv ## Teste de carga da origem num banco efêm
 		SOURCE_DB_NAME="$$efemero" .venv/bin/alembic upgrade head; \
 		SOURCE_DB_NAME="$$efemero" MVP_TESTE_CARGA=1 MVP_TESTE_CARGA_DB="$$efemero" \
 			.venv/bin/pytest -q tests/test_carga.py
+
+migrate-legacy: require-env require-venv ## Aplica as migrações do schema legado (legacy_db) até a última
+	@$(ALEMBIC_LEGACY) upgrade head
+
+migrate-legacy-down: require-env require-venv ## Desfaz migrações do legado; TO=base derruba tudo, padrão -1
+	@$(ALEMBIC_LEGACY) downgrade $(or $(TO),-1)
+
+migrate-legacy-status: require-env require-venv ## Revisão aplicada no legacy_db e diferença contra a declaração
+	@$(ALEMBIC_LEGACY) current --verbose && $(ALEMBIC_LEGACY) check
+
+migrate-legacy-new: require-env require-venv ## Gera rascunho de migração do legado; exige M="mensagem"
+	@test -n '$(M)' || { echo 'ERRO: use make migrate-legacy-new M="o que mudou"'; exit 1; }
+	@$(ALEMBIC_LEGACY) revision --autogenerate -m '$(M)'
 
 migrate-status: require-env require-venv ## Mostra a revisão aplicada no banco
 	@$(ALEMBIC) current --verbose

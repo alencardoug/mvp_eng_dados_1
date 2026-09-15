@@ -62,6 +62,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 2 | `make migrate` | Aplica as migrações Alembic até a última revisão | Etapa 3 |
 | 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
 | 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
+| 3c | `make migrate-legacy` | Aplica as migrações Alembic do schema legado (`legacy_db`); `seed-legacy` já a executa | Etapa 10 |
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
 | 4b | `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
 | 4c | `make legacy-catalogo` | Imprime o catálogo de falhas em português, para revisão sem abrir o YAML | Etapa 10 |
@@ -181,6 +182,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make migrate-down` | Desfaz migrações; `TO=base` derruba tudo | Etapa 3 |
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
+| `make migrate-legacy-down` / `-status` / `-new` | O mesmo ciclo para o schema legado (`alembic -n legacy`) | Etapa 10 |
 | `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração | Etapa 3 |
 | `make dbt-drop-snapshots` | **Destrói** o histórico SCD; só depois de regerar a origem | Etapa 5 |
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |

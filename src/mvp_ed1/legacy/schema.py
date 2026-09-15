@@ -22,7 +22,20 @@ excedente — seriam a mesma linha contada duas vezes.
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Identity,
+    Integer,
+    MetaData,
+    Numeric,
+    String,
+    Table,
+    Text,
+)
 
 from mvp_ed1.generator import enums
 from mvp_ed1.models import Base
@@ -157,11 +170,37 @@ def arquetipo(tabela: str, coluna: str, promessas: frozenset[str] = frozenset())
     return "qualquer"
 
 
-def ddl() -> tuple[str, ...]:
-    """Comandos que criam o schema legado do zero.
+def metadata() -> MetaData:
+    """O schema legado como `MetaData` do SQLAlchemy — a declaração que o Alembic migra.
 
-    Idempotente por `if not exists`: aplicar duas vezes não é erro, e é o que
-    permite recarregar a origem sem recriar o banco.
+    É a mesma estrutura que `ddl()` escreve por extenso: quarenta tabelas em
+    `text`, uma identidade física por tabela e nada mais. Desde 14/09/2026 quem
+    **cria** o schema é a migração gerada desta declaração (ADR-0010 aplicado à
+    segunda origem — achado R12); `ddl()` fica como caminho de referência, que o
+    teste de migração compara fisicamente com o resultado do `upgrade`.
+
+    Sem convenção de nomes de propósito: a chave primária fica com o nome que o
+    PostgreSQL dá (`<tabela>_pkey`), que é o que o `ddl()` sempre produziu e o
+    que o `legacy_db` existente tem.
+    """
+    md = MetaData(schema=SCHEMA)
+    for nome in tabelas():
+        Table(
+            nome,
+            md,
+            Column(IDENTIDADE, BigInteger, Identity(always=True), primary_key=True),
+            *[Column(c, Text) for c in colunas(nome)],
+        )
+    return md
+
+
+def ddl() -> tuple[str, ...]:
+    """Comandos que criam o schema legado do zero — o **caminho de referência**.
+
+    Idempotente por `if not exists`. Não é mais quem cria o schema: isso é da
+    migração Alembic (`db/migrations_legacy/`); estes comandos existem para o
+    teste provar, por comparação física de catálogo, que migração e declaração
+    dizem a mesma coisa.
     """
     comandos = [f"create schema if not exists {SCHEMA}"]
     for nome in tabelas():
