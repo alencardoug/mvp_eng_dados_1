@@ -12,7 +12,7 @@
 |---|---|
 | Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; achados da terceira revisão **implementados e medidos em 15/09/2026, aguardando revisão** |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 — D36 |
+| Decisões pendentes | 2 — D36, D42 |
 | Última revisão | 15/09/2026 |
 
 ---
@@ -48,6 +48,29 @@ O déficit da Etapa 12 continua inteiro.
 O risco imediato está tratado sem decisão sua: `make airbyte-up`, `airflow-up` e `stream-up` pausam
 o ambiente conflitante antes de subir (**R11**), dimensionados pelo pico medido de 5,0 GB. Recusa só
 resta quando nem a troca basta, e aí `FORCE=1` autoriza.
+
+### D42 — o CTE `limpo` dos modelos de limpeza é embutido pelo planejador, e custa 10×
+
+Medido em 15/09/2026, ao executar os modelos de limpeza compilados num armazém efêmero
+([Capacidade §2.11](capacidade_e_recuperacao.md#211-o-cte-limpo-embutido-em-cada-referência--15092026)):
+o PostgreSQL embute o CTE `limpo` (referenciado uma vez) em **cada** referência `l."coluna"` do
+`case` de achados — e a validação de uma data referencia a coluna limpa dezenas de vezes. Só o
+`achados` de `stg_legacy__carts` (2.000 linhas) leva **94 s**; com `limpo as materialized`, **8,7 s**;
+`cart_items` (5.500 linhas) cai de 295 s para 25 s. Com o JIT ligado ou desligado, a diferença é a
+mesma — é outra causa, somada à da D38, e provavelmente o que tornava a árvore de expressão grande
+o bastante para o JIT estourar.
+
+O conserto é uma palavra no gerador (`dbt.py`), com resultado idêntico linha a linha — mas
+`MATERIALIZED` não existe no BigQuery (exige `dispatch` por adaptador), e mexer no SQL do
+tratamento é decisão sua, mesmo sem mudar veredito nenhum e sem entrar na impressão digital da D34.
+Duas saídas:
+
+1. **Materializar o CTE no gerador**, com `{% if target.type == 'postgres' %}` — ganho de ~10× na
+   limpeza e, provavelmente, um `dbt build` do legado bem mais curto que os 17 min medidos.
+2. **Deixar como está** e registrar o custo: a contraprova (b) do oráculo compara só um recorte por
+   padrão e as 40 tabelas sob `make test LOTE=1` (~11 min).
+
+Enquanto não decide, vale a 2 — nada muda no tratamento.
 
 ---
 

@@ -419,6 +419,27 @@ Um efeito colateral que vale registrar: os `timeouts` que a segunda e a terceira
 como "detecção integral no banco não medida" eram esta falha. O achado **R13** estava bloqueado por
 ela, não por falta de teste.
 
+### 2.11 O CTE `limpo` embutido em cada referência — 15/09/2026
+
+Medido ao executar os 40 modelos de limpeza compilados sobre o lote gerado, num armazém efêmero e
+com `jit=off` (contraprova (b) de `tests/test_legado_contraprovas.py`). Cada modelo tem dois CTEs —
+`captura` e `limpo` — e o `case` de achados referencia `l."coluna"` (o valor já limpo) muitas vezes:
+a validação de uma data, dezenas. O PostgreSQL embute um CTE referenciado uma só vez, e o plano
+mostra a junção direta entre duas varreduras de `captura`, sem `limpo` — a expressão inteira de
+limpeza é reavaliada em cada referência.
+
+| Consulta (`select legacy_row_id, …`) | `carts` (2.000 linhas) | `cart_items` (5.500 linhas) |
+|---|---:|---:|
+| só as colunas limpas | 2,2 s | 7,1 s |
+| só `achados` | 97,7 s | 272,6 s |
+| tudo, como o modelo entrega | 94,1 s | 295,1 s |
+| tudo, com `limpo as materialized` | 8,7 s | 25,5 s |
+| tudo, `materialized`, `jit=on` | 8,7 s | 23,0 s |
+
+Não é o JIT (a D38 já o desligou; ligado ou desligado, o `materialized` dá o mesmo) — é a forma do
+SQL, e é anterior à do §2.10: uma árvore em que cada referência carrega a expressão inteira é
+também o que o LLVM tentava compilar. O que fazer com isso está na pendência D42.
+
 ---
 
 ## 3. Ponto único de recuperação

@@ -476,3 +476,30 @@ def comparar(esperado: dict[Chave, Veredito], obtido: dict[Chave, Veredito]) -> 
             )
     return divergencias
 
+
+
+def mesmo_valor(esperado: Any, obtido: Any, tipo: type) -> bool:
+    """`valores_esperados` contra o payload limpo, **tipado** pelo modelo SQLAlchemy da coluna.
+
+    `1234.5600` e `1234.56` são o mesmo decimal; `2024-02-29` e `29/02/2024`
+    não são a mesma data até a limpeza dizer que são. Nulo só é igual a nulo.
+    """
+    import datetime as dt
+    from decimal import InvalidOperation
+
+    if esperado is None or obtido is None:
+        return esperado is None and obtido is None
+    try:
+        if tipo is int:
+            return int(Decimal(esperado)) == int(Decimal(obtido))
+        if tipo in (Decimal, float):
+            return Decimal(esperado) == Decimal(obtido)
+        if tipo is bool:
+            return str(esperado).lower() == str(obtido).lower()
+        if tipo is dt.datetime:
+            return dt.datetime.fromisoformat(esperado) == dt.datetime.fromisoformat(obtido)
+        if tipo is dt.date:
+            return dt.date.fromisoformat(esperado) == dt.date.fromisoformat(obtido)
+    except (InvalidOperation, ValueError):
+        return False
+    return str(esperado) == str(obtido)

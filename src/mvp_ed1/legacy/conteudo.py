@@ -99,3 +99,24 @@ def hash_no_banco(
         consulta += f" where {filtro}"
     linhas = conexao.execute(text(consulta), dict(parametros or {})).mappings().all()
     return hash_de_tabela(tabela, linhas)
+
+
+def tabelas_divergentes(
+    conexao: Connection,
+    esquema: str,
+    esperado: Mapping[str, Mapping[str, Any]],
+    filtro: str = "",
+    parametros: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """As tabelas cujo conteúdo no banco **não** é o do manifesto (`lote.tabelas`).
+
+    É a recusa de comparar: veredito só se confronta com a classificação de
+    uma captura que **é** o lote do manifesto, tabela a tabela, por hash. A
+    lista vazia autoriza a comparação; qualquer nome nela a recusa — nunca é
+    ignorada (plano da Etapa 10, §2 item 5; contraprova (c)).
+    """
+    return [
+        tabela
+        for tabela in schema.tabelas()
+        if hash_no_banco(conexao, esquema, tabela, filtro, parametros) != dict(esperado[tabela])
+    ]

@@ -76,13 +76,9 @@ def captura(engine, manifesto) -> int:
         selecionada = conexao.execute(
             text("select snapshot_id from staging.legacy_selected_capture")
         ).scalar_one()
-        divergentes = []
-        for tabela in schema.tabelas():
-            no_bruto = conteudo.hash_no_banco(
-                conexao, "raw_legacy", tabela, f"{schema.CAPTURA_SQL} = :g", {"g": selecionada}
-            )
-            if no_bruto != manifesto["lote"]["tabelas"][tabela]:
-                divergentes.append(tabela)
+        divergentes = conteudo.tabelas_divergentes(
+            conexao, "raw_legacy", manifesto["lote"]["tabelas"], f"{schema.CAPTURA_SQL} = :g", {"g": selecionada}
+        )
     if divergentes:
         pytest.skip(
             f"a captura {selecionada} não é o lote {manifesto['lote']['hash'][:12]} do manifesto "
@@ -835,31 +831,9 @@ def test_todo_valor_corrigido_e_recuperado_conforme_o_contrato(
                 conferidos += 1
                 obtido = payload.get(coluna)
                 tipo = modelo.c[coluna].type.python_type
-                if not _mesmo_valor(esperado, obtido, tipo):
+                if not oraculo.mesmo_valor(esperado, obtido, tipo):
                     falhas.append((chave, coluna, esperado, obtido))
     record_property("recovered_values_checked", conferidos)
     record_property("recovered_values_wrong", len(falhas))
     assert conferidos, "nenhum achado corrigível no manifesto"
     assert not falhas, f"{len(falhas)} valores não recuperados conforme o contrato: {falhas[:8]}"
-
-
-def _mesmo_valor(esperado, obtido, tipo) -> bool:
-    import datetime as dt
-    from decimal import Decimal, InvalidOperation
-
-    if esperado is None or obtido is None:
-        return esperado is None and obtido is None
-    try:
-        if tipo in (int,):
-            return int(Decimal(esperado)) == int(Decimal(obtido))
-        if tipo in (Decimal, float):
-            return Decimal(esperado) == Decimal(obtido)
-        if tipo is bool:
-            return str(esperado).lower() == str(obtido).lower()
-        if tipo is dt.datetime:
-            return dt.datetime.fromisoformat(esperado) == dt.datetime.fromisoformat(obtido)
-        if tipo is dt.date:
-            return dt.date.fromisoformat(esperado) == dt.date.fromisoformat(obtido)
-    except (InvalidOperation, ValueError):
-        return False
-    return str(esperado) == str(obtido)

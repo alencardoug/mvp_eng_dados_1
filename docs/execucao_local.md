@@ -192,7 +192,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo | Etapa 10 |
 | `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector | Etapa 10 |
 | `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow | Etapa 10 |
-| `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho | Etapa 4 |
+| `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho; `LOTE=1` compara a limpeza compilada do legado nas 40 tabelas, num armazém efêmero (~11 min; ver D42) | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
 | `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
