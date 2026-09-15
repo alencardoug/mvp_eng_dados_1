@@ -34,7 +34,7 @@ from sqlalchemy.pool import NullPool
 
 from mvp_ed1.db import WAREHOUSE, database_url
 from mvp_ed1.generator import enums
-from mvp_ed1.legacy import dbt, ponte, schema
+from mvp_ed1.legacy import conteudo, dbt, oraculo, ponte, schema
 from mvp_ed1.legacy.catalogo import carregar
 from mvp_ed1.legacy.regras import regra_enum, regra_truncado, regras
 
@@ -47,7 +47,49 @@ MANIFESTO = pathlib.Path("data/legacy/manifesto.json")
 def manifesto() -> dict:
     if not MANIFESTO.exists():
         pytest.skip(f"sem manifesto em {MANIFESTO}; rode `make seed-legacy`")
-    return json.loads(MANIFESTO.read_text(encoding="utf-8"))
+    conteudo_do_manifesto = json.loads(MANIFESTO.read_text(encoding="utf-8"))
+    if "lote" not in conteudo_do_manifesto:
+        pytest.skip("manifesto em formato anterior a 14/09/2026, sem identidade de lote; regere-o")
+    return conteudo_do_manifesto
+
+
+@pytest.fixture(scope="module")
+def captura(engine, manifesto) -> int:
+    """A captura selecionada, **conferida** contra o manifesto por hash de conteúdo.
+
+    Sem isto os testes abaixo comparariam o oráculo de um lote com a captura de
+    outro — e foi exatamente o caso em 14/09/2026: a captura 16 retida vinha de
+    um gerador anterior (27 das 40 tabelas iguais) e nenhum veredito seria
+    comparável. Contagem e identidades não bastam para reconhecer o lote; o
+    hash canônico por tabela (`legacy/conteudo.py`) basta, e é o mesmo que o
+    `writer` conferiu no `legacy_db` depois do `COPY`.
+    """
+    with engine.connect() as conexao:
+        existe = conexao.execute(
+            text(
+                "select count(*) from information_schema.tables "
+                "where table_schema = 'staging' and table_name = 'legacy_selected_capture'"
+            )
+        ).scalar_one()
+        if not existe:
+            pytest.skip("captura não selecionada; rode `make dbt-build`")
+        selecionada = conexao.execute(
+            text("select snapshot_id from staging.legacy_selected_capture")
+        ).scalar_one()
+        divergentes = []
+        for tabela in schema.tabelas():
+            no_bruto = conteudo.hash_no_banco(
+                conexao, "raw_legacy", tabela, "_airbyte_generation_id = :g", {"g": selecionada}
+            )
+            if no_bruto != manifesto["lote"]["tabelas"][tabela]:
+                divergentes.append(tabela)
+    if divergentes:
+        pytest.skip(
+            f"a captura {selecionada} não é o lote {manifesto['lote']['hash'][:12]} do manifesto "
+            f"({len(divergentes)} tabelas divergem: {divergentes[:5]}); "
+            "sincronize o lote corrente antes de comparar vereditos"
+        )
+    return int(selecionada)
 
 
 @pytest.fixture(scope="module")
@@ -83,7 +125,7 @@ def _regra(codigo: str, tabela: str, coluna: str, catalogo, limites):
     return regras(catalogo.nulos_disfarcados, catalogo.delimitador).get(codigo)
 
 
-def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto) -> None:
+def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto, captura) -> None:
     catalogo = carregar()
     limites = schema.limites(catalogo.limite_de_texto)
     injetados: collections.Counter[str] = collections.Counter()
@@ -138,12 +180,11 @@ def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto) -> No
 TETO_DE_FALSO_POSITIVO = 0.005
 
 #: Falhas que **não** são achados de valor, e por isso não aparecem no `achados`
-#: dos modelos de limpeza. Três precisam de outras linhas ou de outra tabela; a
-#: quarta, `NULL_REQUIRED`, nasce do contrato do registro **depois** da
-#: conversão — reconhecer a ausência não torna a ocorrência válida (ADR-0040).
-DE_CONTEXTO = frozenset(
-    {"FK_ORPHAN", "DUP_EXACT", "DUP_PARTIAL", "TOTAL_MISMATCH", "NULL_REQUIRED"}
-)
+#: dos modelos de limpeza — os testes de **valor** deste arquivo as deixam de
+#: fora. Elas não ficam sem prova: o oráculo por ocorrência (`legacy/oraculo.py`)
+#: as recomputa, e `test_o_veredito_de_toda_ocorrencia_confere_com_o_oraculo`
+#: as confere contra a classificação, junto com a cascata.
+DE_CONTEXTO = oraculo.DE_CONTEXTO
 
 
 def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
@@ -187,7 +228,7 @@ def _achados_dos_modelos(engine) -> set[tuple[str, int, str, str]]:
 
 
 def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
-    engine, manifesto, record_property
+    engine, manifesto, captura, record_property
 ) -> None:
     """A ponta final: o SQL gerado acha no banco o que o manifesto declara.
 
@@ -232,7 +273,7 @@ def test_os_modelos_encontram_tudo_que_o_injetor_produziu(
 
 
 def test_o_falso_positivo_da_heuristica_continua_marginal(
-    engine, manifesto, record_property
+    engine, manifesto, captura, record_property
 ) -> None:
     """A heurística é aceita; deixar de ser marginal, não."""
     de_contexto = DE_CONTEXTO
@@ -665,3 +706,159 @@ def test_falha_representacional_devolve_o_valor_original(engine) -> None:
         for original, (entrada, limpo, achado) in zip(originais_data, obtido):
             assert achado == "DATE_FORMAT_KNOWN", (forma.__name__, entrada, achado)
             assert limpo == original, (forma.__name__, entrada, limpo)
+
+
+# ── O esperado por ocorrência (R13) ──────────────────────────────────────────
+
+def _vereditos_esperados(manifesto: dict) -> dict[oraculo.Chave, oraculo.Veredito]:
+    esperados = {}
+    for tabela, identidade, saida, origem, achados, valores in manifesto["veredito"]:
+        esperados[(tabela, identidade)] = oraculo.Veredito(
+            saida,
+            origem,
+            [oraculo.AchadoEsperado(c, col, tuple(v) if v is not None else None) for c, col, v in achados],
+            valores,
+        )
+    return esperados
+
+
+def _vereditos_obtidos(engine, captura: int) -> dict[oraculo.Chave, oraculo.Veredito]:
+    """`trusted.legacy_classifications` da captura selecionada — uma consulta por tabela (ADR-0043)."""
+    obtidos = {}
+    for tabela in schema.tabelas():
+        with engine.connect() as conexao:
+            linhas = conexao.execute(
+                text(
+                    "select legacy_row_id, classification, rejection_origin, findings "
+                    "from trusted.legacy_classifications "
+                    "where source_table = :t and snapshot_id = :g"
+                ),
+                {"t": tabela, "g": captura},
+            ).all()
+        for identidade, saida, origem, achados in linhas:
+            obtidos[(tabela, identidade)] = oraculo.Veredito(
+                saida,
+                origem,
+                [oraculo.achado_obtido(a["code"], a["column"], a.get("context")) for a in achados],
+            )
+    return obtidos
+
+
+def _formatar(divergencias: list[oraculo.Divergencia], limite: int = 12) -> str:
+    return "\n".join(
+        f"  {d.chave[0]}#{d.chave[1]} {d.campo}: esperado={d.esperado!r} obtido={d.obtido!r}"
+        for d in divergencias[:limite]
+    )
+
+
+def test_o_veredito_de_toda_ocorrencia_confere_com_o_oraculo(
+    engine, manifesto, captura, record_property
+) -> None:
+    """Saída, origem da rejeição e o **multiconjunto** de achados, para as 12 mil.
+
+    É a prova que faltava ao R13: contexto (obrigatoriedade, duplicatas, órfãos,
+    total do pedido) e cascata comparados com um esperado calculado sem ler o
+    classificador. A diferença sai dos dois lados — o que o SQL não achou e o
+    que achou a mais —, que é precisão e *recall* no grão ocorrência × achado.
+    """
+    esperados = _vereditos_esperados(manifesto)
+    obtidos = _vereditos_obtidos(engine, captura)
+    if not obtidos:
+        pytest.skip("classificação não construída; rode `make dbt-build`")
+
+    divergencias = oraculo.comparar(esperados, obtidos)
+    por_campo = collections.Counter(d.campo for d in divergencias)
+    record_property("expected_occurrences", len(esperados))
+    record_property("classified_occurrences", len(obtidos))
+    for campo, quantidade in sorted(por_campo.items()):
+        record_property(f"divergent_{campo}", quantidade)
+    assert not divergencias, (
+        f"{len(divergencias)} ocorrências divergem do oráculo ({dict(por_campo)}):\n"
+        + _formatar(divergencias)
+    )
+
+
+def test_a_cascata_aponta_para_o_pai_que_o_oraculo_diz(engine, manifesto, captura) -> None:
+    """Cada `PARENT_REJECTED` vincula **o** pai rejeitado — não um pai qualquer."""
+    esperados = _vereditos_esperados(manifesto)
+    obtidos = _vereditos_obtidos(engine, captura)
+    if not obtidos:
+        pytest.skip("classificação não construída; rode `make dbt-build`")
+
+    erradas = []
+    for chave, obtido in obtidos.items():
+        vinculos = sorted(a.vinculo for a in obtido.achados if a.codigo == oraculo.CASCATA)
+        esperado = sorted(a.vinculo for a in esperados[chave].achados if a.codigo == oraculo.CASCATA)
+        if vinculos != esperado:
+            erradas.append((chave, esperado, vinculos))
+    assert not erradas, f"{len(erradas)} cascatas com pai diferente do esperado: {erradas[:8]}"
+
+
+def test_todo_valor_corrigido_e_recuperado_conforme_o_contrato(
+    engine, manifesto, captura, record_property
+) -> None:
+    """`cleaned_payload` devolve o que `recuperacao` promete — inclusive em rejeitadas.
+
+    O esperado é o do catálogo (`original` ou `nulo`), não o valor original nem
+    o injetado. A comparação é **tipada** pelo modelo SQLAlchemy da coluna:
+    `1234.5600` e `1234.56` são o mesmo decimal, `2024-02-29` e `29/02/2024` não
+    são a mesma data até a limpeza dizer que são. E vale também para ocorrências
+    cujo veredito final é rejeição: a conversão é preservada (ADR-0040).
+    """
+    from mvp_ed1.models import Base
+
+    esperados = _vereditos_esperados(manifesto)
+    com_valor = {k: v for k, v in esperados.items() if v.valores_esperados}
+    falhas = []
+    conferidos = 0
+    for tabela in schema.tabelas():
+        chaves = [k for k in com_valor if k[0] == tabela]
+        if not chaves:
+            continue
+        modelo = Base.metadata.tables[f"oltp.{tabela}"]
+        with engine.connect() as conexao:
+            payloads = dict(
+                conexao.execute(
+                    text(
+                        "select legacy_row_id, cleaned_payload from trusted.legacy_classifications "
+                        "where source_table = :t and snapshot_id = :g and legacy_row_id = any(:ids)"
+                    ),
+                    {"t": tabela, "g": captura, "ids": [k[1] for k in chaves]},
+                ).all()
+            )
+        if not payloads:
+            pytest.skip("classificação não construída; rode `make dbt-build`")
+        for chave in chaves:
+            payload = payloads.get(chave[1]) or {}
+            for coluna, esperado in com_valor[chave].valores_esperados.items():
+                conferidos += 1
+                obtido = payload.get(coluna)
+                tipo = modelo.c[coluna].type.python_type
+                if not _mesmo_valor(esperado, obtido, tipo):
+                    falhas.append((chave, coluna, esperado, obtido))
+    record_property("recovered_values_checked", conferidos)
+    record_property("recovered_values_wrong", len(falhas))
+    assert conferidos, "nenhum achado corrigível no manifesto"
+    assert not falhas, f"{len(falhas)} valores não recuperados conforme o contrato: {falhas[:8]}"
+
+
+def _mesmo_valor(esperado, obtido, tipo) -> bool:
+    import datetime as dt
+    from decimal import Decimal, InvalidOperation
+
+    if esperado is None or obtido is None:
+        return esperado is None and obtido is None
+    try:
+        if tipo in (int,):
+            return int(Decimal(esperado)) == int(Decimal(obtido))
+        if tipo in (Decimal, float):
+            return Decimal(esperado) == Decimal(obtido)
+        if tipo is bool:
+            return str(esperado).lower() == str(obtido).lower()
+        if tipo is dt.datetime:
+            return dt.datetime.fromisoformat(esperado) == dt.datetime.fromisoformat(obtido)
+        if tipo is dt.date:
+            return dt.date.fromisoformat(esperado) == dt.date.fromisoformat(obtido)
+    except (InvalidOperation, ValueError):
+        return False
+    return str(esperado) == str(obtido)
