@@ -180,46 +180,53 @@ def esperar(catalogo: Catalogo, resultado: Resultado) -> dict[Chave, Veredito]:
             linhas[chave] = linha
             por_tabela[tabela].append(chave)
 
-    # 1. Achados de valor do manifesto, e o payload **limpo** que a conversão
-    #    deve produzir: original onde a recuperação é `original`, nulo onde é
-    #    `nulo`, o texto defeituoso preservado onde a falha é rejeição.
-    valor: dict[Chave, list[AchadoEsperado]] = collections.defaultdict(list)
-    corrigidos: dict[Chave, bool] = collections.defaultdict(bool)
-    limpo: dict[Chave, dict[str, str | None]] = {}
-    esperados: dict[Chave, dict[str, str | None]] = collections.defaultdict(dict)
-    for chave, linha in linhas.items():
-        limpo[chave] = {c: _transportado(linha.get(c)) for c in schema.colunas(chave[0])}
+    # 1. Achados de valor por coluna, com a **precedência do catálogo** sobre a
+    #    entrada bruta. Cada coluna tem no máximo um achado de valor: entre os
+    #    candidatos — o que o injetor declarou e o que a heurística de
+    #    truncamento reconhece na entrada — vence o declarado primeiro no
+    #    catálogo, que é a ordem que o contrato fixa (Origem Legada §3.1). Só
+    #    então o payload **limpo**: original onde a recuperação é `original`,
+    #    nulo onde é `nulo`, o texto defeituoso preservado onde vence uma
+    #    rejeição — inclusive quando o injetor tinha declarado uma correção
+    #    nessa coluna e a rejeição a precede (RV10-06).
+    #
+    #    A heurística de truncamento (Origem Legada §3.1.2): nas colunas
+    #    estreitadas, valor de comprimento **igual** à largura antiga é
+    #    `TEXT_TRUNCATED`, tenha sido cortado ou não — é o custo aceito, e o
+    #    oráculo aplica o contrato, não o SQL. Mede-se a **entrada**, não o
+    #    texto recuperado: uma injeção de espaços que leva um nome de 21
+    #    caracteres à largura antiga de 24 é truncamento para o contrato.
+    precedencia = {codigo: posicao for posicao, codigo in enumerate(catalogo.falhas)}
+    larguras = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    candidatos: dict[tuple[Chave, str], dict[str, Any]] = collections.defaultdict(dict)
     for achado in resultado.achados:
         if achado.codigo in DE_CONTEXTO or achado.coluna is None:
             continue
         chave = (achado.tabela, achado.legacy_row_id)
         if chave not in linhas:
             raise ValueError(f"achado sobre ocorrência inexistente: {achado}")
-        valor[chave].append(AchadoEsperado(achado.codigo, achado.coluna))
-        falha = catalogo.falhas[achado.codigo]
-        if achado.resultado_esperado == CORRIGIDO:
-            corrigidos[chave] = True
-            esperado = achado.valor_original if falha.recuperacao == "original" else None
-            limpo[chave][achado.coluna] = _transportado(esperado)
-            esperados[chave][achado.coluna] = esperado
-
-    # 1b. A heurística declarada de truncamento (Origem Legada §3.1.2): nas
-    #     colunas estreitadas, valor com comprimento **igual** à largura antiga é
-    #     `TEXT_TRUNCATED`, tenha sido cortado ou não — é o custo aceito da
-    #     heurística, e o oráculo aplica o contrato, não o SQL. Sem isto, um
-    #     produto legítimo de 24 caracteres cascateava 750 ocorrências que o
-    #     oráculo dizia aptas (medido em 14/09/2026, captura 17).
-    larguras = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+        candidatos[(chave, achado.coluna)][achado.codigo] = achado
     for chave, linha in linhas.items():
         for (tabela, coluna), largura in larguras.items():
-            if tabela != chave[0]:
-                continue
-            texto = limpo[chave].get(coluna)
-            if texto is None or len(texto) != largura:
-                continue
-            if any(a.coluna == coluna for a in valor[chave]):
-                continue
-            valor[chave].append(AchadoEsperado("TEXT_TRUNCATED", coluna))
+            entrada = _transportado(linha.get(coluna)) if tabela == chave[0] else None
+            if entrada is not None and len(entrada) == largura:
+                candidatos[(chave, coluna)].setdefault("TEXT_TRUNCATED", None)
+
+    valor: dict[Chave, list[AchadoEsperado]] = collections.defaultdict(list)
+    corrigidos: dict[Chave, bool] = collections.defaultdict(bool)
+    limpo: dict[Chave, dict[str, str | None]] = {}
+    esperados: dict[Chave, dict[str, str | None]] = collections.defaultdict(dict)
+    for chave, linha in linhas.items():
+        limpo[chave] = {c: _transportado(linha.get(c)) for c in schema.colunas(chave[0])}
+    for (chave, coluna), por_codigo in candidatos.items():
+        codigo = min(por_codigo, key=precedencia.__getitem__)
+        valor[chave].append(AchadoEsperado(codigo, coluna))
+        achado = por_codigo[codigo]
+        if achado is not None and achado.resultado_esperado == CORRIGIDO:
+            corrigidos[chave] = True
+            esperado = achado.valor_original if catalogo.falhas[codigo].recuperacao == "original" else None
+            limpo[chave][coluna] = _transportado(esperado)
+            esperados[chave][coluna] = esperado
 
     contratos = {tabela: contrato(tabela) for tabela in schema.tabelas()}
     contexto: dict[Chave, list[AchadoEsperado]] = collections.defaultdict(list)
@@ -468,3 +475,4 @@ def comparar(esperado: dict[Chave, Veredito], obtido: dict[Chave, Veredito]) -> 
                 Divergencia(chave, "achados", sorted(map(str, faltando.elements())), sorted(map(str, sobrando.elements())))
             )
     return divergencias
+

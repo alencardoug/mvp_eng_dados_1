@@ -153,6 +153,42 @@ def test_recuperacao_segue_o_contrato_do_catalogo(catalogo) -> None:
     assert veredito.valores_esperados == {"name": "Acme", "country": None}
 
 
+def test_a_precedencia_do_catalogo_vale_sobre_a_entrada_bruta(catalogo) -> None:
+    """RV10-06: `TEXT_TRUNCATED` precede `TEXT_WHITESPACE_CASE` no catálogo, e mede-se a entrada.
+
+    Uma injeção de espaços leva `warehouses.name` de 21 caracteres à largura
+    antiga de 24: para o contrato é truncamento — rejeição, texto preservado,
+    sem valor recuperado — ainda que o injetor tenha declarado uma correção.
+    O oráculo media o texto já recuperado (21) e pulava a coluna por já ter
+    achado; dizia `corrected`, e o SQL, que aplica o catálogo, dizia
+    `rejected`.
+    """
+    largura = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)[("warehouses", "name")]
+    original = "ABCDEFGHIJKLMNOPQRSTU"
+    injetado = "  " + original + " " * (largura - len(original) - 2)
+    assert len(injetado) == largura and len(original) < largura
+    ordem = list(catalogo.falhas)
+    assert ordem.index("TEXT_TRUNCATED") < ordem.index("TEXT_WHITESPACE_CASE")
+
+    deposito = _linha("warehouses", 1, id="1", code="w1", name=injetado, country="BR")
+    resultado = _resultado(warehouses=[deposito])
+    resultado.achados.append(
+        injetor.Achado("warehouses", 1, "name", "TEXT_WHITESPACE_CASE", original, injetado, injetor.CORRIGIDO, original)
+    )
+    veredito = _veredito(oraculo.esperar(catalogo, resultado), "warehouses", 1)
+    assert (veredito.classification, veredito.rejection_origin) == (oraculo.REJECTED, oraculo.OWN_INVALID)
+    assert veredito.achados == [oraculo.AchadoEsperado("TEXT_TRUNCATED", "name")]
+    assert veredito.valores_esperados == {}, "a rejeição preserva o texto; nada é recuperado"
+
+    # Com um caractere a menos a heurística não dispara e a correção declarada vale.
+    deposito["name"] = injetado[:-1]
+    resultado.achados[0] = injetor.Achado("warehouses", 1, "name", "TEXT_WHITESPACE_CASE", original, injetado[:-1], injetor.CORRIGIDO, original)
+    veredito = _veredito(oraculo.esperar(catalogo, resultado), "warehouses", 1)
+    assert veredito.classification == oraculo.CORRECTED
+    assert veredito.achados == [oraculo.AchadoEsperado("TEXT_WHITESPACE_CASE", "name")]
+    assert veredito.valores_esperados == {"name": original}
+
+
 def test_total_do_pedido_e_recomputado_a_partir_dos_itens(catalogo) -> None:
     pedido = _linha("orders", 1, id="1", order_number="o1", customer_id="1", sales_channel_id="1", cart_id=None,
                     placed_at="2026-01-01T00:00:00-03:00", currency="BRL", subtotal_amount="30.00",

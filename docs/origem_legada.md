@@ -182,6 +182,10 @@ essa ordem produz erro silencioso, não falha. Três exemplos, todos medidos:
 A mesma precedência vale para a expressão que produz o **valor tratado**: a primeira regra que
 rejeita preserva o original e impede conversões posteriores. Consultar só o código detectado não
 exercita essa expressão; a verificação está em [Qualidade §5.1](qualidade_de_dados.md#51-validação-dos-valores-tratados--06092026).
+E vale para o **oráculo** (§5): entre o que o injetor declarou numa coluna e o que a heurística de
+truncamento reconhece na entrada bruta, o esperado é o declarado primeiro no catálogo — uma injeção
+de espaços que leva um nome à largura antiga é truncamento, rejeitado com o texto preservado, ainda
+que o injetor tenha pedido correção (fechado em 15/09/2026, achado RV10-06).
 
 ### 3.1.2 Onde cada falha se aplica, e por quê nem toda coluna
 
