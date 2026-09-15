@@ -18,7 +18,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 BASE = os.environ.get("AIRBYTE_URL", "http://localhost:8000/api/public/v1")
 
@@ -86,25 +86,44 @@ def sincronizar(connection_id: str, jwt: str, tipo: str = "sync") -> dict:
     return _chamar("/jobs", jwt, {"connectionId": connection_id, "jobType": tipo})
 
 
+def observador(jwt: str) -> Callable[[int], dict]:
+    """Uma função `job_id -> job`, que renova o token quando ele expira.
+
+    O token do Airbyte vale poucos minutos, e uma sincronização de porte dura
+    mais que isso: reusar o mesmo token faz a espera morrer com `401` no meio,
+    com o job seguindo vivo do outro lado — que é o pior desfecho possível,
+    porque parece falha e não é.
+    """
+    atual = jwt
+
+    def consultar(job_id: int) -> dict:
+        nonlocal atual
+        try:
+            return _chamar(f"/jobs/{job_id}", atual)
+        except AirbyteIndisponivel as erro:
+            if "401" not in str(erro):
+                raise
+            atual = token()
+            return _chamar(f"/jobs/{job_id}", atual)
+
+    return consultar
+
+
+def estado_do_job(jwt: str) -> Callable[[int], str]:
+    """O que a retomada do certificado pergunta: `job_id -> status` (ADR-0044, item 4)."""
+    consultar = observador(jwt)
+    return lambda job_id: str(consultar(job_id).get("status", "?"))
+
+
 def acompanhar(job_id: int, jwt: str, intervalo: float = 15.0) -> dict:
     """Espera o job terminar, imprimindo o andamento.
 
     Sem espera, `make sync-airbyte` devolveria o controle antes de existir uma
     linha em `raw` — e o `dbt build` seguinte rodaria sobre o schema vazio.
-
-    **O token é renovado a cada consulta.** O do Airbyte vale poucos minutos, e
-    uma sincronização de porte dura mais que isso: reusar o mesmo token faz a
-    espera morrer com `401` no meio, com o job seguindo vivo do outro lado — que
-    é o pior desfecho possível, porque parece falha e não é.
     """
+    consultar = observador(jwt)
     while True:
-        try:
-            job = _chamar(f"/jobs/{job_id}", jwt)
-        except AirbyteIndisponivel as erro:
-            if "401" not in str(erro):
-                raise
-            jwt = token()
-            job = _chamar(f"/jobs/{job_id}", jwt)
+        job = consultar(job_id)
         estado = job.get("status", "?")
         linhas = job.get("rowsSynced") or 0
         print(f"  job {job_id}: {estado} · {linhas:,} linhas".replace(",", "."), flush=True)
@@ -129,7 +148,7 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
     legado = create_engine(database_url(LEGACY))
     armazem = create_engine(database_url(WAREHOUSE))
     try:
-        tentativa = captura.iniciar(legado, armazem, nome)
+        tentativa = captura.iniciar(legado, armazem, nome, estado_do_job=estado_do_job(jwt))
         job = sincronizar(connection_id, jwt)
         captura.registrar_job(armazem, tentativa, job["jobId"])
         job = acompanhar(job["jobId"], jwt)

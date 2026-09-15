@@ -92,6 +92,16 @@ selecionada ou como "anterior certificada".**
 5. **Idempotência.** As duas fases são *upserts* pela chave `(capture_attempt_id, source_table)`;
    a tentativa só é `complete` quando as 40 linhas existem e concordam; reenviar produz o mesmo
    estado.
+
+   *Nota de 15/09/2026 — como os itens 4 e 5 são cumpridos, depois da revisão de desenvolvimento
+   (RV10-01/02/03):* a fase 2 publica veredito e identidade das 40 linhas **numa única transação**
+   (antes eram duas, e a interrupção entre elas deixava `complete` sem `snapshot_id`); tentativa já
+   fechada devolve o certificado **gravado** no reenvio, sem remedir a origem (remedir depois de uma
+   alteração legítima transformava um `complete` histórico em `unstable`); e a retomada só conclui
+   uma pendente com *job* depois de **observar** no Airbyte que ele terminou — sem observador, fica
+   pendente —, e só abandona a pendente sem *job* depois de uma carência de uma hora contada da
+   fase 1, para não fechar a tentativa de outro chamador ainda a caminho. Carência decidida pelo
+   Owner em 15/09/2026.
 6. **Exceção delimitada ao ADR-0023.** O fluxo lê **uma** tabela de `governance`,
    `legacy_captures`, **só** para responder "esta captura é elegível?" — em
    `legacy_captura_completa` e na detecção de exclusão física. Nenhum modelo de `staging`,

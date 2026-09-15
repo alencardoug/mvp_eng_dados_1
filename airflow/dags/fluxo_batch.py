@@ -108,18 +108,23 @@ def fluxo_batch():
         Contagem e hash de conteúdo de cada uma das 40 tabelas do `legacy_db`,
         gravados como `pending` em `governance.legacy_captures`. É a medição que
         não pode ser refeita depois — a origem de hoje não é a origem de antes.
-        Tentativas pendentes de execuções anteriores são concluídas ou marcadas
-        `abandoned` aqui, nunca reaproveitadas em silêncio.
+        Tentativas pendentes de execuções anteriores são concluídas aqui **só
+        se o job delas já terminou no Airbyte** — a retomada pergunta —, ou
+        marcadas `abandoned` quando nunca ganharam job; nunca reaproveitadas
+        em silêncio, e nunca fechadas enquanto ainda ativas.
         """
         from sqlalchemy import create_engine
 
+        from mvp_ed1 import airbyte
         from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
         from mvp_ed1.legacy import captura
 
+        observador = airbyte.estado_do_job(airbyte.token()) if os.environ.get("AIRBYTE_CLIENT_ID") else None
         return captura.iniciar(
             create_engine(database_url(LEGACY)),
             create_engine(database_url(WAREHOUSE)),
             "legacy_para_raw_legacy",
+            estado_do_job=observador,
         )
 
     @task

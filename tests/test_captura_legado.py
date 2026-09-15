@@ -17,6 +17,7 @@ Três níveis, porque cada um responde a uma pergunta diferente:
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import uuid
@@ -235,74 +236,163 @@ def test_tabela_ausente_e_incompleta_e_linha_de_outro_job_e_inconsistente(efemer
     assert intrusa["tabelas"]["brands"] == captura.INCONSISTENT and intrusa["status"] == captura.INCONSISTENT
 
 
+def _estados(armazem) -> dict[str, str]:
+    with armazem.connect() as conexao:
+        return dict(
+            conexao.execute(
+                text(f"select capture_attempt_id, min(status) from {captura.TABELA} group by 1")
+            ).all()
+        )
+
+
 @pytest.mark.integracao
 def test_tentativa_pendente_e_recuperada_com_o_antes_gravado_ou_abandonada(efemeros) -> None:
     legado, armazem = efemeros
     _semear_origem(legado)
 
-    # Falha entre a sincronização e a fase 2: o job existe, a fase 2 não rodou.
+    # Falha entre a sincronização e a fase 2: o job existe e terminou, a fase 2 não rodou.
     interrompida = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
     captura.registrar_job(armazem, interrompida, 906)
     _simular_job(armazem, legado, job_id=906, geracao=6)
     # Falha antes de o job nascer: não há o que certificar.
     sem_job = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
 
-    # A próxima fase 1 resolve as duas antes de abrir a sua.
-    nova = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
-    with armazem.connect() as conexao:
-        estados = dict(
-            conexao.execute(
-                text(f"select capture_attempt_id, min(status) from {captura.TABELA} group by 1")
-            ).all()
-        )
+    # A próxima fase 1 resolve as duas antes de abrir a sua — a que tem job só
+    # porque o Airbyte diz que ele terminou; a sem job só porque a carência passou.
+    depois_da_carencia = dt.datetime.now(dt.timezone.utc) + captura.CARENCIA_SEM_JOB
+    nova = captura.iniciar(
+        legado, armazem, "legacy_para_raw_legacy",
+        estado_do_job=lambda job_id: "succeeded", agora=depois_da_carencia,
+    )
+    estados = _estados(armazem)
     assert estados[interrompida] == captura.COMPLETE, "recuperada a partir do antes gravado"
     assert estados[sem_job] == captura.ABANDONED
     assert estados[nova] == captura.PENDING
     assert captura.certificadas(armazem) == [906]
 
 
-# ── O que já está retido, somente leitura ────────────────────────────────────
+@pytest.mark.integracao
+def test_a_retomada_nao_fecha_tentativa_com_job_em_curso_nem_sem_job_dentro_da_carencia(efemeros) -> None:
+    """RV10-03: retomar durante a sincronização deixava o bruto parcial como `incomplete`."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+
+    em_curso = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, em_curso, 907)
+    _simular_job(armazem, legado, job_id=907, geracao=7, tabelas=["brands"])  # o job ainda escreve
+    a_caminho = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")  # outro chamador, antes do job nascer
+
+    consultas: list[int] = []
+
+    def airbyte_diz_running(job_id: int) -> str:
+        consultas.append(job_id)
+        return "running"
+
+    feito = captura.retomar(legado, armazem, estado_do_job=airbyte_diz_running)
+    assert feito == {em_curso: "ativa", a_caminho: "ativa"} and consultas == [907]
+    assert _estados(armazem) == {em_curso: captura.PENDING, a_caminho: captura.PENDING}
+
+    # Sem observador ninguém fecha a que tem job: pendente é melhor que `incomplete` falso.
+    assert captura.retomar(legado, armazem)[em_curso] == "sem_observador"
+    assert _estados(armazem)[em_curso] == captura.PENDING
+
+    # O job termina, o bruto completa, e só então a retomada conclui — com o antes gravado.
+    _simular_job(armazem, legado, job_id=907, geracao=7, tabelas=[t for t in schema.tabelas() if t != "brands"])
+    feito = captura.retomar(legado, armazem, estado_do_job=lambda job_id: "succeeded")
+    assert feito[em_curso] == "concluida" and feito[a_caminho] == "ativa"
+    assert _estados(armazem)[em_curso] == captura.COMPLETE and captura.certificadas(armazem) == [907]
+
+    # Passada a carência, a sem job é abandonada.
+    depois = dt.datetime.now(dt.timezone.utc) + captura.CARENCIA_SEM_JOB
+    assert captura.retomar(legado, armazem, agora=depois) == {a_caminho: "abandonada"}
+
 
 @pytest.mark.integracao
-def test_o_certificado_mais_recente_confere_com_o_bruto_e_a_geracao_15_e_incompleta(administradores, record_property) -> None:
-    """Leitura pura sobre o armazém de trabalho, sem gravar certificado.
+def test_reenviar_a_conclusao_devolve_o_certificado_gravado_sem_remedir_a_origem(efemeros) -> None:
+    """RV10-02: remedir depois de uma alteração legítima revogava um `complete` histórico."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, tentativa, 908)
+    _simular_job(armazem, legado, job_id=908, geracao=8)
+    primeira = captura.concluir(legado, armazem, tentativa)
+    assert primeira["status"] == captura.COMPLETE
 
-    Duas coisas, e nenhuma delas remede a origem de hoje como se fosse a de
-    antes (é o que o ADR-0044 proíbe): (1) a captura certificada **mais
-    recente** ainda bate com o bruto — `decidir` com o antes e o depois
-    **gravados** no certificado e o bruto medido agora dá `complete` nas 40
-    tabelas; (2) a geração 15 (job 25), retida com 39 tabelas, tem conteúdo
-    igual ao da 16 (job 26) em todas menos `brands`, que não veio — é a
-    contraprova que só a certificação por tabela recusa.
-    """
-    _, armazem = administradores
+    with legado.begin() as conexao:  # a origem segue a vida depois do job
+        conexao.execute(text("update legacy.brands set name = 'Acme S.A.' where id = '1'"))
     with armazem.connect() as conexao:
-        if not conexao.execute(
-            text("select count(*) from information_schema.tables where table_schema = 'raw_legacy'")
-        ).scalar_one():
-            pytest.skip("sem raw_legacy retido")
-        certificados = conexao.execute(
-            text(
-                f"select source_table, job_id, source_rows_before, source_hash_before, "
-                f"source_rows_after, source_hash_after from {captura.TABELA} "
-                f"where status = '{captura.COMPLETE}' and snapshot_id = "
-                f"(select max(snapshot_id) from {captura.TABELA} where status = '{captura.COMPLETE}')"
-            )
-        ).all() if governance.versoes(armazem) else []
-    if len(certificados) != 40:
-        pytest.skip("nenhuma captura certificada ainda")
-    job = certificados[0][1]
-    recebido = captura.medir_recebido(armazem, job)
-    vereditos = {
-        t: captura.decidir(M(na, ha), M(nd, hd), recebido[t]) for t, _, na, ha, nd, hd in certificados
-    }
-    record_property("latest_certified_job", int(job))
-    assert set(vereditos.values()) == {captura.COMPLETE}, {t: v for t, v in vereditos.items() if v != captura.COMPLETE}
+        antes = conexao.execute(
+            text(f"select source_hash_after, completed_at from {captura.TABELA} where capture_attempt_id = :a and source_table = 'brands'"),
+            {"a": tentativa},
+        ).one()
 
-    r15, r16 = captura.medir_recebido(armazem, 25), captura.medir_recebido(armazem, 26)
-    if not any(r.geracoes for r in r16.values()):
-        pytest.skip("gerações 15 e 16 não estão retidas neste armazém")
-    assert r15["brands"].linhas == 0 and r16["brands"].linhas > 0
-    iguais = [t for t in schema.tabelas() if t != "brands" and (r15[t].linhas, r15[t].hash) == (r16[t].linhas, r16[t].hash)]
-    record_property("gen15_tables_equal_to_gen16", len(iguais))
-    assert len(iguais) == 39
+    segunda = captura.concluir(legado, armazem, tentativa)
+    assert segunda == primeira
+    with armazem.connect() as conexao:
+        depois = conexao.execute(
+            text(f"select source_hash_after, completed_at from {captura.TABELA} where capture_attempt_id = :a and source_table = 'brands'"),
+            {"a": tentativa},
+        ).one()
+    assert depois == antes, "nada foi remedido nem regravado"
+    assert captura.certificadas(armazem) == [908]
+
+
+class _ArmazemQueCai:
+    """Um armazém cuja transação de escrita morre depois de N comandos — a interrupção da fase 2."""
+
+    def __init__(self, engine, depois_de: int):
+        self._engine, self._depois_de = engine, depois_de
+
+    def connect(self):
+        return self._engine.connect()
+
+    def begin(self):
+        externo = self
+
+        class _Transacao:
+            def __enter__(self):
+                self._cm = externo._engine.begin()
+                conexao = self._cm.__enter__()
+                executados = 0
+
+                class _Conexao:
+                    def execute(self, *args, **kwargs):
+                        nonlocal executados
+                        executados += 1
+                        if executados > externo._depois_de:
+                            raise RuntimeError("interrompida no meio da publicação")
+                        return conexao.execute(*args, **kwargs)
+
+                return _Conexao()
+
+            def __exit__(self, *args):
+                return self._cm.__exit__(*args)
+
+        return _Transacao()
+
+
+@pytest.mark.integracao
+def test_interrupcao_no_meio_da_publicacao_nao_deixa_nada_e_a_retomada_conclui(efemeros) -> None:
+    """RV10-01: veredito e identidade saem juntos, ou não saem."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, tentativa, 909)
+    _simular_job(armazem, legado, job_id=909, geracao=9)
+
+    with pytest.raises(RuntimeError, match="interrompida"):
+        captura.concluir(legado, _ArmazemQueCai(armazem, depois_de=25), tentativa)
+
+    with armazem.connect() as conexao:
+        status, com_identidade = conexao.execute(
+            text(f"select min(status), count(snapshot_id) from {captura.TABELA} where capture_attempt_id = :a"),
+            {"a": tentativa},
+        ).one()
+    assert (status, com_identidade) == (captura.PENDING, 0), "as 40 linhas continuam pendentes e sem identidade"
+    assert captura.certificadas(armazem) == []
+    assert [a for a, _, _ in captura._pendentes(armazem)] == [tentativa]
+
+    feito = captura.retomar(legado, armazem, estado_do_job=lambda job_id: "succeeded")
+    assert feito == {tentativa: "concluida"}
+    assert captura.certificadas(armazem) == [909]
+
