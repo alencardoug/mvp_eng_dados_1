@@ -25,8 +25,10 @@ divergiria da primeira no dia em que uma tabela entrasse ou saísse.
 from __future__ import annotations
 
 import pathlib
+import re
+import uuid
 
-from sqlalchemy import Integer, Uuid
+from sqlalchemy import BigInteger, Integer, SmallInteger, Uuid
 
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.dbt import AVISO, certificadas_sql
@@ -35,20 +37,64 @@ from mvp_ed1.models import Base
 DESTINO = pathlib.Path("dbt/models/trusted/legacy")
 TESTES = pathlib.Path("dbt/tests")
 
+#: Domínio de cada tipo inteiro do PostgreSQL — o mesmo que a macro confere.
+DOMINIOS = {
+    "bigint": (-(2**63), 2**63 - 1),
+    "integer": (-(2**31), 2**31 - 1),
+    "smallint": (-(2**15), 2**15 - 1),
+}
+
+_INTEIRO = re.compile(r"^\s*[+-]?[0-9]+\s*$")
+_UUID = re.compile(r"^(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})$", re.IGNORECASE)
+
 
 def chave(tabela: str) -> tuple[str, str]:
-    """`(coluna, tipo)` da chave de negócio: a PK declarada, e o tipo que a canoniza."""
+    """`(coluna, tipo)` da chave de negócio: a PK declarada, e o tipo que a canoniza.
+
+    O tipo é o **domínio** do PostgreSQL que a declaração pede — `bigint`,
+    `integer`, `smallint`, `uuid` ou `texto` —, e não "inteiro" em geral: a
+    macro confere o domínio antes de converter, e `9223372036854775808` não é
+    identidade de uma coluna `BigInteger` (RV10-05).
+    """
     colunas = list(Base.metadata.tables[f"oltp.{tabela}"].primary_key.columns)
     if len(colunas) != 1:
         raise ValueError(f"{tabela}: chave primária composta não é suportada na comparação entre capturas")
     coluna = colunas[0]
-    if isinstance(coluna.type, Integer):
-        tipo = "inteiro"
+    if isinstance(coluna.type, BigInteger):
+        tipo = "bigint"
+    elif isinstance(coluna.type, SmallInteger):
+        tipo = "smallint"
+    elif isinstance(coluna.type, Integer):
+        tipo = "integer"
     elif isinstance(coluna.type, Uuid):
         tipo = "uuid"
     else:
         tipo = "texto"
     return coluna.name, tipo
+
+
+def canonizar(valor: str | None, tipo: str) -> str | None:
+    """A mesma canonização da macro `chave_canonica`, em Python — o esperado independente.
+
+    É o que o diário de mutações e os testes usam para dizer que chave
+    **deveria** aparecer em `legacy_capture_transitions`: `08` removido é a
+    chave `8`. Mesma gramática, mesmo domínio, mesma fronteira (nulo para o que
+    não converte); se a macro e esta função divergirem, o teste que compara o
+    diário com o intervalo acusa.
+    """
+    if valor is None:
+        return None
+    if tipo in DOMINIOS:
+        if not _INTEIRO.match(valor):
+            return None
+        numero = int(valor.strip())
+        minimo, maximo = DOMINIOS[tipo]
+        return str(numero) if minimo <= numero <= maximo else None
+    if tipo == "uuid":
+        return str(uuid.UUID(hex=valor.strip("{}").replace("-", ""))) if _UUID.match(valor) else None
+    if tipo == "texto":
+        return valor.strip() or None
+    raise ValueError(f"chave_canonica: tipo desconhecido {tipo}")
 
 
 def presenca_por_captura() -> str:

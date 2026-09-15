@@ -72,6 +72,13 @@ negócio entre a captura selecionada e as capturas certificadas anteriores, em d
    `cast` (caixa e hífens deixam de importar); texto por `trim`. Chave nula ou **não conversível para
    o tipo** é **`sem identidade`**: não entra na comparação, é contada à parte, e o achado próprio
    dela continua sendo o do catálogo — nada é relabelado.
+
+   *Nota de 15/09/2026 (RV10-04/05):* "conversível" é exatamente o que o `cast` do PostgreSQL
+   aceita, e a guarda da macro passou a reproduzir essa gramática, medida forma a forma — antes
+   ela deixava passar `{UUID` sem fechar (o `cast` derrubava o *build*) e negava identidade a
+   `a0ee-bc99-…` e a `+8`, que convertem. O inteiro é conferido **no domínio do tipo declarado**
+   (`bigint`, lido do SQLAlchemy), não em `numeric` sem limite. O que mudou de resultado: UUID com
+   espaço à volta deixa de ser aparado — o `cast` do PostgreSQL não apara, e a fronteira é ele.
 2. **Capturas comparáveis.** Só capturas com certificado `complete` nas 40 tabelas
    ([ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md)) entram na comparação, como
    selecionada ou como anteriores. As gerações 1–16 não têm certificado e não são elegíveis; a

@@ -17,22 +17,48 @@
     nulo, é contado à parte e nunca é relabelado (o achado que o rejeitou
     continua sendo o do catálogo).
 
-      inteiro  →  o número, sem zero à esquerda nem espaço; `08` = `8`
-      uuid     →  o UUID em minúsculas, com hífens; caixa e forma não importam
+      bigint / integer / smallint
+               →  o número no domínio do tipo, sem zero à esquerda, sinal nem
+                  espaço; `08` = `+8` = ` 8 ` = `8`; fora do domínio é nulo
+      uuid     →  o UUID em minúsculas, com hífens; caixa, chaves e a posição
+                  dos hífens não importam
       texto    →  o texto sem espaço à volta; vazio é nulo
+
+    ── A guarda é a gramática do PostgreSQL, e nada mais ─────────────────────
+    A guarda existe porque um `cast` que falha derruba o build inteiro, e o
+    contrato pede nulo. Ela precisa aceitar **exatamente** o que o `cast`
+    aceita: mais larga, deixa passar texto que estoura (`{UUID` sem fechar,
+    inteiro fora do bigint — achados RV10-04/05); mais estreita, nega
+    identidade a representação válida (`a0ee-bc99-…`, `+8`). O que está
+    abaixo foi medido contra o PostgreSQL 16 em 15/09/2026, forma a forma:
+
+      uuid     32 hexadecimais, hífen opcional depois de qualquer grupo de
+               quatro (nunca no início, no fim ou dobrado), chaves `{}` só
+               aos pares, nenhum espaço à volta — o `cast` do uuid não apara
+      inteiro  sinal opcional, dígitos, espaço à volta permitido; o domínio é
+               conferido em `numeric` antes do `cast`, porque o `cast`
+               direto estoura em vez de devolver nulo
 
     No BigQuery a mesma macro escreve `SAFE_CAST` aos mesmos tipos.
 -#}
 {% macro chave_canonica(expressao, tipo) -%}
-    {%- if tipo == 'inteiro' -%}
+    {%- set dominios = {
+        'bigint':   ('-9223372036854775808', '9223372036854775807'),
+        'integer':  ('-2147483648', '2147483647'),
+        'smallint': ('-32768', '32767'),
+    } -%}
+    {%- if tipo in dominios -%}
     (case
-        when ({{ expressao }}) ~ '^\s*-?[0-9]+\s*$' then (({{ expressao }})::numeric)::text
-        else null
+        when ({{ expressao }}) ~ '^\s*[+-]?[0-9]+\s*$' then
+            case
+                when (({{ expressao }})::numeric) between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
+                    then (({{ expressao }})::numeric::{{ tipo }})::text
+            end
      end)
     {%- elif tipo == 'uuid' -%}
     (case
-        when ({{ expressao }}) ~* '^\s*\{?[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}\}?\s*$'
-            then (trim(({{ expressao }}))::uuid)::text
+        when ({{ expressao }}) ~* '^(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})$'
+            then (({{ expressao }})::uuid)::text
         else null
      end)
     {%- elif tipo == 'texto' -%}

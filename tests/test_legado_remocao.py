@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import uuid
 
 import pytest
@@ -27,7 +28,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 
 from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
-from mvp_ed1.legacy import mutacoes, schema
+from mvp_ed1.legacy import mutacoes, remocao, schema
 
 pytestmark = pytest.mark.integracao
 
@@ -112,6 +113,119 @@ def test_inserir_e_alterar_registram_antes_e_depois(legado_efemero, manifesto_te
         mutacoes.inserir(legado_efemero, "brands", {"nao_existe": "x"}, manifesto=manifesto_temporario)
 
 
+def test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu() -> None:
+    """Remoção parcial, alteração sem correspondência e chave por extenso (RV10-10)."""
+    diario = [
+        # Pediu `1` e `999`; só `1` existia. `999` não entra no efeito: o diário
+        # não sabe se ela existia, e marcá-la ausente fabricaria uma testemunha.
+        {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["1", "999"],
+         "devolvidas": [{"legacy_row_id": 1, "id": "1", "code": "b1", "name": "Acme"}], "linhas_apagadas": 1},
+        # `08` apagado é a chave canônica `8`, como o intervalo a grava.
+        {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["08"],
+         "devolvidas": [{"legacy_row_id": 3, "id": "08", "code": "b8", "name": "Oito"}], "linhas_apagadas": 1},
+        # Alteração de zero linhas não diz que a chave existe.
+        {"tipo": "alterar", "tabela": "brands", "chave": "id", "valor_da_chave": "777", "coluna": "name",
+         "antes": [], "devolvidas": []},
+        # Alteração com linha devolvida diz que existe — sem sobrescrever remoção anterior.
+        {"tipo": "alterar", "tabela": "brands", "chave": "id", "valor_da_chave": "2", "coluna": "name",
+         "antes": [{"legacy_row_id": 2, "valor": "Bravo"}], "devolvidas": [{"legacy_row_id": 2, "valor": None}]},
+        {"tipo": "inserir", "tabela": "brands", "chave": "id", "devolvida": {"legacy_row_id": 4, "id": "+9", "code": "b9", "name": "Nova"}},
+        # Chave sem identidade (não converte para bigint) fica fora da comparação.
+        {"tipo": "inserir", "tabela": "brands", "chave": "id", "devolvida": {"legacy_row_id": 5, "id": "x", "code": "bx", "name": "Sem id"}},
+    ]
+    assert mutacoes.efeito_liquido(diario) == {
+        ("brands", "1"): False,
+        ("brands", "8"): False,
+        ("brands", "2"): True,
+        ("brands", "9"): True,
+    }
+
+
+@pytest.mark.parametrize(
+    "valor,tipo,esperado",
+    [
+        ("08", "bigint", "8"), ("+8", "bigint", "8"), (" 8 ", "bigint", "8"), ("-0", "bigint", "0"),
+        ("9223372036854775807", "bigint", "9223372036854775807"),
+        ("9223372036854775808", "bigint", None), ("8.0", "bigint", None), ("", "bigint", None),
+        ("2147483648", "integer", None), ("2147483647", "integer", "2147483647"),
+        ("A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11", "uuid", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"),
+        ("{a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11}", "uuid", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"),
+        ("a0eebc999c0b4ef8bb6d6bb9bd380a11", "uuid", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"),
+        ("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", "uuid", None),
+        ("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}", "uuid", None),
+        (" a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", "uuid", None),
+        ("a0eebc99-9c0b--4ef8-bb6d-6bb9bd380a11", "uuid", None),
+        ("  x  ", "texto", "x"), ("   ", "texto", None), (None, "uuid", None),
+    ],
+)
+def test_a_canonizacao_em_python_segue_a_gramatica_do_postgresql(valor, tipo, esperado) -> None:
+    assert remocao.canonizar(valor, tipo) == esperado
+
+
+def test_a_chave_declarada_carrega_o_dominio_do_tipo() -> None:
+    assert remocao.chave("brands") == ("id", "bigint")
+    assert remocao.chave("inventory_movements") == ("movement_id", "uuid")
+
+
+# ── A macro real, no PostgreSQL instalado ────────────────────────────────────
+
+FORMAS = {
+    "uuid": [
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", "A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11",
+        "{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}", "a0eebc999c0b4ef8bb6d6bb9bd380a11",
+        "a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11", "a0eebc99-9c0b4ef8-bb6d6bb9bd380a11",
+        "{a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11}",
+        # o que a guarda antiga deixava passar e o cast derrubava (RV10-04)
+        "{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}",
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11-", "-a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        "a0eebc99-9c0b--4ef8-bb6d-6bb9bd380a11", "a0e-ebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        "  a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11  ", "{ a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 }",
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1", "", "x",
+    ],
+    "bigint": ["8", "08", "+8", " 8 ", "-0", "-9223372036854775808", "9223372036854775807",
+               "9223372036854775808", "-9223372036854775809", "99999999999999999999", "8.0", "1e3", "", " ", "x", "٨"],
+    "integer": ["2147483647", "2147483648", "-2147483648", "-2147483649", "+7"],
+}
+
+
+def _macro_renderizada(tipo: str) -> str:
+    import jinja2
+
+    class _Excecoes:
+        def raise_compiler_error(self, mensagem):  # noqa: D401 — a interface do dbt
+            raise RuntimeError(mensagem)
+
+    fonte = pathlib.Path("dbt/macros/chave_canonica.sql").read_text(encoding="utf-8")
+    modulo = jinja2.Environment().from_string(fonte, globals={"exceptions": _Excecoes()}).module
+    return modulo.chave_canonica(":v", tipo)
+
+
+@pytest.mark.parametrize("tipo", sorted(FORMAS))
+def test_a_macro_real_devolve_o_que_o_cast_do_postgresql_devolve_ou_nulo(administrador, tipo) -> None:
+    """A guarda aceita exatamente o que o `cast` aceita; o resto é nulo, nunca erro (ADR-0045).
+
+    Executa a macro **renderizada** e, ao lado, a conversão nativa em bloco
+    próprio: onde o `cast` converte, a macro devolve o mesmo texto; onde ele
+    lança, a macro devolve nulo. É o teste que a revisão pediu — os exemplos
+    com chaves já canonizadas não exercitam a fronteira (RV10-04/05). Só
+    `SELECT`, em transação somente leitura.
+    """
+    expressao = _macro_renderizada(tipo)
+    divergencias = []
+    with administrador.connect() as conexao:
+        conexao.execute(text("set default_transaction_read_only = on"))
+        for valor in FORMAS[tipo]:
+            pela_macro = conexao.execute(text(f"select {expressao}"), {"v": valor}).scalar_one()
+            try:
+                nativa = conexao.execute(text(f"select (:v)::{tipo}::text"), {"v": valor}).scalar_one()
+            except Exception:  # noqa: BLE001 — o cast lançou: a macro tem de devolver nulo
+                nativa = None
+            if pela_macro != nativa:
+                divergencias.append((valor, pela_macro, nativa))
+            assert remocao.canonizar(valor, tipo) == nativa, (valor, "a canonização em Python diverge do cast")
+    assert not divergencias, divergencias
+
+
 # ── O ciclo real, somente leitura ────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
@@ -138,22 +252,6 @@ def _tabela_existe(conexao, esquema, nome) -> bool:
         text("select count(*) from information_schema.tables where table_schema = :s and table_name = :t"),
         {"s": esquema, "t": nome},
     ).scalar_one())
-
-
-def _efeito_liquido(diario: list[dict]) -> dict[tuple[str, str], bool]:
-    """Por (tabela, chave), se a linha **existe** na origem depois da última mutação do diário."""
-    presente: dict[tuple[str, str], bool] = {}
-    for mutacao in diario:
-        tabela = mutacao["tabela"]
-        if mutacao["tipo"] == "remover":
-            for chave in mutacao["chaves"]:
-                if mutacao["linhas_apagadas"]:
-                    presente[(tabela, str(chave))] = False
-        elif mutacao["tipo"] == "inserir":
-            presente[(tabela, str(mutacao["devolvida"][mutacao["chave"]]))] = True
-        elif mutacao["tipo"] == "alterar":
-            presente.setdefault((tabela, str(mutacao["valor_da_chave"])), True)
-    return presente
 
 
 def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, diario, record_property) -> None:
@@ -185,7 +283,7 @@ def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, dia
     por_chave = {(t, k): tr for t, k, tr, *_ in transicoes}
     record_property("interval", f"{transicoes[0][3]}->{transicoes[0][4]}")
     faltas = []
-    for (tabela, chave), presente in _efeito_liquido(diario).items():
+    for (tabela, chave), presente in mutacoes.efeito_liquido(diario).items():
         transicao = por_chave.get((tabela, chave))
         if presente:
             if (tabela, chave) in memoria:
@@ -198,5 +296,5 @@ def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, dia
             if transicao in ("mantida", "adicionada"):
                 faltas.append(("ausente mas presente no intervalo", tabela, chave, transicao))
     record_property("diary_entries", len(diario))
-    record_property("net_absent_keys", sum(not p for p in _efeito_liquido(diario).values()))
+    record_property("net_absent_keys", sum(not p for p in mutacoes.efeito_liquido(diario).values()))
     assert not faltas, f"efeito líquido do diário sem correspondência: {faltas[:10]}"

@@ -41,6 +41,38 @@ def _gravar(alvo: pathlib.Path, manifesto: dict[str, Any]) -> None:
     alvo.write_text(json.dumps(manifesto, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
+    """Por `(tabela, chave canônica)`, se a linha **existe** na origem depois da última mutação.
+
+    Deriva **do que o banco devolveu** (`RETURNING`), nunca do que se pediu: uma
+    remoção que pediu `1` e `999` e só devolveu `1` deixa `999` fora do efeito —
+    o diário não sabe se `999` existia. A chave é canonizada pelo tipo da PK,
+    como `legacy_capture_transitions` a grava: `08` apagado é a chave `8`.
+    Alteração que não devolveu linha não diz nada sobre presença (RV10-10).
+    """
+    presente: dict[tuple[str, str], bool] = {}
+
+    def registrar(tabela: str, bruta: str | None, existe: bool, *, sobrescreve: bool = True) -> None:
+        chave = remocao.canonizar(bruta, remocao.chave(tabela)[1])
+        if chave is None:  # sem identidade não entra na comparação (ADR-0045)
+            return
+        if sobrescreve:
+            presente[(tabela, chave)] = existe
+        else:
+            presente.setdefault((tabela, chave), existe)
+
+    for mutacao in diario:
+        tabela, coluna = mutacao["tabela"], mutacao["chave"]
+        if mutacao["tipo"] == "remover":
+            for linha in mutacao["devolvidas"]:
+                registrar(tabela, linha[coluna], False)
+        elif mutacao["tipo"] == "inserir":
+            registrar(tabela, mutacao["devolvida"][coluna], True)
+        elif mutacao["tipo"] == "alterar" and mutacao["devolvidas"]:
+            registrar(tabela, mutacao["valor_da_chave"], True, sobrescreve=False)
+    return presente
+
+
 def aptas(manifesto: dict[str, Any], tabela: str) -> list[int]:
     """`legacy_row_id` das ocorrências aptas da tabela, em ordem física."""
     return sorted(
