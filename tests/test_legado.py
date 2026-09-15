@@ -73,6 +73,52 @@ def test_catalogo_recusa_falha_sem_tratamento(tmp_path) -> None:
         carregar(quebrado)
 
 
+def test_catalogo_recusa_conversao_sem_recuperacao(tmp_path) -> None:
+    """Conversão sem dizer o que devolve deixaria o oráculo sem esperado (P06)."""
+    quebrado = tmp_path / "catalogo.yml"
+    quebrado.write_text(
+        "versao: 1\n"
+        "geracao: {semente: 1, fator: 0.05, limite_de_texto: 24}\n"
+        "delimitador: ';'\n"
+        "nulos_disfarcados: ['-']\n"
+        "promessas: []\n"
+        "quantidades_com_sinal: []\n"
+        "colunas_estreitadas: []\n"
+        "dominios_fechados: []\n"
+        "falhas:\n"
+        "  SEM_RECUPERACAO:\n"
+        "    grupo: teste\n"
+        "    arquetipo: texto\n"
+        "    deteccao: qualquer coisa\n"
+        "    conversao: alguma regra\n"
+        "    injecao: {frequencia: 1, formas: [espaco_a_volta]}\n"
+        "  REJEICAO_COM_RECUPERACAO:\n"
+        "    grupo: teste\n"
+        "    arquetipo: texto\n"
+        "    deteccao: qualquer coisa\n"
+        "    rejeicao: algum motivo\n"
+        "    recuperacao: original\n"
+        "    injecao: {frequencia: 1, formas: [espaco_a_volta]}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CatalogoInvalido) as erro:
+        carregar(quebrado)
+    assert "SEM_RECUPERACAO: conversão precisa declarar recuperacao" in str(erro.value)
+    assert "REJEICAO_COM_RECUPERACAO: rejeição não tem recuperação" in str(erro.value)
+
+
+def test_todo_achado_corrigivel_tem_valor_esperado_conforme_o_catalogo(catalogo, resultado) -> None:
+    """O esperado do manifesto sai do contrato `recuperacao`, não do injetor."""
+    for a in resultado.achados:
+        falha = catalogo.falhas[a.codigo]
+        if not falha.converte:
+            assert a.valor_esperado is None, a
+        elif falha.recuperacao == "original":
+            assert a.valor_esperado == a.valor_original, a
+        else:
+            assert a.valor_esperado is None and falha.recuperacao == "nulo", a
+
+
 def test_todo_arquetipo_injetavel_alcanca_alguma_coluna(catalogo, promessas) -> None:
     """Arquétipo que não alcança coluna é regra morta — falha declarada sem alvo."""
     estruturais = {"registro", "chave_natural", "total_do_pedido", "registro_filho"}

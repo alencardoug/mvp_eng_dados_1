@@ -16,11 +16,19 @@
 #   arquetipo    a que tipo de campo se aplica
 #   deteccao     como o valor defeituoso é reconhecido, **sem** o manifesto
 #   conversao    a regra determinística, quando a equivalência é inequívoca
+#   recuperacao  o que a conversão devolve, medido contra o valor que havia
+#                antes do defeito: `original` quando a informação foi
+#                preservada e a limpeza a restaura; `nulo` quando o alvo
+#                canônico é o nulo de verdade (o original não volta, e não deve)
 #   rejeicao     o motivo, quando não há regra válida
 #   injecao      como o gerador produz o defeito, e com que frequência
 #
 # `conversao` e `rejeicao` são mutuamente exclusivas: o critério é o da Origem
 # Legada §3.1 — converte-se quando existe **uma** interpretação possível.
+# `recuperacao` acompanha toda `conversao`, e é o contrato que o oráculo do
+# manifesto usa para dizer qual valor **esperar** depois da limpeza — sem ele o
+# teste exigiria "voltar ao original" de uma conversão cujo alvo correto é
+# outro, e acusaria tratamento certo (achado P06 da revisão do plano, 14/09/2026).
 # ══════════════════════════════════════════════════════════════════════════════
 
 # Versão do contrato aplicado, inclusive regras de contexto. A versão 2 da
@@ -149,6 +157,7 @@ falhas:
     arquetipo: qualquer
     deteccao: Valor pertence à lista declarada de nulos disfarçados.
     conversao: Converter para nulo de verdade.
+    recuperacao: nulo
     injecao: {frequencia: 7, formas: [marcador_textual]}
 
   # ── Domínios e formatos ───────────────────────────────────────────────────
@@ -165,6 +174,7 @@ falhas:
     arquetipo: booleano
     deteccao: Valor booleano escrito fora de `true`/`false`.
     conversao: Mapear somente as variantes declaradas; `sim`, `S` e `1` são verdadeiro.
+    recuperacao: original
     injecao: {frequencia: 5, formas: [sim_nao, s_n, um_zero]}
   ENUM_UNKNOWN:
     grupo: dominios
@@ -189,12 +199,14 @@ falhas:
     arquetipo: data
     deteccao: Data em formato reconhecido diferente do ISO.
     conversao: Interpretar pelo formato declarado e normalizar para ISO.
+    recuperacao: original
     injecao: {frequencia: 5, formas: [dd_mm_aaaa, aaaa_ponto_mm_dd]}
   DATE_TZ_MISSING:
     grupo: datas
     arquetipo: momento
     deteccao: Timestamp sem deslocamento de fuso.
     conversao: Aplicar o fuso declarado da origem — `America/Sao_Paulo`.
+    recuperacao: original
     injecao: {frequencia: 5, formas: [sem_fuso]}
 
   # ── Texto ─────────────────────────────────────────────────────────────────
@@ -215,6 +227,7 @@ falhas:
     arquetipo: quantidade
     deteccao: Valor não é inteiro literal, mas equivale a um sem ambiguidade.
     conversao: Interpretar por extenso ou com casa decimal nula; `oito`, `8.0` e `8,0` são 8.
+    recuperacao: original
     injecao: {frequencia: 5, formas: [por_extenso, decimal_zero, decimal_virgula_zero]}
   NUM_AMBIGUOUS:
     grupo: numericos
@@ -244,6 +257,7 @@ falhas:
     arquetipo: dinheiro
     deteccao: Valor monetário com separadores ou símbolo de moeda, em qualquer locale.
     conversao: Normalizar locale e moeda antes da conversão decimal; `R$ 1.234,56` é 1234.56.
+    recuperacao: original
     injecao: {frequencia: 6, formas: [pt_br, en_us, com_simbolo]}
   MONEY_AMBIGUOUS:
     grupo: monetarios
@@ -272,6 +286,7 @@ falhas:
     arquetipo: texto
     deteccao: Sequência de codificação dupla reconhecível — UTF-8 lido como Latin-1.
     conversao: Reverter o par de codificações quando ele é identificável; `JosÃ©` é `José`.
+    recuperacao: original
     injecao: {frequencia: 5, formas: [utf8_como_latin1]}
   # Nasceu da segunda revisão (R03), e a ausência era **omissão**: a §3.1 já
   # dizia "reparar quando o par de codificações é conhecido; rejeitar se
@@ -290,6 +305,7 @@ falhas:
     arquetipo: texto
     deteccao: Espaços à volta, espaços internos repetidos ou caixa inconsistente em chave.
     conversao: Padronizar espaçamento e caixa conforme a convenção do campo.
+    recuperacao: original
     # `caixa_alterada` **não** é injetada, e a razão é honesta: caixa
     # inconsistente só é reconhecível contra uma convenção declarada do campo, e
     # em texto livre não há nenhuma — `MÊS DO CLIENTE` é tão legítimo quanto

@@ -216,8 +216,13 @@ A geração é determinística, recebe `seed` própria — declarada em
 
 O manifesto é escrito em `data/legacy/manifesto.json`, **fora do banco e fora do Git**. Guardá-lo ao
 lado do dado tratado convidaria a transformação a consultá-lo, e o teste passaria a medir a si
-mesmo. Cada linha dele diz a ocorrência física, o código, a coluna, o valor antes, o valor depois e
-o resultado que o tratamento deve alcançar.
+mesmo. Cada linha dele diz a ocorrência física, o código, a coluna, o valor antes, o valor depois,
+o resultado que o tratamento deve alcançar e — desde 14/09/2026 — o **valor esperado** depois da
+limpeza, que não é o mesmo que "o valor antes": ele sai do contrato `recuperacao` declarado por
+falha no catálogo. `original` quando a informação foi preservada e a limpeza a restaura
+(`R$ 1.234,56` volta a `1234.56`); `nulo` quando o alvo canônico é o nulo de verdade
+(`NULL_DISGUISED`: `'N/A'` vira nulo, e o `Vermelho` que havia antes **não** volta, nem deve).
+Sem esse contrato, o teste exigiria de uma conversão correta um valor que ela não tem como produzir.
 
 O manifesto é o **oráculo dos testes**. A transformação nunca o consulta para descobrir a resposta
 — se consultasse, o teste passaria a medir a si mesmo.

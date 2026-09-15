@@ -14,7 +14,11 @@ o formato permite cometer:
 * toda falha injetável declara **frequência maior que zero e ao menos uma
   forma** — frequência zero com forma declarada é regra morta;
 * falha **derivada** não é injetada, e declara de quais outras ela nasce — é o
-  caso do `PARENT_REJECTED`, que emerge do tratamento (ADR-0038).
+  caso do `PARENT_REJECTED`, que emerge do tratamento (ADR-0038);
+* toda conversão declara a **recuperação** — `original` ou `nulo` —, e nenhuma
+  rejeição a declara. É o contrato que diz ao oráculo qual valor esperar depois
+  da limpeza; sem ele, "voltar ao original" seria exigido de uma conversão cujo
+  alvo correto é o nulo, e o teste acusaria tratamento certo.
 """
 
 from __future__ import annotations
@@ -52,6 +56,10 @@ ARQUETIPOS = frozenset(
 )
 
 
+#: O que uma conversão devolve, medido contra o valor anterior ao defeito.
+RECUPERACOES = frozenset({"original", "nulo"})
+
+
 class CatalogoInvalido(Exception):
     """O catálogo declara algo que o tratamento não consegue honrar."""
 
@@ -63,6 +71,7 @@ class Falha:
     arquetipo: str
     deteccao: str
     conversao: str | None
+    recuperacao: str | None
     rejeicao: str | None
     frequencia: int
     formas: tuple[str, ...]
@@ -122,6 +131,7 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
             arquetipo=spec["arquetipo"],
             deteccao=spec["deteccao"],
             conversao=spec.get("conversao"),
+            recuperacao=spec.get("recuperacao"),
             rejeicao=spec.get("rejeicao"),
             frequencia=int(injecao.get("frequencia", 0)),
             formas=tuple(injecao.get("formas", ())),
@@ -136,6 +146,12 @@ def carregar(caminho: pathlib.Path | None = None) -> Catalogo:
             problemas.append(f"{codigo}: arquétipo {falha.arquetipo!r} não é resolvível")
         if bool(falha.conversao) == bool(falha.rejeicao):
             problemas.append(f"{codigo}: declare conversão **ou** rejeição, nunca ambas nem nenhuma")
+        if falha.converte and falha.recuperacao not in RECUPERACOES:
+            problemas.append(
+                f"{codigo}: conversão precisa declarar recuperacao em {sorted(RECUPERACOES)}"
+            )
+        if not falha.converte and falha.recuperacao is not None:
+            problemas.append(f"{codigo}: rejeição não tem recuperação a declarar")
         if falha.e_derivada:
             if falha.formas:
                 problemas.append(f"{codigo}: falha derivada não é injetada e não tem formas")

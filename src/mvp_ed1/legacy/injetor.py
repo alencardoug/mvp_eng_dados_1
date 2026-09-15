@@ -51,6 +51,12 @@ class Achado:
     valor_original: str | None
     valor_legado: str | None
     resultado_esperado: str
+    #: O valor que a limpeza deve devolver, pelo contrato `recuperacao` do
+    #: catálogo: o original quando a informação foi preservada, `None` quando o
+    #: alvo canônico é o nulo — e `None` também nas rejeições, que não devolvem
+    #: valor. É o esperado **independente** de R07/R13: o teste compara com
+    #: isto, nunca com o que o injetor produziu.
+    valor_esperado: str | None = None
 
 
 @dataclass
@@ -647,6 +653,7 @@ class _Aplicador:
                 valor_original=antes,
                 valor_legado=depois,
                 resultado_esperado=CORRIGIDO if falha.converte else REJEITADO,
+                valor_esperado=antes if falha.recuperacao == "original" else None,
             )
         )
 
