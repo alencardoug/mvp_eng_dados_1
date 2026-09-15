@@ -214,6 +214,11 @@ def gravar_manifesto(
     diretorio.mkdir(parents=True, exist_ok=True)
     oraculo_do_lote = manifesto(catalogo, resultado, parametros)
     destino = diretorio / f"manifesto-{oraculo_do_lote['lote']['hash']}.json"
+    if destino.exists():
+        # O mesmo lote já tem manifesto: o diário de mutações dele é história
+        # que aconteceu no banco e não se recalcula — sobrevive à regeração.
+        anterior = json.loads(destino.read_text(encoding="utf-8"))
+        oraculo_do_lote["mutacoes"] = anterior.get("mutacoes", [])
     destino.write_text(json.dumps(oraculo_do_lote, ensure_ascii=False, indent=1), encoding="utf-8")
     corrente = diretorio / "manifesto.json"
     if corrente.is_symlink() or corrente.exists():

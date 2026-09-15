@@ -291,7 +291,7 @@ sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy e a cer
 	@# propósito. Duas execuções são duas capturas, que é o ponto.
 	@# `--certificar-legado` põe a sincronização entre as duas fases do
 	@# certificado: origem medida antes, origem e bruto conferidos depois.
-	@$(CREDENCIAIS); \
+	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
 		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado
 
 dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 refaz histórico SCD e incrementais

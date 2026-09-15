@@ -203,6 +203,24 @@ def esperar(catalogo: Catalogo, resultado: Resultado) -> dict[Chave, Veredito]:
             limpo[chave][achado.coluna] = _transportado(esperado)
             esperados[chave][achado.coluna] = esperado
 
+    # 1b. A heurística declarada de truncamento (Origem Legada §3.1.2): nas
+    #     colunas estreitadas, valor com comprimento **igual** à largura antiga é
+    #     `TEXT_TRUNCATED`, tenha sido cortado ou não — é o custo aceito da
+    #     heurística, e o oráculo aplica o contrato, não o SQL. Sem isto, um
+    #     produto legítimo de 24 caracteres cascateava 750 ocorrências que o
+    #     oráculo dizia aptas (medido em 14/09/2026, captura 17).
+    larguras = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)
+    for chave, linha in linhas.items():
+        for (tabela, coluna), largura in larguras.items():
+            if tabela != chave[0]:
+                continue
+            texto = limpo[chave].get(coluna)
+            if texto is None or len(texto) != largura:
+                continue
+            if any(a.coluna == coluna for a in valor[chave]):
+                continue
+            valor[chave].append(AchadoEsperado("TEXT_TRUNCATED", coluna))
+
     contratos = {tabela: contrato(tabela) for tabela in schema.tabelas()}
     contexto: dict[Chave, list[AchadoEsperado]] = collections.defaultdict(list)
 
