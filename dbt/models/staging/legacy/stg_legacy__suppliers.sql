@@ -22,7 +22,7 @@ with captura as (
     -- aqui. O máximo por tabela parecia equivalente e não é: uma tabela que
     -- não veio na carga nova cairia para a geração anterior sozinha, e o
     -- modelo serviria linhas velhas sem que nada dissesse isso.
-    where _airbyte_generation_id = (
+    where (_airbyte_meta->>'sync_id')::bigint = (
         select snapshot_id from {{ ref('legacy_selected_capture') }}
     )
 
@@ -133,7 +133,7 @@ limpo as (
 
 select
     c.legacy_row_id,
-    c._airbyte_generation_id                    as snapshot_id,
+    (c._airbyte_meta->>'sync_id')::bigint       as snapshot_id,
     c._airbyte_extracted_at                     as snapshot_at,
     'legacy'                                    as source_system,
 

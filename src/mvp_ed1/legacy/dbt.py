@@ -206,7 +206,7 @@ with captura as (
     -- aqui. O máximo por tabela parecia equivalente e não é: uma tabela que
     -- não veio na carga nova cairia para a geração anterior sozinha, e o
     -- modelo serviria linhas velhas sem que nada dissesse isso.
-    where _airbyte_generation_id = (
+    where {schema.CAPTURA_SQL} = (
         select snapshot_id from {{{{ ref('legacy_selected_capture') }}}}
     )
 
@@ -226,7 +226,7 @@ limpo as (
 
 select
     c.legacy_row_id,
-    c._airbyte_generation_id                    as snapshot_id,
+    (c._airbyte_meta->>'sync_id')::bigint       as snapshot_id,
     c._airbyte_extracted_at                     as snapshot_at,
     '{schema.SCHEMA}'                                    as source_system,
 
@@ -337,7 +337,7 @@ def captura_selecionada() -> str:
     """A captura que a execução inteira lê, resolvida uma vez.
 
     ── Por que existe ────────────────────────────────────────────────────────
-    Antes, cada um dos 40 modelos resolvia `max(_airbyte_generation_id)` na sua
+    Antes, cada um dos 40 modelos resolvia o máximo da geração na sua
     própria tabela. Parecia equivalente a uma escolha só e não é: a tabela que
     não veio na carga nova tem o seu máximo na geração **anterior**, e serviria
     linhas velhas ao lado das novas sem que nada acusasse a mistura.
@@ -379,7 +379,7 @@ def teste_captura_existe() -> str:
     """Selecionar uma captura que não existe não pode passar em silêncio."""
     ramos = "\n    union all\n".join(
         f"    select 1 from {{{{ source('legacy', '{tabela}') }}}}"
-        f" where _airbyte_generation_id = (select snapshot_id from selecionada)"
+        f" where {schema.CAPTURA_SQL} = (select snapshot_id from selecionada)"
         for tabela in schema.tabelas()
     )
     return f"""{AVISO}
@@ -426,7 +426,7 @@ def teste_captura_completa() -> str:
     contagens = "\n    union all\n".join(
         f"    select '{tabela}' as tabela, count(*) as linhas"
         f" from {{{{ source('legacy', '{tabela}') }}}}"
-        f" where _airbyte_generation_id = (select snapshot_id from selecionada)"
+        f" where {schema.CAPTURA_SQL} = (select snapshot_id from selecionada)"
         for tabela in schema.tabelas()
     )
     tabelas = ", ".join(f"('{t}')" for t in schema.tabelas())

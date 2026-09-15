@@ -8,6 +8,11 @@
 | Decisão pendente resolvida | — (levantada na abertura da Etapa 10) |
 | Substitui / é substituída por | Emenda o [ADR-0015](0015-sincronizacao-e-exclusoes.md), que não é substituído |
 
+> **Nota — 15/09/2026.** O `snapshot_id` que identifica cada captura retida é, desde esta data, o
+> *job* de sincronização (`_airbyte_meta.sync_id`), e não `_airbyte_generation_id`: a geração do
+> Airbyte é por *stream*, e um *stream* reabilitado desalinhou as quarenta (Origem Legada §4.1). A
+> decisão de reter por acréscimo não muda; muda só qual coluna do destino nomeia a captura.
+
 ## Contexto
 
 O [ADR-0015](0015-sincronizacao-e-exclusoes.md) fixou **três** modos de sincronização e o critério

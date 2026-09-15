@@ -59,12 +59,12 @@ def presenca_por_captura() -> str:
         ramos.append(
             f"""select
     '{tabela}'::text                                          as source_table,
-    r._airbyte_generation_id                                  as snapshot_id,
+    {schema.CAPTURA_SQL.replace('_airbyte_meta', 'r._airbyte_meta')}                     as snapshot_id,
     {{{{ chave_canonica('r."{coluna}"', '{tipo}') }}}}                  as business_key,
     count(*)                                                  as n,
     jsonb_agg(jsonb_build_object({payload}) order by r.legacy_row_id) as payloads
 from {{{{ source('legacy', '{tabela}') }}}} r
-where r._airbyte_generation_id in (select snapshot_id from consideradas)
+where {schema.CAPTURA_SQL.replace('_airbyte_meta', 'r._airbyte_meta')} in (select snapshot_id from consideradas)
 group by 1, 2, 3"""
         )
     uniao = "\n\nunion all\n\n".join(ramos)
@@ -275,7 +275,7 @@ join historico h
 
 def teste_presenca_fisica() -> str:
     contagens = "\n    union all\n".join(
-        f"    select '{tabela}' as source_table, _airbyte_generation_id as snapshot_id, count(*) as linhas"
+        f"    select '{tabela}' as source_table, {schema.CAPTURA_SQL} as snapshot_id, count(*) as linhas"
         f" from {{{{ source('legacy', '{tabela}') }}}} group by 1, 2"
         for tabela in schema.tabelas()
     )

@@ -39,85 +39,85 @@ certificado as (
 
 no_bruto as (
 
-    select 'brands' as tabela, count(*) as linhas from {{ source('legacy', 'brands') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'brands' as tabela, count(*) as linhas from {{ source('legacy', 'brands') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'campaigns' as tabela, count(*) as linhas from {{ source('legacy', 'campaigns') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'campaigns' as tabela, count(*) as linhas from {{ source('legacy', 'campaigns') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'carriers' as tabela, count(*) as linhas from {{ source('legacy', 'carriers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'carriers' as tabela, count(*) as linhas from {{ source('legacy', 'carriers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'customer_segments' as tabela, count(*) as linhas from {{ source('legacy', 'customer_segments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'customer_segments' as tabela, count(*) as linhas from {{ source('legacy', 'customer_segments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'payment_methods' as tabela, count(*) as linhas from {{ source('legacy', 'payment_methods') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'payment_methods' as tabela, count(*) as linhas from {{ source('legacy', 'payment_methods') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'product_categories' as tabela, count(*) as linhas from {{ source('legacy', 'product_categories') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'product_categories' as tabela, count(*) as linhas from {{ source('legacy', 'product_categories') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'sales_channels' as tabela, count(*) as linhas from {{ source('legacy', 'sales_channels') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'sales_channels' as tabela, count(*) as linhas from {{ source('legacy', 'sales_channels') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'suppliers' as tabela, count(*) as linhas from {{ source('legacy', 'suppliers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'suppliers' as tabela, count(*) as linhas from {{ source('legacy', 'suppliers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'support_agents' as tabela, count(*) as linhas from {{ source('legacy', 'support_agents') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'support_agents' as tabela, count(*) as linhas from {{ source('legacy', 'support_agents') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'warehouses' as tabela, count(*) as linhas from {{ source('legacy', 'warehouses') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'warehouses' as tabela, count(*) as linhas from {{ source('legacy', 'warehouses') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'coupons' as tabela, count(*) as linhas from {{ source('legacy', 'coupons') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'coupons' as tabela, count(*) as linhas from {{ source('legacy', 'coupons') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'customers' as tabela, count(*) as linhas from {{ source('legacy', 'customers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'customers' as tabela, count(*) as linhas from {{ source('legacy', 'customers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'price_lists' as tabela, count(*) as linhas from {{ source('legacy', 'price_lists') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'price_lists' as tabela, count(*) as linhas from {{ source('legacy', 'price_lists') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'products' as tabela, count(*) as linhas from {{ source('legacy', 'products') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'products' as tabela, count(*) as linhas from {{ source('legacy', 'products') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'purchase_orders' as tabela, count(*) as linhas from {{ source('legacy', 'purchase_orders') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'purchase_orders' as tabela, count(*) as linhas from {{ source('legacy', 'purchase_orders') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'carts' as tabela, count(*) as linhas from {{ source('legacy', 'carts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'carts' as tabela, count(*) as linhas from {{ source('legacy', 'carts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'customer_addresses' as tabela, count(*) as linhas from {{ source('legacy', 'customer_addresses') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'customer_addresses' as tabela, count(*) as linhas from {{ source('legacy', 'customer_addresses') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'customer_contacts' as tabela, count(*) as linhas from {{ source('legacy', 'customer_contacts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'customer_contacts' as tabela, count(*) as linhas from {{ source('legacy', 'customer_contacts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'customer_preferences' as tabela, count(*) as linhas from {{ source('legacy', 'customer_preferences') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'customer_preferences' as tabela, count(*) as linhas from {{ source('legacy', 'customer_preferences') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'goods_receipts' as tabela, count(*) as linhas from {{ source('legacy', 'goods_receipts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'goods_receipts' as tabela, count(*) as linhas from {{ source('legacy', 'goods_receipts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'product_variants' as tabela, count(*) as linhas from {{ source('legacy', 'product_variants') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'product_variants' as tabela, count(*) as linhas from {{ source('legacy', 'product_variants') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'cart_items' as tabela, count(*) as linhas from {{ source('legacy', 'cart_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'cart_items' as tabela, count(*) as linhas from {{ source('legacy', 'cart_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'inventory_balances' as tabela, count(*) as linhas from {{ source('legacy', 'inventory_balances') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'inventory_balances' as tabela, count(*) as linhas from {{ source('legacy', 'inventory_balances') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'inventory_movements' as tabela, count(*) as linhas from {{ source('legacy', 'inventory_movements') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'inventory_movements' as tabela, count(*) as linhas from {{ source('legacy', 'inventory_movements') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'orders' as tabela, count(*) as linhas from {{ source('legacy', 'orders') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'orders' as tabela, count(*) as linhas from {{ source('legacy', 'orders') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'product_prices' as tabela, count(*) as linhas from {{ source('legacy', 'product_prices') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'product_prices' as tabela, count(*) as linhas from {{ source('legacy', 'product_prices') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'purchase_order_items' as tabela, count(*) as linhas from {{ source('legacy', 'purchase_order_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'purchase_order_items' as tabela, count(*) as linhas from {{ source('legacy', 'purchase_order_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'coupon_redemptions' as tabela, count(*) as linhas from {{ source('legacy', 'coupon_redemptions') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'coupon_redemptions' as tabela, count(*) as linhas from {{ source('legacy', 'coupon_redemptions') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'goods_receipt_items' as tabela, count(*) as linhas from {{ source('legacy', 'goods_receipt_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'goods_receipt_items' as tabela, count(*) as linhas from {{ source('legacy', 'goods_receipt_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'order_items' as tabela, count(*) as linhas from {{ source('legacy', 'order_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'order_items' as tabela, count(*) as linhas from {{ source('legacy', 'order_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'order_status_history' as tabela, count(*) as linhas from {{ source('legacy', 'order_status_history') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'order_status_history' as tabela, count(*) as linhas from {{ source('legacy', 'order_status_history') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'payments' as tabela, count(*) as linhas from {{ source('legacy', 'payments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'payments' as tabela, count(*) as linhas from {{ source('legacy', 'payments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'shipments' as tabela, count(*) as linhas from {{ source('legacy', 'shipments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'shipments' as tabela, count(*) as linhas from {{ source('legacy', 'shipments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'stock_reservations' as tabela, count(*) as linhas from {{ source('legacy', 'stock_reservations') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'stock_reservations' as tabela, count(*) as linhas from {{ source('legacy', 'stock_reservations') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'delivery_events' as tabela, count(*) as linhas from {{ source('legacy', 'delivery_events') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'delivery_events' as tabela, count(*) as linhas from {{ source('legacy', 'delivery_events') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'payment_transactions' as tabela, count(*) as linhas from {{ source('legacy', 'payment_transactions') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'payment_transactions' as tabela, count(*) as linhas from {{ source('legacy', 'payment_transactions') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'shipment_items' as tabela, count(*) as linhas from {{ source('legacy', 'shipment_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'shipment_items' as tabela, count(*) as linhas from {{ source('legacy', 'shipment_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'support_tickets' as tabela, count(*) as linhas from {{ source('legacy', 'support_tickets') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'support_tickets' as tabela, count(*) as linhas from {{ source('legacy', 'support_tickets') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'refunds' as tabela, count(*) as linhas from {{ source('legacy', 'refunds') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'refunds' as tabela, count(*) as linhas from {{ source('legacy', 'refunds') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 'ticket_events' as tabela, count(*) as linhas from {{ source('legacy', 'ticket_events') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 'ticket_events' as tabela, count(*) as linhas from {{ source('legacy', 'ticket_events') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
 
 )
 

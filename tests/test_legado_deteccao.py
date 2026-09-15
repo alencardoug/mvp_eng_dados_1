@@ -79,7 +79,7 @@ def captura(engine, manifesto) -> int:
         divergentes = []
         for tabela in schema.tabelas():
             no_bruto = conteudo.hash_no_banco(
-                conexao, "raw_legacy", tabela, "_airbyte_generation_id = :g", {"g": selecionada}
+                conexao, "raw_legacy", tabela, f"{schema.CAPTURA_SQL} = :g", {"g": selecionada}
             )
             if no_bruto != manifesto["lote"]["tabelas"][tabela]:
                 divergentes.append(tabela)
@@ -149,15 +149,16 @@ def test_toda_falha_injetada_e_detectada_pela_sua_regra(engine, manifesto, captu
             f"select ({expressao}) from ("
             f'  select "{coluna}" as valor from raw_legacy."{tabela}"'
             f"  where legacy_row_id = :linha"
-            f'    and _airbyte_generation_id = ('
-            f'      select max(_airbyte_generation_id) from raw_legacy."{tabela}")'
+            f"    and {schema.CAPTURA_SQL} = :captura"
             f") alvo"
         )
         # Uma transação por consulta: uma expressão que estoure não pode
         # contaminar a medição das demais — foi assim que o primeiro defeito
         # apareceu disfarçado de cinco.
         with engine.connect() as conexao:
-            resultado = conexao.execute(text(consulta), {"linha": achado["legacy_row_id"]}).scalar()
+            resultado = conexao.execute(
+                text(consulta), {"linha": achado["legacy_row_id"], "captura": captura}
+            ).scalar()
         if resultado:
             detectados[achado["codigo"]] += 1
         else:
@@ -290,9 +291,9 @@ def test_o_falso_positivo_da_heuristica_continua_marginal(
         linhas = sum(
             conexao.execute(
                 text(
-                    f"select count(*) from raw_legacy.\"{tabela}\" where _airbyte_generation_id = "
-                    f"(select max(_airbyte_generation_id) from raw_legacy.\"{tabela}\")"
-                )
+                    f'select count(*) from raw_legacy."{tabela}" where {schema.CAPTURA_SQL} = :g'
+                ),
+                {"g": captura},
             ).scalar_one()
             for tabela in schema.tabelas()
         )

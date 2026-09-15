@@ -51,20 +51,27 @@ class Medida:
 
 @dataclass(frozen=True)
 class Recebido:
-    """O que o bruto tem com o `sync_id` do *job*, e o que a geração dele tem de estranho."""
+    """O que o bruto tem com o `sync_id` do *job*, e o que a geração dele tem de estranho.
+
+    A identidade da captura é o `sync_id` (`schema.CAPTURA_SQL`); a geração é
+    **por stream** e serve só de conferência dentro da tabela: um *job* escreve
+    uma geração por tabela, e essa geração não pode ter linhas de outro *job*.
+    """
 
     linhas: int
     hash: str
+    #: Gerações, **nesta tabela**, das linhas com o `sync_id` do job.
     geracoes: tuple[int, ...]
-    #: Linhas na(s) mesma(s) geração(ões) com outro `sync_id`.
+    #: Linhas na(s) mesma(s) geração(ões) desta tabela com outro `sync_id`.
     intrusas: int
 
 
 def decidir(antes: Medida, depois: Medida, recebido: Recebido) -> str:
     """O veredito de **uma** tabela — regra pura, na ordem de gravidade.
 
-    `inconsistent` antes de tudo: linhas de dois *jobs* na mesma geração, ou um
-    *job* espalhado por duas gerações, tornam qualquer contagem sem sentido.
+    `inconsistent` antes de tudo: linhas de dois *jobs* na mesma geração da
+    tabela, ou um *job* espalhado por duas gerações da mesma tabela, tornam
+    qualquer contagem sem sentido.
     Depois `unstable`: a origem mudou durante a carga, e o que chegou não tem
     contra o que ser conferido. Só então conteúdo e multiplicidade — e é aqui
     que perda compensada por duplicata e alteração sem mudança de contagem
@@ -223,12 +230,13 @@ def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
             )
     todas = set(vereditos.values())
     status = COMPLETE if todas == {COMPLETE} else _pior(todas)
-    # A geração é da **tentativa**, não da tabela: uma tabela legitimamente
-    # vazia não recebe linha nenhuma do job e, sozinha, não saberia em que
-    # geração está. Se o job escreveu uma geração só, todas as 40 linhas do
-    # certificado a carregam — é o que permite ao dbt agrupar por `snapshot_id`
-    # e exigir 40 `complete`. Nenhuma geração: nada foi escrito, nada é elegível.
-    snapshot_id = next(iter(geracoes)) if len(geracoes) == 1 else None
+    # A identidade da captura é o **job** (`schema.CAPTURA_SQL`): a geração do
+    # Airbyte é por stream, e a captura F do plano mostrou as quarenta
+    # desalinhadas depois de um stream reabilitado. Todas as 40 linhas do
+    # certificado carregam o job como `snapshot_id` — é o que permite ao dbt
+    # agrupar e exigir 40 `complete`. Job que não escreveu linha nenhuma em
+    # tabela nenhuma não é captura.
+    snapshot_id = int(job_id) if geracoes else None
     with armazem.begin() as conexao:
         conexao.execute(
             text(f"update {TABELA} set snapshot_id = :g where capture_attempt_id = :a"),

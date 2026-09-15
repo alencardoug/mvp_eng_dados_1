@@ -24,85 +24,85 @@ with selecionada as (
 
 presente as (
 
-    select 1 from {{ source('legacy', 'brands') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'brands') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'campaigns') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'campaigns') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'carriers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'carriers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'customer_segments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'customer_segments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'payment_methods') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'payment_methods') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'product_categories') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'product_categories') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'sales_channels') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'sales_channels') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'suppliers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'suppliers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'support_agents') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'support_agents') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'warehouses') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'warehouses') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'coupons') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'coupons') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'customers') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'customers') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'price_lists') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'price_lists') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'products') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'products') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'purchase_orders') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'purchase_orders') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'carts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'carts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'customer_addresses') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'customer_addresses') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'customer_contacts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'customer_contacts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'customer_preferences') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'customer_preferences') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'goods_receipts') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'goods_receipts') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'product_variants') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'product_variants') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'cart_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'cart_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'inventory_balances') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'inventory_balances') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'inventory_movements') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'inventory_movements') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'orders') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'orders') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'product_prices') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'product_prices') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'purchase_order_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'purchase_order_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'coupon_redemptions') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'coupon_redemptions') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'goods_receipt_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'goods_receipt_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'order_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'order_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'order_status_history') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'order_status_history') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'payments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'payments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'shipments') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'shipments') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'stock_reservations') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'stock_reservations') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'delivery_events') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'delivery_events') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'payment_transactions') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'payment_transactions') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'shipment_items') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'shipment_items') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'support_tickets') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'support_tickets') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'refunds') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'refunds') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
     union all
-    select 1 from {{ source('legacy', 'ticket_events') }} where _airbyte_generation_id = (select snapshot_id from selecionada)
+    select 1 from {{ source('legacy', 'ticket_events') }} where (_airbyte_meta->>'sync_id')::bigint = (select snapshot_id from selecionada)
 
 )
 

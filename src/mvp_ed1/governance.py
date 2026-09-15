@@ -54,6 +54,18 @@ MIGRACOES: tuple[tuple[str, tuple[str, ...]], ...] = (
             f"create index if not exists ix_legacy_captures_snapshot on {SCHEMA}.legacy_captures (snapshot_id, status)",
         ),
     ),
+    (
+        # A identidade da captura passou a ser o job (`schema.CAPTURA_SQL`),
+        # não a geração do Airbyte, que é por stream. Os certificados já
+        # gravados carregavam a geração; passam a carregar o job — o mesmo
+        # dado que já estava em `job_id`.
+        "0002_snapshot_id_e_o_job",
+        (
+            f"update {SCHEMA}.legacy_captures set snapshot_id = job_id where job_id is not null",
+            f"comment on column {SCHEMA}.legacy_captures.snapshot_id is "
+            "'Identidade da captura = job de sincronização (_airbyte_meta.sync_id); desde 15/09/2026, não a geração, que é por stream.'",
+        ),
+    ),
 )
 
 

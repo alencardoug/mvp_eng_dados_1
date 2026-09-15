@@ -140,7 +140,31 @@ def _tabela_existe(conexao, esquema, nome) -> bool:
     ).scalar_one())
 
 
+def _efeito_liquido(diario: list[dict]) -> dict[tuple[str, str], bool]:
+    """Por (tabela, chave), se a linha **existe** na origem depois da última mutação do diário."""
+    presente: dict[tuple[str, str], bool] = {}
+    for mutacao in diario:
+        tabela = mutacao["tabela"]
+        if mutacao["tipo"] == "remover":
+            for chave in mutacao["chaves"]:
+                if mutacao["linhas_apagadas"]:
+                    presente[(tabela, str(chave))] = False
+        elif mutacao["tipo"] == "inserir":
+            presente[(tabela, str(mutacao["devolvida"][mutacao["chave"]]))] = True
+        elif mutacao["tipo"] == "alterar":
+            presente.setdefault((tabela, str(mutacao["valor_da_chave"])), True)
+    return presente
+
+
 def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, diario, record_property) -> None:
+    """O efeito líquido do diário é o que a memória e o intervalo têm de mostrar.
+
+    O diário atravessa várias capturas: uma chave apagada em B e reposta em D
+    está `mantida` hoje e **fora** da memória — é o comportamento certo, e o
+    teste o cobra assim. Chave cuja última mutação foi remoção precisa estar na
+    memória e não pode aparecer como `adicionada`/`mantida`; chave cuja última
+    mutação foi inserção não pode estar na memória; alteração é `mantida`.
+    """
     with armazem.connect() as conexao:
         if not _tabela_existe(conexao, "trusted", "legacy_capture_transitions"):
             pytest.skip("modelos de exclusão física não construídos")
@@ -159,24 +183,20 @@ def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, dia
         pytest.skip("sem intervalo: a captura selecionada não tem anterior certificada")
 
     por_chave = {(t, k): tr for t, k, tr, *_ in transicoes}
-    anterior, selecionada = transicoes[0][3], transicoes[0][4]
-    record_property("interval", f"{anterior}->{selecionada}")
+    record_property("interval", f"{transicoes[0][3]}->{transicoes[0][4]}")
     faltas = []
-    for mutacao in diario:
-        tabela = mutacao["tabela"]
-        if mutacao["tipo"] == "remover":
-            for chave in mutacao["chaves"]:
-                if mutacao["linhas_apagadas"] and por_chave.get((tabela, chave)) not in ("removida", None):
-                    faltas.append((mutacao["tipo"], tabela, chave, por_chave.get((tabela, chave))))
-                if mutacao["linhas_apagadas"] and (tabela, chave) not in memoria:
-                    faltas.append(("memoria", tabela, chave, None))
-        elif mutacao["tipo"] == "inserir":
-            chave = str(mutacao["devolvida"][mutacao["chave"]])
-            if por_chave.get((tabela, chave)) not in ("adicionada", "mantida"):
-                faltas.append((mutacao["tipo"], tabela, chave, por_chave.get((tabela, chave))))
-        elif mutacao["tipo"] == "alterar":
-            chave = str(mutacao["valor_da_chave"])
-            if por_chave.get((tabela, chave)) not in ("mantida", None):
-                faltas.append((mutacao["tipo"], tabela, chave, por_chave.get((tabela, chave))))
+    for (tabela, chave), presente in _efeito_liquido(diario).items():
+        transicao = por_chave.get((tabela, chave))
+        if presente:
+            if (tabela, chave) in memoria:
+                faltas.append(("presente mas na memória", tabela, chave))
+            if transicao not in ("mantida", "adicionada", None):
+                faltas.append(("presente com transição estranha", tabela, chave, transicao))
+        else:
+            if (tabela, chave) not in memoria:
+                faltas.append(("ausente e fora da memória", tabela, chave))
+            if transicao in ("mantida", "adicionada"):
+                faltas.append(("ausente mas presente no intervalo", tabela, chave, transicao))
     record_property("diary_entries", len(diario))
-    assert not faltas, f"mutações do diário sem a transição esperada: {faltas[:10]}"
+    record_property("net_absent_keys", sum(not p for p in _efeito_liquido(diario).values()))
+    assert not faltas, f"efeito líquido do diário sem correspondência: {faltas[:10]}"

@@ -154,9 +154,10 @@ def _simular_job(armazem, legado, job_id: int, geracao: int, *, tabelas=None) ->
 @pytest.mark.integracao
 def test_governance_e_idempotente_e_versionado(efemeros) -> None:
     _, armazem = efemeros
-    assert governance.garantir(armazem) == ["0001_legacy_captures"]
+    todas = [nome for nome, _ in governance.MIGRACOES]
+    assert governance.garantir(armazem) == todas
     assert governance.garantir(armazem) == []
-    assert governance.versoes(armazem) == ["0001_legacy_captures"]
+    assert governance.versoes(armazem) == todas
 
 
 @pytest.mark.integracao
@@ -168,9 +169,9 @@ def test_duas_fases_certificam_uma_captura_integra_e_sao_idempotentes(efemeros) 
     _simular_job(armazem, legado, job_id=901, geracao=1)
 
     primeira = captura.concluir(legado, armazem, tentativa)
-    assert (primeira["status"], primeira["snapshot_id"], primeira["job_id"]) == (captura.COMPLETE, 1, 901)
+    assert (primeira["status"], primeira["snapshot_id"], primeira["job_id"]) == (captura.COMPLETE, 901, 901)
     assert set(primeira["tabelas"].values()) == {captura.COMPLETE}, "tabelas vazias dos dois lados são completas"
-    assert captura.certificadas(armazem) == [1]
+    assert captura.certificadas(armazem) == [901]
 
     segunda = captura.concluir(legado, armazem, tentativa)  # reenvio da fase 2
     assert segunda == primeira
@@ -257,7 +258,7 @@ def test_tentativa_pendente_e_recuperada_com_o_antes_gravado_ou_abandonada(efeme
     assert estados[interrompida] == captura.COMPLETE, "recuperada a partir do antes gravado"
     assert estados[sem_job] == captura.ABANDONED
     assert estados[nova] == captura.PENDING
-    assert captura.certificadas(armazem) == [6]
+    assert captura.certificadas(armazem) == [906]
 
 
 # ── O que já está retido, somente leitura ────────────────────────────────────

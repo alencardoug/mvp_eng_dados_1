@@ -279,12 +279,24 @@ Duas identidades diferentes, e confundi-las é o erro que este arranjo evita.
 
 | O que identifica | Coluna | Quem escreve |
 |---|---|---|
-| A **captura** | `_airbyte_generation_id`, com `_airbyte_extracted_at` como instante | O destino do Airbyte |
+| A **captura** | `_airbyte_meta.sync_id` — o *job* de sincronização —, com `_airbyte_extracted_at` como instante | O destino do Airbyte |
 | A **ocorrência física** | `legacy_row_id` | O gerador, antes da ingestão |
 
-O `snapshot_id` não precisou ser inventado: o destino já numera cada geração, e o instante vem com
-ela. Acrescentar uma coluna própria para isso criaria uma segunda verdade sobre a mesma captura — e
-a primeira continuaria existindo.
+O `snapshot_id` não precisou ser inventado: o destino já grava em cada linha o *job* que a escreveu,
+e o instante vem com ela. Acrescentar uma coluna própria para isso criaria uma segunda verdade sobre
+a mesma captura — e a primeira continuaria existindo.
+
+**Até 15/09/2026 a identidade era `_airbyte_generation_id`**, e a captura F do plano de fechamento da
+Etapa 10 mostrou por que não podia ser: a geração é **por *stream***. Enquanto os 40 *streams*
+nasceram e sincronizaram juntos os números coincidiam; um *stream* desabilitado e reabilitado pulou
+um número, e no *job* seguinte `coupon_redemptions` estava na geração 23 com as outras 39 na 24 —
+certificado `complete` nas 40 tabelas e nenhuma "geração da captura" para selecionar. O `sync_id` é
+um por sincronização, igual nas quarenta por construção, e é o que o certificado do
+[ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) já usa para provar autoria.
+A expressão vive em um lugar só (`schema.CAPTURA_SQL`); a versão do catálogo avançou para 8 porque
+o que a classificação grava como captura mudou. Leitura do que ficou para trás: as gerações 1–16
+correspondem aos *jobs* 9–26 (a 16 é o *job* 26), e as linhas de quarentena com `catalog_version ≤ 7`
+carregam a geração — são auditoria retida, e a D34 as preserva.
 
 O `legacy_row_id` é do gerador e resolve outro problema: **duas linhas de negócio idênticas
 precisam ser distinguíveis**. Sem ele, a duplicata exata do
@@ -299,7 +311,7 @@ de negócio nas linhas legadas usa o instante do evento, nunca esta coluna. O te
 `legado_event_sequence_e_desempate_tecnico` cobra exatamente o contrato.
 
 **Medido em 05/09/2026:** duas capturas do mesmo conjunto, 12.749 linhas cada, retidas lado a lado
-em `raw_legacy` e separáveis por `_airbyte_generation_id`. Nenhuma sobrescreveu a outra.
+em `raw_legacy` e separáveis pela identidade da captura. Nenhuma sobrescreveu a outra.
 
 Diferente do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação), cuja
 finalidade é restaurar o ambiente, este *snapshot* existe para **linhagem, auditoria e

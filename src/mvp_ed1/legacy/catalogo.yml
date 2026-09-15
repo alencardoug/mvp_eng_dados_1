@@ -53,11 +53,18 @@
 # e a moeda que cabe em dois formatos com valores diferentes é **rejeitada**, em
 # vez de convertida por uma das duas leituras em silêncio (R04).
 #
+# A 8 muda a **identidade da captura** que sai na classificação: `snapshot_id`
+# passa a ser o job de sincronização (`_airbyte_meta.sync_id`), não a geração
+# do Airbyte — a geração é por stream, e um stream reabilitado desalinhou as
+# quarenta (captura F do plano de fechamento da Etapa 10, 15/09/2026). Nenhuma
+# regra de valor mudou; mudou o que o tratamento grava como captura, e isso é
+# resultado diferente sob o mesmo dado.
+#
 # **Quando avançar:** sempre que o tratamento passar a produzir resultado
 # diferente — regra nova, conversão alterada, coluna nova na classificação. É a
 # pergunta que `legacy_versao_do_tratamento_e_univoca` faz em voz alta quando
 # alguém esquece: sob uma versão, um tratamento.
-versao: 7
+versao: 8
 
 # ── Geração desta origem ──────────────────────────────────────────────────────
 # Semente **própria**, distinta da origem principal (Origem Legada §3.2): as

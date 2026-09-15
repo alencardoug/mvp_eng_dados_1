@@ -49,6 +49,16 @@ IDENTIDADE = "legacy_row_id"
 #: Metadados da captura, escritos na ingestão e não pelo gerador.
 COLUNAS_DE_CAPTURA = ("snapshot_id", "snapshot_at", "source_system")
 
+#: A identidade da captura no bruto, em SQL: o **job** de sincronização que o
+#: destino do Airbyte grava em cada linha. Até 15/09/2026 era
+#: `_airbyte_generation_id`, e a captura F do plano da Etapa 10 mostrou que a
+#: geração é **por stream** — um stream desabilitado e reabilitado pula um
+#: número e desalinha as quarenta para sempre. O `sync_id` é um por
+#: sincronização, igual nas quarenta por construção, e é o que o certificado
+#: (ADR-0044) já usa para provar autoria. Declarado uma vez; todo filtro do
+#: bruto passa por aqui.
+CAPTURA_SQL = "(_airbyte_meta->>'sync_id')::bigint"
+
 
 #: Um arquétipo do catálogo pode alcançar mais de um arquétipo de coluna, e a
 #: relação não é simétrica. `DATE_FORMAT_KNOWN` vale para **qualquer** coluna
