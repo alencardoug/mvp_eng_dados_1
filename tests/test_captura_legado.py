@@ -263,32 +263,45 @@ def test_tentativa_pendente_e_recuperada_com_o_antes_gravado_ou_abandonada(efeme
 # ── O que já está retido, somente leitura ────────────────────────────────────
 
 @pytest.mark.integracao
-def test_a_geracao_16_e_integra_e_a_15_nao_contra_o_legado_de_hoje(administradores, record_property) -> None:
-    """Leitura pura: `medir_origem` + `medir_recebido` + `decidir`, sem gravar certificado.
+def test_o_certificado_mais_recente_confere_com_o_bruto_e_a_geracao_15_e_incompleta(administradores, record_property) -> None:
+    """Leitura pura sobre o armazém de trabalho, sem gravar certificado.
 
-    Certificar retroativamente as capturas 1–16 é o que o ADR-0044 proíbe — a
-    origem de hoje não é a de antes. Mas medir hoje o que elas contêm é
-    legítimo, e diz duas coisas: o `legacy_db` corrente **é** o lote da geração
-    16 (job 26), tabela a tabela; e a geração 15 (job 25) é `incomplete` em
-    `brands`, exatamente como o revisor observou.
+    Duas coisas, e nenhuma delas remede a origem de hoje como se fosse a de
+    antes (é o que o ADR-0044 proíbe): (1) a captura certificada **mais
+    recente** ainda bate com o bruto — `decidir` com o antes e o depois
+    **gravados** no certificado e o bruto medido agora dá `complete` nas 40
+    tabelas; (2) a geração 15 (job 25), retida com 39 tabelas, tem conteúdo
+    igual ao da 16 (job 26) em todas menos `brands`, que não veio — é a
+    contraprova que só a certificação por tabela recusa.
     """
-    legado, armazem = administradores
+    _, armazem = administradores
     with armazem.connect() as conexao:
-        existe = conexao.execute(
+        if not conexao.execute(
             text("select count(*) from information_schema.tables where table_schema = 'raw_legacy'")
-        ).scalar_one()
-    if not existe:
-        pytest.skip("sem raw_legacy retido")
-    antes = depois = captura.medir_origem(legado)
+        ).scalar_one():
+            pytest.skip("sem raw_legacy retido")
+        certificados = conexao.execute(
+            text(
+                f"select source_table, job_id, source_rows_before, source_hash_before, "
+                f"source_rows_after, source_hash_after from {captura.TABELA} "
+                f"where status = '{captura.COMPLETE}' and snapshot_id = "
+                f"(select max(snapshot_id) from {captura.TABELA} where status = '{captura.COMPLETE}')"
+            )
+        ).all() if governance.versoes(armazem) else []
+    if len(certificados) != 40:
+        pytest.skip("nenhuma captura certificada ainda")
+    job = certificados[0][1]
+    recebido = captura.medir_recebido(armazem, job)
+    vereditos = {
+        t: captura.decidir(M(na, ha), M(nd, hd), recebido[t]) for t, _, na, ha, nd, hd in certificados
+    }
+    record_property("latest_certified_job", int(job))
+    assert set(vereditos.values()) == {captura.COMPLETE}, {t: v for t, v in vereditos.items() if v != captura.COMPLETE}
 
-    por_job = {}
-    for job in (26, 25):
-        recebido = captura.medir_recebido(armazem, job)
-        if not any(r.geracoes for r in recebido.values()):
-            pytest.skip(f"job {job} não está retido neste armazém")
-        por_job[job] = {t: captura.decidir(antes[t], depois[t], recebido[t]) for t in schema.tabelas()}
-        record_property(f"job_{job}_complete_tables", sum(v == captura.COMPLETE for v in por_job[job].values()))
-
-    assert set(por_job[26].values()) == {captura.COMPLETE}, [t for t, v in por_job[26].items() if v != captura.COMPLETE]
-    assert por_job[25]["brands"] == captura.INCOMPLETE
-    assert sum(v == captura.COMPLETE for v in por_job[25].values()) == 39
+    r15, r16 = captura.medir_recebido(armazem, 25), captura.medir_recebido(armazem, 26)
+    if not any(r.geracoes for r in r16.values()):
+        pytest.skip("gerações 15 e 16 não estão retidas neste armazém")
+    assert r15["brands"].linhas == 0 and r16["brands"].linhas > 0
+    iguais = [t for t in schema.tabelas() if t != "brands" and (r15[t].linhas, r15[t].hash) == (r16[t].linhas, r16[t].hash)]
+    record_property("gen15_tables_equal_to_gen16", len(iguais))
+    assert len(iguais) == 39
