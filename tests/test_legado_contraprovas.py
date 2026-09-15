@@ -161,6 +161,22 @@ def _esperados_do_manifesto(manifesto: dict[str, Any]) -> dict[oraculo.Chave, or
     }
 
 
+def _lote_com_sobreposicao(catalogo):
+    """Uma linha de `warehouses` em que truncamento e espaço à volta casam na mesma célula."""
+    from mvp_ed1.legacy import injetor
+
+    largura = schema.limites(catalogo.limite_de_texto, catalogo.colunas_estreitadas)[("warehouses", "name")]
+    original = "ABCDEFGHIJKLMNOPQRSTU"
+    injetado = "  " + original + " " * (largura - len(original) - 2)
+    linha = {schema.IDENTIDADE: 1, "id": "1", "code": "w1", "name": injetado, "country": "BR"}
+    for coluna in schema.colunas("warehouses"):
+        linha.setdefault(coluna, "2026-01-01T00:00:00-03:00" if coluna.endswith("_at") else ("true" if coluna == "is_active" else f"{coluna}-1"))
+    resultado = injetor.Resultado(linhas={"warehouses": [linha]}, achados=[
+        injetor.Achado("warehouses", 1, "name", "TEXT_WHITESPACE_CASE", original, injetado, injetor.CORRIGIDO, original)
+    ])
+    return resultado
+
+
 def test_a_defeito_deliberado_no_oraculo_diverge_do_manifesto(lote, manifesto, monkeypatch) -> None:
     catalogo, resultado, _ = lote
     gravado = _esperados_do_manifesto(manifesto)
@@ -179,13 +195,20 @@ def test_a_defeito_deliberado_no_oraculo_diverge_do_manifesto(lote, manifesto, m
     assert campos["classification"] > 0 and campos["achados"] > 0, campos
     monkeypatch.setattr(oraculo, "contrato", integro)
 
-    # Defeito 2: a precedência do catálogo invertida — a última regra declarada vence.
+    # Defeito 2: a precedência do catálogo invertida — a última regra declarada
+    # vence. O lote gerado não tem sobreposição entre regras numa mesma coluna
+    # (inverter produz zero divergências nele — RV10-2-09), então a prova usa a
+    # sobreposição literal de RV10-06: espaços que levam `warehouses.name` à
+    # largura antiga. Com a ordem certa, `TEXT_TRUNCATED` rejeita; invertida,
+    # `TEXT_WHITESPACE_CASE` corrige — e a comparação tem de acusar.
     invertido = list(catalogo.falhas.items())[::-1]
     catalogo_mutado = type(catalogo)(**{**catalogo.__dict__, "falhas": dict(invertido)})
-    divergencias = oraculo.comparar(oraculo.esperar(catalogo_mutado, resultado), gravado)
-    assert any(d.campo == "achados" for d in divergencias) or divergencias == [], (
-        "com precedência invertida o lote sem sobreposição pode não mudar; o que não pode é mudar sem acusar"
-    )
+    assert oraculo.comparar(oraculo.esperar(catalogo_mutado, resultado), gravado) == [], "o lote não distingue as ordens"
+    sobreposto = _lote_com_sobreposicao(catalogo)
+    certo = oraculo.esperar(catalogo, sobreposto)
+    assert certo[("warehouses", 1)].classification == oraculo.REJECTED
+    divergencias = oraculo.comparar(oraculo.esperar(catalogo_mutado, sobreposto), certo)
+    assert {d.campo for d in divergencias} >= {"classification", "achados"}, divergencias
 
     # Defeito 3: o defeito próprio deixa de vencer o excedente na origem da rejeição.
     monkeypatch.setattr(oraculo, "OWN_INVALID", oraculo.DUPLICATE_EXCESS)
@@ -284,6 +307,8 @@ def test_b_a_limpeza_compilada_concorda_com_o_oraculo(armazem, lote, manifesto, 
         ("customers", ("then 'TEXT_WHITESPACE_CASE'", "then 'TEXT_ENCODING'"), "achados"),
         ("customers", ("regexp_replace(btrim(", "regexp_replace(("), "valor"),
         ("orders", ("then 'MONEY_NEGATIVE'", "then null"), "achados"),
+        # RV10-2-08: inteiro corrompido em fração — `244.9` não é a recuperação de `244`
+        ("purchase_order_items", ('\n    l."quantity_ordered",', '\n    l."quantity_ordered" || \'.9\' as "quantity_ordered",'), "valor"),
     ],
 )
 def test_b_defeito_deliberado_no_sql_compilado_e_acusado(armazem, lote, manifesto, tabela, mutacao, campo) -> None:

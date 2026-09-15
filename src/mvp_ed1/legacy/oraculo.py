@@ -491,7 +491,10 @@ def mesmo_valor(esperado: Any, obtido: Any, tipo: type) -> bool:
         return esperado is None and obtido is None
     try:
         if tipo is int:
-            return int(Decimal(esperado)) == int(Decimal(obtido))
+            # Sem truncar: `244.9` não é a recuperação de `244` (RV10-2-08). O
+            # valor tem de ser numericamente igual **e** inteiro.
+            valor = Decimal(obtido)
+            return valor == valor.to_integral_value() and Decimal(esperado) == valor
         if tipo in (Decimal, float):
             return Decimal(esperado) == Decimal(obtido)
         if tipo is bool:
