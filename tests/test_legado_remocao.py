@@ -113,6 +113,23 @@ def test_inserir_e_alterar_registram_antes_e_depois(legado_efemero, manifesto_te
         mutacoes.inserir(legado_efemero, "brands", {"nao_existe": "x"}, manifesto=manifesto_temporario)
 
 
+def test_o_diario_registra_a_multiplicidade_canonica_depois_do_commit(legado_efemero, manifesto_temporario) -> None:
+    """RV10-2-06/07: apagar um alias não remove a chave; alterar a PK move a identidade."""
+    # A semente tem `'08'`; `'8'` entra como segunda representação da mesma chave canônica.
+    mutacoes.inserir(legado_efemero, "brands", {"id": "8", "code": "b8b", "name": "Oito bis"}, manifesto=manifesto_temporario)
+    alias = mutacoes.remover(legado_efemero, "brands", chaves=["08"], manifesto=manifesto_temporario)
+    assert alias["linhas_apagadas"] == 1 and alias["restantes_apos_commit"] == 0, "a igualdade textual não vê `'8'`"
+    assert alias["presenca_apos_commit"] == {"8": 1}, "a chave canônica 8 sobrevive: é redução, não remoção"
+
+    pk = mutacoes.alterar(legado_efemero, "brands", "1", "id", "2", manifesto=manifesto_temporario)
+    assert pk["devolvidas"] == [{"legacy_row_id": 1, "valor": "2"}]
+    # `'2'` já existia (Bravo): a chave canônica 2 passa a ter duas linhas físicas.
+    assert pk["presenca_apos_commit"] == {"1": 0, "2": 2}
+
+    diario = json.loads(manifesto_temporario.resolve().read_text(encoding="utf-8"))["mutacoes"]
+    assert mutacoes.efeito_liquido(diario) == {("brands", "8"): True, ("brands", "1"): False, ("brands", "2"): True}
+
+
 def test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu() -> None:
     """Remoção parcial, alteração sem correspondência e chave por extenso (RV10-10)."""
     diario = [
@@ -139,6 +156,17 @@ def test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu() ->
         ("brands", "2"): True,
         ("brands", "9"): True,
     }
+
+    # Com `presenca_apos_commit` (entradas de 15/09 em diante) vale a multiplicidade confirmada,
+    # não o RETURNING: o alias apagado deixa a chave presente; a PK alterada move a identidade.
+    diario_novo = [
+        {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["08"],
+         "devolvidas": [{"legacy_row_id": 3, "id": "08"}], "linhas_apagadas": 1, "presenca_apos_commit": {"8": 1}},
+        {"tipo": "alterar", "tabela": "brands", "chave": "id", "valor_da_chave": "1", "coluna": "id",
+         "antes": [{"legacy_row_id": 1, "valor": "1"}], "devolvidas": [{"legacy_row_id": 1, "valor": "2"}],
+         "presenca_apos_commit": {"1": 0, "2": 1}},
+    ]
+    assert mutacoes.efeito_liquido(diario_novo) == {("brands", "8"): True, ("brands", "1"): False, ("brands", "2"): True}
 
 
 @pytest.mark.parametrize(

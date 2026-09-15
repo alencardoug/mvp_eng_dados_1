@@ -44,11 +44,16 @@ def _gravar(alvo: pathlib.Path, manifesto: dict[str, Any]) -> None:
 def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
     """Por `(tabela, chave canônica)`, se a linha **existe** na origem depois da última mutação.
 
-    Deriva **do que o banco devolveu** (`RETURNING`), nunca do que se pediu: uma
-    remoção que pediu `1` e `999` e só devolveu `1` deixa `999` fora do efeito —
-    o diário não sabe se `999` existia. A chave é canonizada pelo tipo da PK,
-    como `legacy_capture_transitions` a grava: `08` apagado é a chave `8`.
-    Alteração que não devolveu linha não diz nada sobre presença (RV10-10).
+    Deriva do que o banco **confirmou depois do commit**: cada mutação grava
+    `presenca_apos_commit` — quantas linhas físicas restam para cada chave
+    canônica que ela tocou (a antiga e a nova, quando a PK muda). É a
+    multiplicidade do ADR-0045: apagar só `'08'` com `'8'` sobrevivente reduz a
+    chave `8`, não a remove (RV10-2-07); alterar a PK de `'1'` para `'2'` deixa
+    `1` ausente e `2` presente (RV10-2-06). Chave sem identidade não entra.
+
+    Entradas anteriores a 15/09/2026 (noite) não têm o campo: para elas vale o
+    que o `RETURNING` devolveu, com a chave canonizada — a leitura que RV10-10
+    corrigiu e que estas duas contraprovas mostraram incompleta.
     """
     presente: dict[tuple[str, str], bool] = {}
 
@@ -63,7 +68,10 @@ def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
 
     for mutacao in diario:
         tabela, coluna = mutacao["tabela"], mutacao["chave"]
-        if mutacao["tipo"] == "remover":
+        if "presenca_apos_commit" in mutacao:
+            for chave, restantes in mutacao["presenca_apos_commit"].items():
+                presente[(tabela, chave)] = restantes > 0
+        elif mutacao["tipo"] == "remover":
             for linha in mutacao["devolvidas"]:
                 registrar(tabela, linha[coluna], False)
         elif mutacao["tipo"] == "inserir":
@@ -71,6 +79,26 @@ def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
         elif mutacao["tipo"] == "alterar" and mutacao["devolvidas"]:
             registrar(tabela, mutacao["valor_da_chave"], True, sobrescreve=False)
     return presente
+
+
+def _presenca_canonica(engine: Engine, tabela: str, brutas: list[str | None]) -> dict[str, int]:
+    """Depois do commit: quantas linhas físicas restam para cada chave canônica de `brutas`.
+
+    Lê a coluna da PK inteira e canoniza em Python (`remocao.canonizar`, o
+    espelho da macro): a igualdade textual da CLI não vê que `'8'` e `'08'`
+    são a mesma chave, e é a chave canônica que o intervalo compara.
+    """
+    coluna, tipo = remocao.chave(tabela)
+    alvo = {c for c in (remocao.canonizar(b, tipo) for b in brutas) if c is not None}
+    if not alvo:
+        return {}
+    contagem = {c: 0 for c in alvo}
+    with engine.connect() as conexao:
+        for (valor,) in conexao.execute(text(f'select "{coluna}" from {schema.SCHEMA}."{tabela}"')):
+            canonica = remocao.canonizar(valor, tipo)
+            if canonica in contagem:
+                contagem[canonica] += 1
+    return contagem
 
 
 def aptas(manifesto: dict[str, Any], tabela: str) -> list[int]:
@@ -143,6 +171,7 @@ def remover(
         "devolvidas": devolvidas,
         "linhas_apagadas": len(devolvidas),
         "restantes_apos_commit": int(restantes),
+        "presenca_apos_commit": _presenca_canonica(engine, tabela, [linha[coluna] for linha in devolvidas]),
         "hash_antes": antes,
         "hash_depois": depois,
         "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -176,9 +205,11 @@ def inserir(engine: Engine, tabela: str, valores: dict[str, Any], *, manifesto: 
             ).mappings().one()
         )
     depois = _hash(engine, tabela)
+    coluna_pk = remocao.chave(tabela)[0]
     registro = {
-        "tipo": "inserir", "tabela": tabela, "chave": remocao.chave(tabela)[0],
+        "tipo": "inserir", "tabela": tabela, "chave": coluna_pk,
         "devolvida": devolvida, "hash_antes": antes, "hash_depois": depois,
+        "presenca_apos_commit": _presenca_canonica(engine, tabela, [devolvida[coluna_pk]]),
         "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
     oraculo["mutacoes"].append(registro)
@@ -214,9 +245,12 @@ def alterar(
             ).mappings()
         ]
     depois = _hash(engine, tabela)
+    # A antiga e, se a própria PK mudou, a nova: as duas entram na presença.
+    tocadas = [chave] + ([linha["valor"] for linha in devolvidas] if coluna == pk else [])
     registro = {
         "tipo": "alterar", "tabela": tabela, "chave": pk, "valor_da_chave": chave, "coluna": coluna,
         "antes": anteriores, "devolvidas": devolvidas, "hash_antes": antes, "hash_depois": depois,
+        "presenca_apos_commit": _presenca_canonica(engine, tabela, tocadas),
         "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
     oraculo["mutacoes"].append(registro)
