@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.10 |
-| Última revisão | 06/09/2026 |
+| Versão | 1.11 |
+| Última revisão | 14/09/2026 |
 
 ---
 
@@ -322,6 +322,7 @@ no caminho.
 |---|---|
 | `oltp` → `raw` | Contagem por tabela e por lote |
 | `raw_legacy` → tratamento | `extraídos = aceitos + corrigidos + rejeitados` |
+| `raw_legacy` captura anterior → selecionada | `linhas(anterior) − Σ max(0, n_ant − n_sel) + Σ max(0, n_sel − n_ant) + Δ sem_identidade = linhas(selecionada)`, por tabela, em linhas físicas — só entre capturas certificadas ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md), [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) |
 | `staging` → `trusted` | Contagem e regras aplicadas, com rejeições rastreáveis |
 | Livro de entrega ↔ coluna da remessa | Toda remessa que a origem projeta como entregue tem evento `delivered`; a que não tem fica em `quarantine` com motivo ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)) |
 | `trusted` → `analytics` | Grão declarado e medidas somadas |

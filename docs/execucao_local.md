@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.7 |
+| Versão | 1.8 |
 | Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
-| Última revisão | 05/09/2026 |
+| Última revisão | 14/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -66,7 +66,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 4 | `make seed-legacy` | Gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
 | 4b | `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
 | 4c | `make legacy-catalogo` | Imprime o catálogo de falhas em português, para revisão sem abrir o YAML | Etapa 10 |
-| 4d | `make sync-legacy` | Captura o legado em `raw_legacy`; cada execução acrescenta um snapshot | Etapa 10 |
+| 4d | `make sync-legacy` | Captura o legado em `raw_legacy` e a **certifica** em `governance.legacy_captures` (duas fases, [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)); cada execução acrescenta um snapshot | Etapa 10 |
 | 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
 | 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
 | 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |

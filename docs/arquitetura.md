@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.4 |
+| Versão | 2.5 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 08/09/2026 |
+| Última revisão | 14/09/2026 |
 
 ---
 
@@ -104,7 +104,9 @@ Regras válidas para todas as camadas:
 - nenhuma camada é editada manualmente; correções nascem de código versionado;
 - nenhum registro é descartado em silêncio — o que não passa vai para `quarantine` com motivo;
 - `governance` e `snapshots` ficam **fora do fluxo**: nenhum modelo de `analytics` ou `consumption`
-  lê de `governance`, sob pena de a auditoria virar entrada do que ela audita.
+  lê de `governance`, sob pena de a auditoria virar entrada do que ela audita. A única exceção,
+  delimitada pelo [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md): os modelos
+  do legado leem `governance.legacy_captures` **só** para saber se uma captura é elegível.
 
 ---
 
@@ -187,6 +189,8 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Destino do caminho quente | Tabela em `raw` ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) | Tabela no dataset `raw`, por *streaming inserts* |
 | Controle de acesso | *Roles* e *grants* do PostgreSQL | IAM por dataset + *policy tags*, aplicadas a partir do YAML por fluxo automatizado ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) |
 | Catálogo e linhagem | `.yml` do dbt + `dbt docs` | Os mesmos `.yml` publicados no Dataplex |
+| Certificado de captura do legado | `governance.legacy_captures`, escrita em duas fases por `mvp_ed1.airbyte` ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | Tabela homônima no *dataset* `governance`, mesmo módulo, carga em *staging* + `MERGE` pela chave `(tentativa, tabela)` |
+| Exclusão física do legado | Comparação entre capturas certificadas em `raw_legacy`, por PK declarada canonizada pelo tipo ([ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) | A mesma comparação entre partições por `snapshot_at`, com `SAFE_CAST` aos mesmos tipos |
 | Versionamento de schema | Migrações versionadas | As mesmas migrações + DDL versionado |
 | Infraestrutura | Docker Compose | Terraform |
 | Segredos | `.env` local | Secret Manager |

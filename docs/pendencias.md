@@ -13,7 +13,7 @@
 | Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 — D36 |
-| Última revisão | 08/09/2026 |
+| Última revisão | 14/09/2026 |
 
 ---
 
@@ -62,6 +62,35 @@ física), R12 (migração Alembic do schema legado) e R13 (oráculo independente
 ---
 
 ## 2. Decisões já fechadas
+
+### D39 — decidida em 14/09/2026, em três rodadas
+
+**A exclusão física do legado é detectada só no bruto retido, pela PK declarada por tabela e
+canonizada pelo tipo, entre capturas certificadas, em dois modelos de `trusted` (memória e
+intervalo) — e nenhuma dimensão recebe marca por isso.** Fechada pelo
+[ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md), que registra o custo
+aceito: o datamart não retém o membro removido — a memória é o bruto e a tabela de auditoria —, e a
+comparação cumulativa cresce com o número de capturas.
+
+As duas primeiras formas (aptos entre capturas; marca `is_deleted` por `hard_deletes` nos
+*snapshots*) foram descartadas pelas consequências que a revisão do plano mostrou (P03/P04/P12,
+P14/P24–P27) e pela constatação de que, sob os ADRs 0038 e 0042, a remoção já cascateia para fora
+das fatos — a marca não protegeria integridade. O ADR-0042 fica **confirmado**.
+
+### D41 — decidida em 14/09/2026
+
+**Toda captura do legado é certificada por conteúdo, por *stream* e por *job*, em duas fases, em
+`governance.legacy_captures`; só captura `complete` nas 40 tabelas é elegível.** Fechada pelo
+[ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md), que registra o custo aceito:
+uma exceção **delimitada** ao [ADR-0023](adr/0023-escopo-do-schema-governance.md) — o fluxo lê uma
+tabela de `governance`, só para elegibilidade —, e o contrato `sync_id = job_id` fixado por teste na
+versão instalada do Airbyte.
+
+Levantada e decidida no mesmo dia, no plano de fechamento da Etapa 10 (achado R09 da terceira
+revisão, e P01, P02, P15 e P30 das revisões do plano). O que a motivou, medido em 14/09/2026: a
+geração 15 retida tem 39 tabelas e o *job* dela terminou `succeeded` com `rowsSynced` exato — máximo
+e total a aceitariam; e contagem não vê alteração sem mudança de contagem nem perda compensada por
+duplicata.
 
 ### D38 — decidida em 08/09/2026
 

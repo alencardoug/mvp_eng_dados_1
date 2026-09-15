@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.6 |
+| Versão | 2.8 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 08/09/2026 |
+| Última revisão | 14/09/2026 |
 
 ---
 
@@ -306,21 +306,27 @@ reprocessa. Os 40 modelos de limpeza leem esse valor em vez de cada um tomar o m
 tabela — que parecia equivalente e não é. A tabela que não vem numa carga tem o seu máximo na
 geração **anterior**, e serviria linhas velhas ao lado das novas sem que nada acusasse a mistura.
 
-Que a captura escolhida exista e esteja completa **não é assumido**:
+Que a captura escolhida exista e seja **íntegra** não é assumido — e, desde o
+[ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) (14/09/2026), "íntegra" é
+**certificada**, não inferida do bruto:
 
 | Teste | O que afirma | O que ele separa |
 |---|---|---|
 | `legacy_captura_existe` | A geração selecionada está em `raw_legacy` | Pipeline correto de pipeline **vazio** — um `legacy_snapshot_id` inexistente selecionava zero linhas nas 40 origens, e nada falhava |
-| `legacy_captura_completa` | Todas as 40 tabelas têm linha na geração selecionada | Tabela **legitimamente vazia** de captura **ausente ou incompleta**, que no bruto são a mesma coisa: zero linhas |
+| `legacy_captura_completa` | A geração selecionada tem certificado `complete` nas 40 tabelas em `governance.legacy_captures`, e as contagens do bruto conferem com ele | Captura **íntegra** de captura anterior reutilizada, instável (a origem mudou durante o *job*), incompleta (tabela ou conteúdo faltando) ou inconsistente (linhas de outro *job* na mesma geração) |
 
-A segunda distinção é declarada, não inferida: as 40 tabelas do legado têm dado, e a exceção — se um
-dia uma delas legitimamente esvaziar — tem nome em `VAZIAS_LEGITIMAS`, no gerador.
+O certificado nasce em duas fases, em volta de cada sincronização: **antes** do *job*, contagem e
+hash de conteúdo de cada tabela na origem; **depois**, a origem de novo e o bruto da geração, com
+`_airbyte_meta.sync_id` conferido linha a linha contra o `jobId`. Tabela com zero na origem e zero
+no bruto é completa — "legitimamente vazia" passou a ser medida, e a lista `VAZIAS_LEGITIMAS`
+deixou de existir. A geração **15**, retida com 39 tabelas e *job* `succeeded`, é o caso que só o
+certificado recusa. As capturas 1–16 não têm certificado nem podem ter: não são elegíveis como
+"anterior certificada" para a detecção de exclusão física.
 
-Na DAG, a escolha viaja da sincronização para todas as tarefas de dbt como `legacy_snapshot_id`.
-Sem isso, cada uma das sete invocações reabriria a escolha, e uma carga que chegasse no meio faria
-camadas vizinhas lerem capturas diferentes. **O que a DAG não prova** é que a geração observada seja
-a que aquela sincronização escreveu: o Airbyte não expõe a correspondência entre o `jobId` e o
-`_airbyte_generation_id`. Quem sustenta a afirmação são os dois testes acima.
+Na DAG, a escolha viaja da sincronização para todas as tarefas de dbt como `legacy_snapshot_id`, e
+é o `snapshot_id` **do certificado `complete`** — `geracao_do_legado` falha se o *job* não produziu
+um. Sem isso, cada uma das sete invocações reabriria a escolha, e uma carga que chegasse no meio
+faria camadas vizinhas lerem capturas diferentes. `make sync-legacy` passa pelas mesmas duas fases.
 
 ---
 
@@ -440,9 +446,25 @@ dois são invisíveis numa fato que nasceu de reconstrução completa, e é por 
 
 **Exclusões.** Diferente da origem principal, que pratica *soft delete*, o legado **apaga
 fisicamente** — é o comportamento verossímil de um sistema antigo. A ausência é detectada por
-comparação contra o *snapshot* anterior, que é possível porque `raw_legacy` é imutável e retido
+comparação contra as capturas anteriores, que é possível porque `raw_legacy` é imutável e retido
 ([ADR-0015](adr/0015-sincronizacao-e-exclusoes.md)). Registro que desaparece sem explicação é
 divergência de reconciliação, nunca resultado.
+
+Como se detecta, desde o [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)
+(14/09/2026): **só no bruto**, pela chave primária declarada por tabela (`id` em 39, `movement_id`
+na 40ª), canonizada pelo tipo — chave nula ou não conversível é `sem identidade`, contada à parte —,
+e só entre capturas **certificadas** ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)).
+Dois modelos em `trusted` respondem duas perguntas diferentes:
+
+| Modelo | Pergunta | O que guarda |
+|---|---|---|
+| `legacy_removed_records` | O que já sumiu e não voltou? — **memória** | Toda chave presente em alguma certificada anterior e ausente na selecionada: `last_seen_snapshot_id`, `removed_in_snapshot_id`, último payload bruto. Persiste por construção; sai quando a chave reaparece. Não entra em equação |
+| `legacy_capture_transitions` | O que mudou entre a anterior certificada e esta? — **intervalo** | Por chave, com multiplicidade: `removida`, `adicionada`, `reduzida`, `aumentada`, `mantida`; `sem identidade` por lado. É o que fecha a equação em linhas físicas, a cada *build* |
+
+**Nenhuma dimensão recebe marca por isso** — decisão do Owner, e a razão está no ADR: sob a cascata
+do ADR-0038 e o `delete+insert` do ADR-0042, a remoção já retira do datamart tudo o que dependia do
+registro; a memória é o bruto retido e a tabela de auditoria, não `dim_customer`. Rejeição nova sem
+remoção **não** é remoção: a chave é `mantida`, e a perda de aptidão aparece na classificação.
 
 ---
 

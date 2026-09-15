@@ -983,7 +983,7 @@ commits mudou somente o plano, não código ou ADR aceito.
 ~~~text
 186d8d7d6af1095c173e53b60b4b249c21c0b340
 PLANO_fechamento_etapa_10.md
-docs/adr/0037-reter-capturas-do-legado-por-acrescimo.md:40:| Snapshot pelo banco, fora do Airbyte | Controle total sobre o instante e a consistência entre tabelas | Acrescenta um componente ao fluxo, contra a regra 5 do [`CLAUDE.md`](../../CLAUDE.md), para resolver o que a ferramenta já resolve. E cria um segundo caminho de ingestão que o `streams.yml` não descreve — a declaração deixaria de ser única |
+docs/adr/0037-reter-capturas-do-legado-por-acrescimo.md:40:| Snapshot pelo banco, fora do Airbyte | Controle total sobre o instante e a consistência entre tabelas | Acrescenta um componente ao fluxo, contra a regra 5 do [`CLAUDE.md`](CLAUDE.md), para resolver o que a ferramenta já resolve. E cria um segundo caminho de ingestão que o `streams.yml` não descreve — a declaração deixaria de ser única |
 docs/adr/0029-exclusao-logica-como-marca-na-dimensao.md:59:2. `trusted` e as **dimensões preservam todos os membros**, excluídos inclusive, marcados com
 docs/adr/0017-chaves-substitutas-e-scd.md:39:Cada fato carrega a chave substituta **vigente no instante do evento**, resolvida por *join*
 docs/adr/0007-catalogo-como-codigo.md:23:| Contêiner de catálogo local (OpenMetadata, DataHub) | Interface rica desde o início | Contêiner pesado — agrava o risco **R11**; metadados fora do versionamento; sem contrapartida direta no fluxo de migração |
@@ -1091,7 +1091,7 @@ docs/adr/0029-exclusao-logica-como-marca-na-dimensao.md:60:   `is_deleted`. Uma 
 docs/adr/0017-chaves-substitutas-e-scd.md:39:Cada fato carrega a chave substituta **vigente no instante do evento**, resolvida por *join*
 docs/adr/0023-escopo-do-schema-governance.md:55:  dbt; e o schema precisa ser mantido **fora** do fluxo de dados — nenhum modelo de `analytics` pode
 docs/adr/README.md:20:3. Um ADR aceito **nunca é apagado nem reescrito**. Se for revertido, passa a `Substituída` e o
-docs/adr/README.md:22:4. Toda *mudança relevante*, no sentido do [Termo de Abertura](../../Abertura_de_projeto.md), exige
+docs/adr/README.md:22:4. Toda *mudança relevante*, no sentido do [Termo de Abertura](Abertura_de_projeto.md), exige
 docs/adr/README.md:24:5. Todo ADR declara a sua **contrapartida na fase GCP**. Decisão sem equivalente na nuvem não é
 src/mvp_ed1/legacy/catalogo.yml:327:  NULL_REQUIRED:
 src/mvp_ed1/legacy/catalogo.yml:332:    deteccao: Campo obrigatório permanece nulo após a limpeza, inclusive nulo recebido sem marcador.

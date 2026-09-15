@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D36** — o dimensionamento da Etapa 12 |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 43 aceitos, 1 pendente |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 45 aceitos, 1 pendente |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.7 — reconstrução dos dois caminhos conferida |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**43 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**45 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -67,7 +67,10 @@ realizada tirada do livro de eventos, e não da coluna da remessa · **dimensão
 recorta não é construída**, e a recompra pós-atendimento é ancorada no pedido · **nulo obrigatório
 após a limpeza é rejeitado**, sem apagar a evidência da conversão · **a captura legada é
 reconciliada na fato incremental por `delete+insert`**, com o *streaming* mantendo o filtro por
-tempo de evento.
+tempo de evento · **cada captura do legado é certificada por conteúdo, por *stream* e por *job***,
+e só captura certificada é elegível · **a exclusão física do legado é detectada no bruto retido**,
+entre capturas certificadas, sem marca nas dimensões — a cascata e o `delete+insert` já retiram do
+datamart o que dependia do registro.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 

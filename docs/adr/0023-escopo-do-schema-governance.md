@@ -7,6 +7,12 @@
 | Decisor | Owner principal |
 | Decisão pendente resolvida | D14 |
 
+> **Nota — 14/09/2026.** O [ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md)
+> abre uma **exceção delimitada** à consequência negativa abaixo ("nenhum modelo pode ler dele"): os
+> modelos do legado leem **uma** tabela deste schema, `legacy_captures`, e só para responder se uma
+> captura é elegível. Reconciliação, índice de quarentena e classificação aplicada continuam fora do
+> fluxo. Esta decisão não é reescrita; a exceção vive lá, com o seu custo.
+
 ## Contexto
 
 O [ADR-0008](0008-schemas-do-armazem.md) fixou sete schemas e deixou `governance` **fora**, com o

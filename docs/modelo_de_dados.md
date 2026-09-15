@@ -13,9 +13,9 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.7 |
+| Versão | 1.8 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
-| Última revisão | 05/09/2026 |
+| Última revisão | 14/09/2026 |
 
 As contagens de linhas são a **proporção de referência**, não resultados medidos e não compromissos
 de tamanho: elas fixam a razão entre as tabelas, que é o que dá realismo ao domínio. O volume
@@ -805,12 +805,12 @@ O `warehouse_db` concentra as camadas analíticas, fixadas em
 | `raw` | Réplicas geradas pelo Airbyte a partir de `oltp` | Até 40 |
 | `raw_legacy` | Réplica do *snapshot* imutável de `legacy` | Até 40 |
 | `staging` | `view` | Até 80 |
-| `trusted` | `table` | Variável |
+| `trusted` | `table`; inclui `legacy_removed_records` e `legacy_capture_transitions`, a memória e o intervalo da exclusão física do legado ([ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) | Variável |
 | `analytics` | `table`, com `fact_inventory_movement` em `incremental` | 26 |
 | `consumption` | `view`, uma por pergunta de negócio, com `contract: enforced` | Uma por pergunta ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
 | `snapshots` | `dbt snapshot` das sete dimensões SCD tipo 2 | 7 |
 | `quarantine` | Registro genérico de rejeições, com motivo do catálogo do legado | 1 |
-| `governance` | Log de execução, reconciliação, quarentena e classificação aplicada ([ADR-0023](adr/0023-escopo-do-schema-governance.md)) | 4 conjuntos |
+| `governance` | Log de execução, reconciliação, quarentena e classificação aplicada ([ADR-0023](adr/0023-escopo-do-schema-governance.md)); a primeira tabela é `legacy_captures`, o certificado por *stream* de cada captura do legado ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | 4 conjuntos |
 
 Somando origens e armazém, o projeto prevê **até 187 tabelas persistidas conhecidas**. A contagem
 não inclui views, tabelas internas do Airbyte nem artefatos técnicos do dbt — e, como `staging` e

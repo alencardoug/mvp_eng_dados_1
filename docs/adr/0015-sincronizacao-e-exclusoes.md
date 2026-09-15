@@ -7,6 +7,12 @@
 | Decisor | Owner principal |
 | Decisão pendente resolvida | D20, D21 |
 
+> **Nota de referência — 14/09/2026.** A detecção de exclusão física do legado prometida abaixo ("a
+> ausência é detectada por reconciliação contra o *snapshot* anterior") ganhou forma no
+> [ADR-0045](0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md): comparação entre capturas
+> **certificadas** ([ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md)), pela chave
+> primária declarada por tabela, em dois modelos de `trusted`. Esta decisão não muda.
+
 ## Contexto
 
 O Airbyte precisa de um modo de sincronização por tabela, e as 40 tabelas transacionais não têm a
