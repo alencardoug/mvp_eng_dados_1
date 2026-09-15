@@ -6,6 +6,9 @@ conexão sai do ambiente, carregado do `.env` (regra inviolável 1).
     plan       mostra o que seria gerado e injetado, sem tocar no banco
     manifesto  recalcula o manifesto do lote determinístico, sem tocar no banco
     seed       gera, injeta, carrega em `legacy_db` e escreve o manifesto
+    remover    apaga linhas de negócio por chave e grava no diário o que o banco devolveu
+    inserir    insere uma linha de negócio (JSON) e grava o que o banco devolveu
+    alterar    altera uma célula de uma linha de negócio e grava antes e depois
 """
 
 from __future__ import annotations
@@ -107,7 +110,38 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("manifesto", help="recalcula o manifesto do lote determinístico, sem banco")
     semear = sub.add_parser("seed")
     semear.add_argument("--force", action="store_true", help="trunca o legado antes de carregar")
+    remover = sub.add_parser("remover", help="apaga linhas de negócio e grava o diário (ADR-0045)")
+    remover.add_argument("--tabela", required=True)
+    remover.add_argument("--chaves", nargs="*", help="chaves de negócio explícitas")
+    remover.add_argument("--quantidade", type=int, help="N ocorrências aptas, escolhidas pelo oráculo")
+    inserir = sub.add_parser("inserir", help="insere uma linha de negócio e grava o diário")
+    inserir.add_argument("--tabela", required=True)
+    inserir.add_argument("--valores", required=True, help='JSON com as colunas, ex. \'{"id": "9001", "code": "b9001"}\'')
+    alterar = sub.add_parser("alterar", help="altera uma célula de uma linha e grava o diário")
+    alterar.add_argument("--tabela", required=True)
+    alterar.add_argument("--chave", required=True, help="valor da chave de negócio")
+    alterar.add_argument("--coluna", required=True)
+    alterar.add_argument("--valor", help="novo valor; omitido = nulo")
     args = parser.parse_args(argv)
+
+    if args.comando in ("remover", "inserir", "alterar"):
+        import json
+
+        from mvp_ed1.legacy import mutacoes
+
+        engine = create_engine(database_url(LEGACY))
+        if args.comando == "remover":
+            registro = mutacoes.remover(engine, args.tabela, chaves=args.chaves, quantidade=args.quantidade)
+            print(f"removidas {registro['linhas_apagadas']} linhas de {args.tabela} ({registro['chave']} in {registro['chaves']}); "
+                  f"restantes após commit: {registro['restantes_apos_commit']}")
+        elif args.comando == "inserir":
+            registro = mutacoes.inserir(engine, args.tabela, json.loads(args.valores))
+            print(f"inserida em {args.tabela}: legacy_row_id {registro['devolvida']['legacy_row_id']}")
+        else:
+            registro = mutacoes.alterar(engine, args.tabela, args.chave, args.coluna, args.valor)
+            print(f"alteradas {len(registro['devolvidas'])} linhas de {args.tabela}.{args.coluna} onde {registro['chave']} = {args.chave}")
+        print(f"hash de {args.tabela}: {registro['hash_antes']['hash'][:12]} → {registro['hash_depois']['hash'][:12]}; diário atualizado")
+        return 0 if "erro" not in registro else 1
 
     if args.comando == "catalogo":
         _catalogo(carregar())
@@ -140,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         escritos.extend(ponte.gerar())
         escritos.extend(ponte.gerar_testes())
+        from mvp_ed1.legacy import remocao
+
+        escritos.extend(remocao.gerar())
         print(f"{len(escritos)} modelos e a declaração de fontes em {dbt.DESTINO}/")
         return 0
 

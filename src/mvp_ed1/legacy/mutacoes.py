@@ -1,0 +1,192 @@
+"""Mutações na origem legada **depois** da carga — com diário do que o banco devolveu.
+
+Provar a detecção de exclusão física (ADR-0045) exige apagar, inserir e alterar
+linhas em `legacy_db` entre duas capturas. Quem faz isso precisa deixar um
+esperado **independente** da transformação: não "o que pretendia apagar", mas
+o que o `DELETE … RETURNING` devolveu, confirmado depois do `commit`, e o hash
+de conteúdo da tabela antes e depois — é isso que o diário `mutacoes` do
+manifesto guarda, e é dele que os testes de integração tiram o que esperar de
+`legacy_capture_transitions` e `legacy_removed_records`.
+
+A escolha das chaves a remover é do oráculo quando não é explícita: entre as
+ocorrências **aptas** da tabela no manifesto, as primeiras N em ordem física.
+Remover uma rejeitada não provaria nada — ela já não estava no datamart.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import pathlib
+from typing import Any
+
+from sqlalchemy import Engine, text
+
+from mvp_ed1.legacy import conteudo, remocao, schema
+
+MANIFESTO = pathlib.Path("data/legacy/manifesto.json")
+
+
+def _ler(caminho: pathlib.Path) -> tuple[pathlib.Path, dict[str, Any]]:
+    alvo = caminho.resolve()
+    if not alvo.exists():
+        raise FileNotFoundError(f"sem manifesto em {caminho}; rode `make seed-legacy`")
+    manifesto = json.loads(alvo.read_text(encoding="utf-8"))
+    if "mutacoes" not in manifesto:
+        raise ValueError("manifesto em formato anterior a 14/09/2026, sem diário; regere-o")
+    return alvo, manifesto
+
+
+def _gravar(alvo: pathlib.Path, manifesto: dict[str, Any]) -> None:
+    alvo.write_text(json.dumps(manifesto, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def aptas(manifesto: dict[str, Any], tabela: str) -> list[int]:
+    """`legacy_row_id` das ocorrências aptas da tabela, em ordem física."""
+    return sorted(
+        identidade
+        for t, identidade, saida, *_ in manifesto["veredito"]
+        if t == tabela and saida in ("accepted", "corrected")
+    )
+
+
+def _chave_de(engine: Engine, tabela: str, identidades: list[int]) -> list[str]:
+    coluna, _ = remocao.chave(tabela)
+    with engine.connect() as conexao:
+        return [
+            linha[0]
+            for linha in conexao.execute(
+                text(f'select "{coluna}" from {schema.SCHEMA}."{tabela}" where legacy_row_id = any(:ids) order by legacy_row_id'),
+                {"ids": identidades},
+            )
+        ]
+
+
+def _hash(engine: Engine, tabela: str) -> dict[str, Any]:
+    with engine.connect() as conexao:
+        return conteudo.hash_no_banco(conexao, schema.SCHEMA, tabela)
+
+
+def remover(
+    engine: Engine,
+    tabela: str,
+    *,
+    chaves: list[str] | None = None,
+    quantidade: int | None = None,
+    manifesto: pathlib.Path = MANIFESTO,
+) -> dict[str, Any]:
+    """Apaga por chave de negócio e grava no diário o que o banco devolveu."""
+    alvo, oraculo = _ler(manifesto)
+    coluna, _ = remocao.chave(tabela)
+    if chaves is None:
+        if not quantidade:
+            raise ValueError("informe --chaves ou --quantidade")
+        chaves = _chave_de(engine, tabela, aptas(oraculo, tabela)[:quantidade])
+        if len(chaves) < quantidade:
+            raise ValueError(f"{tabela}: só {len(chaves)} ocorrências aptas para remover")
+    colunas = ", ".join(f'"{c}"' for c in schema.colunas(tabela))
+    antes = _hash(engine, tabela)
+    with engine.begin() as conexao:
+        devolvidas = [
+            dict(linha)
+            for linha in conexao.execute(
+                text(
+                    f'delete from {schema.SCHEMA}."{tabela}" where "{coluna}" = any(:chaves) '
+                    f"returning legacy_row_id, {colunas}"
+                ),
+                {"chaves": chaves},
+            ).mappings()
+        ]
+    with engine.connect() as conexao:
+        restantes = conexao.execute(
+            text(f'select count(*) from {schema.SCHEMA}."{tabela}" where "{coluna}" = any(:chaves)'),
+            {"chaves": chaves},
+        ).scalar_one()
+    depois = _hash(engine, tabela)
+    registro = {
+        "tipo": "remover",
+        "tabela": tabela,
+        "chave": coluna,
+        "chaves": chaves,
+        "devolvidas": devolvidas,
+        "linhas_apagadas": len(devolvidas),
+        "restantes_apos_commit": int(restantes),
+        "hash_antes": antes,
+        "hash_depois": depois,
+        "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    if restantes:
+        registro["erro"] = "linhas com a chave sobreviveram ao commit"
+    oraculo["mutacoes"].append(registro)
+    _gravar(alvo, oraculo)
+    return registro
+
+
+def inserir(engine: Engine, tabela: str, valores: dict[str, Any], *, manifesto: pathlib.Path = MANIFESTO) -> dict[str, Any]:
+    """Insere uma linha de negócio e grava o que o banco devolveu."""
+    alvo, oraculo = _ler(manifesto)
+    desconhecidas = set(valores) - set(schema.colunas(tabela))
+    if desconhecidas:
+        raise ValueError(f"{tabela}: colunas desconhecidas {sorted(desconhecidas)}")
+    colunas = list(valores)
+    citadas = ", ".join(f'"{c}"' for c in colunas)
+    marcadores = ", ".join(f":{c}" for c in colunas)
+    todas = ", ".join(f'"{c}"' for c in schema.colunas(tabela))
+    antes = _hash(engine, tabela)
+    with engine.begin() as conexao:
+        devolvida = dict(
+            conexao.execute(
+                text(
+                    f'insert into {schema.SCHEMA}."{tabela}" ({citadas}) values ({marcadores}) '
+                    f"returning legacy_row_id, {todas}"
+                ),
+                valores,
+            ).mappings().one()
+        )
+    depois = _hash(engine, tabela)
+    registro = {
+        "tipo": "inserir", "tabela": tabela, "chave": remocao.chave(tabela)[0],
+        "devolvida": devolvida, "hash_antes": antes, "hash_depois": depois,
+        "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    oraculo["mutacoes"].append(registro)
+    _gravar(alvo, oraculo)
+    return registro
+
+
+def alterar(
+    engine: Engine, tabela: str, chave: str, coluna: str, valor: str | None, *, manifesto: pathlib.Path = MANIFESTO
+) -> dict[str, Any]:
+    """Altera uma célula de uma linha de negócio e grava antes e depois."""
+    alvo, oraculo = _ler(manifesto)
+    pk, _ = remocao.chave(tabela)
+    if coluna not in schema.colunas(tabela):
+        raise ValueError(f"{tabela}: coluna desconhecida {coluna}")
+    antes = _hash(engine, tabela)
+    with engine.begin() as conexao:
+        anteriores = [
+            dict(linha)
+            for linha in conexao.execute(
+                text(f'select legacy_row_id, "{coluna}" as valor from {schema.SCHEMA}."{tabela}" where "{pk}" = :k'),
+                {"k": chave},
+            ).mappings()
+        ]
+        devolvidas = [
+            dict(linha)
+            for linha in conexao.execute(
+                text(
+                    f'update {schema.SCHEMA}."{tabela}" set "{coluna}" = :v where "{pk}" = :k '
+                    f'returning legacy_row_id, "{coluna}" as valor'
+                ),
+                {"v": valor, "k": chave},
+            ).mappings()
+        ]
+    depois = _hash(engine, tabela)
+    registro = {
+        "tipo": "alterar", "tabela": tabela, "chave": pk, "valor_da_chave": chave, "coluna": coluna,
+        "antes": anteriores, "devolvidas": devolvidas, "hash_antes": antes, "hash_depois": depois,
+        "quando": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    oraculo["mutacoes"].append(registro)
+    _gravar(alvo, oraculo)
+    return registro

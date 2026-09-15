@@ -196,13 +196,27 @@ efeito da geração sobre os dados dependentes foi medido, como registra
 
 - testes unitários para cada regra de conversão;
 - comparação entre o resultado e o manifesto esperado do gerador — o manifesto é oráculo, nunca
-  entrada da transformação;
+  entrada da transformação. Desde 14/09/2026 o esperado é **por ocorrência, para o lote inteiro**
+  (`legacy/oraculo.py`): saída, origem da rejeição e o multiconjunto de achados — contexto e
+  cascata incluídos —, recomputados das mutações do injetor e do grafo declarado, sem ler o
+  classificador; o valor esperado de cada correção sai do contrato `recuperacao` do catálogo; e a
+  captura só é comparada depois de conferida por **hash de conteúdo** contra o lote do manifesto.
+  Contraprovas por mutação (defeito deliberado no esperado, no obtido e no conteúdo) garantem que a
+  comparação discrimina;
 - preservação de valor original, valor tratado e regra aplicada;
 - idempotência: reprocessar o mesmo `snapshot_id` não duplica registros;
 - `source_system` preenchido e dentro do domínio declarado em toda tabela empilhada
   ([ADR-0021](adr/0021-procedencia-no-empilhamento.md));
-- a captura lida **existe** e traz todas as 40 tabelas — o que separa tabela legitimamente vazia de
-  captura ausente, que no bruto são a mesma coisa;
+- a captura lida **existe** e é **certificada** — `complete` nas 40 tabelas em
+  `governance.legacy_captures` ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)):
+  origem parada durante o *job*, conteúdo e multiplicidade recebidos iguais aos da origem, linhas
+  do próprio *job*. Tabela com zero dos dois lados é completa;
+- a exclusão física entre capturas certificadas é detectada no bruto e fecha em linhas físicas
+  ([ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)); os modelos de
+  intervalo e memória têm **unit tests do dbt** (`unit_tests:` em `_legacy__models.yml`, gerados
+  por `classification.py`) — o primeiro uso deles no projeto: capturas fictícias, certificadas pela
+  mesma regra do modelo real, cobrindo remoção, inclusão, redução de multiplicidade, sem identidade,
+  captura sem mudança, reaparecimento com nova exclusão e anterior incompleta ignorada;
 - um tratamento por versão de catálogo: resultado diferente sob a mesma versão **recusa** substituir
   a auditoria guardada, em vez de apagá-la ([D33 a D35](pendencias.md#2-decisões-já-fechadas));
 - invariante que atravessa entidades é exigida onde a quarentena não explica a diferença — e toda

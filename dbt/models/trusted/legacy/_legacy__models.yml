@@ -257,3 +257,2144 @@ models:
         - source_table
         - legacy_row_id
         - catalog_version
+- name: legacy_presence_by_capture
+  description: Linhas físicas por captura certificada, tabela e chave canônica, com os payloads brutos.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_table
+    description: Tabela de origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: snapshot_id
+    description: Captura certificada (ou a selecionada).
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: business_key
+    description: PK declarada, canonizada pelo tipo; nulo é linha sem identidade.
+    meta:
+      sensitivity: internal
+  - name: n
+    description: Linhas físicas com esta chave nesta captura.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: payloads
+    description: Payloads brutos das linhas, em ordem física. Pode conter dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_table
+        - snapshot_id
+        - business_key
+- name: legacy_capture_transitions
+  description: Intervalo entre a certificada anterior mais recente e a selecionada, por chave e com multiplicidade.
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: previous_snapshot_id
+    description: Certificada anterior mais recente.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: selected_snapshot_id
+    description: Captura selecionada.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: source_table
+    description: Tabela de origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: business_key
+    description: PK canonizada; nulo agrupa as linhas sem identidade.
+    meta:
+      sensitivity: internal
+  - name: rows_before
+    description: Linhas físicas na anterior.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: rows_after
+    description: Linhas físicas na selecionada.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: transition
+    description: removida, adicionada, reduzida, aumentada, mantida ou sem_identidade.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values:
+          - removida
+          - adicionada
+          - reduzida
+          - aumentada
+          - mantida
+          - sem_identidade
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_table
+        - business_key
+- name: legacy_removed_records
+  description: 'Memória da ausência: chaves vistas em certificada anterior e ausentes na selecionada;
+    auditoria, fora de equação.'
+  meta:
+    domain: legado
+    owner: data_custodian
+  columns:
+  - name: source_table
+    description: Tabela de origem.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: business_key
+    description: PK canonizada.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: last_seen_snapshot_id
+    description: Maior captura certificada em que a chave esteve.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: removed_in_snapshot_id
+    description: Menor certificada posterior ao last_seen — onde faltou pela primeira vez.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: observed_in_snapshot_id
+    description: Captura selecionada em que a ausência foi observada.
+    meta:
+      sensitivity: internal
+    data_tests:
+    - not_null
+  - name: rows_last_seen
+    description: Linhas físicas com a chave na última captura em que existiu.
+    meta:
+      sensitivity: internal
+  - name: last_payload
+    description: Payloads brutos da última captura em que a chave existiu — não tratados. Pode conter
+      dados pessoais sintéticos.
+    meta:
+      sensitivity: personal
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - source_table
+        - business_key
+unit_tests:
+- name: transicoes_por_chave_com_multiplicidade
+  description: Removida, adicionada, reduzida, mantida e sem identidade entre a anterior certificada e
+    a selecionada.
+  model: legacy_capture_transitions
+  given:
+  - input: ref('legacy_presence_by_capture')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      business_key: '1'
+      n: 1
+      payloads: '[{"id": "1"}]'
+    - snapshot_id: 2
+      source_table: brands
+      business_key: '1'
+      n: 1
+      payloads: '[{"id": "1"}]'
+    - snapshot_id: 1
+      source_table: brands
+      business_key: '2'
+      n: 1
+      payloads: '[{"id": "2"}]'
+    - snapshot_id: 2
+      source_table: brands
+      business_key: '3'
+      n: 1
+      payloads: '[{"id": "3"}]'
+    - snapshot_id: 1
+      source_table: brands
+      business_key: '7'
+      n: 2
+      payloads: '[{"id": "7"}]'
+    - snapshot_id: 2
+      source_table: brands
+      business_key: '7'
+      n: 1
+      payloads: '[{"id": "7"}]'
+    - snapshot_id: 1
+      source_table: brands
+      business_key: null
+      n: 1
+      payloads: '[{"id": "None"}]'
+    - snapshot_id: 2
+      source_table: brands
+      business_key: null
+      n: 2
+      payloads: '[{"id": "None"}]'
+    - snapshot_id: 1
+      source_table: warehouses
+      business_key: '8'
+      n: 1
+      payloads: '[{"id": "8"}]'
+    - snapshot_id: 2
+      source_table: warehouses
+      business_key: '8'
+      n: 1
+      payloads: '[{"id": "8"}]'
+  - input: ref('legacy_selected_capture')
+    rows:
+    - snapshot_id: 2
+  - input: source('governance', 'legacy_captures')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      status: complete
+    - snapshot_id: 1
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 1
+      source_table: carriers
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 1
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 1
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 1
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 1
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 1
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 1
+      source_table: coupons
+      status: complete
+    - snapshot_id: 1
+      source_table: customers
+      status: complete
+    - snapshot_id: 1
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 1
+      source_table: products
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 1
+      source_table: carts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 1
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 1
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 1
+      source_table: orders
+      status: complete
+    - snapshot_id: 1
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 1
+      source_table: payments
+      status: complete
+    - snapshot_id: 1
+      source_table: shipments
+      status: complete
+    - snapshot_id: 1
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 1
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 1
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 1
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 1
+      source_table: refunds
+      status: complete
+    - snapshot_id: 1
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 2
+      source_table: brands
+      status: complete
+    - snapshot_id: 2
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 2
+      source_table: carriers
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 2
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 2
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 2
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 2
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 2
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 2
+      source_table: coupons
+      status: complete
+    - snapshot_id: 2
+      source_table: customers
+      status: complete
+    - snapshot_id: 2
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 2
+      source_table: products
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 2
+      source_table: carts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 2
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 2
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 2
+      source_table: orders
+      status: complete
+    - snapshot_id: 2
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 2
+      source_table: payments
+      status: complete
+    - snapshot_id: 2
+      source_table: shipments
+      status: complete
+    - snapshot_id: 2
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 2
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 2
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 2
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 2
+      source_table: refunds
+      status: complete
+    - snapshot_id: 2
+      source_table: ticket_events
+      status: complete
+  expect:
+    rows:
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: brands
+      business_key: '1'
+      rows_before: 1
+      rows_after: 1
+      transition: mantida
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: brands
+      business_key: '2'
+      rows_before: 1
+      rows_after: 0
+      transition: removida
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: brands
+      business_key: '3'
+      rows_before: 0
+      rows_after: 1
+      transition: adicionada
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: brands
+      business_key: '7'
+      rows_before: 2
+      rows_after: 1
+      transition: reduzida
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: brands
+      business_key: null
+      rows_before: 1
+      rows_after: 2
+      transition: sem_identidade
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 2
+      source_table: warehouses
+      business_key: '8'
+      rows_before: 1
+      rows_after: 1
+      transition: mantida
+- name: anterior_incompleta_e_ignorada_e_sem_anterior_nao_ha_intervalo
+  description: 'A anterior é a certificada mais recente: a captura 2 incompleta é pulada e o intervalo
+    é 1 → 3.'
+  model: legacy_capture_transitions
+  given:
+  - input: ref('legacy_presence_by_capture')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      business_key: '1'
+      n: 1
+      payloads: '[{"id": "1"}]'
+    - snapshot_id: 2
+      source_table: brands
+      business_key: '1'
+      n: 1
+      payloads: '[{"id": "1"}]'
+    - snapshot_id: 3
+      source_table: brands
+      business_key: '2'
+      n: 1
+      payloads: '[{"id": "2"}]'
+  - input: ref('legacy_selected_capture')
+    rows:
+    - snapshot_id: 3
+  - input: source('governance', 'legacy_captures')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      status: complete
+    - snapshot_id: 1
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 1
+      source_table: carriers
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 1
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 1
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 1
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 1
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 1
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 1
+      source_table: coupons
+      status: complete
+    - snapshot_id: 1
+      source_table: customers
+      status: complete
+    - snapshot_id: 1
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 1
+      source_table: products
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 1
+      source_table: carts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 1
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 1
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 1
+      source_table: orders
+      status: complete
+    - snapshot_id: 1
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 1
+      source_table: payments
+      status: complete
+    - snapshot_id: 1
+      source_table: shipments
+      status: complete
+    - snapshot_id: 1
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 1
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 1
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 1
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 1
+      source_table: refunds
+      status: complete
+    - snapshot_id: 1
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 2
+      source_table: brands
+      status: incomplete
+    - snapshot_id: 2
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 2
+      source_table: carriers
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 2
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 2
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 2
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 2
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 2
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 2
+      source_table: coupons
+      status: complete
+    - snapshot_id: 2
+      source_table: customers
+      status: complete
+    - snapshot_id: 2
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 2
+      source_table: products
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 2
+      source_table: carts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 2
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 2
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 2
+      source_table: orders
+      status: complete
+    - snapshot_id: 2
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 2
+      source_table: payments
+      status: complete
+    - snapshot_id: 2
+      source_table: shipments
+      status: complete
+    - snapshot_id: 2
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 2
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 2
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 2
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 2
+      source_table: refunds
+      status: complete
+    - snapshot_id: 2
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 3
+      source_table: brands
+      status: complete
+    - snapshot_id: 3
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 3
+      source_table: carriers
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 3
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 3
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 3
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 3
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 3
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 3
+      source_table: coupons
+      status: complete
+    - snapshot_id: 3
+      source_table: customers
+      status: complete
+    - snapshot_id: 3
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 3
+      source_table: products
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 3
+      source_table: carts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 3
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 3
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 3
+      source_table: orders
+      status: complete
+    - snapshot_id: 3
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 3
+      source_table: payments
+      status: complete
+    - snapshot_id: 3
+      source_table: shipments
+      status: complete
+    - snapshot_id: 3
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 3
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 3
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 3
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 3
+      source_table: refunds
+      status: complete
+    - snapshot_id: 3
+      source_table: ticket_events
+      status: complete
+  expect:
+    rows:
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 3
+      source_table: brands
+      business_key: '1'
+      rows_before: 1
+      rows_after: 0
+      transition: removida
+    - previous_snapshot_id: 1
+      selected_snapshot_id: 3
+      source_table: brands
+      business_key: '2'
+      rows_before: 0
+      rows_after: 1
+      transition: adicionada
+- name: sem_anterior_certificada_o_intervalo_e_vazio
+  model: legacy_capture_transitions
+  given:
+  - input: ref('legacy_presence_by_capture')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      business_key: '1'
+      n: 1
+      payloads: '[{"id": "1"}]'
+  - input: ref('legacy_selected_capture')
+    rows:
+    - snapshot_id: 1
+  - input: source('governance', 'legacy_captures')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      status: complete
+    - snapshot_id: 1
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 1
+      source_table: carriers
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 1
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 1
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 1
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 1
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 1
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 1
+      source_table: coupons
+      status: complete
+    - snapshot_id: 1
+      source_table: customers
+      status: complete
+    - snapshot_id: 1
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 1
+      source_table: products
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 1
+      source_table: carts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 1
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 1
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 1
+      source_table: orders
+      status: complete
+    - snapshot_id: 1
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 1
+      source_table: payments
+      status: complete
+    - snapshot_id: 1
+      source_table: shipments
+      status: complete
+    - snapshot_id: 1
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 1
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 1
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 1
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 1
+      source_table: refunds
+      status: complete
+    - snapshot_id: 1
+      source_table: ticket_events
+      status: complete
+  expect:
+    rows: []
+- name: memoria_da_ausencia_persiste_e_reaparecimento_sai
+  description: 'Selecionada 3: A sumiu em 3, B em 2, C reapareceu, E está presente.'
+  model: legacy_removed_records
+  given:
+  - input: ref('legacy_presence_by_capture')
+    rows:
+    - &id001
+      snapshot_id: 1
+      source_table: brands
+      business_key: A
+      n: 1
+      payloads: '[{"id": "A"}]'
+    - &id002
+      snapshot_id: 2
+      source_table: brands
+      business_key: A
+      n: 1
+      payloads: '[{"id": "A"}]'
+    - &id003
+      snapshot_id: 1
+      source_table: brands
+      business_key: B
+      n: 1
+      payloads: '[{"id": "B"}]'
+    - &id004
+      snapshot_id: 1
+      source_table: brands
+      business_key: C
+      n: 1
+      payloads: '[{"id": "C"}]'
+    - &id005
+      snapshot_id: 3
+      source_table: brands
+      business_key: C
+      n: 1
+      payloads: '[{"id": "C"}]'
+    - &id006
+      snapshot_id: 1
+      source_table: brands
+      business_key: D
+      n: 1
+      payloads: '[{"id": "D"}]'
+    - &id007
+      snapshot_id: 3
+      source_table: brands
+      business_key: D
+      n: 1
+      payloads: '[{"id": "D"}]'
+    - &id008
+      snapshot_id: 1
+      source_table: brands
+      business_key: E
+      n: 1
+      payloads: '[{"id": "E"}]'
+    - &id009
+      snapshot_id: 2
+      source_table: brands
+      business_key: E
+      n: 1
+      payloads: '[{"id": "E"}]'
+    - &id010
+      snapshot_id: 3
+      source_table: brands
+      business_key: E
+      n: 1
+      payloads: '[{"id": "E"}]'
+  - input: ref('legacy_selected_capture')
+    rows:
+    - snapshot_id: 3
+  - input: source('governance', 'legacy_captures')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      status: complete
+    - snapshot_id: 1
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 1
+      source_table: carriers
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 1
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 1
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 1
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 1
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 1
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 1
+      source_table: coupons
+      status: complete
+    - snapshot_id: 1
+      source_table: customers
+      status: complete
+    - snapshot_id: 1
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 1
+      source_table: products
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 1
+      source_table: carts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 1
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 1
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 1
+      source_table: orders
+      status: complete
+    - snapshot_id: 1
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 1
+      source_table: payments
+      status: complete
+    - snapshot_id: 1
+      source_table: shipments
+      status: complete
+    - snapshot_id: 1
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 1
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 1
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 1
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 1
+      source_table: refunds
+      status: complete
+    - snapshot_id: 1
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 2
+      source_table: brands
+      status: complete
+    - snapshot_id: 2
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 2
+      source_table: carriers
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 2
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 2
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 2
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 2
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 2
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 2
+      source_table: coupons
+      status: complete
+    - snapshot_id: 2
+      source_table: customers
+      status: complete
+    - snapshot_id: 2
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 2
+      source_table: products
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 2
+      source_table: carts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 2
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 2
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 2
+      source_table: orders
+      status: complete
+    - snapshot_id: 2
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 2
+      source_table: payments
+      status: complete
+    - snapshot_id: 2
+      source_table: shipments
+      status: complete
+    - snapshot_id: 2
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 2
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 2
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 2
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 2
+      source_table: refunds
+      status: complete
+    - snapshot_id: 2
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 3
+      source_table: brands
+      status: complete
+    - snapshot_id: 3
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 3
+      source_table: carriers
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 3
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 3
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 3
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 3
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 3
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 3
+      source_table: coupons
+      status: complete
+    - snapshot_id: 3
+      source_table: customers
+      status: complete
+    - snapshot_id: 3
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 3
+      source_table: products
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 3
+      source_table: carts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 3
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 3
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 3
+      source_table: orders
+      status: complete
+    - snapshot_id: 3
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 3
+      source_table: payments
+      status: complete
+    - snapshot_id: 3
+      source_table: shipments
+      status: complete
+    - snapshot_id: 3
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 3
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 3
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 3
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 3
+      source_table: refunds
+      status: complete
+    - snapshot_id: 3
+      source_table: ticket_events
+      status: complete
+  expect:
+    rows:
+    - source_table: brands
+      business_key: A
+      last_seen_snapshot_id: 2
+      removed_in_snapshot_id: 3
+      observed_in_snapshot_id: 3
+    - source_table: brands
+      business_key: B
+      last_seen_snapshot_id: 1
+      removed_in_snapshot_id: 2
+      observed_in_snapshot_id: 3
+- name: memoria_em_c_sem_mudanca_e_reexclusao_depois_de_reaparecer
+  description: 'Selecionada 5 (4 sem mudança): A e B continuam com os mesmos valores; D reapareceu em
+    3 e sumiu em 4.'
+  model: legacy_removed_records
+  given:
+  - input: ref('legacy_presence_by_capture')
+    rows:
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - *id006
+    - *id007
+    - *id008
+    - *id009
+    - *id010
+    - snapshot_id: 4
+      source_table: brands
+      business_key: E
+      n: 1
+      payloads: '[{"id": "E"}]'
+    - snapshot_id: 5
+      source_table: brands
+      business_key: E
+      n: 1
+      payloads: '[{"id": "E"}]'
+    - snapshot_id: 4
+      source_table: brands
+      business_key: C
+      n: 1
+      payloads: '[{"id": "C"}]'
+    - snapshot_id: 5
+      source_table: brands
+      business_key: C
+      n: 1
+      payloads: '[{"id": "C"}]'
+  - input: ref('legacy_selected_capture')
+    rows:
+    - snapshot_id: 5
+  - input: source('governance', 'legacy_captures')
+    rows:
+    - snapshot_id: 1
+      source_table: brands
+      status: complete
+    - snapshot_id: 1
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 1
+      source_table: carriers
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 1
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 1
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 1
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 1
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 1
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 1
+      source_table: coupons
+      status: complete
+    - snapshot_id: 1
+      source_table: customers
+      status: complete
+    - snapshot_id: 1
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 1
+      source_table: products
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 1
+      source_table: carts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 1
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 1
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 1
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 1
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 1
+      source_table: orders
+      status: complete
+    - snapshot_id: 1
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 1
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 1
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_items
+      status: complete
+    - snapshot_id: 1
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 1
+      source_table: payments
+      status: complete
+    - snapshot_id: 1
+      source_table: shipments
+      status: complete
+    - snapshot_id: 1
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 1
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 1
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 1
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 1
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 1
+      source_table: refunds
+      status: complete
+    - snapshot_id: 1
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 2
+      source_table: brands
+      status: complete
+    - snapshot_id: 2
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 2
+      source_table: carriers
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 2
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 2
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 2
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 2
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 2
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 2
+      source_table: coupons
+      status: complete
+    - snapshot_id: 2
+      source_table: customers
+      status: complete
+    - snapshot_id: 2
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 2
+      source_table: products
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 2
+      source_table: carts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 2
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 2
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 2
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 2
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 2
+      source_table: orders
+      status: complete
+    - snapshot_id: 2
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 2
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 2
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_items
+      status: complete
+    - snapshot_id: 2
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 2
+      source_table: payments
+      status: complete
+    - snapshot_id: 2
+      source_table: shipments
+      status: complete
+    - snapshot_id: 2
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 2
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 2
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 2
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 2
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 2
+      source_table: refunds
+      status: complete
+    - snapshot_id: 2
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 3
+      source_table: brands
+      status: complete
+    - snapshot_id: 3
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 3
+      source_table: carriers
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 3
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 3
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 3
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 3
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 3
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 3
+      source_table: coupons
+      status: complete
+    - snapshot_id: 3
+      source_table: customers
+      status: complete
+    - snapshot_id: 3
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 3
+      source_table: products
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 3
+      source_table: carts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 3
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 3
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 3
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 3
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 3
+      source_table: orders
+      status: complete
+    - snapshot_id: 3
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 3
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 3
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_items
+      status: complete
+    - snapshot_id: 3
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 3
+      source_table: payments
+      status: complete
+    - snapshot_id: 3
+      source_table: shipments
+      status: complete
+    - snapshot_id: 3
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 3
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 3
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 3
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 3
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 3
+      source_table: refunds
+      status: complete
+    - snapshot_id: 3
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 4
+      source_table: brands
+      status: complete
+    - snapshot_id: 4
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 4
+      source_table: carriers
+      status: complete
+    - snapshot_id: 4
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 4
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 4
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 4
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 4
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 4
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 4
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 4
+      source_table: coupons
+      status: complete
+    - snapshot_id: 4
+      source_table: customers
+      status: complete
+    - snapshot_id: 4
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 4
+      source_table: products
+      status: complete
+    - snapshot_id: 4
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 4
+      source_table: carts
+      status: complete
+    - snapshot_id: 4
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 4
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 4
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 4
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 4
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 4
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 4
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 4
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 4
+      source_table: orders
+      status: complete
+    - snapshot_id: 4
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 4
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 4
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 4
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 4
+      source_table: order_items
+      status: complete
+    - snapshot_id: 4
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 4
+      source_table: payments
+      status: complete
+    - snapshot_id: 4
+      source_table: shipments
+      status: complete
+    - snapshot_id: 4
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 4
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 4
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 4
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 4
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 4
+      source_table: refunds
+      status: complete
+    - snapshot_id: 4
+      source_table: ticket_events
+      status: complete
+    - snapshot_id: 5
+      source_table: brands
+      status: complete
+    - snapshot_id: 5
+      source_table: campaigns
+      status: complete
+    - snapshot_id: 5
+      source_table: carriers
+      status: complete
+    - snapshot_id: 5
+      source_table: customer_segments
+      status: complete
+    - snapshot_id: 5
+      source_table: payment_methods
+      status: complete
+    - snapshot_id: 5
+      source_table: product_categories
+      status: complete
+    - snapshot_id: 5
+      source_table: sales_channels
+      status: complete
+    - snapshot_id: 5
+      source_table: suppliers
+      status: complete
+    - snapshot_id: 5
+      source_table: support_agents
+      status: complete
+    - snapshot_id: 5
+      source_table: warehouses
+      status: complete
+    - snapshot_id: 5
+      source_table: coupons
+      status: complete
+    - snapshot_id: 5
+      source_table: customers
+      status: complete
+    - snapshot_id: 5
+      source_table: price_lists
+      status: complete
+    - snapshot_id: 5
+      source_table: products
+      status: complete
+    - snapshot_id: 5
+      source_table: purchase_orders
+      status: complete
+    - snapshot_id: 5
+      source_table: carts
+      status: complete
+    - snapshot_id: 5
+      source_table: customer_addresses
+      status: complete
+    - snapshot_id: 5
+      source_table: customer_contacts
+      status: complete
+    - snapshot_id: 5
+      source_table: customer_preferences
+      status: complete
+    - snapshot_id: 5
+      source_table: goods_receipts
+      status: complete
+    - snapshot_id: 5
+      source_table: product_variants
+      status: complete
+    - snapshot_id: 5
+      source_table: cart_items
+      status: complete
+    - snapshot_id: 5
+      source_table: inventory_balances
+      status: complete
+    - snapshot_id: 5
+      source_table: inventory_movements
+      status: complete
+    - snapshot_id: 5
+      source_table: orders
+      status: complete
+    - snapshot_id: 5
+      source_table: product_prices
+      status: complete
+    - snapshot_id: 5
+      source_table: purchase_order_items
+      status: complete
+    - snapshot_id: 5
+      source_table: coupon_redemptions
+      status: complete
+    - snapshot_id: 5
+      source_table: goods_receipt_items
+      status: complete
+    - snapshot_id: 5
+      source_table: order_items
+      status: complete
+    - snapshot_id: 5
+      source_table: order_status_history
+      status: complete
+    - snapshot_id: 5
+      source_table: payments
+      status: complete
+    - snapshot_id: 5
+      source_table: shipments
+      status: complete
+    - snapshot_id: 5
+      source_table: stock_reservations
+      status: complete
+    - snapshot_id: 5
+      source_table: delivery_events
+      status: complete
+    - snapshot_id: 5
+      source_table: payment_transactions
+      status: complete
+    - snapshot_id: 5
+      source_table: shipment_items
+      status: complete
+    - snapshot_id: 5
+      source_table: support_tickets
+      status: complete
+    - snapshot_id: 5
+      source_table: refunds
+      status: complete
+    - snapshot_id: 5
+      source_table: ticket_events
+      status: complete
+  expect:
+    rows:
+    - source_table: brands
+      business_key: A
+      last_seen_snapshot_id: 2
+      removed_in_snapshot_id: 3
+      observed_in_snapshot_id: 5
+    - source_table: brands
+      business_key: B
+      last_seen_snapshot_id: 1
+      removed_in_snapshot_id: 2
+      observed_in_snapshot_id: 5
+    - source_table: brands
+      business_key: D
+      last_seen_snapshot_id: 3
+      removed_in_snapshot_id: 4
+      observed_in_snapshot_id: 5
