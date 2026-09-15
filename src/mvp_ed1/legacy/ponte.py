@@ -61,10 +61,13 @@ FORA_DA_ORIGEM: dict[str, str] = {
     "first_ingested_at": "snapshot_at",
     "arrived_by_stream": "false",
     "arrived_by_batch": "true",
-    # Ordenação técnica que o banco atribui na origem principal. No legado o
-    # equivalente é a identidade da ocorrência física, que é o que o sistema
-    # antigo tem de mais próximo de uma ordem local — e a unicidade continua
-    # valendo, porque depois do empilhamento ela é por origem (ADR-0039).
+    # Na origem principal, `event_sequence` é a ordenação técnica que o banco
+    # atribui. No legado é a identidade da ocorrência física, e o contrato é
+    # **só este** (D40, decidida em 14/09/2026; nota no ADR-0039): desempate
+    # técnico dentro da captura, único por origem depois do empilhamento. Não
+    # promete ordem observada do evento nem estabilidade entre recapturas —
+    # `legacy_row_id` é renumerado a cada geração, e nenhum consumidor pode
+    # tratar esta coluna, nas linhas legadas, como sequência de negócio.
     "event_sequence": "legacy_row_id",
 }
 

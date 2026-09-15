@@ -77,6 +77,17 @@ As duas primeiras formas (aptos entre capturas; marca `is_deleted` por `hard_del
 P14/P24–P27) e pela constatação de que, sob os ADRs 0038 e 0042, a remoção já cascateia para fora
 das fatos — a marca não protegeria integridade. O ADR-0042 fica **confirmado**.
 
+### D40 — decidida em 14/09/2026
+
+**Nas linhas legadas, `event_sequence = legacy_row_id` é desempate técnico dentro da captura, e só
+isso** — sem promessa de ordem observada do evento nem de estabilidade entre recapturas. Fechada por
+nota de referência no [ADR-0039](adr/0039-alcance-da-procedencia.md) (nenhum ADR aceito prometia
+o contrário); o dono é [Origem Legada §4.1](origem_legada.md#41-a-identidade-da-captura-e-a-da-ocorrência).
+Levantada pelo achado R26 da terceira revisão. Alternativas recusadas: exigir estabilidade entre
+recapturas (impossível com identificador renumerado; exigiria chave de negócio + instante, e ainda
+seria ordem de captura) e anular a coluna no legado (exigiria conferir todo consumidor que assume
+não-nulo).
+
 ### D41 — decidida em 14/09/2026
 
 **Toda captura do legado é certificada por conteúdo, por *stream* e por *job*, em duas fases, em

@@ -8,6 +8,14 @@
 | Decisão pendente resolvida | — (levantada na abertura da Etapa 10) |
 | Substitui / é substituída por | Detalha o alcance do [ADR-0021](0021-procedencia-no-empilhamento.md) |
 
+> **Nota de referência — 14/09/2026 (D40).** Nas linhas legadas, `event_sequence` é
+> `legacy_row_id`: **desempate técnico dentro da captura**, único por origem depois do
+> empilhamento, e nada além disso — não promete ordem observada do evento nem estabilidade entre
+> recapturas (o identificador recomeça em 1 a cada geração). Esclarecimento do contrato pedido pelo
+> achado R26 da terceira revisão; o dono é [Origem Legada §4.1](../origem_legada.md#41-a-identidade-da-captura-e-a-da-ocorrência),
+> e o teste `legado_event_sequence_e_desempate_tecnico` cobra só o que o contrato diz. Esta decisão
+> não muda.
+
 ## Contexto
 
 O [ADR-0021](0021-procedencia-no-empilhamento.md) decidiu **o quê**: a procedência viaja em coluna

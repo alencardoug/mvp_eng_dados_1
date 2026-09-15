@@ -291,6 +291,13 @@ precisam ser distinguíveis**. Sem ele, a duplicata exata do
 [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md) não teria como ter uma
 canônica e uma excedente — seriam a mesma linha contada duas vezes.
 
+**O que ele promete quando vira `event_sequence`** (D40, decidida em 14/09/2026): nas linhas
+legadas empilhadas, `event_sequence = legacy_row_id` é **desempate técnico dentro da captura** —
+presente e único por origem — e nada além disso. Não é ordem observada do evento, e não é estável
+entre recapturas: o identificador recomeça em 1 a cada geração. Consumidor que precisar de ordem
+de negócio nas linhas legadas usa o instante do evento, nunca esta coluna. O teste
+`legado_event_sequence_e_desempate_tecnico` cobra exatamente o contrato.
+
 **Medido em 05/09/2026:** duas capturas do mesmo conjunto, 12.749 linhas cada, retidas lado a lado
 em `raw_legacy` e separáveis por `_airbyte_generation_id`. Nenhuma sobrescreveu a outra.
 
