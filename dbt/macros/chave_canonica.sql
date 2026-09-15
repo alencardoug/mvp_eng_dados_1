@@ -35,9 +35,13 @@
       uuid     32 hexadecimais, hífen opcional depois de qualquer grupo de
                quatro (nunca no início, no fim ou dobrado), chaves `{}` só
                aos pares, nenhum espaço à volta — o `cast` do uuid não apara
-      inteiro  sinal opcional, dígitos, espaço à volta permitido; o domínio é
-               conferido em `numeric` antes do `cast`, porque o `cast`
-               direto estoura em vez de devolver nulo
+      inteiro  sinal opcional, dígitos, e à volta **só os brancos ASCII** que o
+               `isspace` do cast aceita (espaço, TAB, LF, VT, FF, CR): `\s` do
+               regex casaria U+00A0 e U+2003, que o cast recusa (RV10-2-04);
+               os zeros à esquerda saem antes de qualquer conversão, porque o
+               cast aceita quantos forem e o `numeric` estoura acima de
+               131.072 dígitos; o domínio é conferido sobre no máximo 19
+               dígitos significativos, em `numeric`, antes do `cast` ao tipo
 
     No BigQuery a mesma macro escreve `SAFE_CAST` aos mesmos tipos.
 -#}
@@ -48,11 +52,16 @@
         'smallint': ('-32768', '32767'),
     } -%}
     {%- if tipo in dominios -%}
+    {%- set aparado = "btrim((" ~ expressao ~ "), E' \\t\\n\\x0b\\x0c\\r')" -%}
+    {%- set significativo = "regexp_replace(" ~ aparado ~ ", '^([+-]?)0*([0-9])', '\\1\\2')" -%}
     (case
-        when ({{ expressao }}) ~ '^\s*[+-]?[0-9]+\s*$' then
+        when ({{ expressao }}) ~ '^[ \t\n\v\f\r]*[+-]?[0-9]+[ \t\n\v\f\r]*$' then
             case
-                when (({{ expressao }})::numeric) between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
-                    then (({{ expressao }})::numeric::{{ tipo }})::text
+                when length(regexp_replace({{ aparado }}, '^[+-]?0*', '')) <= 19 then
+                    case
+                        when ({{ significativo }})::numeric between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
+                            then (({{ significativo }})::numeric::{{ tipo }})::text
+                    end
             end
      end)
     {%- elif tipo == 'uuid' -%}

@@ -181,9 +181,15 @@ FORMAS = {
         "a0eebc99-9c0b--4ef8-bb6d-6bb9bd380a11", "a0e-ebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "  a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11  ", "{ a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 }",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1", "", "x",
+        # segunda rodada (RV10-2-05): `$` do Python aceitava a quebra final
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11\n",
     ],
     "bigint": ["8", "08", "+8", " 8 ", "-0", "-9223372036854775808", "9223372036854775807",
-               "9223372036854775808", "-9223372036854775809", "99999999999999999999", "8.0", "1e3", "", " ", "x", "٨"],
+               "9223372036854775808", "-9223372036854775809", "99999999999999999999", "8.0", "1e3", "", " ", "x", "٨",
+               # segunda rodada (RV10-2-04/05): brancos que o cast aceita e os que só o `\s` aceitava;
+               # zeros à esquerda sem limite; mais dígitos do que o `numeric` guarda
+               "\t8\n", "\x0b8\x0c", "8\n", "\u20038\u2003", "\xa08\xa0", "0" * 5000 + "8", "0" * 131080,
+               "9" * 25, "9" * 131073, "-" + "0" * 40 + "9223372036854775808"],
     "integer": ["2147483647", "2147483648", "-2147483648", "-2147483649", "+7"],
 }
 
@@ -200,29 +206,48 @@ def _macro_renderizada(tipo: str) -> str:
     return modulo.chave_canonica(":v", tipo)
 
 
+@pytest.fixture(scope="module")
+def bancos(administrador):
+    """O legado e o armazém: a macro roda no armazém, e os dois são a mesma imagem por *digest*."""
+    if not os.environ.get("WAREHOUSE_DB_PASSWORD"):
+        pytest.skip("ambiente sem .env carregado")
+    armazem = create_engine(database_url(WAREHOUSE), isolation_level="AUTOCOMMIT")
+    yield {"legacy_db": administrador, "warehouse_db": armazem}
+    armazem.dispose()
+
+
+@pytest.mark.parametrize("banco", ["legacy_db", "warehouse_db"])
 @pytest.mark.parametrize("tipo", sorted(FORMAS))
-def test_a_macro_real_devolve_o_que_o_cast_do_postgresql_devolve_ou_nulo(administrador, tipo) -> None:
+def test_a_macro_real_devolve_o_que_o_cast_do_postgresql_devolve_ou_nulo(bancos, banco, tipo) -> None:
     """A guarda aceita exatamente o que o `cast` aceita; o resto é nulo, nunca erro (ADR-0045).
 
-    Executa a macro **renderizada** e, ao lado, a conversão nativa em bloco
-    próprio: onde o `cast` converte, a macro devolve o mesmo texto; onde ele
-    lança, a macro devolve nulo. É o teste que a revisão pediu — os exemplos
-    com chaves já canonizadas não exercitam a fronteira (RV10-04/05). Só
-    `SELECT`, em transação somente leitura.
+    Executa a macro **renderizada** e, ao lado, a conversão nativa, cada uma na
+    sua transação — uma conversão que lança não pode contaminar a próxima:
+    onde o `cast` converte, a macro devolve o mesmo texto; onde ele lança, a
+    macro devolve nulo, sem lançar. É o teste que a revisão pediu — os exemplos
+    com chaves já canonizadas não exercitam a fronteira (RV10-04/05) —, nos
+    dois bancos (RV10-2-04). Só `SELECT`, em transação somente leitura.
     """
     expressao = _macro_renderizada(tipo)
     divergencias = []
-    with administrador.connect() as conexao:
-        conexao.execute(text("set default_transaction_read_only = on"))
-        for valor in FORMAS[tipo]:
-            pela_macro = conexao.execute(text(f"select {expressao}"), {"v": valor}).scalar_one()
+    motor = bancos[banco]
+    for valor in FORMAS[tipo]:
+        with motor.connect() as conexao:
+            conexao.execute(text("set default_transaction_read_only = on"))
+            try:
+                pela_macro = conexao.execute(text(f"select {expressao}"), {"v": valor}).scalar_one()
+            except Exception as erro:  # noqa: BLE001 — a macro nunca pode lançar
+                divergencias.append((valor[:40], f"MACRO LANÇOU {type(erro).__name__}", None))
+                continue
+        with motor.connect() as conexao:
+            conexao.execute(text("set default_transaction_read_only = on"))
             try:
                 nativa = conexao.execute(text(f"select (:v)::{tipo}::text"), {"v": valor}).scalar_one()
             except Exception:  # noqa: BLE001 — o cast lançou: a macro tem de devolver nulo
                 nativa = None
-            if pela_macro != nativa:
-                divergencias.append((valor, pela_macro, nativa))
-            assert remocao.canonizar(valor, tipo) == nativa, (valor, "a canonização em Python diverge do cast")
+        if pela_macro != nativa:
+            divergencias.append((valor[:40], pela_macro, nativa))
+        assert remocao.canonizar(valor, tipo) == nativa, (valor[:40], "a canonização em Python diverge do cast")
     assert not divergencias, divergencias
 
 

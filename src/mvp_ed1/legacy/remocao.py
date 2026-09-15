@@ -44,8 +44,12 @@ DOMINIOS = {
     "smallint": (-(2**15), 2**15 - 1),
 }
 
-_INTEIRO = re.compile(r"^\s*[+-]?[0-9]+\s*$")
-_UUID = re.compile(r"^(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})$", re.IGNORECASE)
+#: Os mesmos regex da macro, com duas diferenças de dialeto que fazem a mesma
+#: coisa: `\Z` no lugar de `$` (em Python `$` aceita um `\n` final; no ARE do
+#: PostgreSQL não), e brancos ASCII explícitos no lugar de `\s` (que em Python,
+#: como no ARE, casaria U+00A0 e U+2003 — e o cast recusa). RV10-2-05.
+_INTEIRO = re.compile(r"[ \t\n\x0b\x0c\r]*([+-]?)0*([0-9]+)[ \t\n\x0b\x0c\r]*\Z")
+_UUID = re.compile(r"(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})\Z", re.IGNORECASE)
 
 
 def chave(tabela: str) -> tuple[str, str]:
@@ -85,9 +89,16 @@ def canonizar(valor: str | None, tipo: str) -> str | None:
     if valor is None:
         return None
     if tipo in DOMINIOS:
-        if not _INTEIRO.match(valor):
+        casado = _INTEIRO.match(valor)
+        if casado is None:
             return None
-        numero = int(valor.strip())
+        sinal, digitos = casado.groups()
+        # `0*` já tirou os zeros à esquerda; "000" deixa um "0" em `digitos`.
+        # Só 19 dígitos significativos cabem em `bigint` — o limite vem do
+        # domínio, não do interpretador (o `int()` do Python recusa 4.300+).
+        if len(digitos) > 19:
+            return None
+        numero = int(sinal + digitos)
         minimo, maximo = DOMINIOS[tipo]
         return str(numero) if minimo <= numero <= maximo else None
     if tipo == "uuid":
