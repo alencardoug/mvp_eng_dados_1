@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; achados da terceira revisão **implementados e medidos em 15/09/2026, aguardando revisão** |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado (D42 aberta) —, aguardando nova revisão** |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 2 — D36, D42 |
 | Última revisão | 15/09/2026 |
@@ -318,8 +318,12 @@ A D31 está encerrada. Na Etapa 10, tudo o que a terceira revisão pediu está *
 medido** (15/09/2026): certificação de captura por conteúdo em duas fases (ADR-0044), detecção de
 exclusão física no bruto retido (ADR-0045), schema legado no Alembic, oráculo por ocorrência para
 o lote inteiro, contrato de `event_sequence`, e os documentos com o estado medido. As medições
-estão no dossiê de revisão entregue ao outro agente e nos donos documentais. **Nenhum aceite da
-Etapa 10 foi presumido**: a etapa fecha quando a revisão do desenvolvimento e você o disserem.
+estão no dossiê de revisão entregue ao outro agente e nos donos documentais. A revisão de
+desenvolvimento voltou em 15/09/2026 com seis bloqueantes e seis ajustes (RV10-01…12); onze foram
+corrigidos e medidos no mesmo dia, e o décimo segundo (prova local da escrita BigQuery) foi adiado
+por decisão sua para a Etapa 13 — a situação de cada um está no `REVISAO.md`, que espera a próxima
+rodada. **Nenhum aceite da Etapa 10 foi presumido**: a etapa fecha quando a revisão do
+desenvolvimento e você o disserem.
 
 ---
 
