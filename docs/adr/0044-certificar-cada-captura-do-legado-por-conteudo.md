@@ -136,7 +136,7 @@ selecionada ou como "anterior certificada".**
   (deduplicação de melhor esforço, erro por linha, inserção parcial com HTTP 200): é carga numa
   tabela de *staging* seguida de `MERGE` pela mesma chave `(capture_attempt_id, source_table)`, o
   que preserva a idempotência do item 5. Respostas parciais e retorno perdido são testados
-  localmente com a API simulada; a medição ao vivo no GCP fica para a fase 2. A leitura pelo dbt é a
+  localmente com a API simulada; a medição ao vivo no GCP fica para a fase 2. *Nota de 15/09/2026:* nenhum código do caminho BigQuery existe na fase local, e os testes com API simulada **ficam para a Etapa 13**, junto com o módulo que os exercita — adiamento decidido pelo Owner na revisão de desenvolvimento (achado RV10-08), registrado no [mapa de paridade](../arquitetura.md#5-mapa-de-paridade-local--gcp). A decisão de *como* escrever (staging + `MERGE`) não muda. A leitura pelo dbt é a
   mesma `source`. O `_airbyte_meta.sync_id` existe igual no destino BigQuery do Airbyte.
 - **Documentos a atualizar:** [ADR-0023](0023-escopo-do-schema-governance.md) —
   nota datada apontando para esta exceção, sem reescrita; [Origem Legada](../origem_legada.md) §4.2
