@@ -403,15 +403,14 @@ dbt-test: require-env require-venv ## Somente os testes de dados
 dbt-docs: require-env require-venv ## Gera e serve o catálogo com dicionário, linhagem e glossário
 	@$(DBT) docs generate && $(DBT) docs serve
 
-test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em banco efêmero; FATO=1 inclui o teste que escreve na fato; LOTE=1 compara a limpeza compilada nas 40 tabelas
-	@# Três interruptores, de propósito. `CARGA=1` substitui a origem pela carga
+test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em banco efêmero; FATO=1 inclui o teste que escreve na fato
+	@# Dois interruptores, de propósito. `CARGA=1` substitui a origem pela carga
 	@# reduzida e por isso só roda em banco efêmero (alvo `test-carga`); `FATO=1`
 	@# escreve no armazém de trabalho por desenho (repara e confere) e é
 	@# autorização à parte. Uma flag só para os dois foi o que pôs a origem de
-	@# trabalho em fator 0,05 duas vezes. `LOTE=1` estende a contraprova (b) do
-	@# oráculo às 40 tabelas do lote num armazém efêmero — custa ~11 min hoje.
+	@# trabalho em fator 0,05 duas vezes.
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) MVP_TESTE_LOTE=$(if $(filter 1,$(LOTE)),1,0) .venv/bin/pytest -q
+		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
 	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
 
 test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui

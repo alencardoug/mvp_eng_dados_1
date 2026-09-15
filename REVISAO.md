@@ -507,7 +507,7 @@ Somente este parecer foi acrescentado: código, ADRs e as seções anteriores fo
 | RV10-06 | `src/mvp_ed1/legacy/oraculo.py:198`, `:217`, `:220`; precedência em `legacy/catalogo.yml` | **O oráculo aplica a recuperação antes da heurística de truncamento e ignora a precedência no texto bruto.** Uma única injeção de espaços em `warehouses.name`, de 21 para 24 caracteres, recebe `corrected/TEXT_WHITESPACE_CASE` no oráculo; o catálogo dá precedência a `TEXT_TRUNCATED`, como faz o SQL, preservando o texto e rejeitando-o (EV10-04). O oráculo mede o texto já recuperado e ainda pula a coluna se nela existir qualquer achado. O erro também afeta a aptidão usada na cascata. Calcular o esperado respeitando a precedência declarada sobre a entrada, independentemente do SQL, e incluir esta sobreposição literal. Não mudar o contrato para acomodar o esperado incorreto. | `bloqueante` | **Corrigido em 15/09/2026.** O oráculo resolve os candidatos por coluna — o declarado pelo injetor e a heurística de truncamento medida na **entrada** — pela ordem de declaração do catálogo; a rejeição que precede uma correção preserva o texto e não recupera valor. O manifesto do lote corrente não muda (hash, 12.747 vereditos e achados iguais, conferido em memória). Prova: `test_a_precedencia_do_catalogo_vale_sobre_a_entrada_bruta` com a sobreposição literal (21 → 24 em `warehouses.name`). |
 | RV10-07 | `src/mvp_ed1/legacy/cli.py:196`, `:200`; plano histórico §2, item 5/P21 | **O manifesto nasce depois do COPY confirmado, invertendo a ordem acordada.** O CLI chama `writer.escrever` antes de `gravar_manifesto`; EV10-04 confirma `COPY/hash/commit → manifesto`. Uma interrupção ou falha no cálculo/escrita do manifesto deixa a carga confirmada sem o esperado durável que deveria antecedê-la. Gravar e validar o manifesto antes da carga, mantendo a conferência do hash do banco depois do COPY; exercitar falha na gravação do manifesto e garantir que a carga ainda não ocorreu. | `ajuste` | **Corrigido em 15/09/2026.** `seed` confere o destino (`writer.exigir_destino`), grava o manifesto e só então carrega; o hash do banco continua conferido depois do `COPY`. Prova: `test_o_seed_grava_o_manifesto_antes_da_carga_e_nao_carrega_se_o_manifesto_falhar` com escritor e manifesto simulados. |
 | RV10-08 | ADR-0044 — paridade, linhas 124–130; `src/mvp_ed1/legacy/captura.py`, `src/mvp_ed1/governance.py`, `tests/test_captura_legado.py`; plano P30 | **A prova local de idempotência da escrita BigQuery acordada no plano não foi entregue.** Não há caminho de staging seguido de MERGE no módulo nem testes com API simulada para resposta parcial e retorno perdido. A §4.4 deste dossiê reconhece a ausência; o ADR e a situação final de P30 prometem esses testes locais, deixando somente a medição ao vivo para a fase 2. Entregar a implementação simulável e as contraprovas previstas, ou submeter o adiamento desse recorte ao Owner e registrá-lo no dono documental atual, preservando o ADR aceito. | `ajuste` | **Adiado por decisão do Owner em 15/09/2026**, registrado no mapa de paridade (Arquitetura §5) e em nota datada no ADR-0044: o caminho BigQuery e os testes com API simulada nascem com o módulo na Etapa 13. Nenhum código GCP na fase local; a decisão de escrever por *staging* + `MERGE` não muda. |
-| RV10-09 | `tests/test_legado_oraculo.py:193`, `:221`; plano histórico §2, item 8 | **As contraprovas não exercitam os caminhos que deveriam proteger.** O teste copia `esperado` para `obtido` e altera objetos `Veredito`; isso prova o comparador, mas não injeta defeito no algoritmo do oráculo nem no SQL compilado para demonstrar falha da integração, como acordado em R13. A mutação de conteúdo só verifica a mudança do hash, sem executar a recusa da comparação. Acrescentar as três contraprovas nos respectivos caminhos, sobre lote compatível com o manifesto e sem depender dos skips da captura 36. | `ajuste` | **Corrigido em 15/09/2026**, pelo caminho local decidido pelo Owner (sem ambiente pesado): `tests/test_legado_contraprovas.py` carrega o lote gerado num armazém efêmero como o Airbyte o entregaria — compatível com o manifesto **por construção** — e (a) muta o algoritmo do oráculo (cascata, precedência, origem da rejeição) → diverge do manifesto; (b) executa os 40 modelos de limpeza compilados no PostgreSQL e compara achado a achado e valor a valor com o oráculo, depois muta o SQL (rótulo trocado, `btrim` removido, ramo anulado) → acusado; (c) executa a recusa por hash (`conteudo.tabelas_divergentes`, agora a mesma função da *fixture* de integração). A classificação completa (contexto e cascata) segue coberta só quando a captura selecionada é o lote do manifesto. Custo: por padrão (b) compara o recorte das tabelas com achado de valor e ≤ 130 linhas (114 s no total do arquivo); `make test LOTE=1` compara as 40 (656 s, medido) — a lentidão é do SQL compilado, não do teste, e virou a pendência **D42** (CTE `limpo` embutido pelo planejador; 10× com `materialized`, Capacidade §2.11). |
+| RV10-09 | `tests/test_legado_oraculo.py:193`, `:221`; plano histórico §2, item 8 | **As contraprovas não exercitam os caminhos que deveriam proteger.** O teste copia `esperado` para `obtido` e altera objetos `Veredito`; isso prova o comparador, mas não injeta defeito no algoritmo do oráculo nem no SQL compilado para demonstrar falha da integração, como acordado em R13. A mutação de conteúdo só verifica a mudança do hash, sem executar a recusa da comparação. Acrescentar as três contraprovas nos respectivos caminhos, sobre lote compatível com o manifesto e sem depender dos skips da captura 36. | `ajuste` | **Corrigido em 15/09/2026**, pelo caminho local decidido pelo Owner (sem ambiente pesado): `tests/test_legado_contraprovas.py` carrega o lote gerado num armazém efêmero como o Airbyte o entregaria — compatível com o manifesto **por construção** — e (a) muta o algoritmo do oráculo (cascata, precedência, origem da rejeição) → diverge do manifesto; (b) executa os 40 modelos de limpeza compilados no PostgreSQL e compara achado a achado e valor a valor com o oráculo, depois muta o SQL (rótulo trocado, `btrim` removido, ramo anulado) → acusado; (c) executa a recusa por hash (`conteudo.tabelas_divergentes`, agora a mesma função da *fixture* de integração). A classificação completa (contexto e cascata) segue coberta só quando a captura selecionada é o lote do manifesto. Custo: as 40 tabelas levavam 656 s porque o SQL compilado deixava o planejador embutir o CTE `limpo` em cada referência — achado novo, decidido pelo Owner no mesmo dia como **ADR-0047** (`materialized` no PostgreSQL): 47 s depois. |
 | RV10-10 | `tests/test_legado_remocao.py:148`, `:155` | **O esperado do diário volta a usar intenção em lugar de RETURNING.** Se uma remoção pede `1` e `999`, mas só `1` existe, `_efeito_liquido` marca ambas ausentes porque `linhas_apagadas` é não zero, ignorando `devolvidas` (EV10-06). Uma alteração de zero linhas também marca a chave como presente. Isso fabrica testemunhas e pode reprovar uma memória correta. Derivar o efeito das linhas efetivamente devolvidas, com chave canonizada pelo tipo, e cobrir remoção parcial e alteração sem correspondência. O diário de produção contém a evidência; seu consumidor deve usá-la, conforme o ADR-0045, item 6. | `ajuste` | **Corrigido em 15/09/2026.** `mutacoes.efeito_liquido` deriva do `RETURNING` (`devolvidas`), canoniza a chave pelo tipo e ignora alteração sem linha devolvida; o teste de integração passa a usá-la. Prova: `test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu` (remoção parcial `1`/`999`, `08` → `8`, alteração de zero linhas, chave sem identidade). |
 | RV10-11 | `src/mvp_ed1/legacy/dbt.py:314`; fonte gerada `governance.legacy_captures` | **Os campos novos do certificado ficaram sem dicionário e classificação de sensibilidade.** A source tem descrição da tabela, mas nenhuma entrada de coluna ou metadado de sensibilidade; os metadados gerados de `trusted` não cobrem essa fonte. A descrição geral do objeto não satisfaz a classificação dos campos novos exigida em `CLAUDE.md` §7. Declarar os campos e suas classificações no gerador responsável, regenerar a fonte e conferir sua presença no catálogo. | `ajuste` | **Corrigido em 15/09/2026.** `dbt.COLUNAS_DO_CERTIFICADO` declara as 15 colunas com descrição e `sensitivity: internal`, mais `domain`/`owner`; `_legacy__sources.yml` regenerada; `dbt parse` mostra as 15 colunas no manifesto do catálogo. Prova: `test_a_source_do_certificado_declara_todas_as_colunas_do_ddl` confere a lista contra o `information_schema` do DDL de `governance`. |
 | RV10-12 | `docs/plano_de_desenvolvimento.md:256` | **O registro permanente atribui a comparação integral do manifesto também à captura 35, que é outro lote.** A linha afirma 12.747 vereditos e 44 recuperações conferidos nas capturas 28 e 35. O próprio dossiê restringe a comparação integral à 28, e EV10-05 confirma que a 35 diverge do manifesto em três tabelas. Corrigir a atribuição no registro atual, separando a prova do lote íntegro das provas de mutação/remoção e preservando os ADRs aceitos. Não usar o resultado de uma captura para preencher o critério de outra. | `ajuste` | **Corrigido em 15/09/2026.** O critério no plano atribui a comparação integral só à captura 28 e diz o que as 29–36 provam (mutação e remoção). README não fazia a atribuição errada. |
@@ -529,20 +529,39 @@ trabalho e seis comparações contra o lote do manifesto, que a captura selecion
 216 passed, 8 skipped in 216.98s (0:03:36)
 ```
 
-`.venv/bin/pytest tests/test_legado_contraprovas.py` sobre as 40 tabelas — a execução que motivou o recorte, antes de o interruptor existir; é o que `make test LOTE=1` faz hoje (não repetido depois do interruptor):
+`.venv/bin/pytest tests/test_legado_contraprovas.py` sobre as 40 tabelas, **antes** do ADR-0047 (o
+SQL compilado com o CTE `limpo` embutido pelo planejador):
 
 ```text
 655.78s call     tests/test_legado_contraprovas.py::test_b_a_limpeza_compilada_concorda_com_o_oraculo_sobre_o_lote_inteiro
 6 passed in 714.34s (0:11:54)
 ```
 
-O mesmo arquivo no modo padrão (recorte: tabelas com achado de valor e ≤ 130 linhas):
+O mesmo arquivo, as mesmas 40 tabelas, **depois** do ADR-0047 (`limpo as materialized`):
 
 ```text
-51.22s call     tests/test_legado_contraprovas.py::test_b_a_limpeza_compilada_concorda_com_o_oraculo
-25.21s call     tests/test_legado_contraprovas.py::test_b_defeito_deliberado_no_sql_compilado_e_acusado[orders-mutacao2-achados]
-6 passed in 114.57s (0:01:54)
+46.55s call     tests/test_legado_contraprovas.py::test_b_a_limpeza_compilada_concorda_com_o_oraculo
+4.80s setup    tests/test_legado_contraprovas.py::test_c_conteudo_diferente_com_as_mesmas_identidades_recusa_a_comparacao
+6 passed in 61.26s (0:01:01)
 ```
+
+`make dbt-build DBT_ARGS='--select path:models/staging/legacy'` — as 41 tabelas de *staging* do legado
+regeradas com o CTE materializado, no armazém de trabalho (não há medição anterior deste recorte
+isolado; o *build* completo de 15/09 levou 17 min com o Airbyte pausado):
+
+```text
+6 of 284 OK created sql table model staging.stg_legacy__carts .................. [SELECT 2000 in 15.74s]
+5 of 284 OK created sql table model staging.stg_legacy__cart_items ............. [SELECT 5500 in 31.41s]
+Finished running 41 table models, 243 data tests in 0 hours 0 minutes and 42.55 seconds (42.55s).
+Done. PASS=284 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=284
+```
+
+A palavra `materialized` move a impressão digital do tratamento (D34 hasheia o SQL gerado):
+`8710ca3f…` → `92f72e5d…`. Pela leitura literal da D34, decidida pelo Owner, `versao` avançou para
+**9** sem regra nova; o manifesto do lote foi regerado com `versao_catalogo: 9` (mesmo hash, diário
+preservado). **O armazém continua auditado em v8**: `trusted.legacy_classifications` e a quarentena
+só recebem a v9 no próximo `dbt build` completo — não executado nesta resposta, e é onde
+`legacy_versao_do_tratamento_e_univoca` deve passar com as duas auditorias lado a lado.
 
 `make dbt-build DBT_ARGS='--select legacy_presence_by_capture+'` — os três modelos da exclusão
 física com a macro nova, sobre as oito capturas certificadas do armazém de trabalho; o resultado é o
@@ -561,11 +580,14 @@ colunas, todas com `sensitivity: internal`.
 O manifesto do lote corrente **não muda** com o oráculo corrigido: hash, 12.747 vereditos e achados
 iguais aos gravados, conferido em memória (a sobreposição do RV10-06 não ocorre no lote).
 
-**Não verificado nesta resposta:** `make dbt-build` completo (só o recorte acima); `make test FATO=1`
+**Não verificado nesta resposta:** `make dbt-build` completo (só os dois recortes acima; a v9 ainda não está no armazém); `make test FATO=1`
 e `CARGA=1`; a DAG com a retomada nova (`estado_do_job` só foi exercitado com observador simulado);
 interrupção de um *job* real do Airbyte; e os seis testes de veredito por ocorrência continuam
 pulando na captura 36 — a prova sobre o lote compatível é a do armazém efêmero.
 
-**Achado novo, fora da lista:** a lentidão da contraprova (b) é do SQL compilado — o planejador
+**Achado novo, fora da lista:** a lentidão da contraprova (b) era do SQL compilado — o planejador
 embute o CTE `limpo` em cada referência do `case` de achados (94 s → 8,7 s em `carts` com
-`materialized`). Medição em Capacidade §2.11; decisão do Owner registrada como **D42** em Pendências.
+`materialized`). Medição em Capacidade §2.11; decidido pelo Owner no mesmo dia como **ADR-0047**
+(`materialized` só no adaptador PostgreSQL), com os 40 modelos regerados. Na mesma sessão o Owner
+fechou a **D36** (ADR-0046: a Etapa 12 valida por partes) — fora do escopo desta revisão, registrado
+aqui só porque entra no mesmo intervalo de *commits*.

@@ -215,7 +215,13 @@ with captura as (
 -- A limpeza vem **antes** dos achados, e não junto: o achado de rejeição
 -- precisa ser conferido contra o valor já convertido, senão uma conversão
 -- bem-sucedida esconde a invalidade do resultado dela.
-limpo as (
+--
+-- `materialized`: sem isto o PostgreSQL embute este CTE em **cada** referência
+-- `l."coluna"` do case de achados — a validação de uma data referencia a
+-- coluna limpa dezenas de vezes — e reavalia a limpeza inteira a cada uma.
+-- Medido em 15/09/2026: `carts` 94 s → 8,7 s (D42). O BigQuery não tem a
+-- palavra, e lá o CTE fica como estava.
+limpo as {{{{ 'materialized ' if target.type == 'postgres' else '' }}}}(
 
     select
         c.legacy_row_id,

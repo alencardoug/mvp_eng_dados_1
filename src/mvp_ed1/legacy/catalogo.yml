@@ -60,11 +60,19 @@
 # regra de valor mudou; mudou o que o tratamento grava como captura, e isso é
 # resultado diferente sob o mesmo dado.
 #
+# A 9 não muda regra, conversão nem coluna: o CTE `limpo` dos modelos de
+# limpeza passou a ser `materialized` no PostgreSQL (ADR-0047), e a impressão
+# digital da D34 — que hasheia o SQL gerado, de propósito — moveu com o texto.
+# Sob a D34, impressão nova exige versão nova, ainda que o resultado seja o
+# mesmo linha a linha; a leitura literal foi decidida pelo Owner em 15/09/2026,
+# como na 8.
+#
 # **Quando avançar:** sempre que o tratamento passar a produzir resultado
-# diferente — regra nova, conversão alterada, coluna nova na classificação. É a
-# pergunta que `legacy_versao_do_tratamento_e_univoca` faz em voz alta quando
-# alguém esquece: sob uma versão, um tratamento.
-versao: 8
+# diferente — regra nova, conversão alterada, coluna nova na classificação —
+# ou sempre que a impressão digital mover. É a pergunta que
+# `legacy_versao_do_tratamento_e_univoca` faz em voz alta quando alguém
+# esquece: sob uma versão, um tratamento.
+versao: 9
 
 # ── Geração desta origem ──────────────────────────────────────────────────────
 # Semente **própria**, distinta da origem principal (Origem Legada §3.2): as

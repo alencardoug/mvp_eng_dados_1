@@ -440,7 +440,9 @@ limpeza é reavaliada em cada referência.
 
 Não é o JIT (a D38 já o desligou; ligado ou desligado, o `materialized` dá o mesmo) — é a forma do
 SQL, e é anterior à do §2.10: uma árvore em que cada referência carrega a expressão inteira é
-também o que o LLVM tentava compilar. O que fazer com isso está na pendência D42.
+também o que o LLVM tentava compilar. A pendência **D42** foi fechada no mesmo dia pelo
+[ADR-0047](adr/0047-materializar-o-cte-de-limpeza-do-legado.md): o CTE é `materialized` no
+PostgreSQL, e a contraprova (b) sobre as 40 tabelas caiu de 656 s para 47 s.
 
 ---
 

@@ -83,6 +83,7 @@ decisão.
 | [0044](0044-certificar-cada-captura-do-legado-por-conteudo.md) | Certificar cada captura do legado por conteúdo, por *stream* e por *job* | Aceita | D41 |
 | [0045](0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md) | Detectar a exclusão física do legado no bruto retido, sem marca dimensional | Aceita | D39 |
 | [0046](0046-validar-a-fase-local-por-partes.md) | Validar a fase local por partes, sem exigir *batch* e *streaming* simultâneos | Aceita | D36 |
+| [0047](0047-materializar-o-cte-de-limpeza-do-legado.md) | Materializar o CTE de limpeza dos modelos do legado no PostgreSQL | Aceita | D42 |
 
 ---
 
@@ -90,7 +91,7 @@ decisão.
 
 | # | Decisão | Levantada em | Efeito de não decidir |
 |---|---|---|---|
-| **D42** | Materializar o CTE `limpo` dos modelos de limpeza do legado, que o planejador embute em cada referência (10× medido) | Revisão de desenvolvimento, 15/09/2026 | A limpeza compilada e o `dbt build` do legado seguem uma ordem de grandeza mais lentos do que precisam |
+| — | Nenhuma decisão pendente em 15/09/2026 | | |
 
 Decisões nascidas da **revisão por outro agente**, e não da construção, já são maioria nesta etapa —
 quatro delas, todas de alguém olhando o que estava pronto, e nenhuma era implementação: as quatro

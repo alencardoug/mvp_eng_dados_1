@@ -43,8 +43,8 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | **D42** — o CTE `limpo` embutido pelo planejador |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 46 aceitos, 1 pendente |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Nenhuma decisão pendente em 15/09/2026 |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 47 aceitos, 0 pendentes |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.7 — reconstrução dos dois caminhos conferida |
@@ -52,7 +52,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**46 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**47 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -71,7 +71,8 @@ tempo de evento · **cada captura do legado é certificada por conteúdo, por *s
 e só captura certificada é elegível · **a exclusão física do legado é detectada no bruto retido**,
 entre capturas certificadas, sem marca nas dimensões — a cascata e o `delete+insert` já retiram do
 datamart o que dependia do registro · **a fase local é validada por partes**, sem exigir *batch* e
-*streaming* simultâneos — a concorrência entre os dois é medida na fase GCP.
+*streaming* simultâneos — a concorrência entre os dois é medida na fase GCP · **o CTE de limpeza do legado é materializado no
+PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
@@ -101,7 +102,9 @@ desenvolvimento; a etapa não está aceita.** O R25 foi implementado em 08/09 pe
 [ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
 reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
 sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém medido em
-15/09/2026:** captura selecionada 36 (*job* da DAG), tratamento na versão 8 — a mesma da árvore —,
+15/09/2026:** captura selecionada 36 (*job* da DAG), tratamento na versão 8 — a árvore está na 9 desde o
+[ADR-0047](docs/adr/0047-materializar-o-cte-de-limpeza-do-legado.md), sem regra nova, e o armazém a
+receberá no próximo *build* completo —,
 16 das 16 views publicadas, fato com 16.403 linhas (15.900 `retail` + 503 `legacy`); `make dbt-build`
 completo com `PASS=891 ERROR=0`. As observações anteriores — 2 das 16 views e tratamento na versão 5
 em 08/09; captura 16 e versão 7 em 14/09 — descrevem o banco **antes** das reconstruções seguintes.

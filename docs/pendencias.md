@@ -10,20 +10,16 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado; D36 fechada (ADR-0046), D42 aberta —, aguardando nova revisão** |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado; D36 e D42 fechadas (ADR-0046/0047) —, aguardando nova revisão** |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 — D42 |
+| Decisões pendentes | 0 |
 | Última revisão | 15/09/2026 |
 
 ---
 
 ## 1. Esperando você
 
-### D42 — o CTE `limpo` dos modelos de limpeza é embutido pelo planejador, e custa 10×
-
-Medido em 15/09/2026 ([Capacidade §2.11](capacidade_e_recuperacao.md#211-o-cte-limpo-embutido-em-cada-referência--15092026)):
-`carts` 94 s → 8,7 s com `limpo as materialized`. Decisão sobre o SQL do tratamento; registro na
-rodada seguinte.
+*Nenhuma decisão pendente em 15/09/2026.*
 
 ---
 
@@ -40,6 +36,19 @@ técnica não é aceite: a etapa continua reaberta até essa revisão e a sua de
 ---
 
 ## 2. Decisões já fechadas
+
+### D42 — decidida em 15/09/2026
+
+**O CTE `limpo` dos modelos de limpeza do legado é `materialized` no PostgreSQL, e fica como estava
+nos demais adaptadores.** Fechada pelo [ADR-0047](adr/0047-materializar-o-cte-de-limpeza-do-legado.md),
+que registra o custo aceito: o SQL emitido pelo gerador passa a depender do adaptador, o custo do
+mesmo CTE no BigQuery não foi medido, e a impressão digital da D34 move com o texto — a `versao`
+do catálogo avança para 9 sem que uma regra tenha mudado, leitura literal decidida por você.
+
+Levantada e decidida no mesmo dia, pela contraprova (b) da revisão de desenvolvimento: o planejador
+embutia o CTE em cada referência do `case` de achados e reavaliava a limpeza inteira a cada uma —
+`carts` 94 s → 8,7 s, `cart_items` 295 s → 25 s, o lote inteiro 656 s → 47 s
+([Capacidade §2.11](capacidade_e_recuperacao.md#211-o-cte-limpo-embutido-em-cada-referência--15092026)).
 
 ### D36 — decidida em 15/09/2026
 

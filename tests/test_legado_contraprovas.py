@@ -205,6 +205,7 @@ def _sql_de_limpeza(catalogo, promessas, parametros, tabela: str) -> str:
         ref=lambda nome: f"(select {JOB}::bigint as snapshot_id) as {nome}",
         var=lambda nome: {"as_of_date": parametros["as_of"]}[nome],
         config=lambda **kwargs: "",
+        target=type("Alvo", (), {"type": "postgres"})(),
     )
 
 
@@ -252,32 +253,15 @@ def _divergencias(esperado, obtido, tabela: str) -> list[tuple]:
     return saida
 
 
-#: `make test LOTE=1` compara as 40 tabelas; sem ele, só as que carregam achado
-#: de valor e têm até este tanto de linhas. O que decide o corte é custo, não
-#: cobertura: o SQL compilado deixa o planejador embutir o CTE `limpo` em cada
-#: referência de `_achado`, e `cart_items` (5.500 linhas) leva quase cinco
-#: minutos por consulta — medido em 15/09/2026 (656 s para o lote inteiro; 25 s
-#: com o CTE materializado). É observação para o dono do gerador, não conserto
-#: de teste.
-LOTE_INTEIRO = os.environ.get("MVP_TESTE_LOTE") == "1"
-LINHAS_NO_RECORTE = 130
-
-
-def _tabelas_comparadas(manifesto: dict[str, Any]) -> list[str]:
-    if LOTE_INTEIRO:
-        return list(schema.tabelas())
-    com_achado = {a["tabela"] for a in manifesto["achados"] if a["coluna"] is not None}
-    return [t for t in schema.tabelas() if t in com_achado and manifesto["lote"]["tabelas"][t]["linhas"] <= LINHAS_NO_RECORTE]
-
-
 def test_b_a_limpeza_compilada_concorda_com_o_oraculo(armazem, lote, manifesto, record_property) -> None:
     catalogo, resultado, parametros = lote
     promessas = cli._promessas()
     vereditos = _esperados_do_manifesto(manifesto)
     divergencias: dict[str, list] = {}
     ocorrencias = achados = valores = 0
-    tabelas = _tabelas_comparadas(manifesto)
-    record_property("tables_compared", f"{len(tabelas)}/{len(schema.tabelas())}" + ("" if LOTE_INTEIRO else " (recorte; LOTE=1 compara todas)"))
+    # As 40 tabelas: 47 s com o CTE `limpo` materializado (ADR-0047); eram
+    # 656 s antes, quando o planejador reavaliava a limpeza a cada referência.
+    tabelas = list(schema.tabelas())
     for tabela in tabelas:
         esperado = _esperado(vereditos, tabela)
         obtido = _obtido(armazem, _sql_de_limpeza(catalogo, promessas, parametros, tabela), tabela)
