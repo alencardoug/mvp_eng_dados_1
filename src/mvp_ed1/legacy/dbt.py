@@ -271,13 +271,47 @@ def gerar(catalogo: Catalogo, promessas: frozenset[str], destino: pathlib.Path =
     return escritos
 
 
+#: Dicionário do certificado (ADR-0044), coluna a coluna, na ordem do DDL de
+#: `mvp_ed1.governance`. Nada aqui é dado de negócio: contagens, hashes e
+#: identificadores de execução — classificação `internal` em todas. O teste
+#: `test_captura_legado` confere que esta lista e o DDL não divergem.
+COLUNAS_DO_CERTIFICADO: tuple[tuple[str, str], ...] = (
+    ("capture_attempt_id", "Identificador da tentativa de captura, aberto na fase 1; uma tentativa tem 40 linhas."),
+    ("source_table", "Tabela do legado a que a linha se refere."),
+    ("connection_name", "Conexão do Airbyte que fez a captura (`legacy_para_raw_legacy`)."),
+    ("job_id", "Job do Airbyte, gravado assim que ele nasce; nulo se a tentativa nunca ganhou job."),
+    ("snapshot_id", "Identidade da captura = o job (`_airbyte_meta.sync_id`); é o que os modelos leem como `legacy_snapshot_id`."),
+    ("source_rows_before", "Contagem na origem antes de o job nascer (fase 1)."),
+    ("source_hash_before", "Hash de conteúdo da tabela na origem antes do job (`legacy/conteudo.py`)."),
+    ("source_rows_after", "Contagem na origem depois de o job terminar (fase 2)."),
+    ("source_hash_after", "Hash de conteúdo da tabela na origem depois do job."),
+    ("received_rows", "Linhas no bruto com o `sync_id` deste job."),
+    ("received_hash", "Hash de conteúdo do que chegou ao bruto com o `sync_id` deste job."),
+    ("sync_id_matches", "A geração desta tabela só tem linhas deste job, e o job só escreveu uma geração nela."),
+    ("status", "Veredito por tabela: `pending`, `complete`, `unstable`, `incomplete`, `inconsistent` ou `abandoned`."),
+    ("started_at", "Instante da fase 1 (medição \"antes\")."),
+    ("completed_at", "Instante da fase 2, ou do abandono."),
+)
+
+
 def sources_yml() -> str:
     """Declaração das 40 fontes do legado, gerada da mesma lista dos modelos.
 
     Escrever à mão daria uma segunda lista de tabelas, que divergiria da
-    primeira no dia em que uma entrasse ou saísse.
+    primeira no dia em que uma entrasse ou saísse. O certificado é declarado
+    coluna a coluna, com classificação: é a *source* de `governance` que o
+    fluxo lê, e campo lido sem dicionário nem sensibilidade é o que a
+    definição de pronto proíbe (`CLAUDE.md` §7; achado RV10-11).
     """
     linhas = "\n".join(f"      - name: {t}" for t in schema.tabelas())
+    certificado = "\n".join(
+        f"          - name: {nome}\n"
+        f"            description: >\n"
+        f"              {descricao}\n"
+        f"            meta:\n"
+        f"              sensitivity: internal"
+        for nome, descricao in COLUNAS_DO_CERTIFICADO
+    )
     return f"""# Gerado por `make legacy-models`. Não edite: a lista sai dos modelos.
 
 version: 2
@@ -317,6 +351,11 @@ sources:
           (contagem e hash de conteúdo), bruto recebido com o `sync_id` do job,
           e o veredito — `complete`, `unstable`, `incomplete`, `inconsistent`,
           `pending`, `abandoned`. Captura elegível = `complete` nas 40 tabelas.
+        meta:
+          domain: legado
+          owner: data_custodian
+        columns:
+{certificado}
 """
 
 

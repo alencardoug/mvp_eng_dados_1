@@ -396,3 +396,66 @@ def test_interrupcao_no_meio_da_publicacao_nao_deixa_nada_e_a_retomada_conclui(e
     assert feito == {tentativa: "concluida"}
     assert captura.certificadas(armazem) == [909]
 
+@pytest.mark.integracao
+def test_a_source_do_certificado_declara_todas_as_colunas_do_ddl(efemeros) -> None:
+    """RV10-11: o dicionário gerado e o DDL de `governance` não podem divergir."""
+    from mvp_ed1.legacy import dbt
+
+    _, armazem = efemeros
+    governance.garantir(armazem)
+    with armazem.connect() as conexao:
+        no_banco = [
+            c for (c,) in conexao.execute(
+                text("select column_name from information_schema.columns "
+                     "where table_schema = 'governance' and table_name = 'legacy_captures' order by ordinal_position")
+            )
+        ]
+    assert [nome for nome, _ in dbt.COLUNAS_DO_CERTIFICADO] == no_banco
+    assert all(f"- name: {nome}" in dbt.sources_yml() for nome in no_banco)
+
+
+# ── O que já está retido, somente leitura ────────────────────────────────────
+
+@pytest.mark.integracao
+def test_o_certificado_mais_recente_confere_com_o_bruto_e_a_geracao_15_e_incompleta(administradores, record_property) -> None:
+    """Leitura pura sobre o armazém de trabalho, sem gravar certificado.
+
+    Duas coisas, e nenhuma delas remede a origem de hoje como se fosse a de
+    antes (é o que o ADR-0044 proíbe): (1) a captura certificada **mais
+    recente** ainda bate com o bruto — `decidir` com o antes e o depois
+    **gravados** no certificado e o bruto medido agora dá `complete` nas 40
+    tabelas; (2) a geração 15 (job 25), retida com 39 tabelas, tem conteúdo
+    igual ao da 16 (job 26) em todas menos `brands`, que não veio — é a
+    contraprova que só a certificação por tabela recusa.
+    """
+    _, armazem = administradores
+    with armazem.connect() as conexao:
+        if not conexao.execute(
+            text("select count(*) from information_schema.tables where table_schema = 'raw_legacy'")
+        ).scalar_one():
+            pytest.skip("sem raw_legacy retido")
+        certificados = conexao.execute(
+            text(
+                f"select source_table, job_id, source_rows_before, source_hash_before, "
+                f"source_rows_after, source_hash_after from {captura.TABELA} "
+                f"where status = '{captura.COMPLETE}' and snapshot_id = "
+                f"(select max(snapshot_id) from {captura.TABELA} where status = '{captura.COMPLETE}')"
+            )
+        ).all() if governance.versoes(armazem) else []
+    if len(certificados) != 40:
+        pytest.skip("nenhuma captura certificada ainda")
+    job = certificados[0][1]
+    recebido = captura.medir_recebido(armazem, job)
+    vereditos = {
+        t: captura.decidir(M(na, ha), M(nd, hd), recebido[t]) for t, _, na, ha, nd, hd in certificados
+    }
+    record_property("latest_certified_job", int(job))
+    assert set(vereditos.values()) == {captura.COMPLETE}, {t: v for t, v in vereditos.items() if v != captura.COMPLETE}
+
+    r15, r16 = captura.medir_recebido(armazem, 25), captura.medir_recebido(armazem, 26)
+    if not any(r.geracoes for r in r16.values()):
+        pytest.skip("gerações 15 e 16 não estão retidas neste armazém")
+    assert r15["brands"].linhas == 0 and r16["brands"].linhas > 0
+    iguais = [t for t in schema.tabelas() if t != "brands" and (r15[t].linhas, r15[t].hash) == (r16[t].linhas, r16[t].hash)]
+    record_property("gen15_tables_equal_to_gen16", len(iguais))
+    assert len(iguais) == 39

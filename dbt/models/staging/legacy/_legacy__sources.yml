@@ -76,3 +76,82 @@ sources:
           (contagem e hash de conteúdo), bruto recebido com o `sync_id` do job,
           e o veredito — `complete`, `unstable`, `incomplete`, `inconsistent`,
           `pending`, `abandoned`. Captura elegível = `complete` nas 40 tabelas.
+        meta:
+          domain: legado
+          owner: data_custodian
+        columns:
+          - name: capture_attempt_id
+            description: >
+              Identificador da tentativa de captura, aberto na fase 1; uma tentativa tem 40 linhas.
+            meta:
+              sensitivity: internal
+          - name: source_table
+            description: >
+              Tabela do legado a que a linha se refere.
+            meta:
+              sensitivity: internal
+          - name: connection_name
+            description: >
+              Conexão do Airbyte que fez a captura (`legacy_para_raw_legacy`).
+            meta:
+              sensitivity: internal
+          - name: job_id
+            description: >
+              Job do Airbyte, gravado assim que ele nasce; nulo se a tentativa nunca ganhou job.
+            meta:
+              sensitivity: internal
+          - name: snapshot_id
+            description: >
+              Identidade da captura = o job (`_airbyte_meta.sync_id`); é o que os modelos leem como `legacy_snapshot_id`.
+            meta:
+              sensitivity: internal
+          - name: source_rows_before
+            description: >
+              Contagem na origem antes de o job nascer (fase 1).
+            meta:
+              sensitivity: internal
+          - name: source_hash_before
+            description: >
+              Hash de conteúdo da tabela na origem antes do job (`legacy/conteudo.py`).
+            meta:
+              sensitivity: internal
+          - name: source_rows_after
+            description: >
+              Contagem na origem depois de o job terminar (fase 2).
+            meta:
+              sensitivity: internal
+          - name: source_hash_after
+            description: >
+              Hash de conteúdo da tabela na origem depois do job.
+            meta:
+              sensitivity: internal
+          - name: received_rows
+            description: >
+              Linhas no bruto com o `sync_id` deste job.
+            meta:
+              sensitivity: internal
+          - name: received_hash
+            description: >
+              Hash de conteúdo do que chegou ao bruto com o `sync_id` deste job.
+            meta:
+              sensitivity: internal
+          - name: sync_id_matches
+            description: >
+              A geração desta tabela só tem linhas deste job, e o job só escreveu uma geração nela.
+            meta:
+              sensitivity: internal
+          - name: status
+            description: >
+              Veredito por tabela: `pending`, `complete`, `unstable`, `incomplete`, `inconsistent` ou `abandoned`.
+            meta:
+              sensitivity: internal
+          - name: started_at
+            description: >
+              Instante da fase 1 (medição "antes").
+            meta:
+              sensitivity: internal
+          - name: completed_at
+            description: >
+              Instante da fase 2, ou do abandono.
+            meta:
+              sensitivity: internal
