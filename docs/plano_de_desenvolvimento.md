@@ -236,10 +236,12 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 10 — Corte 6: origem legada
 
-*Reaberta em 07/09/2026.* Foi declarada concluída em 06/09, e a revisão por outro agente mostrou
-que não estava: **doze achados bloqueantes**, entre eles duas ausências de escopo — o empilhamento
-em `trusted` não existe, e o schema legado ficou fora do ciclo de migrações. Os critérios abaixo
-voltam a valer, e os ✓ que dependiam de execução repetida foram retirados.
+*Reaberta em 07/09/2026; achados da terceira revisão implementados e medidos em 15/09/2026,
+**aguardando revisão** — a etapa não está aceita.* Foi declarada concluída em 06/09, e a revisão
+por outro agente mostrou que não estava: **doze achados bloqueantes**, entre eles duas ausências de
+escopo — o empilhamento em `trusted` não existia (tratado em 07/09), e o schema legado estava fora
+do ciclo de migrações (tratado em 14/09). Os critérios abaixo trazem ✓ **só** onde há medição, com a
+captura e a versão em que foi feita.
 
 O erro de processo vale registrado: encerrei a etapa com base nos testes que **eu** havia escrito.
 Teste que o próprio autor desenha mede o que ele pensou em medir.
@@ -251,7 +253,7 @@ Teste que o próprio autor desenha mede o que ele pensou em medir.
 | **Entregas** | **E5**, **E6**, **E10** (parciais) |
 | **Decisões** | **D15** ([ADR-0021](adr/0021-procedencia-no-empilhamento.md)), **D28** ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md)) — aceitas em 04/09/2026 · retenção das capturas ([ADR-0037](adr/0037-reter-capturas-do-legado-por-acrescimo.md)) · duplicata e cascata ([ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) · alcance da procedência ([ADR-0039](adr/0039-alcance-da-procedencia.md)) — aceitas em 05/09/2026 |
 | **Artefatos** | `src/mvp_ed1/legacy/` com o catálogo declarativo, o gerador e o manifesto · `legacy_db` · *snapshot* em `raw_legacy` · schema `quarantine` · modelos de limpeza e empilhamento |
-| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente ✓ na captura selecionada (12.747 = 10.452 + 27 + 2.268) — **mas não na fronteira do empilhamento**, que não existe (R01) · resultado confere com o manifesto ✓ **só para os achados de valor**; a cascata não tem oráculo (R13) · `raw_legacy` intacto ✓ · rejeitados preservados em quarentena com motivo ✓, com a ressalva de R11 · reprocessar o mesmo `snapshot_id` não duplica — **sem execução repetida medida** · nenhuma correção silenciosa — **contrariado por R04, R05 e R07**: há conversão que inventa valor e conversão que perde informação |
+| **Critérios de conclusão** | `extraídos = aceitos + corrigidos + rejeitados` fecha exatamente ✓ na captura selecionada e `empilhados = aceitos + corrigidos` na fronteira do empilhamento ✓ (testes de dados a cada *build*; `PASS=891` em 15/09/2026, captura 36, v8) · resultado confere com o manifesto ✓ **por ocorrência, para o lote inteiro** — 12.747 vereditos, achados de contexto e cascata incluídos, 44 valores recuperados conforme o contrato (15/09/2026, captura 28 e 35, v8) · `raw_legacy` intacto ✓ e cada captura **certificada por conteúdo** (oito certificadas, uma recusada de propósito com 39/40 tabelas) · duas capturas certificadas distinguem remoção real de falha de ingestão ✓ (5 clientes e 3 movimentos removidos, detectados e persistidos; captura incompleta não comparada) · rejeitados preservados em quarentena com motivo ✓, e tratamento alterado sob o mesmo rótulo **recusado** com as duas auditorias retidas (ciclo D34 em cópia isolada, 15/09) · reprocessar o mesmo `snapshot_id` não duplica ✓ (reconstrução como captura 28 depois de 35: `PASS=696` nas duas) · nenhuma correção silenciosa ✓ — toda correção tem valor esperado declarado no catálogo e conferido (R04, R05 e R07 fechados em 08/09) |
 | **Riscos tratados** | **R5**, **R14** |
 | **Conceitos** | *Schema-on-read* × *schema-on-write* · dicionário de conversões determinísticas · quarentena em vez de descarte · procedência · teste contra oráculo |
 

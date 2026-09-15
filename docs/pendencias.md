@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; achados da terceira revisão **implementados e medidos em 15/09/2026, aguardando revisão** |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 — D36 |
-| Última revisão | 14/09/2026 |
+| Última revisão | 15/09/2026 |
 
 ---
 
@@ -56,8 +56,10 @@ resta quando nem a troca basta, e aí `FORCE=1` autoriza.
 As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — foram decididas em
 07/09/2026 e estão implementadas; o registro delas está abaixo.
 
-Os bloqueios que restam da revisão são **implementação**, não decisão: R10 (detecção de exclusão
-física), R12 (migração Alembic do schema legado) e R13 (oráculo independente da cascata).
+Os achados que a terceira revisão deixou abertos — R09, R10, R12, R13, R14 e R26 — foram
+**implementados e medidos em 14–15/09/2026** (D39, D40 e D41 decididas no caminho, mais a identidade
+da captura em 15/09), e estão **aguardando a revisão do desenvolvimento** pelo outro agente. Entrega
+técnica não é aceite: a etapa continua reaberta até essa revisão e a sua decisão.
 
 ---
 
@@ -289,11 +291,12 @@ que está registrado é o número, não a causa.
 
 ## 6. Do lado do assistente
 
-A D31 está encerrada. Na Etapa 10, gerador, ingestão com retenção e modelos de limpeza já existem.
-A correção da precedência entre rejeição e conversão foi validada em 06/09/2026
-([Qualidade §5.1](qualidade_de_dados.md#51-validação-dos-valores-tratados--06092026)).
-Classificação com contexto, quarentena, empilhamento com procedência e DAG estão em implementação;
-a D32 foi decidida e deixou de pausar o tratamento. Nenhum aceite da Etapa 10 foi presumido.
+A D31 está encerrada. Na Etapa 10, tudo o que a terceira revisão pediu está **implementado e
+medido** (15/09/2026): certificação de captura por conteúdo em duas fases (ADR-0044), detecção de
+exclusão física no bruto retido (ADR-0045), schema legado no Alembic, oráculo por ocorrência para
+o lote inteiro, contrato de `event_sequence`, e os documentos com o estado medido. As medições
+estão no dossiê de revisão entregue ao outro agente e nos donos documentais. **Nenhum aceite da
+Etapa 10 foi presumido**: a etapa fecha quando a revisão do desenvolvimento e você o disserem.
 
 ---
 

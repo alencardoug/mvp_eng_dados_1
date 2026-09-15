@@ -76,22 +76,34 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026, em terceira revisão.** Foi declarada
+**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026 — achados da terceira revisão
+implementados e medidos em 15/09/2026, aguardando revisão.** Foi declarada
 concluída em 06/09 e duas revisões por outro agente mostraram que não estava. O empilhamento em
 `trusted`, ausente na primeira revisão, existe desde 07/09 e teve a identidade por origem conferida
 no SQL pela terceira. Esta, de 08/09, deixou treze achados abertos; nove foram fechados com
 contraprova — validação de data, reversibilidade de codificação, ambiguidade monetária, recuperação
 do valor injetado, identidade do vínculo com a auditoria, guarda de configuração da impressão
-digital, avaliação real das views, e dois na troca automática de ambientes. Continuam abertos
-**R09, R10, R12, R13 e R14**. O R25 foi implementado em 08/09 pelo
+digital, avaliação real das views, e dois na troca automática de ambientes. Os que continuavam abertos —
+**R09, R10, R12, R13, R14 e R26** — foram implementados em 14–15/09/2026 sob um plano revisado três
+vezes pelo outro agente: cada captura do legado é **certificada por conteúdo** em duas fases
+([ADR-0044](docs/adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)); a **exclusão física** é
+detectada no bruto retido entre capturas certificadas
+([ADR-0045](docs/adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)); o schema legado
+entrou no **Alembic**; o manifesto tem **veredito esperado de toda ocorrência** e a captura é
+conferida por hash antes de comparar; e a identidade da captura passou a ser o *job* do Airbyte,
+porque a geração se mostrou por *stream*. **Medido em 15/09/2026:** 12.747 vereditos iguais ao
+oráculo; oito capturas certificadas (jobs 28–36), uma recusada de propósito (39/40 tabelas);
+remoção, inclusão, redução, persistência e reaparecimento medidos entre capturas reais;
+`make dbt-build` completo com `PASS=891 ERROR=0`; DAG `fluxo_batch` com 12 tarefas em 13 min,
+certificando a captura dentro dela; `make test FATO=1` com 180 passed. **Aguarda a revisão do
+desenvolvimento; a etapa não está aceita.** O R25 foi implementado em 08/09 pelo
 [ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
 reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
-sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém remedido
-em 14/09/2026:** captura 16, tratamento na versão 7 — a mesma da árvore —, 16 das 16 views
-publicadas, fato com 16.453 linhas conferindo com a origem; o `make dbt-build` completo de 08/09
-terminou com `PASS=863 ERROR=0` depois do
-[ADR-0043](docs/adr/0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md). A observação de
-08/09 — 2 das 16 views, tratamento na versão 5 — descrevia o banco **antes** dessa reconstrução.
+sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém medido em
+15/09/2026:** captura selecionada 36 (*job* da DAG), tratamento na versão 8 — a mesma da árvore —,
+16 das 16 views publicadas, fato com 16.403 linhas (15.900 `retail` + 503 `legacy`); `make dbt-build`
+completo com `PASS=891 ERROR=0`. As observações anteriores — 2 das 16 views e tratamento na versão 5
+em 08/09; captura 16 e versão 7 em 14/09 — descrevem o banco **antes** das reconstruções seguintes.
 Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
 subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
 **streaming em operação com o *batch* intacto** (**M4**).
