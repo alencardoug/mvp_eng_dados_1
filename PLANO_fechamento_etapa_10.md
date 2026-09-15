@@ -1183,3 +1183,239 @@ findings_line: 1241
 | P26 | ajuste | **Cai com D39-c″:** universo dimensional deixa de existir como pergunta; a aptidão histórica fica no SCD que já existe e não é promessa deste plano. |
 | P27 | bloqueante | **Cai com D39-c″:** ADR-0029 intacto; linha de base das 7 marcas lógicas registrada na §0 e não tocada. |
 | P28 | ajuste | **Aplicado, §0 e §4.** "A geração 15 falha aqui" virou expectativa marcada **[planejado]**; o medido é só 39 tabelas e ausência da tabela de controle. |
+
+---
+
+## 17. Reavaliação do revisor — 14/09/2026
+
+**A revisão 4 ainda tem três bloqueantes e dois ajustes.** Avaliei o plano em `caae643`,
+incluindo a nova decisão D39-c″. A retirada da marca dimensional é respeitada: não é necessário
+implementar snapshots ou preservar membros dimensionais para responder ao R10 original.
+P24–P27 perderam objeto neste escopo. A persistência da lista de ausentes em C, objeto de P14,
+também está respondida pelo novo desenho; a equação que usa essa lista tem outro defeito,
+registrado em P29.
+
+P02, P11, P18 e P28 foram respondidos no nível do planejamento: conteúdo substitui contagem
+isolada; as autorizações de escrita são separadas; o manifesto ganha vínculo por conteúdo;
+e a recusa futura da geração 15 deixou de ser anunciada como medida. Isso não encerra os R
+correspondentes antes da implementação e das provas. P12, P15 e P21 permanecem nos recortes
+abaixo. P29/P30 são novos. Os pareceres anteriores e a resposta da §16 permanecem intactos.
+
+### 17.1. Fidelidade aos achados e decisões do Owner
+
+| Achado original | Resultado desta reavaliação |
+|---|---|
+| R09 — `REVISAO.md:823` | A §4 atende ao objeto de vincular job, conteúdo e cobertura por tabela; as novas contraprovas distinguem perda compensada por duplicata e alteração sem mudança de contagem. Falta resolver a recuperação do certificado sem inventar a medição anterior à sync (P15) e a idempotência do caminho BigQuery escolhido (P30). |
+| R10 — `REVISAO.md:824` | A §5 passou a detectar ausências exclusivamente no bruto retido, conforme a decisão do Owner. A lista persistente responde à memória da exclusão. Contudo, não pode ser usada diretamente como o fluxo de remoções entre duas capturas consecutivas, nem a comparação de chaves fechar uma equação de linhas físicas com multiplicidade (P29). A identidade UUID também não é normalizada pela macro escolhida (P12). |
+| R12 — `REVISAO.md:825` | A §3 preservou migração do zero, comparação física tripla e adoção verificada do banco existente. Continua adequado no nível do plano. A abreviação desta seção não autoriza omitir as provas nela enumeradas. |
+| R13 — `REVISAO.md:826,843–844` | A §2 conserva esperado por ocorrência, multiconjunto, cascata, recuperação tipada e mutações que devem fazer o teste falhar. O hash por conteúdo é adequado para impedir comparação com lote diferente. Porém, o gerador atual produz justamente um lote diferente da captura 16, tornando inviável a sequência de integração anunciada sem um passo adicional (P21). |
+| R14 — `REVISAO.md:827` | As §§7–8 continuam distinguindo implementado, medido, revisão e aceite, com pendências externas explícitas. Nada nesta reavaliação autoriza declarar a etapa aceita. |
+| R26 — `REVISAO.md:830` | A §6 mantém o contrato delimitado e a nota de referência apropriada. Sem nova objeção. |
+
+**Confronto das decisões da §12:** D39-a′ acerta ao separar `sem identidade` da classificação
+de qualidade, mas ainda precisa do domínio por tipo de P12 e do grão de P29. D39-b mantém a
+certificação como requisito e a exclusão de 1–16 como antecedentes; a lista persistente pode
+consultar todos os antecedentes certificados, enquanto a reconciliação de transições precisa
+nomear seu par de capturas. D39-c″ é compatível com conservar o ADR-0042 e com a memória no bruto
+do ADR-0037. O ADR-0045 deve explicitar que trata de **hard delete legado**; a marca de exclusão
+**lógica** do ADR-0029 e as vigências do ADR-0017 continuam com seus contratos atuais.
+Não há motivo para reintroduzir a mudança dimensional retirada pelo Owner.
+
+O **ADR-0044 antes do R09** é agora a forma correta de registrar a exceção ao ADR-0023.
+O **ADR-0045 antes do R10** também é adequado. Não encontrei ADR aceito novo desde o parecer
+anterior; os dois documentos ainda são entregas planejadas. A recuperação e a contrapartida
+BigQuery precisam das decisões indicadas em P15/P30 dentro desse registro, sem trocar
+silenciosamente de ferramenta ou de camada.
+
+D40 e os quatro casos de cascata continuam compatíveis com ADR-0039 e ADR-0038/0040,
+respectivamente; notas de referência bastam. A autorização para corrigir divergências de SQL
+com ciclo de versão permanece válida. A restauração da origem e os interruptores separados
+são registros de execução/controle operacional, sem novo conflito arquitetural identificado.
+A implementação do teste de carga isolado deverá preparar o schema OLTP pelas migrações
+existentes e provar que a suíte executou, sem usar skips como evidência de sucesso.
+
+### 17.2. Verificações executadas — saídas literais
+
+Reli `CLAUDE.md` e o plano, comparei `deb3c40..caae643`, revisei os contratos citados e os
+pontos de código que sustentam as novas premissas. As verificações novas foram geração em
+memória, consultas somente leitura a `legacy_db`/warehouse, aplicação da macro existente
+a valores sintéticos e contraprovas de conjuntos. Não executei o CLI planejado, que ainda
+não existe, nem seed, migração, build dbt, sync, DAG ou alvo de ambiente pesado.
+
+**VR01 — revisão, memória e famílias do preflight.** Comandos: `git status --short --branch`,
+`git rev-parse HEAD`, leitura de `/proc/meminfo` e busca das constantes em
+`docker/preflight.sh`.
+
+~~~text
+## feat/troca-entre-ambientes-pesados...origin/feat/troca-entre-ambientes-pesados [ahead 14]
+caae6434a0c3b18df2201c12cb5d94cdf9b9a61d
+MemTotal:       12021776 kB
+MemAvailable:    2561872 kB
+SwapTotal:      16215540 kB
+SwapFree:       13517964 kB
+36:CUSTO_airbyte=5000
+37:CUSTO_airflow=1400
+49:  airbyte|airflow) FAMILIA="batch" ;;
+~~~
+
+**VR02 — conteúdo do gerador, origem e captura 16.** Executei `legacy.cli._gerar()` sem
+chamar o writer. Li de cada tabela somente `legacy_row_id` e as colunas declaradas em
+`schema.colunas(tabela)`, ordenadas por `legacy_row_id`; no bruto, filtrei geração 16.
+Usei arrays JSON em UTF-8, sem espaços de serialização, uma linha por registro, e MD5 para
+comparar as sequências. Fiz a comparação preservando o vazio e repetindo com a normalização
+`'' → null` proposta no plano. A mesma serialização foi aplicada aos três lados.
+
+O resultado confirma a normalização de transporte no lote observado: seis células vazias na
+origem chegam nulas ao bruto, e **40/40 tabelas** coincidem depois dessa normalização.
+Também demonstra que a regeneração atual não é a captura 16: apenas **27/40 tabelas**
+coincidem. Isso verifica a premissa de bootstrap; não é execução da nova função de hash
+ainda planejada.
+
+~~~text
+generated: version= 7 tables= 40 rows= 12747 findings= 105
+serialization: JSON arrays of [legacy_row_id, declared business columns], UTF-8, no whitespace, one row per line, sorted by legacy_row_id
+read_only: on on
+source_raw_differences: support_agents count= 2 sample= [(2, 'first_name', "''", 'None'), (2, 'last_name', "''", 'None')]
+source_raw_differences: products count= 2 sample= [(5, 'status', "''", 'None'), (5, 'launched_at', "''", 'None')]
+source_raw_differences: stock_reservations count= 2 sample= [(80, 'warehouse_id', "''", 'None'), (80, 'product_variant_id', "''", 'None')]
+matching_tables: {'generator_raw16_empty_as_null': 27, 'generator_raw16_exact': 26, 'generator_source_empty_as_null': 27, 'generator_source_exact': 27, 'source_raw16_empty_as_null': 40, 'source_raw16_exact': 37}
+empty_strings: {'generator': 6, 'raw16': 0, 'source': 6}
+warehouse_capture: [(16,)]
+~~~
+
+A geração usou o caminho atual de `src/mvp_ed1/legacy/cli.py:35–43`: configuração corrente,
+semente/fator do catálogo e `as_of_date` da configuração. Uma segunda geração em memória
+também produziu 105 achados; o manifesto salvo continua com 106. Não atribuo a divergência
+a uma causa não demonstrada, nem substituo a medição histórica pelo resultado regenerado.
+Para o plano, basta a consequência: a integração não pode assumir que o novo manifesto
+reproduz o lote antigo.
+
+**VR03 — identidade canônica e testemunhas da prova de estoque.** Renderizei a macro de
+`dbt/macros/identidade_do_vinculo.sql` com Jinja e executei SELECTs sobre os dois pares de
+valores abaixo, comparando com a igualdade dos tipos declarados. Consultei também as
+classificações atuais de `inventory_movements` e a contagem na fato. As conexões de VR02/VR03
+usaram `default_transaction_read_only=on`, `statement_timeout=20000` e `jit=off`; as
+credenciais foram carregadas do `.env` sem impressão.
+
+~~~text
+read_only: on
+canonical_key: integer '8' '8' macro_equal= True typed_equal= True
+canonical_key: uuid 'ABCDEFAB-1234-5678-9ABC-DEF012345678' 'abcdefab-1234-5678-9abc-def012345678' macro_equal= False typed_equal= True
+inventory_classifications: [('accepted', None, 551), ('corrected', None, 2), ('rejected', 'own_invalid', 3), ('rejected', 'parent_rejected', 136)]
+current_inventory_rows: [('legacy', 553), ('retail', 15900)]
+registry: None
+~~~
+
+A macro diz expressamente, em `:15–17`, que só age sobre inteiros por extenso e conserva
+outros textos. O caso UUID não é hipótese sobre a ferramenta: a comparação acima foi
+executada. Os 139 movimentos rejeitados mostram também por que apagar três linhas físicas
+quaisquer não garante retirar três linhas previamente existentes na fato.
+
+**VR04 — equação e recuperação, em memória.** Para a equação usei A={1,2}, B={2}, C={2},
+D={1,2}, E={2}, todas consideradas certificadas. `cumulative_absent` segue a regra das
+linhas 241–246; a equação segue as linhas 262–264. O segundo exemplo preserva a chave 7,
+mas reduz sua multiplicidade de duas ocorrências para uma. São contraprovas das regras
+propostas, não execução de SQL novo.
+
+~~~text
+B: previous_rows=2 current_rows=1 cumulative_absent=[1] interval_removed=[1] interval_added=[] proposed_equation=1 matches=True
+C: previous_rows=1 current_rows=1 cumulative_absent=[1] interval_removed=[] interval_added=[] proposed_equation=0 matches=False
+D: previous_rows=1 current_rows=2 cumulative_absent=[] interval_removed=[] interval_added=[1] proposed_equation=2 matches=True
+E: previous_rows=2 current_rows=1 cumulative_absent=[1] interval_removed=[1] interval_added=[] proposed_equation=1 matches=True
+E re-deletion: last_seen=D removed_in=E
+multiplicity counterexample: previous_rows= 2 current_rows= 1 business_keys_removed= [] equation_by_key= 2
+registration_recovery: before_hash is not a function of current_source_and_raw
+history_1: before=X, after=Y, raw=Y, source_now=Y -> unstable
+history_2: before=Y, after=Y, raw=Y, source_now=Y -> complete
+~~~
+
+As duas histórias de recuperação no final têm **o mesmo bruto e a mesma origem atual**,
+mas exigem certificados diferentes porque o hash anterior ao job era diferente.
+Logo, esse hash não pode ser reconstruído apenas dos dois estados finais. Persistir a
+medição anterior, ou conservar uma referência inequívoca a ela, resolve a perda de
+informação; recalculá-la sobre a origem atual não resolve.
+
+**VR05 — contrato da API escolhida para o GCP.** Consultei a documentação oficial:
+`insert_rows_json` retorna erros por linha e usa IDs gerados por padrão; a deduplicação de
+`insertAll` é de melhor esforço, não garantia de unicidade. A documentação também admite
+inserção parcial mesmo com resposta HTTP de sucesso.
+[Cliente Python BigQuery](https://docs.cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_insert_rows_json),
+[inserções e deduplicação](https://docs.cloud.google.com/bigquery/docs/write-api-rest#best_effort_de-duplication),
+[respostas de sucesso com falhas por linha](https://docs.cloud.google.com/bigquery/docs/write-api-rest#success_http_response_codes).
+Não foi executada escrita no GCP.
+
+**VR06 — preservação dos pareceres e ausência de implementação nova.** Comparei os bytes
+das §§13–15 com `deb3c40`, o arquivo de trabalho com `HEAD` e os caminhos alterados sob
+`docs/adr/`. Antes deste acréscimo:
+
+~~~text
+original_sha256: e22cb8195fe58181ec83bf7e2aed5f027485d82ff0bcb2abefbc37edd3b94044
+working_copy_equals_HEAD: True
+sections_13_15_preserved: True
+new_accepted_adrs_since_previous_review: []
+~~~
+
+Os números antigos que o plano cita como reproduzidos nas §§13/15 continuam sendo
+evidência daquelas execuções. Nesta rodada não repeti, por exemplo, a contagem integral
+da origem principal nem a consulta à API dos jobs 25/26. As novas premissas de transporte,
+bootstrap, identidade e reconciliação foram verificadas acima. Não identifiquei nova
+contagem marcada `[medido]` sem a reprodução já registrada; a premissa de regeneração que
+não se reproduziu, embora esteja sob `[planejado]`, está explicitamente em P21.
+
+### 17.3. Oráculos, ambiente e escopo
+
+A equivalência por conteúdo fecha a lacuna de cardinalidade de P02 no desenho da certificação.
+Compartilhar a serialização entre manifesto, origem e destino evita formatos incompatíveis;
+não torna o SQL de classificação dono do esperado. A serialização deve ter vetores literais
+para nulo/vazio, delimitadores, Unicode, identidades e multiplicidade, para que uma omissão na
+função comum não seja validada pela própria função. A igualdade dos hashes nos dois extremos
+atesta igualdade desses estados observados; não prova que nenhuma alteração transitória
+aconteceu durante todo o intervalo.
+
+A lista cumulativa de ausentes pode ser derivada do bruto. A prova independente deve vir do
+diário de ações confirmadas e separar **ausentes no estado corrente**, **transições do par de
+capturas** e **quantidades físicas**. Repetir a mesma diferença de conjuntos no teste e no
+modelo não resolve P29. A contraprova sem mudança em C já está no plano e deve testar também
+a equação, não apenas a permanência dos oito registros na lista.
+
+A §9 continua respeitando o cenário batch e a recusa do preflight. A amostra de VR01 tinha
+cerca de 2,44 GiB disponíveis; não é certificação do pico conjunto. O novo custo de varrer
+todos os antecedentes certificados ainda não foi medido — a tabela de certificação nem
+existe. A medição prevista no ADR-0045 deve vir da implementação, incluindo memória, antes
+de anunciar cabimento. Não há motivo para subir streaming ou apagar volumes nesta rodada.
+
+A retirada da marca dimensional reduz escopo por decisão expressa, sem abandonar a detecção
+pedida em R10. As exclusões de D36, troca real de ambientes, chart/OOM, streaming e medição
+no GCP estão declaradas. O trabalho adicional que falta é tornar executáveis o bootstrap
+escolhido e a recuperação do controle, e fechar o grão da reconciliação; não reinstalar o
+desenho dimensional descartado.
+
+### 17.4. Achados remanescentes e novos
+
+| # | Seção do plano | Achado | Veredito |
+|---|---|---|---|
+| P12 | §5/D39-a′, linha 237; §12 | **Owner — a macro escolhida não canoniza a PK de estoque pelo seu tipo.** `identidade_canonica` só normaliza inteiros. VR03 mostra dois textos do mesmo UUID com `macro_equal=False` e `typed_equal=True`; o plano pode anunciar remoção/adição por mudança apenas de representação de `movement_id`. A correção da classificação de `sem identidade` está respondida, mas o ADR-0045 ainda precisa declarar a canonização por tipo e os limites de conversão, inclusive a representação equivalente no BigQuery. Acrescentar casos de UUID e entrada não conversível, preservando os usos inteiros já existentes. | ajuste |
+| P15 | §4/ADR-0044, linhas 182–185; §4, itens 1–2 | **Owner — o certificado não é recalculável apenas do bruto e da origem atual.** `source_hash_before` pertence ao instante anterior à sync. Depois de mutação na origem e falha na gravação do controle, os estados finais não determinam esse valor: VR04 dá duas histórias indistinguíveis na recuperação, uma `unstable` e outra `complete`. Registrar onde a medição anterior fica durável e ligada ao job nos dois caminhos, DAG e CLI; incluir recuperação após falha entre sync e registro. Se essa evidência não existir, recusar certificação retrospectiva e exigir nova captura, em vez de medir a origem de hoje como se fosse a de antes. O ADR novo resolveu a forma de registrar a exceção; falta esse contrato de recuperação. | bloqueante |
+| P21 | §§1–2, linhas 67–69, 112–115 e 134–148; §5/B | **A integração prometida contra 16 não está viabilizada.** VR02 reproduz somente 27/40 tabelas entre geração atual e captura 16, mesmo com a normalização declarada; a geração tem 105 achados e o manifesto retido, 106. Não basta criar um comando que chama novamente o gerador. Prever identificação/reprodução do gerador e insumos históricos ou mudar a ordem para validar um lote novo, cujo manifesto completo nasce antes da carga e da sync; nunca derivar o esperado do SQL sob teste nem ignorar divergência do hash. No passo B, escolher também três movimentos aptos e já materializados, identificados pelo oráculo e conferidos antes da ação: dos 692 movimentos atuais, 139 já são rejeitados, de modo que três DELETEs arbitrários não provam a saída de três linhas da fato. `REVISAO.md:826,839–844`. | bloqueante |
+| P29 | §5, linhas 237, 241–246 e 260–266 | **A lista de ausentes históricos não é o fluxo de remoções da equação.** Em A={1,2}, B=C={2}, C mantém a chave 1 na lista, mas a equação contra B dá `1−1+0=0` para uma linha presente (VR04). Há ainda conflito de grão: A=[7,7], B=[7] não perde chave, mas perde linha física. Separar estado cumulativo, transições entre a anterior mais recente e a selecionada, e variação de multiplicidade; dizer como cada um entra no modelo, no diário e na equação. Isso preserva a decisão de reter a memória da ausência. Incluir C sem mudança, redução de duplicata, reaparecimento seguido de nova exclusão e regra do `removed_in` posterior ao último `last_seen`. As três transições por chave da D39-a′ não fecham sozinhas a equação física anunciada. R10, `REVISAO.md:824`. | bloqueante |
+| P30 | §4/ADR-0044, linhas 182–184 e 189–202; §12/R09 | **Owner — escolher `insert_rows_json` não garante um registro por job/stream após retry.** A API admite erros por linha e deduplicação de melhor esforço (VR05). O ADR-0044 precisa declarar idempotência e publicação do certificado somente após cobertura válida das 40 tabelas, incluindo o tratamento de duplicatas, respostas parciais e retorno perdido. Isso pode ser testado localmente com respostas simuladas da API; a medição ao vivo no GCP continua pendente. Não tratar simples reenvio do lote como equivalente a uma escrita única e concluída no PostgreSQL. | ajuste |
+
+A revisão de desenvolvimento posterior deve verificar a implementação e as provas acordadas.
+Nesta rodada foi acrescentado somente este parecer; nenhuma decisão foi implementada e
+nenhum R foi encerrado.
+
+Conferência documental: `git diff --check` terminou com código 0 e sem saída; somente o
+plano aparece modificado. Saída literal da verificação de preservação e contagem:
+
+~~~text
+original_sha256: e22cb8195fe58181ec83bf7e2aed5f027485d82ff0bcb2abefbc37edd3b94044
+prefix_preserved: True
+section_17_count: 1
+findings: 5
+ajuste: 2
+bloqueante: 3
+unique_ids: True
+section_17_line: 1189
+table_line: 1393
+ M PLANO_fechamento_etapa_10.md
+~~~
