@@ -189,12 +189,31 @@ def iniciar(
     return tentativa
 
 
+class TentativaIndisponivel(Exception):
+    """A tentativa já está fechada, ou já pertence a outro *job*: precisa de fase 1 própria."""
+
+
 def registrar_job(armazem: Engine, tentativa: str, job_id: int) -> None:
-    """Grava o `job_id` assim que o *job* nasce — antes de esperar por ele."""
+    """Grava o `job_id` assim que o *job* nasce — antes de esperar por ele.
+
+    Idempotente para o **mesmo** *job*; recusa outro *job* numa tentativa já
+    associada ou já fechada. Sem a guarda, reexecutar a sincronização com a
+    mesma tentativa misturava duas capturas — `complete` para o *job* novo com
+    o `snapshot_id` do antigo (RV10-2-03). Uma sincronização nova exige a sua
+    própria fase 1.
+    """
     with armazem.begin() as conexao:
-        conexao.execute(
-            text(f"update {TABELA} set job_id = :j where capture_attempt_id = :a"),
+        gravadas = conexao.execute(
+            text(
+                f"update {TABELA} set job_id = :j where capture_attempt_id = :a "
+                f"and ((job_id is null and status = '{PENDING}') or job_id = :j)"
+            ),
             {"j": int(job_id), "a": tentativa},
+        ).rowcount
+    if gravadas != len(schema.tabelas()):
+        raise TentativaIndisponivel(
+            f"tentativa {tentativa} não aceita o job {job_id}: já fechada ou associada a outro job "
+            f"({gravadas} de {len(schema.tabelas())} linhas pendentes sem outro job); abra outra fase 1"
         )
 
 
@@ -220,8 +239,11 @@ def retomar(
     feito: dict[str, str] = {}
     for pendente, job_id, inicio in _pendentes(armazem):
         if job_id is None:
-            if agora - inicio >= CARENCIA_SEM_JOB:
-                _marcar(armazem, pendente, ABANDONED)
+            # A lista acima pode estar velha: outro chamador pode ter registrado
+            # o job ou concluído entre a leitura e esta escrita. O abandono só
+            # vale se, **no instante da escrita**, as 40 linhas ainda estiverem
+            # pendentes, sem job e fora da carência (RV10-2-01).
+            if agora - inicio >= CARENCIA_SEM_JOB and _abandonar(armazem, pendente, agora - CARENCIA_SEM_JOB):
                 feito[pendente] = "abandonada"
             else:
                 feito[pendente] = "ativa"
@@ -261,8 +283,10 @@ def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
         return _certificado(tentativa, linhas[0][1], {t: s for t, _, _, _, s, _ in linhas}, linhas[0][5])
     job_id = linhas[0][1]
     if job_id is None:
-        _marcar(armazem, tentativa, ABANDONED)
-        return _certificado(tentativa, None, {}, None)
+        # Sem carência: quem chama `concluir` numa tentativa sem job está na
+        # fase 2 do próprio fluxo, e sabe que o job não nasceu.
+        _abandonar(armazem, tentativa, dt.datetime.max.replace(tzinfo=dt.timezone.utc))
+        return _gravado(armazem, tentativa)
 
     antes = {t: Medida(n, h) for t, _, n, h, _, _ in linhas}
     depois = medir_origem(legado)
@@ -276,7 +300,11 @@ def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
     # tabela nenhuma não é captura.
     snapshot_id = int(job_id) if any(r.geracoes for r in recebido.values()) else None
     _publicar(armazem, tentativa, depois, recebido, vereditos, snapshot_id)
-    return _certificado(tentativa, job_id, vereditos, snapshot_id)
+    # O que se devolve é o que **ficou gravado**, não o que este chamador
+    # calculou: se outro chamador publicou primeiro, a guarda `pending` fez
+    # esta publicação escrever zero linhas, e o certificado dele é o que a
+    # elegibilidade vai ler (RV10-2-02).
+    return _gravado(armazem, tentativa)
 
 
 def _publicar(
@@ -310,6 +338,16 @@ def _publicar(
             )
 
 
+def _gravado(armazem: Engine, tentativa: str) -> dict[str, Any]:
+    """O certificado como está no banco — a única fonte que a elegibilidade lê."""
+    with armazem.connect() as conexao:
+        linhas = conexao.execute(
+            text(f"select source_table, job_id, status, snapshot_id from {TABELA} where capture_attempt_id = :a"),
+            {"a": tentativa},
+        ).all()
+    return _certificado(tentativa, linhas[0][1], {t: s for t, _, s, _ in linhas}, linhas[0][3])
+
+
 def _certificado(tentativa: str, job_id: int | None, vereditos: dict[str, str], snapshot_id: int | None) -> dict[str, Any]:
     estados = set(vereditos.values())
     status = ABANDONED if not vereditos or estados == {ABANDONED} else _pior(estados)
@@ -319,7 +357,7 @@ def _certificado(tentativa: str, job_id: int | None, vereditos: dict[str, str], 
 
 
 def _pior(estados: set[str]) -> str:
-    for estado in (INCONSISTENT, UNSTABLE, INCOMPLETE):
+    for estado in (INCONSISTENT, UNSTABLE, INCOMPLETE, PENDING):
         if estado in estados:
             return estado
     return COMPLETE
@@ -338,12 +376,23 @@ def _pendentes(armazem: Engine) -> list[tuple[str, int | None, dt.datetime]]:
         ]
 
 
-def _marcar(armazem: Engine, tentativa: str, status: str) -> None:
+def _abandonar(armazem: Engine, tentativa: str, iniciada_ate: dt.datetime) -> bool:
+    """`abandoned` nas 40 linhas — só se todas ainda estiverem pendentes, sem job e antigas o bastante.
+
+    A condição é revalidada **no `UPDATE`**, não na lista lida antes: é o que
+    impede o abandono de sobrescrever uma tentativa que ganhou job ou foi
+    concluída no meio-tempo. Devolve se abandonou.
+    """
     with armazem.begin() as conexao:
-        conexao.execute(
-            text(f"update {TABELA} set status = :s, completed_at = now() where capture_attempt_id = :a"),
-            {"s": status, "a": tentativa},
-        )
+        gravadas = conexao.execute(
+            text(
+                f"update {TABELA} set status = '{ABANDONED}', completed_at = now() "
+                f"where capture_attempt_id = :a and status = '{PENDING}' and job_id is null "
+                f"and started_at <= :limite"
+            ),
+            {"a": tentativa, "limite": iniciada_ate},
+        ).rowcount
+    return gravadas == len(schema.tabelas())
 
 
 def certificadas(armazem: Engine) -> list[int]:

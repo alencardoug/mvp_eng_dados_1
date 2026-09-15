@@ -101,7 +101,10 @@ selecionada ou como "anterior certificada".**
    uma pendente com *job* depois de **observar** no Airbyte que ele terminou — sem observador, fica
    pendente —, e só abandona a pendente sem *job* depois de uma carência de uma hora contada da
    fase 1, para não fechar a tentativa de outro chamador ainda a caminho. Carência decidida pelo
-   Owner em 15/09/2026.
+   Owner em 15/09/2026. *Segunda rodada (RV10-2-01/02/03):* abandono e associação do *job* são
+   `UPDATE`s com a condição revalidada na escrita — `pending`, sem *job*, fora da carência; o
+   mesmo *job* ou nenhum — e não valem se a lista lida antes envelheceu; `concluir` devolve sempre
+   o que **ficou gravado**, também quando outro chamador publicou primeiro.
 6. **Exceção delimitada ao ADR-0023.** O fluxo lê **uma** tabela de `governance`,
    `legacy_captures`, **só** para responder "esta captura é elegível?" — em
    `legacy_captura_completa` e na detecção de exclusão física. Nenhum modelo de `staging`,

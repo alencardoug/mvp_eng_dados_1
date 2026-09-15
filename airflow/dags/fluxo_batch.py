@@ -75,7 +75,11 @@ def fluxo_batch():
         também a `tentativa` aberta pela fase 1 do certificado (ADR-0044), e
         grava nela o `job_id` **assim que o job nasce** — antes de esperar por
         ele —, para que uma falha entre a sincronização e a fase 2 seja
-        recuperável a partir do que já está gravado.
+        recuperável a partir do que já está gravado. A associação é
+        idempotente para o mesmo job e **recusa** outro job numa tentativa já
+        associada ou fechada (`TentativaIndisponivel`): reexecutar esta tarefa
+        depois de a fase 2 ter corrido exige uma execução nova da DAG, com a
+        sua própria fase 1 — nunca a mistura de dois jobs num certificado.
         """
         from mvp_ed1 import airbyte
 

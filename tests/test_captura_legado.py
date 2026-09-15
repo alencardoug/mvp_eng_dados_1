@@ -459,3 +459,105 @@ def test_o_certificado_mais_recente_confere_com_o_bruto_e_a_geracao_15_e_incompl
     iguais = [t for t in schema.tabelas() if t != "brands" and (r15[t].linhas, r15[t].hash) == (r16[t].linhas, r16[t].hash)]
     record_property("gen15_tables_equal_to_gen16", len(iguais))
     assert len(iguais) == 39
+
+
+# ── Sobreposição entre chamadores (segunda rodada, RV10-2-01/02/03) ──────────
+
+@pytest.mark.integracao
+def test_o_abandono_nao_sobrescreve_tentativa_que_ganhou_job_ou_foi_concluida(efemeros, monkeypatch) -> None:
+    """RV10-2-01: a lista de pendentes lida antes pode estar velha; a guarda é no UPDATE."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    velha = [(tentativa, None, dt.datetime.now(dt.timezone.utc) - 2 * captura.CARENCIA_SEM_JOB)]
+
+    # Entre a leitura de A e a escrita de A, B registra o job e conclui.
+    captura.registrar_job(armazem, tentativa, 910)
+    _simular_job(armazem, legado, job_id=910, geracao=10)
+    assert captura.concluir(legado, armazem, tentativa)["status"] == captura.COMPLETE
+
+    monkeypatch.setattr(captura, "_pendentes", lambda _armazem: velha)
+    feito = captura.retomar(legado, armazem)
+    assert feito == {tentativa: "ativa"}, "a lista velha não autoriza abandonar"
+    assert _estados(armazem)[tentativa] == captura.COMPLETE and captura.certificadas(armazem) == [910]
+
+    # E o caso em que B só registrou o job: a pendente com job não é abandonada.
+    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, outra, 911)
+    monkeypatch.setattr(captura, "_pendentes", lambda _armazem: [(outra, None, velha[0][2])])
+    assert captura.retomar(legado, armazem) == {outra: "ativa"}
+    assert _estados(armazem)[outra] == captura.PENDING
+
+
+@pytest.mark.integracao
+def test_a_conclusao_que_perde_a_disputa_devolve_o_certificado_gravado(efemeros, monkeypatch) -> None:
+    """RV10-2-02: A mede `complete`, B publica `unstable` antes; A devolve o que ficou no banco."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, tentativa, 912)
+    _simular_job(armazem, legado, job_id=912, geracao=12)
+
+    medir_real = captura.medir_origem
+    em_curso = {"B": False, "vencedor": None}
+
+    def medir_e_deixar_b_passar(engine):
+        medida = medir_real(engine)
+        if not em_curso["B"]:
+            em_curso["B"] = True
+            with legado.begin() as conexao:  # a origem muda depois de A medir
+                conexao.execute(text("update legacy.brands set name = 'Acme S.A.' where id = '1'"))
+            em_curso["vencedor"] = captura.concluir(legado, armazem, tentativa)
+        return medida
+
+    monkeypatch.setattr(captura, "medir_origem", medir_e_deixar_b_passar)
+    perdedor = captura.concluir(legado, armazem, tentativa)
+    assert em_curso["vencedor"]["status"] == captura.UNSTABLE
+    assert perdedor["status"] == captura.UNSTABLE and perdedor["snapshot_id"] is None, "A calculou complete, mas não é o que ficou"
+    assert perdedor == em_curso["vencedor"]
+    assert perdedor["tabelas"]["brands"] == captura.UNSTABLE and captura.certificadas(armazem) == []
+
+    # O sentido inverso: A publica `complete` primeiro; B, que mediu a origem alterada, perde e devolve `complete`.
+    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, outra, 913)
+    _simular_job(armazem, legado, job_id=913, geracao=13)
+    em_curso.update(B=False, vencedor=None)
+
+    def medir_alterando_depois_de_a(engine):
+        medida = medir_real(engine)
+        if not em_curso["B"]:
+            em_curso["B"] = True
+            em_curso["vencedor"] = captura.concluir(legado, armazem, outra)  # A conclui `complete`
+            with legado.begin() as conexao:
+                conexao.execute(text("update legacy.brands set name = 'Acme Ltda.' where id = '1'"))
+            return medir_real(engine)  # B mede a origem já alterada: calcularia `unstable`
+        return medida
+
+    monkeypatch.setattr(captura, "medir_origem", medir_alterando_depois_de_a)
+    perdedor = captura.concluir(legado, armazem, outra)
+    assert em_curso["vencedor"]["status"] == captura.COMPLETE
+    assert perdedor == em_curso["vencedor"] and captura.certificadas(armazem) == [913]
+
+
+@pytest.mark.integracao
+def test_a_associacao_do_job_e_idempotente_e_recusa_outro_job(efemeros) -> None:
+    """RV10-2-03: reassociar uma tentativa fechada misturava duas capturas."""
+    legado, armazem = efemeros
+    _semear_origem(legado)
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    captura.registrar_job(armazem, tentativa, 914)
+    captura.registrar_job(armazem, tentativa, 914)  # o mesmo job, de novo: nada muda
+    with pytest.raises(captura.TentativaIndisponivel):
+        captura.registrar_job(armazem, tentativa, 915)  # outro job numa tentativa já associada
+
+    _simular_job(armazem, legado, job_id=914, geracao=14)
+    certificado = captura.concluir(legado, armazem, tentativa)
+    assert certificado["status"] == captura.COMPLETE
+    captura.registrar_job(armazem, tentativa, 914)  # ainda idempotente depois de fechada
+    with pytest.raises(captura.TentativaIndisponivel):
+        captura.registrar_job(armazem, tentativa, 999)  # a reassociação que misturava capturas
+    assert captura.concluir(legado, armazem, tentativa) == certificado
+    with armazem.connect() as conexao:
+        assert conexao.execute(
+            text(f"select distinct job_id, snapshot_id from {captura.TABELA} where capture_attempt_id = :a"), {"a": tentativa}
+        ).all() == [(914, 914)]
