@@ -32,7 +32,8 @@ contraprova (b) da revisão de desenvolvimento levava 656 s por causa disso.
 A decisão precisava do Owner porque é SQL do tratamento (mudar o texto emitido pelo gerador, ainda
 que o resultado seja idêntico linha a linha), porque `MATERIALIZED` não existe no BigQuery — e
 porque a impressão digital da D34 hasheia **o SQL gerado**: a palavra move a impressão
-(`8710ca3f…` → `92f72e5d…`), e sob a D34 impressão nova exige versão nova.
+(`8710ca3f…` → `92f72e5d…` só com a palavra; `607e6288…` depois de a versão 9 entrar no SQL da
+classificação, que também é hasheado), e sob a D34 impressão nova exige versão nova.
 
 ## Alternativas consideradas
 
