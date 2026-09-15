@@ -3,8 +3,9 @@
 Como o gerador da origem principal, nenhuma credencial vem por argumento: a
 conexão sai do ambiente, carregado do `.env` (regra inviolável 1).
 
-    plan   mostra o que seria gerado e injetado, sem tocar no banco
-    seed   gera, injeta, carrega em `legacy_db` e escreve o manifesto
+    plan       mostra o que seria gerado e injetado, sem tocar no banco
+    manifesto  recalcula o manifesto do lote determinístico, sem tocar no banco
+    seed       gera, injeta, carrega em `legacy_db` e escreve o manifesto
 """
 
 from __future__ import annotations
@@ -24,8 +25,11 @@ from mvp_ed1.generator.engine import Motor
 from mvp_ed1.legacy import injetor, writer
 from mvp_ed1.legacy.catalogo import CAMINHO, carregar
 
-#: Fora do Git: o manifesto é evidência de teste, não artefato versionado.
-MANIFESTO = pathlib.Path("data/legacy/manifesto.json")
+#: Fora do Git: o manifesto é evidência de teste, não artefato versionado. O
+#: diretório guarda um arquivo por lote (`manifesto-<hash>.json`) e o *link*
+#: `manifesto.json` para o corrente.
+MANIFESTOS = pathlib.Path("data/legacy")
+MANIFESTO = MANIFESTOS / "manifesto.json"
 
 
 def _promessas() -> frozenset[str]:
@@ -40,7 +44,15 @@ def _gerar():
     resultado = injetor.injetar(
         catalogo, dados, promessas=_promessas(), as_of=motor.as_of_date
     )
-    return catalogo, resultado
+    # Os parâmetros **efetivos** viajam com o manifesto: são eles, e não a
+    # intenção, que identificam o lote junto com o hash de conteúdo.
+    parametros = {
+        "semente": catalogo.semente,
+        "fator": catalogo.fator,
+        "as_of": motor.as_of_date.isoformat(),
+        "limite_de_texto": catalogo.limite_de_texto,
+    }
+    return catalogo, resultado, parametros
 
 
 def _catalogo(catalogo) -> None:
@@ -76,7 +88,8 @@ def _resumo(catalogo, resultado) -> None:
         print(f"  {resultado_esperado:<10} {quantidade:>4}")
 
     ausentes = [f.codigo for f in catalogo.injetaveis if f.codigo not in por_codigo]
-    print(f"cobertura: {len(por_codigo)}/{len(catalogo.injetaveis)} códigos injetáveis")
+    cobertos = len(catalogo.injetaveis) - len(ausentes)
+    print(f"cobertura: {cobertos}/{len(catalogo.injetaveis)} códigos injetáveis")
     if ausentes:
         print("SEM COBERTURA: " + ", ".join(ausentes))
         sys.exit(1)
@@ -91,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("plan")
     sub.add_parser("catalogo")
     sub.add_parser("models")
+    sub.add_parser("manifesto", help="recalcula o manifesto do lote determinístico, sem banco")
     semear = sub.add_parser("seed")
     semear.add_argument("--force", action="store_true", help="trunca o legado antes de carregar")
     args = parser.parse_args(argv)
@@ -129,10 +143,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(escritos)} modelos e a declaração de fontes em {dbt.DESTINO}/")
         return 0
 
-    catalogo, resultado = _gerar()
+    catalogo, resultado, parametros = _gerar()
     _resumo(catalogo, resultado)
 
     if args.comando == "plan":
+        return 0
+
+    if args.comando == "manifesto":
+        caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS)
+        print(f"\nmanifesto: {caminho} (nenhum banco foi tocado)")
         return 0
 
     engine = create_engine(database_url(LEGACY))
@@ -141,8 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     except writer.DestinoNaoVazio as erro:
         print(f"\n{erro}", file=sys.stderr)
         return 1
-    caminho = writer.gravar_manifesto(resultado, MANIFESTO)
-    print(f"\ncarregado: {medida['linhas']:,} linhas em {medida['segundos']} s".replace(",", "."))
+    caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS)
+    print(
+        f"\ncarregado: {medida['linhas']:,} linhas em {medida['segundos']} s; "
+        "conteúdo conferido por hash".replace(",", ".")
+    )
     print(f"manifesto: {caminho}")
     return 0
 

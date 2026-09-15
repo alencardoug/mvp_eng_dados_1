@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -534,6 +534,12 @@ class _Aplicador:
             copia = dict(original)
             copia[schema.IDENTIDADE] = _proximo_id(linhas)
             linhas.append(copia)
+            # A cópia carrega os defeitos que a original já tinha, e o manifesto
+            # precisa dizer isso: sem herdar os achados, a excedente teria no
+            # dado um `N/A` que o manifesto não declarava, e o oráculo esperaria
+            # menos achados do que a limpeza encontra (visto em 14/09/2026,
+            # `suppliers#3`).
+            self._herdar_achados(tabela, original, copia)
             # A canônica é a de menor identificador (ADR-0038): ela não é
             # achado. Só a excedente entra no manifesto.
             self.r.achados.append(
@@ -572,6 +578,10 @@ class _Aplicador:
                 and original.get(c)
                 and schema.arquetipo(tabela, c, self.i.promessas)
                 in ("texto", "texto_com_limite")
+                # Só coluna ainda íntegra: divergir sobre uma célula já
+                # defeituosa produziria um valor com dois defeitos e um
+                # esperado de recuperação que não é o original de nenhum.
+                and (tabela, original[schema.IDENTIDADE], c) not in self.ocupadas
             ]
             if not texto:
                 continue
@@ -580,6 +590,7 @@ class _Aplicador:
             copia[schema.IDENTIDADE] = _proximo_id(linhas)
             copia[coluna] = f"{original[coluna]} (rev)"
             linhas.append(copia)
+            self._herdar_achados(tabela, original, copia)
             # As duas versões são rejeitadas: não há critério de desempate. E as
             # duas registram a **divergência**, não o próprio valor: um achado
             # em que original e legado são iguais não ilustra nada, e foi o que
@@ -615,6 +626,18 @@ class _Aplicador:
             self._registrar(falha, "orders", linha, "total_amount", original, novo)
             aplicadas += 1
         return aplicadas
+
+    def _herdar_achados(self, tabela: str, original: dict, copia: dict) -> None:
+        """A cópia de uma linha herda os achados de valor que a original já tinha."""
+        de, para = original[schema.IDENTIDADE], copia[schema.IDENTIDADE]
+        herdados = [
+            Achado(**{**asdict(a), "legacy_row_id": para})
+            for a in list(self.r.achados)
+            if a.tabela == tabela and a.legacy_row_id == de and a.coluna is not None
+        ]
+        self.r.achados.extend(herdados)
+        for a in herdados:
+            self.ocupadas.add((tabela, para, a.coluna))
 
     def _tabelas_alvo(self) -> list[str]:
         """Tabelas que podem receber defeito de linha inteira."""

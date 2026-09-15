@@ -214,15 +214,30 @@ A geração é determinística, recebe `seed` própria — declarada em
 [`catalogo.yml`](../src/mvp_ed1/legacy/catalogo.yml), distinta da origem principal — e produz um
 **manifesto** declarando o erro esperado em cada registro.
 
-O manifesto é escrito em `data/legacy/manifesto.json`, **fora do banco e fora do Git**. Guardá-lo ao
-lado do dado tratado convidaria a transformação a consultá-lo, e o teste passaria a medir a si
-mesmo. Cada linha dele diz a ocorrência física, o código, a coluna, o valor antes, o valor depois,
-o resultado que o tratamento deve alcançar e — desde 14/09/2026 — o **valor esperado** depois da
-limpeza, que não é o mesmo que "o valor antes": ele sai do contrato `recuperacao` declarado por
-falha no catálogo. `original` quando a informação foi preservada e a limpeza a restaura
-(`R$ 1.234,56` volta a `1234.56`); `nulo` quando o alvo canônico é o nulo de verdade
-(`NULL_DISGUISED`: `'N/A'` vira nulo, e o `Vermelho` que havia antes **não** volta, nem deve).
-Sem esse contrato, o teste exigiria de uma conversão correta um valor que ela não tem como produzir.
+O manifesto é escrito em `data/legacy/`, **fora do banco e fora do Git**. Guardá-lo ao lado do dado
+tratado convidaria a transformação a consultá-lo, e o teste passaria a medir a si mesmo. Desde
+14/09/2026 ele tem quatro partes, e um nome por lote:
+
+| Parte | O que diz |
+|---|---|
+| `lote` | **A identidade do conteúdo**: `md5` da serialização canônica de cada tabela (todas as linhas, em ordem física, com `''` lido como nulo — a normalização que o transporte aplica), um hash global e os parâmetros efetivos da geração (semente, fator, `as_of`, versão do catálogo). Contagem e conjunto de `legacy_row_id` **não** identificam um lote: recomeçam em 1 a cada geração e se repetem com conteúdo diferente |
+| `achados` | O que o injetor fez, célula a célula: ocorrência física, código, coluna, valor antes, valor depois, resultado esperado e o **valor esperado** depois da limpeza |
+| `veredito` | O esperado de **toda** ocorrência — saída, origem da rejeição e o multiconjunto de achados, inclusive contexto e cascata —, recomputado por `legacy/oraculo.py` sobre as linhas finais (ver §5) |
+| `mutacoes` | O diário do que foi feito à origem **depois** da carga — remoção, inserção, alteração —, com o que o banco devolveu; vazio ao nascer |
+
+O arquivo chama-se `manifesto-<hash do lote>.json`, e `manifesto.json` é um *link* para o corrente.
+Nenhum é apagado: regerar a origem produz outro arquivo, e o anterior continua descrevendo a captura
+que já está retida em `raw_legacy`. O mesmo hash é conferido pelo `writer` no `legacy_db` logo
+depois do `COPY` — carga cujo conteúdo não é o gerado não ganha manifesto — e pelos testes de
+integração na captura selecionada: **captura cujo conteúdo não é o do manifesto não tem veredito
+comparado**, é recusada. `python -m mvp_ed1.legacy.cli manifesto` recalcula o manifesto do lote
+determinístico sem tocar o banco.
+
+O **valor esperado** de um achado corrigível não é "o valor antes": sai do contrato `recuperacao`
+declarado por falha no catálogo. `original` quando a informação foi preservada e a limpeza a
+restaura (`R$ 1.234,56` volta a `1234.56`); `nulo` quando o alvo canônico é o nulo de verdade
+(`NULL_DISGUISED`: `'N/A'` vira nulo, e o `Vermelho` que havia antes **não** volta, nem deve). Sem
+esse contrato, o teste exigiria de uma conversão correta um valor que ela não tem como produzir.
 
 O manifesto é o **oráculo dos testes**. A transformação nunca o consulta para descobrir a resposta
 — se consultasse, o teste passaria a medir a si mesmo.
@@ -326,6 +341,19 @@ linhas.
 A duplicata exata elege uma **ocorrência canônica** por regra determinística — a de menor
 identificador físico dentro da captura —, que segue como `accepted` ou `corrected`; cada excedente é
 uma linha `rejected` com o código `DUP_EXACT` e o vínculo à canônica.
+
+**Quatro casos que os ADRs não decidiam, fechados pelo Owner em 14/09/2026** — são o contrato que o
+oráculo por ocorrência (`legacy/oraculo.py`) implementa e contra o qual a classificação é conferida:
+
+| Caso | O que vale |
+|---|---|
+| Filho aponta para uma chave que existe numa excedente de `DUP_EXACT` rejeitada **e** numa canônica apta | **Não cascateia** — a referência resolve à canônica, e o pai de negócio está apto |
+| `DUP_PARTIAL` rejeita as duas versões | Os filhos **cascateiam**: nenhuma versão está apta |
+| Pai rejeitado por `NULL_REQUIRED` na própria chave | Os filhos são **`FK_ORPHAN`** (defeito próprio), não cascata — o vínculo não resolve para ocorrência nenhuma |
+| Ciclo de auto-referência com raiz rejeitada | Toda a componente é `rejected`; a **raiz conserva a causa própria** (`own_invalid`), só os alcançados são `parent_rejected` |
+
+A origem da rejeição segue a precedência **defeito próprio > excedente > cascata**: uma excedente que
+também tem defeito próprio é `own_invalid`.
 
 **Os modelos de limpeza são `table`, não `view`** — exceção por origem ao
 [ADR-0016](adr/0016-materializacao-por-camada.md), concedida pelo

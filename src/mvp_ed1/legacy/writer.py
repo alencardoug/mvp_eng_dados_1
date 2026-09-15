@@ -23,7 +23,8 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
-from mvp_ed1.legacy import schema
+from mvp_ed1.legacy import conteudo, oraculo, schema
+from mvp_ed1.legacy.catalogo import Catalogo
 from mvp_ed1.legacy.injetor import Resultado
 
 
@@ -109,10 +110,29 @@ def escrever(engine: Engine, resultado: Resultado, *, forcar: bool = False) -> d
     finally:
         conexao_bruta.close()
 
+    # O que ficou no banco é o que foi gerado? A pergunta é respondida pelo
+    # mesmo hash de conteúdo que o manifesto grava: é o primeiro elo da cadeia
+    # manifesto ↔ origem ↔ captura, e um `COPY` que escapou errado uma célula
+    # apareceria aqui, não numa divergência de veredito três camadas adiante.
+    esperado = conteudo.hash_do_lote(resultado.linhas)
+    with engine.connect() as conexao:
+        divergentes = [
+            tabela
+            for tabela in schema.tabelas()
+            if conteudo.hash_no_banco(conexao, schema.SCHEMA, tabela) != esperado[tabela]
+        ]
+    if divergentes:
+        raise RuntimeError(
+            "o conteúdo carregado difere do gerado em "
+            + ", ".join(divergentes)
+            + "; o manifesto não foi gravado"
+        )
+
     return {
         "tabelas": escritas,
         "linhas": sum(escritas.values()),
         "segundos": round(time.perf_counter() - marca, 2),
+        "hash_conferido": True,
     }
 
 
@@ -126,16 +146,54 @@ def _limpo(valor: str) -> str:
     return valor.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n")
 
 
-def gravar_manifesto(resultado: Resultado, destino: pathlib.Path) -> pathlib.Path:
-    """Escreve o oráculo em JSON, fora do banco e fora do alcance da transformação."""
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    veredito = resultado.resultado_por_ocorrencia()
-    conteudo = {
+def manifesto(catalogo: Catalogo, resultado: Resultado, parametros: dict[str, Any]) -> dict[str, Any]:
+    """O oráculo do lote, em memória: identidade de conteúdo, achados, vereditos, diário.
+
+    * `lote` identifica **o conteúdo** — hash por tabela e global — e os
+      parâmetros efetivos da geração. Contagem e conjunto de `legacy_row_id`
+      não bastam: recomeçam em 1 a cada geração e se repetem com conteúdo
+      diferente. É pelo hash que uma captura é reconhecida como este lote;
+    * `achados` é o que o injetor fez, célula a célula, com o valor esperado
+      depois da limpeza pelo contrato `recuperacao`;
+    * `veredito` é o esperado por ocorrência — todas as 12 mil, não só as
+      atingidas —, recomputado por `oraculo` sobre as linhas finais;
+    * `mutacoes` é o diário das alterações feitas **depois** da carga
+      (remoção, inserção, alteração), vazio ao nascer; quem muda a origem
+      escreve aqui o que o banco devolveu.
+    """
+    vereditos = oraculo.esperar(catalogo, resultado)
+    divergencias = oraculo.conferir_com_o_injetor(resultado, vereditos)
+    if divergencias:
+        raise RuntimeError("oráculo inconsistente com o injetor: " + "; ".join(divergencias[:5]))
+    por_tabela = conteudo.hash_do_lote(resultado.linhas)
+    return {
+        "lote": {
+            "hash": conteudo.hash_global(por_tabela),
+            "parametros": {**parametros, "versao_catalogo": catalogo.versao},
+            "tabelas": por_tabela,
+        },
         "achados": [asdict(a) for a in resultado.achados],
-        "ocorrencias": [
-            {"tabela": t, "legacy_row_id": i, "resultado_esperado": r}
-            for (t, i), r in sorted(veredito.items())
-        ],
+        "veredito": oraculo.serializar(vereditos),
+        "mutacoes": [],
     }
-    destino.write_text(json.dumps(conteudo, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def gravar_manifesto(
+    catalogo: Catalogo, resultado: Resultado, parametros: dict[str, Any], diretorio: pathlib.Path
+) -> pathlib.Path:
+    """Escreve `manifesto-<hash>.json` e aponta `manifesto.json` para ele.
+
+    Nenhum manifesto é apagado: regerar a origem produz outro arquivo, e o
+    anterior continua descrevendo a captura que já está retida em `raw_legacy`.
+    O nome corrente é um *link* simbólico, para que quem só quer "o último" não
+    precise saber o hash.
+    """
+    diretorio.mkdir(parents=True, exist_ok=True)
+    oraculo_do_lote = manifesto(catalogo, resultado, parametros)
+    destino = diretorio / f"manifesto-{oraculo_do_lote['lote']['hash']}.json"
+    destino.write_text(json.dumps(oraculo_do_lote, ensure_ascii=False, indent=1), encoding="utf-8")
+    corrente = diretorio / "manifesto.json"
+    if corrente.is_symlink() or corrente.exists():
+        corrente.unlink()
+    corrente.symlink_to(destino.name)
     return destino
