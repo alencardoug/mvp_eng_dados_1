@@ -394,9 +394,30 @@ dbt-test: require-env require-venv ## Somente os testes de dados
 dbt-docs: require-env require-venv ## Gera e serve o catálogo com dicionário, linhagem e glossário
 	@$(DBT) docs generate && $(DBT) docs serve
 
-test: require-venv ## Testes de código Python (pytest); CARGA=1 inclui a que escreve no banco
+test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em banco efêmero; FATO=1 inclui o teste que escreve na fato
+	@# Dois interruptores, de propósito. `CARGA=1` substitui a origem pela carga
+	@# reduzida e por isso só roda em banco efêmero (alvo `test-carga`); `FATO=1`
+	@# escreve no armazém de trabalho por desenho (repara e confere) e é
+	@# autorização à parte. Uma flag só para os dois foi o que pôs a origem de
+	@# trabalho em fator 0,05 duas vezes.
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-		MVP_TESTE_CARGA=$(if $(filter 1,$(CARGA)),1,0) .venv/bin/pytest -q
+		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
+	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
+
+test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui
+	@# O banco nasce ao lado do `source_db`, com sufixo `_carga`, recebe as
+	@# migrações e morre no fim — inclusive quando o teste falha (`trap`). O
+	@# teste recusa rodar se o banco a que se conectou não for o que este alvo
+	@# declarou em MVP_TESTE_CARGA_DB.
+	@set -a; . ./.env; set +a; \
+		efemero="$${SOURCE_DB_NAME}_carga_$$$$"; \
+		psql_src() { docker exec -e PGPASSWORD="$$SOURCE_DB_PASSWORD" mvp_ed1_source_db \
+			psql -v ON_ERROR_STOP=1 -q -U "$$SOURCE_DB_USER" -d postgres "$$@"; }; \
+		trap 'psql_src -c "drop database if exists \"$$efemero\"" && echo "banco efêmero $$efemero removido"' EXIT; \
+		psql_src -c "create database \"$$efemero\"" && echo "banco efêmero $$efemero criado"; \
+		SOURCE_DB_NAME="$$efemero" .venv/bin/alembic upgrade head; \
+		SOURCE_DB_NAME="$$efemero" MVP_TESTE_CARGA=1 MVP_TESTE_CARGA_DB="$$efemero" \
+			.venv/bin/pytest -q tests/test_carga.py
 
 migrate-status: require-env require-venv ## Mostra a revisão aplicada no banco
 	@$(ALEMBIC) current --verbose

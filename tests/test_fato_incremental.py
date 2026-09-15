@@ -20,9 +20,11 @@ fechava:
   divergiu do que a captura diz. O `occurred_at` dele é anterior ao corte da
   margem de atraso, então a janela por tempo de evento **nunca** o releria.
 
-O teste escreve na fato e exige autorização explícita, pelo mesmo critério de
-`test_carga.py`: um teste não pode ser mais permissivo que o comando que ele
-testa. E devolve a fato ao estado anterior mesmo quando falha — por SQL direto,
+O teste escreve na fato **de trabalho** e exige autorização explícita e
+própria — `MVP_TESTE_FATO=1`, que `make test FATO=1` exporta. Não é a mesma
+flag do teste de carga de propósito: aquele substitui a origem e só roda em
+banco efêmero; este escreve no armazém por desenho, porque reprocessamento só
+se prova contra a fato real. E devolve a fato ao estado anterior mesmo quando falha — por SQL direto,
 **não** pela operação sob teste: a revisão (achado MR02) mostrou que um `finally`
 que reprocessa "passa" justamente quando a estratégia é a defeituosa, e deixa o
 fantasma e a divergência dentro da fato.
@@ -44,7 +46,7 @@ pytestmark = pytest.mark.integracao
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 FATO = "analytics.fact_inventory_movement"
-AUTORIZA_ESCRITA = "MVP_TESTE_CARGA"
+AUTORIZA_ESCRITA = "MVP_TESTE_FATO"
 
 #: Identificador do movimento fantasma. Nomeado pelo achado de propósito: se ele
 #: aparecer num banco fora deste teste, a origem é esta e não a captura.
@@ -102,7 +104,7 @@ def _colunas(conexao) -> list[str]:
 
 @pytest.mark.skipif(
     os.environ.get(AUTORIZA_ESCRITA) != "1",
-    reason=f"escreve na fato; exija {AUTORIZA_ESCRITA}=1 para rodar",
+    reason=f"escreve na fato de trabalho; rode `make test FATO=1` ({AUTORIZA_ESCRITA}=1)",
 )
 def test_o_reprocessamento_remove_e_corrige_o_ramo_legado(engine, record_property) -> None:
     """Estraga a partição legada de duas formas e confere que reprocessar conserta."""

@@ -29,6 +29,11 @@ from conftest import FATOR_REDUZIDO
 pytestmark = pytest.mark.integracao
 
 AUTORIZA_ESCRITA = "MVP_TESTE_CARGA"
+#: Nome do banco efêmero que `make test-carga` criou. O teste de escrita só
+#: roda se for **esse** o banco a que a conexão aponta: a carga reduzida
+#: substitui a origem, e já substituiu a de trabalho duas vezes por uma flag
+#: que valia para qualquer banco.
+BANCO_EFEMERO = "MVP_TESTE_CARGA_DB"
 
 
 def test_as_colunas_gravaveis_existem_no_banco(engine) -> None:
@@ -45,9 +50,18 @@ def test_o_schema_tem_as_quarenta_tabelas(engine) -> None:
 
 @pytest.mark.skipif(
     os.environ.get(AUTORIZA_ESCRITA) != "1",
-    reason=f"escreve no banco; exija {AUTORIZA_ESCRITA}=1 para rodar",
+    reason=f"substitui a origem pela carga reduzida; rode por `make test-carga`, que exporta {AUTORIZA_ESCRITA}=1 num banco efêmero",
 )
 def test_carga_completa_e_recusa_de_destino_ocupado(engine, config: Config) -> None:
+    efemero = os.environ.get(BANCO_EFEMERO)
+    assert efemero and efemero.split("_carga_")[0] != efemero, (
+        f"{BANCO_EFEMERO} precisa nomear um banco efêmero `<origem>_carga_<n>`; "
+        "este teste destrói o conteúdo do banco em que roda"
+    )
+    assert engine.url.database == efemero, (
+        f"a conexão aponta para {engine.url.database!r}, não para o banco efêmero {efemero!r}; "
+        "recusado para não substituir a origem de trabalho"
+    )
     dados = pipeline.gerar(Motor(config, fator=FATOR_REDUZIDO))
 
     resultado = escrever(engine, dados, forcar=True)

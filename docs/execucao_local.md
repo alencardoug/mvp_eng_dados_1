@@ -121,8 +121,9 @@ Airbyte conserva o erro. O decodificador também recusa `TRUNCATE`; não faça a
 2. Valide a geração em memória e registre versão, parâmetros, contagens e hashes. Preserve um dump
    local identificado da origem se precisar voltar ao estado exato: o `writer` confirma o truncamento
    **antes** da transação de carga, e uma falha de `COPY` não recupera a carga anterior. Essa
-   salvaguarda não entrega o ponto de recuperação da Etapa 12. `make test CARGA=1` só em banco
-   isolado: ele substitui a origem por um fator reduzido.
+   salvaguarda não entrega o ponto de recuperação da Etapa 12. O teste de carga substitui a origem
+   por um fator reduzido, e por isso `make test CARGA=1` o roda num **banco efêmero** que o próprio
+   alvo cria e derruba — nunca na origem de trabalho.
 3. Com os consumidores parados, execute cada comando abaixo **somente após o anterior terminar
    com sucesso**:
 
@@ -189,7 +190,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo | Etapa 10 |
 | `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector | Etapa 10 |
 | `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow | Etapa 10 |
-| `make test` | Testes de código Python (`pytest`); `CARGA=1` inclui a que escreve no banco | Etapa 4 |
+| `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
 | `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
@@ -206,7 +207,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 
 > `make reset`, `make seed-data FORCE=1`, `make sync-airbyte RESET=1`, `make dbt-build RESET=1`,
 > `make stream-down FORCE=1`, `make stream-reset-sink FORCE=1`, `make dbt-drop-snapshots`,
-> `make test CARGA=1` e `make recover-restore` **destroem estado**. Todos
+> `make test FATO=1` e `make recover-restore` **destroem estado**. Todos
 > exigem a variável explícita, exceto `dbt-drop-snapshots`, cujo nome já é o aviso;
 > `recover-restore` só é executado mediante decisão explícita do responsável técnico.
 
