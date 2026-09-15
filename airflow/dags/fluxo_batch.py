@@ -61,7 +61,7 @@ PADRAO = {
 )
 def fluxo_batch():
     @task
-    def sincronizar(conexao: str) -> dict:
+    def sincronizar(conexao: str, tentativa: str | None = None) -> dict:
         """Executa uma sincronização do Airbyte e **espera** o resultado.
 
         Importa o cliente do próprio pacote do projeto em vez de reimplementar
@@ -71,7 +71,11 @@ def fluxo_batch():
 
         Recebe o nome da conexão porque desde a Etapa 10 há **duas** origens, e
         a tarefa é a mesma para as duas — o que muda é de onde se lê, e isso
-        está declarado em `airbyte/streams.yml`, não aqui.
+        está declarado em `airbyte/streams.yml`, não aqui. Para o legado recebe
+        também a `tentativa` aberta pela fase 1 do certificado (ADR-0044), e
+        grava nela o `job_id` **assim que o job nasce** — antes de esperar por
+        ele —, para que uma falha entre a sincronização e a fase 2 seja
+        recuperável a partir do que já está gravado.
         """
         from mvp_ed1 import airbyte
 
@@ -83,62 +87,82 @@ def fluxo_batch():
 
         jwt = airbyte.token()
         connection_id = airbyte.conexao(conexao, jwt)
-        job = airbyte.acompanhar(airbyte.sincronizar(connection_id, jwt)["jobId"], jwt)
+        criado = airbyte.sincronizar(connection_id, jwt)
+        if tentativa is not None:
+            from sqlalchemy import create_engine
+
+            from mvp_ed1.db import WAREHOUSE, database_url
+            from mvp_ed1.legacy import captura
+
+            captura.registrar_job(create_engine(database_url(WAREHOUSE)), tentativa, criado["jobId"])
+        job = airbyte.acompanhar(criado["jobId"], jwt)
 
         if job.get("status") != "succeeded":
             raise RuntimeError(f"{conexao}: sincronização terminou como {job.get('status')}")
         return {"linhas": job.get("rowsSynced", 0), "job": job.get("jobId")}
 
     @task
-    def geracao_do_legado() -> int:
-        """A captura que esta execução acabou de produzir, observada no bruto.
+    def iniciar_captura_do_legado() -> str:
+        """Fase 1 do certificado (ADR-0044): mede a origem **antes** de o job nascer.
 
-        ── Por que a DAG precisa dizer isto ao dbt ───────────────────────────
-        Sem esta tarefa, cada invocação do dbt escolhia a captura mais recente
-        que encontrasse. Numa DAG de sete tarefas de dbt, "mais recente" pode
-        mudar entre a primeira e a última — basta uma carga chegar no meio —, e
-        as camadas passariam a ler capturas diferentes sem que nada acusasse.
-
-        Aqui a escolha é feita **uma vez**, logo depois da sincronização, e
-        viaja para todas as tarefas como `legacy_snapshot_id`. O que o dbt lê
-        deixa de ser um palpite recalculado sete vezes.
-
-        ── O que esta tarefa não prova ──────────────────────────────────────
-        Que a geração observada seja a que **esta** sincronização escreveu. O
-        Airbyte não expõe a correspondência entre o `jobId` e o
-        `_airbyte_generation_id`, e inventá-la seria pior do que não tê-la.
-
-        E os testes do dbt **não fecham essa lacuna**, ao contrário do que esta
-        docstring afirmava antes. `legacy_captura_existe` e
-        `legacy_captura_completa` verificam que a geração selecionada está no
-        bruto e traz linha nas 40 tabelas — nada disso distingue uma carga nova
-        de uma que não escreveu nada e deixou a anterior no lugar. As duas
-        passam igual, e a segunda é justamente a falha que interessa.
-
-        Enquanto o vínculo não existir, a tarefa fixa **qual** captura é lida,
-        e não que ela seja recente. É menos do que parece e mais do que havia.
+        Contagem e hash de conteúdo de cada uma das 40 tabelas do `legacy_db`,
+        gravados como `pending` em `governance.legacy_captures`. É a medição que
+        não pode ser refeita depois — a origem de hoje não é a origem de antes.
+        Tentativas pendentes de execuções anteriores são concluídas ou marcadas
+        `abandoned` aqui, nunca reaproveitadas em silêncio.
         """
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import create_engine
 
-        from mvp_ed1.db import WAREHOUSE, database_url
-        from mvp_ed1.legacy import schema
+        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.legacy import captura
 
-        consulta = " union all ".join(
-            f'select max(_airbyte_generation_id) as g from raw_legacy."{tabela}"'
-            for tabela in schema.tabelas()
+        return captura.iniciar(
+            create_engine(database_url(LEGACY)),
+            create_engine(database_url(WAREHOUSE)),
+            "legacy_para_raw_legacy",
         )
-        with create_engine(database_url(WAREHOUSE)).connect() as conexao:
-            geracao = conexao.execute(
-                text(f"select max(g) from ({consulta}) t")
-            ).scalar_one_or_none()
 
-        if geracao is None:
+    @task
+    def concluir_captura_do_legado(tentativa: str, sincronizacao: dict) -> int:
+        """Fase 2 do certificado: a captura que **este** job escreveu, íntegra por conteúdo.
+
+        ── O que esta tarefa prova, e com quê ────────────────────────────────
+        Até 14/09/2026 ela lia o máximo de `_airbyte_generation_id` depois da
+        sincronização, e a docstring admitia: nada distinguia carga nova de
+        captura anterior reutilizada. Agora o certificado responde, por tabela:
+        a origem ficou parada durante o job (hash antes = hash depois); o que
+        chegou é o que a origem tinha, linha a linha e com multiplicidade
+        (hash e contagem do bruto = origem); e as linhas são deste job
+        (`_airbyte_meta.sync_id` = `jobId`, sem intrusas na geração). Só com
+        `complete` nas 40 tabelas a captura é elegível, e é o `snapshot_id` dela
+        que viaja para todas as tarefas de dbt como `legacy_snapshot_id`.
+
+        Sem certificado `complete` a tarefa **falha** — uma captura incompleta
+        com job `succeeded` (a geração 15 retida é uma) não chega ao dbt.
+        """
+        from sqlalchemy import create_engine
+
+        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.legacy import captura
+
+        certificado = captura.concluir(
+            create_engine(database_url(LEGACY)), create_engine(database_url(WAREHOUSE)), tentativa
+        )
+        if certificado["status"] != "complete" or certificado["snapshot_id"] is None:
             raise RuntimeError(
-                "nenhuma captura do legado em raw_legacy depois da sincronização"
+                f"captura do job {sincronizacao.get('job')} não é elegível: "
+                f"{certificado['status']} · tabelas {certificado['tabelas']}"
             )
-        return int(geracao)
+        return int(certificado["snapshot_id"])
 
-    captura_legada = geracao_do_legado()
+    tentativa = iniciar_captura_do_legado()
+    captura_principal = sincronizar.override(task_id="sincronizar_oltp_para_raw")(
+        conexao="oltp_para_raw"
+    )
+    captura_legada_sync = sincronizar.override(task_id="sincronizar_legado_para_raw_legacy")(
+        conexao="legacy_para_raw_legacy", tentativa=tentativa
+    )
+    captura_legada = concluir_captura_do_legado(tentativa, captura_legada_sync)
 
     def camada(nome: str, selecao: str, comando: str = "build") -> BashOperator:
         # `--vars` em todas as tarefas, e não só nas do legado: as tarefas são
@@ -146,7 +170,7 @@ def fluxo_batch():
         # faria a camada seguinte reabrir a escolha que a anterior já fechou.
         vars_ = (
             """--vars '{legacy_snapshot_id: """
-            "{{ ti.xcom_pull(task_ids='geracao_do_legado') }}}'"
+            "{{ ti.xcom_pull(task_ids='concluir_captura_do_legado') }}}'"
         )
         return BashOperator(
             task_id=f"dbt_{nome}",
@@ -183,16 +207,8 @@ def fluxo_batch():
     # DAG são por **camada**, e os modelos dele vivem nas camadas que já existem.
     # É a propriedade que o cabeçalho desta DAG anuncia — acrescentar domínio
     # não acrescenta tarefa —, e a Etapa 10 é o teste dela.
-    capturas = [
-        sincronizar.override(task_id="sincronizar_oltp_para_raw")(conexao="oltp_para_raw"),
-        sincronizar.override(task_id="sincronizar_legado_para_raw_legacy")(
-            conexao="legacy_para_raw_legacy"
-        ),
-    ]
-
     (
-        capturas
-        >> captura_legada
+        [captura_principal, captura_legada]
         >> semear
         >> staging
         >> trusted

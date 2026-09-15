@@ -285,18 +285,24 @@ sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 desca
 		$(if $(filter 1,$(RESET)),.venv/bin/python -m mvp_ed1.airbyte reset &&) \
 		.venv/bin/python -m mvp_ed1.airbyte sync
 
-sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy; cada execução acrescenta um snapshot
+sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy e a certifica (ADR-0044); cada execução acrescenta um snapshot
 	@# Sem RESET: o modo é `full_refresh_append` (ADR-0037), e descartar o
 	@# estado aqui não faria a carga anterior voltar — ela está retida de
 	@# propósito. Duas execuções são duas capturas, que é o ponto.
+	@# `--certificar-legado` põe a sincronização entre as duas fases do
+	@# certificado: origem medida antes, origem e bruto conferidos depois.
 	@$(CREDENCIAIS); \
-		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy
+		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado
 
 dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 refaz histórico SCD e incrementais
 	@# `--full-refresh` junto com o descarte do histórico, e não por precaução:
 	@# refazer os snapshots troca **todas** as chaves substitutas, e a fato
 	@# incremental continuaria apontando para as antigas. O teste de
 	@# `relationships` pega — depois de 13.514 linhas órfãs.
+	@# `governance.legacy_captures` é `source` dos modelos do legado (ADR-0044):
+	@# garantir o schema antes de compilar é o que evita "relation does not exist"
+	@# num armazém que ainda não teve sincronização certificada.
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.governance garantir
 	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots &&) \
 		$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
 

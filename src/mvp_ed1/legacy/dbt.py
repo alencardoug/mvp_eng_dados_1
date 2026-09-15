@@ -300,16 +300,37 @@ sources:
     # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
     tables:
 {linhas}
+
+  - name: governance
+    description: >
+      Controle e auditoria (ADR-0023). O fluxo lê **uma** tabela daqui, e só
+      para uma pergunta: esta captura do legado é elegível? É a exceção
+      delimitada que o ADR-0044 abre — o certificado por stream de cada
+      captura, escrito em duas fases por `mvp_ed1.legacy.captura`.
+    database: "{{{{ env_var('WAREHOUSE_DB_NAME') }}}}"
+    schema: governance
+    loader: mvp_ed1.legacy.captura
+    tables:
+      - name: legacy_captures
+        description: >
+          Uma linha por tentativa e tabela: origem antes e depois do job
+          (contagem e hash de conteúdo), bruto recebido com o `sync_id` do job,
+          e o veredito — `complete`, `unstable`, `incomplete`, `inconsistent`,
+          `pending`, `abandoned`. Captura elegível = `complete` nas 40 tabelas.
 """
 
 
-#: Tabelas que podem chegar vazias numa captura sem que isso seja incompletude.
-#:
-#: Vazia de propósito, e é essa a afirmação: as 40 tabelas do legado têm linhas,
-#: e uma que apareça sem nenhuma é captura incompleta, não tabela sem dado. O
-#: dia em que uma delas legitimamente esvaziar, o nome entra aqui — e entrar
-#: aqui é uma decisão declarada, não um teste que deixou de olhar.
-VAZIAS_LEGITIMAS: frozenset[str] = frozenset()
+def certificadas_sql() -> str:
+    """CTE com os `snapshot_id` certificados: `complete` nas 40 tabelas (ADR-0044)."""
+    return f"""certificadas as (
+
+    select snapshot_id
+    from {{{{ source('governance', 'legacy_captures') }}}}
+    where status = 'complete'
+    group by snapshot_id
+    having count(distinct source_table) = {len(schema.tabelas())}
+
+)"""
 
 
 def captura_selecionada() -> str:
@@ -321,9 +342,12 @@ def captura_selecionada() -> str:
     não veio na carga nova tem o seu máximo na geração **anterior**, e serviria
     linhas velhas ao lado das novas sem que nada acusasse a mistura.
 
-    Aqui o máximo é tomado entre todas as tabelas. A tabela que ficou para trás
-    passa a devolver zero linhas — que é visível, e é o que o teste de
-    completude procura.
+    ── Só captura certificada ────────────────────────────────────────────────
+    Desde o ADR-0044 "a mais recente" é a mais recente **certificada**: a que
+    tem `complete` nas 40 tabelas em `governance.legacy_captures`. O máximo de
+    geração aceitava a geração 15 — 39 tabelas, job `succeeded`, total exato.
+    Sem nenhuma certificada (as capturas 1–16 não têm certificado nem podem
+    ter), a seleção é nula e `legacy_captura_existe` acusa — de propósito.
 
     ── Materializada, e não view ─────────────────────────────────────────────
     Quarenta modelos a referenciam. Como *view*, cada referência reexecutaria a
@@ -331,30 +355,22 @@ def captura_selecionada() -> str:
     execução — e é isso que também impede que uma carga que chegue no meio do
     `build` mude a captura entre uma camada e a seguinte.
     """
-    ramos = "\n    union all\n".join(
-        f"    select max(_airbyte_generation_id) as snapshot_id"
-        f" from {{{{ source('legacy', '{tabela}') }}}}"
-        for tabela in schema.tabelas()
-    )
     return f"""{AVISO}
 -- A captura do legado que esta execução lê.
 --
 -- `legacy_snapshot_id` escolhe explicitamente, para reprocessar uma captura
--- antiga; sem ele, vale a mais recente. Que ela **exista** e esteja
--- **completa** não se assume: é o que os testes `legacy_captura_existe` e
+-- antiga; sem ele, vale a mais recente **certificada** — `complete` nas 40
+-- tabelas em `governance.legacy_captures` (ADR-0044). Que a escolhida exista
+-- e seja íntegra não se assume: é o que `legacy_captura_existe` e
 -- `legacy_captura_completa` conferem.
 
 {{{{ config(materialized='table') }}}}
 
-with geracoes as (
-
-{ramos}
-
-)
+with {certificadas_sql()}
 
 select coalesce(
     {{{{ legacy_snapshot_id() }}}},
-    (select max(snapshot_id) from geracoes)
+    (select max(snapshot_id) from certificadas)
 )::bigint                                       as snapshot_id
 """
 
@@ -406,37 +422,65 @@ where (select snapshot_id from selecionada) is null
 
 
 def teste_captura_completa() -> str:
-    """Captura em que falta tabela é captura incompleta, não tabela vazia."""
-    ramos = "\n\nunion all\n\n".join(
-        f"""select
-    '{tabela}'                                  as tabela,
-    (select snapshot_id from selecionada)       as snapshot_id
-where not exists (
-    select 1 from {{{{ source('legacy', '{tabela}') }}}}
-    where _airbyte_generation_id = (select snapshot_id from selecionada)
-)"""
+    """Captura selecionada sem certificado `complete` numa tabela é captura não íntegra."""
+    contagens = "\n    union all\n".join(
+        f"    select '{tabela}' as tabela, count(*) as linhas"
+        f" from {{{{ source('legacy', '{tabela}') }}}}"
+        f" where _airbyte_generation_id = (select snapshot_id from selecionada)"
         for tabela in schema.tabelas()
-        if tabela not in VAZIAS_LEGITIMAS
     )
+    tabelas = ", ".join(f"('{t}')" for t in schema.tabelas())
     return f"""{AVISO}
--- Toda tabela declarada tem linha na captura selecionada.
+-- A captura selecionada é **certificada** em todas as tabelas declaradas.
 --
--- É o que separa **tabela legitimamente vazia** de **captura ausente ou
--- incompleta**, que do bruto sozinho são indistinguíveis: as duas aparecem
--- como zero linhas. A separação é declarada, não inferida — as 40 tabelas do
--- legado têm dado, e a exceção, se um dia existir, tem nome em
--- `VAZIAS_LEGITIMAS`.
+-- Até 14/09/2026 este teste perguntava se cada tabela tinha ao menos uma linha
+-- na captura — e isso aceitava a geração 15: 39 tabelas, job `succeeded`,
+-- total exato. Agora ele lê o certificado do ADR-0044, escrito em duas fases
+-- em volta da sincronização: origem antes e depois do job (contagem e hash de
+-- conteúdo), bruto recebido com o `sync_id` do job. Tabela com zero na origem
+-- e zero no bruto é completa — "legitimamente vazia" é medida, não lista.
 --
--- Uma linha no resultado é uma tabela que não veio na captura que está sendo
--- lida.
+-- Cada linha do resultado é uma tabela em que a captura selecionada não tem
+-- certificado `complete`, ou em que o bruto de hoje não tem mais as linhas que
+-- o certificado disse ter recebido.
 
 with selecionada as (
 
     select snapshot_id from {{{{ ref('legacy_selected_capture') }}}}
 
+),
+
+declaradas (tabela) as (
+
+    values {tabelas}
+
+),
+
+certificado as (
+
+    select source_table as tabela, status, received_rows
+    from {{{{ source('governance', 'legacy_captures') }}}}
+    where snapshot_id = (select snapshot_id from selecionada)
+
+),
+
+no_bruto as (
+
+{contagens}
+
 )
 
-{ramos}
+select
+    d.tabela,
+    (select snapshot_id from selecionada)       as snapshot_id,
+    coalesce(c.status, 'sem certificado')       as status,
+    c.received_rows,
+    b.linhas                                    as linhas_no_bruto
+from declaradas d
+left join certificado c on c.tabela = d.tabela
+left join no_bruto b on b.tabela = d.tabela
+where c.status is distinct from 'complete'
+   or c.received_rows is distinct from b.linhas
 """
 
 

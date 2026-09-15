@@ -113,10 +113,42 @@ def acompanhar(job_id: int, jwt: str, intervalo: float = 15.0) -> dict:
         time.sleep(intervalo)
 
 
+def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[dict, dict]:
+    """A sincronização do legado entre as duas fases do certificado (ADR-0044).
+
+    Uma implementação para dois chamadores — a DAG e `make sync-legacy` —, e a
+    ordem é o contrato: a origem é medida **antes** de o job nascer, o `job_id`
+    é gravado assim que ele nasce, e só depois de ele terminar a origem e o
+    bruto são conferidos. Devolve o job e o certificado.
+    """
+    from sqlalchemy import create_engine
+
+    from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+    from mvp_ed1.legacy import captura
+
+    legado = create_engine(database_url(LEGACY))
+    armazem = create_engine(database_url(WAREHOUSE))
+    try:
+        tentativa = captura.iniciar(legado, armazem, nome)
+        job = sincronizar(connection_id, jwt)
+        captura.registrar_job(armazem, tentativa, job["jobId"])
+        job = acompanhar(job["jobId"], jwt)
+        certificado = captura.concluir(legado, armazem, tentativa)
+    finally:
+        legado.dispose()
+        armazem.dispose()
+    return job, certificado
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.airbyte")
     parser.add_argument("comando", choices=["sync", "reset", "status", "workspace"])
     parser.add_argument("--connection", default="oltp_para_raw")
+    parser.add_argument(
+        "--certificar-legado",
+        action="store_true",
+        help="mede a origem legada antes do job e confere origem e bruto depois (ADR-0044)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -134,7 +166,11 @@ def main(argv: list[str] | None = None) -> int:
         # e o incremental **não enxerga** dado regerado.
         tipo = "reset" if args.comando == "reset" else "sync"
         print(f"{args.comando} de {args.connection} ({connection_id})")
-        job = acompanhar(sincronizar(connection_id, jwt, tipo)["jobId"], jwt)
+        certificado = None
+        if args.certificar_legado and tipo == "sync":
+            job, certificado = sincronizar_certificando(connection_id, args.connection, jwt)
+        else:
+            job = acompanhar(sincronizar(connection_id, jwt, tipo)["jobId"], jwt)
     except AirbyteIndisponivel as erro:
         print(f"ERRO: {erro}", file=sys.stderr)
         return 2
@@ -143,6 +179,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERRO: sincronização terminou como {job.get('status')}", file=sys.stderr)
         return 1
     print(f"concluída: {job.get('rowsSynced', 0):,} linhas".replace(",", "."))
+    if certificado is not None:
+        por_estado: dict[str, int] = {}
+        for estado in certificado["tabelas"].values():
+            por_estado[estado] = por_estado.get(estado, 0) + 1
+        print(
+            f"certificado {certificado['capture_attempt_id'][:12]}: {certificado['status']} "
+            f"· snapshot {certificado['snapshot_id']} · tabelas {por_estado}"
+        )
+        if certificado["status"] != "complete":
+            print("ERRO: a captura não é elegível; ver governance.legacy_captures", file=sys.stderr)
+            return 1
     return 0
 
 

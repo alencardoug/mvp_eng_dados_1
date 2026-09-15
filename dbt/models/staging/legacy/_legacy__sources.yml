@@ -59,3 +59,20 @@ sources:
       - name: support_tickets
       - name: refunds
       - name: ticket_events
+
+  - name: governance
+    description: >
+      Controle e auditoria (ADR-0023). O fluxo lê **uma** tabela daqui, e só
+      para uma pergunta: esta captura do legado é elegível? É a exceção
+      delimitada que o ADR-0044 abre — o certificado por stream de cada
+      captura, escrito em duas fases por `mvp_ed1.legacy.captura`.
+    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    schema: governance
+    loader: mvp_ed1.legacy.captura
+    tables:
+      - name: legacy_captures
+        description: >
+          Uma linha por tentativa e tabela: origem antes e depois do job
+          (contagem e hash de conteúdo), bruto recebido com o `sync_id` do job,
+          e o veredito — `complete`, `unstable`, `incomplete`, `inconsistent`,
+          `pending`, `abandoned`. Captura elegível = `complete` nas 40 tabelas.

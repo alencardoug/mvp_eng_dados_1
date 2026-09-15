@@ -37,6 +37,13 @@ x-airflow-comum: &airflow-comum
     WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
     WAREHOUSE_DB_USER: ${WAREHOUSE_DB_USER}
     WAREHOUSE_DB_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
+    # A origem legada, pelo mesmo caminho: o certificado de captura (ADR-0044)
+    # mede a origem antes e depois do job, e a medição é da DAG, não do Airbyte.
+    LEGACY_DB_HOST: host.docker.internal
+    LEGACY_DB_PORT: ${LEGACY_DB_PORT}
+    LEGACY_DB_NAME: ${LEGACY_DB_NAME}
+    LEGACY_DB_USER: ${LEGACY_DB_USER}
+    LEGACY_DB_PASSWORD: ${LEGACY_DB_PASSWORD}
     AIRBYTE_URL: http://host.docker.internal:8000/api/public/v1
     AIRBYTE_CLIENT_ID: ${AIRBYTE_CLIENT_ID:-}
     AIRBYTE_CLIENT_SECRET: ${AIRBYTE_CLIENT_SECRET:-}
