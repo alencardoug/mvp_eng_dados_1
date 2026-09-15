@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.10 |
+| Versão | 2.11 |
 | Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7; custo de memória do tratamento do legado medido na §2.10. Recuperação da Etapa 12 ainda não entregue |
-| Última revisão | 08/09/2026 |
+| Última revisão | 15/09/2026 |
 
 ---
 
@@ -322,8 +322,10 @@ Duas consequências, uma tratada e uma em aberto:
   passam por `docker/preflight.sh`, que **pausa o ambiente conflitante** antes de subir o pedido —
   ciclo de troca medido em 18 s. Recusa só resta quando nem pausar basta, e aí `FORCE=1` autoriza,
   no mesmo idioma de `seed-data` e `reset`.
-- **Em aberto.** A Etapa 12 exige tudo de pé ao mesmo tempo, e nessa máquina isso não cabe com o
-  ambiente de trabalho aberto. É a pendência **D36**.
+- **Fechada em 15/09/2026.** A Etapa 12 exigia tudo de pé ao mesmo tempo, e nessa máquina isso
+  não cabe com o ambiente de trabalho aberto: a pendência **D36** foi decidida pelo
+  [ADR-0046](adr/0046-validar-a-fase-local-por-partes.md) — a validação é por partes, e a
+  concorrência entre *batch* e *streaming* é medida na fase GCP.
 
 Um segundo achado, estrutural, sobre o custo do Airbyte: as JVMs permanentes do cluster rodam com
 `-XX:MaxRAMPercentage=75.0` dentro de um contêiner `kind` **sem limite de memória**, de modo que

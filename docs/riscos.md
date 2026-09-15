@@ -8,9 +8,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 1.1 |
+| Versão | 1.2 |
 | Responsável | Owner principal |
-| Última revisão | 04/09/2026 |
+| Última revisão | 15/09/2026 |
 
 Um risco só sai desta tabela quando deixa de existir — não quando deixa de incomodar. Riscos
 novos entram a qualquer momento; a revisão obrigatória acontece ao final de cada etapa.
@@ -41,7 +41,7 @@ novos entram a qualquer momento; a revisão obrigatória acontece ao final de ca
 | ID | Risco | Impacto | Tratamento |
 |---|---|---|---|
 | **R6** | Falta de reprodutibilidade | Alto | Contêineres, `seed` explícita, migrações versionadas, ponto único de recuperação |
-| **R11** | Consumo de memória do ambiente local com Airbyte, Airflow, Redpanda e Kafka Connect simultâneos | Alto | Alvos de `Makefile` sobem apenas o subconjunto necessário; *batch* e *streaming* não sobem juntos fora da Etapa 12; fator de escala `dev` no gerador; medir antes de concluir cada etapa |
+| **R11** | Consumo de memória do ambiente local com Airbyte, Airflow, Redpanda e Kafka Connect simultâneos | Alto | Alvos de `Makefile` sobem apenas o subconjunto necessário e pausam o conflitante; *batch* e *streaming* não sobem juntos — nem na Etapa 12, que valida por partes ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)); fator de escala `dev` no gerador; medir antes de concluir cada etapa |
 | **R13** | Complexidade do streaming e curva de aprendizado do Apache Beam | Médio/Alto | Escopo de um único domínio; entra apenas na Etapa 7, com o fluxo *batch* já funcionando; *boilerplate* assistido e revisado |
 
 ## Riscos da fase GCP

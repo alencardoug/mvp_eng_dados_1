@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.8 |
+| Versão | 1.9 |
 | Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
-| Última revisão | 14/09/2026 |
+| Última revisão | 15/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -192,7 +192,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo | Etapa 10 |
 | `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector | Etapa 10 |
 | `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow | Etapa 10 |
-| `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho; `LOTE=1` compara a limpeza compilada do legado nas 40 tabelas, num armazém efêmero (~11 min; ver D42) | Etapa 4 |
+| `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
 | `make airflow-down` | Derruba o Airflow preservando o histórico de execuções | Etapa 5 |
@@ -227,7 +227,7 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Ajustar o gerador | `make up` apenas — ou nada, com `DRY_RUN=1` |
 | Trabalhar no streaming | `make up` + `make stream-up` + `make stream-run` |
 | Reconciliar o CDC contra a carga completa | acrescentar `make airbyte-up` e `make sync-airbyte` |
-| Execução completa de validação | Tudo simultaneamente — apenas na Etapa 12 |
+| Execução completa de validação (Etapa 12) | Cada cenário acima, no seu subconjunto — nunca tudo de pé ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) |
 
 **A tabela deixou de depender de quem a lê, e a troca deixou de ser manual.** `make airbyte-up`,
 `airflow-up` e `stream-up` passam por `docker/preflight.sh`, que mede a memória, vê o que está de pé

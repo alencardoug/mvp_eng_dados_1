@@ -44,7 +44,7 @@ CUSTO_streaming=485
 FOLGA_MINIMA=1500
 
 # --- famílias ----------------------------------------------------------------
-# Batch e streaming não sobem juntos fora da Etapa 12 (R11, §2.5).
+# Batch e streaming não sobem juntos (R11, §2.5); a Etapa 12 valida por partes (ADR-0046).
 case "$ALVO" in
   airbyte|airflow) FAMILIA="batch" ;;
   streaming)       FAMILIA="streaming" ;;
@@ -169,7 +169,7 @@ echo "[preflight] '$ALVO' custa ~$(_gb "$CUSTO") — sobraria $(_gb "$PROJECAO")
 # --- veredito ----------------------------------------------------------------
 RECUSA=""
 if [ ${#CONFLITO[@]} -gt 0 ]; then
-  RECUSA="batch e streaming juntos só na Etapa 12 (R11)"
+  RECUSA="batch e streaming não sobem juntos (R11; a validação é por partes, ADR-0046)"
 elif [ "$PROJECAO" -lt "$FOLGA_MINIMA" ]; then
   RECUSA="sobraria menos que a folga mínima de $(_gb "$FOLGA_MINIMA") para o host"
 fi
@@ -273,7 +273,7 @@ else
   echo "  ou derrube o que estiver de pé, e rode de novo."
 fi
 echo ""
-echo "  Se ambos são mesmo necessários (Etapa 12, ou reconciliar CDC contra a"
+echo "  Se ambos são mesmo necessários (reconciliar o CDC contra a"
 echo "  carga completa), isto é uma PAUSA para o Owner liberar recursos:"
 echo "  peça a ele, confirme, e então autorize com FORCE=1."
 exit 1

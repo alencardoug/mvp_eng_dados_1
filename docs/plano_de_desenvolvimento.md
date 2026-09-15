@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.1 |
+| Versão | 3.2 |
 | Etapa atual | **Etapa 10 — Corte 6: origem legada**, reaberta em 07/09/2026 (**M0** a **M4** concluídos) |
-| Última revisão | 05/09/2026 |
+| Última revisão | 15/09/2026 |
 
 ---
 
@@ -281,7 +281,7 @@ Teste que o próprio autor desenha mede o que ele pensou em medir.
 | **Pré-requisito** | Etapa 11 |
 | **Entregas** | **E11** |
 | **Artefatos** | [Execução Local](execucao_local.md) completa e conferida · `make check` · pacote do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação) · versão marcada no Git |
-| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo · execução completa com *batch* e *streaming* simultâneos, com tamanho e tempo medidos e registrados · cobertura integral conferida · restauração do ponto de recuperação testada, incluindo o *re-snapshot* do conector de CDC · documentação coerente com o código · nenhum segredo no repositório nem no histórico |
+| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo · execução completa de **cada cenário no seu subconjunto de ambiente** ([Execução Local §5](execucao_local.md#5-executando-por-partes)), com tamanho, tempo e pico de memória medidos e registrados — sem *batch* e *streaming* simultâneos ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) · cobertura integral conferida · restauração do ponto de recuperação testada, incluindo o *re-snapshot* do conector de CDC · documentação coerente com o código · nenhum segredo no repositório nem no histórico |
 | **Riscos tratados** | **R6**, **R7**, **R10**, **R11** |
 | **Conceitos** | Reprodutibilidade verificada · versionamento semântico · recuperação testada · auditoria de entrega |
 
@@ -292,9 +292,9 @@ Teste que o próprio autor desenha mede o que ele pensou em medir.
 | **Objetivo** | Levar o fluxo para a nuvem preservando o desenho conceitual. |
 | **Pré-requisito** | M5 e autorização explícita do Owner |
 | **Entregas** | **E12** |
-| **Decisões** | **D11**, **D22** ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)), **Q1** ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) — aceitas em 04/09/2026 |
+| **Decisões** | **D11**, **D22** ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)), **Q1** ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) — aceitas em 04/09/2026 · **D36** ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — a concorrência entre *batch* e *streaming* é medida aqui, não na fase local |
 | **Artefatos** | `terraform/` provisionando Cloud SQL, BigQuery, IAM, contas de serviço, redes, Datastream, Pub/Sub, Dataflow e *policy tags* · dbt adaptado de dialeto · publicação dos metadados no Dataplex · estimativa de custo por serviço |
-| **Critérios de conclusão** | Todo item do [mapa de paridade](arquitetura.md#5-mapa-de-paridade-local--gcp) com equivalente provisionado · `terraform plan` revisado antes de cada `apply` · particionamento, *clustering*, retenção e políticas definidos antes do provisionamento · *policy tag* aplicada a cada coluna sensível pelo fluxo automatizado do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md), com acesso negado comprovado e sem credencial longeva · Composer e Airbyte criados e **destruídos** na mesma janela, com custo estimado e real registrados · paridade funcional com a fase local demonstrada |
+| **Critérios de conclusão** | Todo item do [mapa de paridade](arquitetura.md#5-mapa-de-paridade-local--gcp) com equivalente provisionado · `terraform plan` revisado antes de cada `apply` · particionamento, *clustering*, retenção e políticas definidos antes do provisionamento · *policy tag* aplicada a cada coluna sensível pelo fluxo automatizado do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md), com acesso negado comprovado e sem credencial longeva · Composer e Airbyte criados e **destruídos** na mesma janela, com custo estimado e real registrados · *batch* e *streaming* de pé ao mesmo tempo, com tamanho, tempo e custo registrados e `caminhos_de_ingestao_reconciliam` passando ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) · paridade funcional com a fase local demonstrada |
 | **Riscos tratados** | **R3**, **R9** |
 | **Conceitos** | Infraestrutura como código · IAM e *policy tags* · particionamento e *clustering* no BigQuery · portabilidade de pipeline · estimativa de custo |
 

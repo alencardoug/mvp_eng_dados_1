@@ -10,67 +10,20 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado (D42 aberta) —, aguardando nova revisão** |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado; D36 fechada (ADR-0046), D42 aberta —, aguardando nova revisão** |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 2 — D36, D42 |
+| Decisões pendentes | 1 — D42 |
 | Última revisão | 15/09/2026 |
 
 ---
 
 ## 1. Esperando você
 
-### D36 — a Etapa 12 não cabe na máquina como está dimensionada
-
-A validação final exige tudo de pé ao mesmo tempo: ~8 GB só de ambiente
-([Capacidade §2.4](capacidade_e_recuperacao.md#24-medido-na-etapa-7--o-caminho-quente)). O que esse
-número nunca contou é o ambiente de trabalho — VS Code, sessões de agente e navegador somam ~4 GB,
-medidos em 07/09/2026. Numa máquina de 11,5 GB são 12 GB pedidos: déficit, não margem. O travamento
-que originou esta pendência está registrado na
-[Capacidade §2.8](capacidade_e_recuperacao.md#28-o-número-de-dimensionamento-não-incluía-o-ambiente-de-trabalho--07092026).
-
-Três saídas, e a escolha é de escopo, não técnica:
-
-1. **Rodar a Etapa 12 por terminal puro**, com o ambiente de trabalho fechado — sem VS Code, sem
-   agente, sem navegador. Libera os ~4 GB e faz o número de §2.4 caber com folga. Custa a
-   observabilidade de quem acompanha: a validação é conduzida por `make` e lida por log.
-2. **Fatiar a validação** em blocos que caibam, com o critério de conclusão da etapa satisfeito por
-   partes em vez de por uma execução única. Preserva o ambiente de trabalho e exige definir o que
-   uma execução completa comprova que a soma dos blocos não comprova.
-3. **Tirar do plano** a exigência de simultaneidade, assumindo que a fase local não a demonstra e
-   registrando a contrapartida na fase GCP.
-
-**O agravante estrutural foi decidido e fechado** pelo
-[ADR-0041](adr/0041-teto-de-memoria-nos-servicos-do-airbyte.md): todo serviço permanente do Airbyte
-passou a declarar teto de memória. A medição, porém, **não** resolveu o que esta pendência trata —
-o ocioso caiu 7% e o pico durante a sincronização não caiu, porque é dominado pelos *pods de job*.
-O déficit da Etapa 12 continua inteiro.
-
-O risco imediato está tratado sem decisão sua: `make airbyte-up`, `airflow-up` e `stream-up` pausam
-o ambiente conflitante antes de subir (**R11**), dimensionados pelo pico medido de 5,0 GB. Recusa só
-resta quando nem a troca basta, e aí `FORCE=1` autoriza.
-
 ### D42 — o CTE `limpo` dos modelos de limpeza é embutido pelo planejador, e custa 10×
 
-Medido em 15/09/2026, ao executar os modelos de limpeza compilados num armazém efêmero
-([Capacidade §2.11](capacidade_e_recuperacao.md#211-o-cte-limpo-embutido-em-cada-referência--15092026)):
-o PostgreSQL embute o CTE `limpo` (referenciado uma vez) em **cada** referência `l."coluna"` do
-`case` de achados — e a validação de uma data referencia a coluna limpa dezenas de vezes. Só o
-`achados` de `stg_legacy__carts` (2.000 linhas) leva **94 s**; com `limpo as materialized`, **8,7 s**;
-`cart_items` (5.500 linhas) cai de 295 s para 25 s. Com o JIT ligado ou desligado, a diferença é a
-mesma — é outra causa, somada à da D38, e provavelmente o que tornava a árvore de expressão grande
-o bastante para o JIT estourar.
-
-O conserto é uma palavra no gerador (`dbt.py`), com resultado idêntico linha a linha — mas
-`MATERIALIZED` não existe no BigQuery (exige `dispatch` por adaptador), e mexer no SQL do
-tratamento é decisão sua, mesmo sem mudar veredito nenhum e sem entrar na impressão digital da D34.
-Duas saídas:
-
-1. **Materializar o CTE no gerador**, com `{% if target.type == 'postgres' %}` — ganho de ~10× na
-   limpeza e, provavelmente, um `dbt build` do legado bem mais curto que os 17 min medidos.
-2. **Deixar como está** e registrar o custo: a contraprova (b) do oráculo compara só um recorte por
-   padrão e as 40 tabelas sob `make test LOTE=1` (~11 min).
-
-Enquanto não decide, vale a 2 — nada muda no tratamento.
+Medido em 15/09/2026 ([Capacidade §2.11](capacidade_e_recuperacao.md#211-o-cte-limpo-embutido-em-cada-referência--15092026)):
+`carts` 94 s → 8,7 s com `limpo as materialized`. Decisão sobre o SQL do tratamento; registro na
+rodada seguinte.
 
 ---
 
@@ -87,6 +40,20 @@ técnica não é aceite: a etapa continua reaberta até essa revisão e a sua de
 ---
 
 ## 2. Decisões já fechadas
+
+### D36 — decidida em 15/09/2026
+
+**A Etapa 12 valida a fase local por partes; a exigência de *batch* e *streaming* simultâneos sai
+do plano, e a demonstração sob concorrência é contrapartida da fase GCP.** Fechada pelo
+[ADR-0046](adr/0046-validar-a-fase-local-por-partes.md), que registra o custo aceito: a fase local
+termina sem medir contenção de recursos entre o Airbyte e o Beam, e o primeiro número disso é da
+nuvem.
+
+Levantada em 07/09/2026 pela medição de capacidade (~8 GB de ambiente + ~4 GB de trabalho numa
+máquina de 11,5 GB; travamento com OOM *killer* 151 vezes em uma hora). A parte estrutural já tinha
+sido fechada pelo [ADR-0041](adr/0041-teto-de-memoria-nos-servicos-do-airbyte.md); o que restava era
+escopo, e das três saídas — terminal puro, fatiar a validação, tirar a simultaneidade — o Owner
+escolheu a terceira.
 
 ### D39 — decidida em 14/09/2026, em três rodadas
 

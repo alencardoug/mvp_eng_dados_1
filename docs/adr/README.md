@@ -82,6 +82,7 @@ decisão.
 | [0043](0043-impedir-que-o-tratamento-do-legado-esgote-a-estacao.md) | Impedir que o tratamento do legado esgote a memória da estação | Aceita | D38 |
 | [0044](0044-certificar-cada-captura-do-legado-por-conteudo.md) | Certificar cada captura do legado por conteúdo, por *stream* e por *job* | Aceita | D41 |
 | [0045](0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md) | Detectar a exclusão física do legado no bruto retido, sem marca dimensional | Aceita | D39 |
+| [0046](0046-validar-a-fase-local-por-partes.md) | Validar a fase local por partes, sem exigir *batch* e *streaming* simultâneos | Aceita | D36 |
 
 ---
 
@@ -89,7 +90,7 @@ decisão.
 
 | # | Decisão | Levantada em | Efeito de não decidir |
 |---|---|---|---|
-| **D36** | Como a Etapa 12 cabe na máquina, já que o ambiente de trabalho não estava no dimensionamento | Medição de capacidade, 07/09/2026 | A validação final é planejada sobre um número que não fecha, e trava a máquina em vez de falhar |
+| **D42** | Materializar o CTE `limpo` dos modelos de limpeza do legado, que o planejador embute em cada referência (10× medido) | Revisão de desenvolvimento, 15/09/2026 | A limpeza compilada e o `dbt build` do legado seguem uma ordem de grandeza mais lentos do que precisam |
 
 Decisões nascidas da **revisão por outro agente**, e não da construção, já são maioria nesta etapa —
 quatro delas, todas de alguém olhando o que estava pronto, e nenhuma era implementação: as quatro
