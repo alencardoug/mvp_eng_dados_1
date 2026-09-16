@@ -354,12 +354,14 @@ def _ler_intervalo_e_memoria(conexao) -> tuple[dict, dict]:
 def _faltas(efeito: dict[tuple[str, str], bool], intervalo: dict, memoria: dict) -> list[tuple]:
     """O que o efeito líquido do diário exige e os modelos não mostram.
 
-    Chave presente: fora da memória, e no intervalo com `rows_after > 0` — em
-    qualquer transição de multiplicidade (`mantida`, `adicionada`, `reduzida`,
-    `aumentada`), porque apagar um alias com outro sobrevivente **é** redução
-    (RV10-3-04). Chave ausente: na memória, e no intervalo só como `removida`.
-    Fora do intervalo (`None`) é chave que não mudou entre as duas últimas
-    certificadas — a memória sozinha responde.
+    Chave presente: fora da memória, e **no intervalo** com `rows_after > 0` —
+    em qualquer transição de multiplicidade (`mantida`, `adicionada`,
+    `reduzida`, `aumentada`), porque apagar um alias com outro sobrevivente
+    **é** redução (RV10-3-04). O intervalo publica também as `mantida`: chave
+    presente na selecionada sempre tem linha nele, e a falta dessa linha é
+    perda — não tolerância (RV10-4-01). Chave ausente: na memória, e no
+    intervalo só como `removida`; fora do intervalo (`None`) é chave removida
+    antes das duas últimas certificadas, e a memória sozinha responde.
     """
     faltas = []
     for (tabela, chave), presente in efeito.items():
@@ -367,7 +369,9 @@ def _faltas(efeito: dict[tuple[str, str], bool], intervalo: dict, memoria: dict)
         if presente:
             if (tabela, chave) in memoria:
                 faltas.append(("presente mas na memória", tabela, chave))
-            if transicao is not None and not depois > 0:
+            if transicao is None:
+                faltas.append(("presente mas fora do intervalo", tabela, chave))
+            elif not depois > 0:
                 faltas.append(("presente mas removida no intervalo", tabela, chave, transicao))
         else:
             if (tabela, chave) not in memoria:
@@ -379,16 +383,19 @@ def _faltas(efeito: dict[tuple[str, str], bool], intervalo: dict, memoria: dict)
 
 def test_o_consumidor_aceita_reducao_e_aumento_e_recusa_o_que_contradiz_o_diario() -> None:
     """RV10-3-04: `['8', '08'] → ['8']` é `reduzida` com a chave presente, e o teste tem de aceitar."""
-    efeito = {("brands", "8"): True, ("brands", "9"): True, ("brands", "1"): False, ("brands", "2"): False,
-              ("brands", "3"): True, ("brands", "4"): False}
-    intervalo = {("brands", "8"): ("reduzida", 1), ("brands", "9"): ("aumentada", 2),
+    efeito = {("brands", "8"): True, ("brands", "9"): True, ("brands", "3"): True,
+              ("brands", "1"): False, ("brands", "2"): False, ("brands", "4"): False}
+    intervalo = {("brands", "8"): ("reduzida", 1), ("brands", "9"): ("aumentada", 2), ("brands", "3"): ("mantida", 1),
                  ("brands", "1"): ("removida", 0), ("brands", "2"): ("removida", 0)}
-    memoria = {("brands", "1"): (1, 2), ("brands", "2"): (1, 2), ("brands", "4"): (1, 2)}
+    # `4` foi removida antes do intervalo: só a memória a responde.
+    memoria = {("brands", "1"): (1, 2), ("brands", "2"): (1, 2), ("brands", "4"): (0, 1)}
     assert _faltas(efeito, intervalo, memoria) == []
 
-    # Cada contradição tem nome: presença na memória, remoção no intervalo, ausência sem memória.
+    # Cada contradição tem nome: presença na memória, remoção ou ausência no intervalo, ausência sem memória.
     assert _faltas({("brands", "8"): True}, intervalo, {("brands", "8"): (1, 2)}) == [("presente mas na memória", "brands", "8")]
     assert _faltas({("brands", "1"): True}, intervalo, {}) == [("presente mas removida no intervalo", "brands", "1", "removida")]
+    # RV10-4-01: o intervalo publica as `mantida`; chave presente sem linha nele é perda, não tolerância.
+    assert _faltas({("brands", "3"): True}, {}, {}) == [("presente mas fora do intervalo", "brands", "3")]
     assert _faltas({("brands", "8"): False}, intervalo, {}) == [
         ("ausente e fora da memória", "brands", "8"), ("ausente mas presente no intervalo", "brands", "8", "reduzida"),
     ]
@@ -484,6 +491,15 @@ def test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario(efemeros,
     assert memoria == {("brands", "2"): (anterior, selecionada)}
     assert _faltas(efeito, intervalo, memoria) == []
 
+    # RV10-4-01: uma chave presente que some do intervalo materializado tem de ser acusada — a
+    # reconciliação física não a vê (tirar uma `mantida` não muda os deltas da equação).
+    with armazem.begin() as conexao:
+        conexao.execute(text("delete from trusted.legacy_capture_transitions where business_key = '1'"))
+    with armazem.connect() as conexao:
+        assert conexao.execute(text(_modelos_renderizados(selecionada)["legado_presenca_fisica_reconcilia"])).all() == []
+        mutilado, memoria = _ler_intervalo_e_memoria(conexao)
+    assert _faltas(efeito, mutilado, memoria) == [("presente mas fora do intervalo", "brands", "1")]
+
 
 # ── O ciclo real, somente leitura ────────────────────────────────────────────
 
@@ -520,8 +536,8 @@ def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, dia
     está `mantida` hoje e **fora** da memória — é o comportamento certo, e o
     teste o cobra assim. Chave cuja última mutação foi remoção precisa estar na
     memória e só pode aparecer no intervalo como `removida`; chave cuja última
-    mutação a deixou presente não pode estar na memória, e no intervalo tem
-    `rows_after > 0` — em qualquer transição de multiplicidade (`_faltas`).
+    mutação a deixou presente não pode estar na memória e **está** no intervalo
+    com `rows_after > 0` — em qualquer transição de multiplicidade (`_faltas`).
     """
     with armazem.connect() as conexao:
         if not _tabela_existe(conexao, "trusted", "legacy_capture_transitions"):
