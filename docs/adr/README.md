@@ -91,7 +91,7 @@ decisão.
 
 | # | Decisão | Levantada em | Efeito de não decidir |
 |---|---|---|---|
-| — | Nenhuma decisão pendente em 15/09/2026 | | |
+| D43 | A guarda de identidade da macro `chave_canonica` como função `safe_cast` no armazém, em vez da gramática reproduzida em SQL — **adiada de propósito** para a Etapa 13 ([Pendências](../pendencias.md#d43--a-guarda-de-identidade-como-função-no-armazém-adiada-em-16092026)) | 16/09/2026 | Nenhum na fase local; a paridade com `SAFE_CAST` fica suposta até lá |
 
 Decisões nascidas da **revisão por outro agente**, e não da construção, já são maioria nesta etapa —
 quatro delas, todas de alguém olhando o que estava pronto, e nenhuma era implementação: as quatro

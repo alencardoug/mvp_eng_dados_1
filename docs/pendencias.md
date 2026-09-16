@@ -10,16 +10,31 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; revisão de desenvolvimento de 15/09/2026 (RV10-01…12) **respondida no mesmo dia — onze corrigidos, um adiado; D36 e D42 fechadas (ADR-0046/0047) —, aguardando nova revisão** |
+| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; três rodadas de revisão de desenvolvimento respondidas (RV10-01…12, RV10-2-01…10, RV10-3-01…04 — a terceira em 16/09/2026, dois bloqueantes e dois ajustes corrigidos), **aguardando a quarta rodada** |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 0 |
-| Última revisão | 15/09/2026 |
+| Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
+| Última revisão | 16/09/2026 |
 
 ---
 
 ## 1. Esperando você
 
-*Nenhuma decisão pendente em 15/09/2026.*
+### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
+
+**Pergunta:** a macro `chave_canonica` deve continuar reproduzindo a gramática do `cast` de inteiro
+em SQL (regex + soma de dígitos em `numeric`, provada forma a forma contra o cast nativo), ou virar
+uma função plpgsql `safe_cast` criada pelo dbt — em que a guarda **é** o próprio `cast`, par exato do
+`SAFE_CAST` do BigQuery?
+
+**Decisão de 16/09/2026: adiar.** A gramática fica na macro; a alternativa entra aqui para ser
+decidida na fase GCP (Etapa 13), quando a paridade com `SAFE_CAST` for medida de fato e não suposta.
+Levantada pela terceira rodada de revisão (RV10-3-01): o cast do PostgreSQL 16 aceita hexadecimal,
+octal, binário e `_`, e a guarda os negava — a nota de 16/09 no
+[ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md) registra o conserto.
+
+*Efeito de não decidir:* nenhum na fase local — cada forma nova do `cast` numa versão futura do
+PostgreSQL exige remedir a guarda, e é exatamente o que o teste contra o cast nativo acusa. O custo
+da alternativa é DDL novo no armazém e uma subtransação por linha (~100 mil no *build*).
 
 ---
 
@@ -36,6 +51,23 @@ técnica não é aceite: a etapa continua reaberta até essa revisão e a sua de
 ---
 
 ## 2. Decisões já fechadas
+
+### D44 — decidida em 16/09/2026
+
+**O próximo bloco de sincronizações refaz o diário de mutações no formato novo, com uma mutação só
+de representação; até lá `efeito_liquido` mantém as duas leituras.** Duas consequências da terceira
+rodada de revisão, decididas juntas:
+
+- as 16 entradas do diário de produção não têm `presenca_apos_commit` (RV10-2-06/07) e continuam
+  lidas pelo `RETURNING` canonizado — são a única prova do ciclo real hoje, e reconstruir presença
+  passada a partir da origem atual fabricaria evidência. A leitura antiga sai de `efeito_liquido`
+  quando o diário for refeito;
+- as 40 PKs do bruto real são inteiros e UUIDs limpos, e a fronteira da identidade (`08`, `+8`,
+  `0x8`) só é medida em teste (macro renderizada e ciclo em bancos efêmeros). No próximo bloco, a
+  CLI altera a PK de uma testemunha apta para outra representação (`'8'` → `'0x8'`) entre duas
+  capturas certificadas, e o diário e os modelos reais provam `mantida` — sem tocar catálogo,
+  gerador ou oráculo. Injetar representações alternativas pelo gerador foi descartado: mudaria
+  catálogo, oráculo, versão do catálogo (D34) e limpeza, e exigiria ADR.
 
 ### D42 — decidida em 15/09/2026
 
