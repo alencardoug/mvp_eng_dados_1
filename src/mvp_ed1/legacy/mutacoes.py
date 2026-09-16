@@ -46,10 +46,11 @@ def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
 
     Deriva do que o banco **confirmou depois do commit**: cada mutação grava
     `presenca_apos_commit` — quantas linhas físicas restam para cada chave
-    canônica que ela tocou (a antiga e a nova, quando a PK muda). É a
-    multiplicidade do ADR-0045: apagar só `'08'` com `'8'` sobrevivente reduz a
-    chave `8`, não a remove (RV10-2-07); alterar a PK de `'1'` para `'2'` deixa
-    `1` ausente e `2` presente (RV10-2-06). Chave sem identidade não entra.
+    canônica que ela tocou (a antiga e a nova, quando a PK muda; nenhuma, se o
+    banco não devolveu linha). É a multiplicidade do ADR-0045: apagar só `'08'`
+    com `'8'` sobrevivente reduz a chave `8`, não a remove (RV10-2-07); alterar
+    a PK de `'1'` para `'2'` deixa `1` ausente e `2` presente (RV10-2-06).
+    Chave sem identidade não entra.
 
     Entradas anteriores a 15/09/2026 (noite) não têm o campo: para elas vale o
     que o `RETURNING` devolveu, com a chave canonizada — a leitura que RV10-10
@@ -245,8 +246,11 @@ def alterar(
             ).mappings()
         ]
     depois = _hash(engine, tabela)
-    # A antiga e, se a própria PK mudou, a nova: as duas entram na presença.
-    tocadas = [chave] + ([linha["valor"] for linha in devolvidas] if coluna == pk else [])
+    # Só o que o banco devolveu toca a presença: a chave pedida, e a nova se a
+    # própria PK mudou. Alteração de zero linhas não toca chave nenhuma —
+    # gravar `{chave: 0}` fabricaria uma testemunha de ausência para uma chave
+    # que o diário nunca viu existir (RV10-3-02).
+    tocadas = ([chave] + [linha["valor"] for linha in devolvidas if coluna == pk]) if devolvidas else []
     registro = {
         "tipo": "alterar", "tabela": tabela, "chave": pk, "valor_da_chave": chave, "coluna": coluna,
         "antes": anteriores, "devolvidas": devolvidas, "hash_antes": antes, "hash_depois": depois,
