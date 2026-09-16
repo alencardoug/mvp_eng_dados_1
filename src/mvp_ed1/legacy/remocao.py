@@ -48,8 +48,26 @@ DOMINIOS = {
 #: coisa: `\Z` no lugar de `$` (em Python `$` aceita um `\n` final; no ARE do
 #: PostgreSQL não), e brancos ASCII explícitos no lugar de `\s` (que em Python,
 #: como no ARE, casaria U+00A0 e U+2003 — e o cast recusa). RV10-2-05.
-_INTEIRO = re.compile(r"[ \t\n\x0b\x0c\r]*([+-]?)0*([0-9]+)[ \t\n\x0b\x0c\r]*\Z")
+#:
+#: A gramática do inteiro é a de `pg_strtoint64` do PostgreSQL 16 (RV10-3-01):
+#: sinal, e o número em decimal, hexa (`0x`), octal (`0o`) ou binário (`0b`),
+#: com `_` entre dígitos ou logo depois do prefixo. Nenhum quantificador se
+#: sobrepõe ao vizinho — `0*` antes de `[0-9]+` custava tempo quadrático em
+#: zeros seguidos de sufixo inválido (RV10-3-03); os zeros à esquerda saem
+#: depois, por `lstrip`, que é linear.
+_BRANCOS = r"[ \t\n\x0b\x0c\r]"
+_INTEIRO = re.compile(
+    _BRANCOS + r"*([+-]?)"
+    r"(0[xX]_?[0-9a-fA-F]+(?:_[0-9a-fA-F]+)*|0[oO]_?[0-7]+(?:_[0-7]+)*|0[bB]_?[01]+(?:_[01]+)*|[0-9]+(?:_[0-9]+)*)"
+    + _BRANCOS + r"*\Z"
+)
 _UUID = re.compile(r"(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})\Z", re.IGNORECASE)
+
+#: Base por prefixo, e quantos dígitos significativos cabem em `bigint` — a
+#: macro corta no mesmo ponto; acima disso o valor está fora de qualquer dos
+#: três domínios sem que seja preciso convertê-lo.
+_BASES = {"0x": (16, 16), "0o": (8, 22), "0b": (2, 64)}
+_DECIMAL = (10, 19)
 
 
 def chave(tabela: str) -> tuple[str, str]:
@@ -92,13 +110,15 @@ def canonizar(valor: str | None, tipo: str) -> str | None:
         casado = _INTEIRO.match(valor)
         if casado is None:
             return None
-        sinal, digitos = casado.groups()
-        # `0*` já tirou os zeros à esquerda; "000" deixa um "0" em `digitos`.
-        # Só 19 dígitos significativos cabem em `bigint` — o limite vem do
-        # domínio, não do interpretador (o `int()` do Python recusa 4.300+).
-        if len(digitos) > 19:
+        sinal, corpo = casado.groups()
+        corpo = corpo.lower().replace("_", "")
+        base, limite = _BASES.get(corpo[:2], _DECIMAL)
+        digitos = (corpo[2:] if corpo[:2] in _BASES else corpo).lstrip("0")
+        if len(digitos) > limite:
             return None
-        numero = int(sinal + digitos)
+        numero = int(digitos, base) if digitos else 0
+        if sinal == "-":
+            numero = -numero
         minimo, maximo = DOMINIOS[tipo]
         return str(numero) if minimo <= numero <= maximo else None
     if tipo == "uuid":

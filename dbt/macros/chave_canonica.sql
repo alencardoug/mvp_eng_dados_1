@@ -35,13 +35,20 @@
       uuid     32 hexadecimais, hífen opcional depois de qualquer grupo de
                quatro (nunca no início, no fim ou dobrado), chaves `{}` só
                aos pares, nenhum espaço à volta — o `cast` do uuid não apara
-      inteiro  sinal opcional, dígitos, e à volta **só os brancos ASCII** que o
-               `isspace` do cast aceita (espaço, TAB, LF, VT, FF, CR): `\s` do
-               regex casaria U+00A0 e U+2003, que o cast recusa (RV10-2-04);
-               os zeros à esquerda saem antes de qualquer conversão, porque o
-               cast aceita quantos forem e o `numeric` estoura acima de
-               131.072 dígitos; o domínio é conferido sobre no máximo 19
-               dígitos significativos, em `numeric`, antes do `cast` ao tipo
+      inteiro  a gramática de `pg_strtoint64` do PostgreSQL 16: brancos ASCII à
+               volta — só os que o `isspace` do cast aceita (espaço, TAB, LF,
+               VT, FF, CR); `\s` casaria U+00A0 e U+2003, que ele recusa
+               (RV10-2-04) —, sinal opcional, e o número em **decimal, hexa
+               (`0x`), octal (`0o`) ou binário (`0b`)**, com `_` como separador
+               entre dígitos — nunca no fim, nunca dobrado, e no início só
+               depois do prefixo (`0x_8` converte; `_8` não). Medido forma a
+               forma em 16/09/2026 (RV10-3-01): `0x8`, `0o10`, `0b1000` e
+               `1_000` são a chave `8` e `1000`. O valor sai da soma dos
+               dígitos na base, em `numeric`, com os zeros à esquerda fora
+               antes — o cast aceita quantos forem —, e o domínio é conferido
+               em `numeric` antes do `cast` ao tipo: mais dígitos do que o
+               domínio comporta (19 decimais, 16 hexa, 22 octais, 64 binários)
+               é nulo sem chegar à soma.
 
     No BigQuery a mesma macro escreve `SAFE_CAST` aos mesmos tipos.
 -#}
@@ -52,17 +59,42 @@
         'smallint': ('-32768', '32767'),
     } -%}
     {%- if tipo in dominios -%}
-    {%- set aparado = "btrim((" ~ expressao ~ "), E' \\t\\n\\x0b\\x0c\\r')" -%}
-    {%- set significativo = "regexp_replace(" ~ aparado ~ ", '^([+-]?)0*([0-9])', '\\1\\2')" -%}
+    {#- A gramática, forma a forma: brancos ASCII, sinal, e o número numa das
+        quatro bases, com `_` só entre dígitos (ou logo depois do prefixo).
+        `~*` cobre `0X`, `0O`, `0B` e os hexadecimais em maiúsculas. -#}
+    {%- set brancos = "[ \\t\\n\\v\\f\\r]" -%}
+    {%- set gramatica = "^" ~ brancos ~ "*[+-]?(0x_?[0-9a-f]+(_[0-9a-f]+)*|0o_?[0-7]+(_[0-7]+)*|0b_?[01]+(_[01]+)*|[0-9]+(_[0-9]+)*)" ~ brancos ~ "*$" -%}
     (case
-        when ({{ expressao }}) ~ '^[ \t\n\v\f\r]*[+-]?[0-9]+[ \t\n\v\f\r]*$' then
-            case
-                when length(regexp_replace({{ aparado }}, '^[+-]?0*', '')) <= 19 then
-                    case
-                        when ({{ significativo }})::numeric between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
-                            then (({{ significativo }})::numeric::{{ tipo }})::text
-                    end
+        when ({{ expressao }}) ~* '{{ gramatica }}' then (
+            select case
+                when valor between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
+                    then (valor::{{ tipo }})::text
             end
+            from (
+                {#- só o que passou na guarda chega aqui: sem branco à volta,
+                    sem `_`, em minúsculas -#}
+                select replace(lower(btrim(({{ expressao }}), E' \t\n\x0b\x0c\r')), '_', '') as texto
+            ) as aparado
+            cross join lateral (
+                select left(texto, 1) = '-' as negativo, ltrim(texto, '+-') as corpo
+            ) as com_sinal
+            cross join lateral (
+                select
+                    case left(corpo, 2) when '0x' then 16 when '0o' then 8 when '0b' then 2 else 10 end as base,
+                    ltrim(case when left(corpo, 2) in ('0x', '0o', '0b') then substr(corpo, 3) else corpo end, '0') as digitos
+            ) as na_base
+            cross join lateral (
+                {#- a soma dos dígitos na base, exata em `numeric`; o limite de
+                    dígitos é o do domínio do bigint, e tudo acima dele já está
+                    fora de qualquer dos três domínios -#}
+                select
+                    (case when negativo then -1 else 1 end) * (
+                        select coalesce(sum((position(substr(digitos, i, 1) in '0123456789abcdef') - 1) * (base::numeric ^ (length(digitos) - i))), 0)
+                        from generate_series(1, length(digitos)) as i
+                    ) as valor
+                where length(digitos) <= case base when 16 then 16 when 8 then 22 when 2 then 64 else 19 end
+            ) as convertido
+        )
      end)
     {%- elif tipo == 'uuid' -%}
     (case
