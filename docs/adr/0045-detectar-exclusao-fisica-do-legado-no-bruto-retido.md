@@ -79,6 +79,12 @@ negócio entre a captura selecionada e as capturas certificadas anteriores, em d
    `a0ee-bc99-…` e a `+8`, que convertem. O inteiro é conferido **no domínio do tipo declarado**
    (`bigint`, lido do SQLAlchemy), não em `numeric` sem limite. O que mudou de resultado: UUID com
    espaço à volta deixa de ser aparado — o `cast` do PostgreSQL não apara, e a fronteira é ele.
+
+   *Nota de 16/09/2026 (RV10-3-01):* o `cast` de inteiro do PostgreSQL 16 também aceita hexadecimal
+   (`0x8`), octal (`0o10`), binário (`0b1000`) e `_` entre dígitos (`1_000`), e a guarda os negava —
+   `'8'` trocado por `'0x8'` entre duas capturas aparecia como `removida`. A macro e o espelho em
+   Python passaram a reproduzir essa gramática, medida forma a forma nos dois bancos. O contrato não
+   muda: "conversível" continua sendo o que o `cast` aceita; o que mudou foi a guarda alcançá-lo.
 2. **Capturas comparáveis.** Só capturas com certificado `complete` nas 40 tabelas
    ([ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md)) entram na comparação, como
    selecionada ou como anteriores. As gerações 1–16 não têm certificado e não são elegíveis; a

@@ -479,7 +479,8 @@ Como se detecta, desde o [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-
 na 40ª), canonizada pelo tipo — chave nula ou não conversível é `sem identidade`, contada à parte —,
 e só entre capturas **certificadas** ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)).
 "Conversível" é o que o `cast` do PostgreSQL aceita, e a guarda da macro `chave_canonica` foi medida
-contra ele forma a forma (15/09/2026): inteiro com sinal, zero à esquerda ou espaço à volta converte
+contra ele forma a forma (15/09 e 16/09/2026): inteiro com sinal, zero à esquerda ou espaço à volta,
+em decimal, hexadecimal (`0x8`), octal (`0o10`) ou binário (`0b1000`) e com `_` entre dígitos, converte
 **dentro do domínio do tipo declarado** (`bigint`), e fora dele não tem identidade; UUID converte em
 qualquer caixa, com chaves aos pares e hífen depois de qualquer grupo de quatro, e **não** converte com
 espaço à volta, chave sem par ou hífen dobrado — o mesmo que o `cast` recusa. A mesma gramática
