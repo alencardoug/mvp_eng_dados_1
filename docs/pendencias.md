@@ -33,8 +33,12 @@ octal, binário e `_`, e a guarda os negava — a nota de 16/09 no
 [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md) registra o conserto.
 
 *Efeito de não decidir:* nenhum na fase local — cada forma nova do `cast` numa versão futura do
-PostgreSQL exige remedir a guarda, e é exatamente o que o teste contra o cast nativo acusa. O custo
-da alternativa é DDL novo no armazém e uma subtransação por linha (~100 mil no *build*).
+PostgreSQL exige remedir a guarda, e o teste contra o cast nativo a acusa **se a forma estiver na
+lista**; ele não descobre sozinho uma mudança de gramática. O custo da alternativa é DDL novo no
+armazém e uma subtransação por linha (~100 mil no *build*). A quarta rodada de revisão (16/09)
+acrescentou uma terceira saída a considerar na Etapa 13: `pg_input_is_valid(texto, tipo)` guardando
+o `cast` num `case` — nativo do PostgreSQL 16, já usado em `legacy/classification.sql`, sem função
+nova no armazém.
 
 ---
 

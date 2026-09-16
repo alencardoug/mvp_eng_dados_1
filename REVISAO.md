@@ -200,9 +200,149 @@ resposta, da recomendação ou da forma como foi registrada.
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+### Parecer do revisor — Codex, 16/09/2026, quarta rodada
+
+**Os bloqueantes anteriores foram resolvidos; resta um ajuste na validação do diário.**
+Revisado `7faad24..b650125`, com o dossiê publicado em `953ea59` e a árvore limpa ao início.
+As contraprovas da terceira rodada agora passam. Não reproduzi novo defeito no resultado
+da macro nem na escrita do diário, mas o consumidor extraído para `_faltas` continua
+aceitando a falta de uma chave declarada presente. A correção específica de multiplicidade
+funciona; a prova de presença ainda está incompleta. Este parecer não encerra a Etapa 10
+nem substitui o aceite do Owner.
+
+### Situação dos quatro achados anteriores
+
+| Achado | Resultado desta rodada |
+|---|---|
+| RV10-3-01 — inteiro conversível sem identidade | **Correção confirmada.** Macro e Python concordaram com o cast nativo nas amostras ampliadas de EV10-4-02; a troca isolada `'8' → '0x8'` agora é `mantida`, com memória vazia e diário indicando presença (EV10-4-03). |
+| RV10-3-02 — alteração de zero linhas fabrica ausência | **Correção confirmada.** O `RETURNING` vazio produz `presenca_apos_commit = {}` e efeito líquido vazio. O ciclo entre duas capturas e o consumidor passam (EV10-4-03). |
+| RV10-3-03 — custo do regex em entrada inválida longa | **Correção confirmada nos casos exercitados.** O consumo sobreposto de zeros saiu do regex. Os seis casos longos inválidos da suíte passaram no limite declarado pelo teste; a sonda ampliada também incluiu entradas longas válidas e inválidas nas quatro bases (EV10-4-01/02). Não se apresenta uma medição pontual como prova formal de complexidade. |
+| RV10-3-04 — consumidor rejeita redução correta | **Aceitação de redução e aumento confirmada.** A suíte executa os modelos gerados e compara o resultado completo do ciclo; a redução isolada da sonda anterior também passou (EV10-4-03). A ausência indevida de uma chave presente ainda não é acusada pelo consumidor, conforme RV10-4-01. |
+
+### Evidências produzidas nesta revisão
+
+**EV10-4-01 — suíte existente.** Comando: `make test`, sem `FATO=1` nem `CARGA=1`.
+Saída literal de `/tmp/mvp_ed1-revisao4-tests.log`:
+
+```text
+.......................s.....................................s.......... [ 28%]
+........................................sss................sss.......... [ 56%]
+........................................................................ [ 84%]
+.......................................                                  [100%]
+247 passed, 8 skipped in 157.84s (0:02:37)
+```
+
+**EV10-4-02 — fronteira e exatidão nas quatro bases.** Comando:
+`.venv/bin/python /tmp/mvp_ed1-revisao4-fronteira.py`, com o ambiente local carregado.
+A sonda monta casos determinísticos com semente `16092026`: vizinhos positivos e negativos
+das potências de dois até o expoente 64, valores amostrados, quatro bases, sinais,
+separadores, brancos, formas inválidas e entradas longas. Executa a macro real sobre uma
+coluna de `unnest`, em transação somente de leitura, e compara também `remocao.canonizar`.
+O esperado é o cast nativo do tipo, protegido por `pg_input_is_valid`; entradas que o
+banco recusa têm esperado nulo. Saída literal:
+
+```json
+{"db": "LEGACY_DB", "type": "smallint", "cases": 8493, "native_valid": 964, "mismatches": 0, "examples": [], "elapsed_seconds": 5.795}
+{"db": "LEGACY_DB", "type": "integer", "cases": 8493, "native_valid": 2020, "mismatches": 0, "examples": [], "elapsed_seconds": 5.186}
+{"db": "LEGACY_DB", "type": "bigint", "cases": 8493, "native_valid": 4968, "mismatches": 0, "examples": [], "elapsed_seconds": 6.656}
+{"db": "WAREHOUSE_DB", "type": "smallint", "cases": 8493, "native_valid": 964, "mismatches": 0, "examples": [], "elapsed_seconds": 4.306}
+{"db": "WAREHOUSE_DB", "type": "integer", "cases": 8493, "native_valid": 2020, "mismatches": 0, "examples": [], "elapsed_seconds": 4.558}
+{"db": "WAREHOUSE_DB", "type": "bigint", "cases": 8493, "native_valid": 4968, "mismatches": 0, "examples": [], "elapsed_seconds": 6.185}
+```
+
+São 50.958 comparações executadas, sem divergência nas entradas exercitadas. Os tempos são
+da consulta e comparação da sonda, não uma medição isolada do custo da macro nem uma
+comparação de desempenho com a versão anterior.
+
+**EV10-4-03 — repetição dos três ciclos da revisão anterior.** Comando:
+`.venv/bin/python /tmp/mvp_ed1-revisao4-ciclos.py`. O roteiro reutiliza a sonda da terceira
+rodada, acrescentando `tests/` ao caminho de importação exigido pelas fixtures atuais.
+Cada caso tem dois bancos efêmeros e duas capturas certificadas. Executa as declarações
+renderizadas de seleção, presença, intervalo, memória e reconciliação; por fim, chama
+o teste do diário da versão vigente. Recortes literais:
+
+```json
+{"scenario": "alias_hexadecimal"}
+{"returned": [{"legacy_row_id": 1, "valor": "0x8"}], "post_commit_presence": {"8": 1}}
+{"physical_reconciliation_failures": 0, "transitions": [["8", 1, 1, "mantida"]], "memory": []}
+{"net_effect": [["brands", "8", true]]}
+{"existing_diary_test": "PASS"}
+```
+
+```json
+{"scenario": "alteracao_sem_linha"}
+{"returned": [], "post_commit_presence": {}}
+{"physical_reconciliation_failures": 0, "transitions": [["8", 1, 1, "mantida"]], "memory": []}
+{"net_effect": []}
+{"existing_diary_test": "PASS"}
+```
+
+```json
+{"scenario": "reducao_canonica"}
+{"returned": [{"legacy_row_id": 2, "id": "08", "code": "b08", "name": "Oito", "country": null, "is_active": null, "created_at": null, "updated_at": null, "deleted_at": null}], "post_commit_presence": {"8": 1}}
+{"physical_reconciliation_failures": 0, "transitions": [["8", 2, 1, "reduzida"]], "memory": []}
+{"net_effect": [["brands", "8", true]]}
+{"existing_diary_test": "PASS"}
+```
+
+**EV10-4-04 — perda de uma chave presente que o consumidor aceita.** Comando:
+`.venv/bin/python /tmp/mvp_ed1-revisao4-consumidor.py`.
+Em bancos efêmeros, `brands` contém as chaves `1` e `2`; entre duas capturas certificadas,
+`mutacoes.alterar` muda só o nome da chave `1`, e o diário a declara presente. Primeiro,
+executam-se os modelos íntegros. Depois, o SQL de transições é mutado **em memória** para
+omitir a chave `1`, mantendo a outra chave e os dados brutos. O helper novo materializa
+esse SQL e executa a reconciliação, e a sonda chama tanto `_faltas` quanto o teste do ciclo
+real. Saída literal:
+
+```json
+{"scenario": "integro", "expected_present": true, "interval_has_key": true, "memory_has_key": false, "physical_reconciliation_errors": 0, "consumer_errors": [], "existing_cycle_test": "PASS"}
+{"scenario": "omite_chave_presente", "expected_present": true, "interval_has_key": false, "memory_has_key": false, "physical_reconciliation_errors": 0, "consumer_errors": [], "existing_cycle_test": "PASS"}
+```
+
+O intervalo não contém apenas mudanças: `remocao.transicoes()` também publica `mantida`.
+Uma chave presente na selecionada precisa aparecer ali quando existe anterior certificada.
+A exceção para ausência do intervalo só atende à chave **já removida antes do intervalo**,
+com memória de remoção. A reconciliação física não cobre esta lacuna: retirar uma linha
+`mantida` não altera os deltas usados na equação.
+
+### Avaliação de D43 e D44
+
+**D43:** o adiamento registrado é compatível com o escopo local. Não há motivo, nas
+contraprovas executadas, para exigir agora a alternativa plpgsql. A paridade com BigQuery
+continua não medida. O teste contra o cast verifica uma lista finita de entradas: formas
+novas de uma versão futura só serão cobertas se entrarem nessa lista; ele não descobre
+automaticamente toda mudança de gramática. Na avaliação já prevista para a Etapa 13,
+convém considerar também `pg_input_is_valid` com o cast protegido por `CASE`, disponível
+no banco instalado e já usado em `legacy/classification.sql`: foi a referência nativa de
+EV10-4-02 e não exige criar uma função no armazém. Isso é uma alternativa para a decisão
+adiada, não uma troca implementada nesta revisão.
+
+**D44:** manter a leitura das entradas antigas preserva a evidência que de fato existe;
+regravar presença histórica a partir da origem atual não seria uma recuperação válida.
+A mutação só de representação é viável para provar a presença física: o caso isolado
+agora foi confirmado em EV10-4-03. O bloco operacional continua por executar, como o
+dossiê declara, e deve incluir o consumidor corrigido por RV10-4-01. Esta revisão não
+recriou o diário de trabalho nem antecipou a remoção da leitura antiga.
+
+### Limites desta rodada
+
+- Não executei o runner do dbt, a DAG, sincronização real do Airbyte, interrupção de job
+  real, `FATO=1`, `CARGA=1` nem o próximo bloco de sincronizações. O `PASS=891` da seção 3
+  permanece medição do autor. A validação SQL adicional foi em bancos efêmeros.
+- Não repeti as disputas de transações da terceira rodada: o código do certificado não
+  mudou neste intervalo. A suíte executou os testes existentes.
+- A comparação ampliada não prova toda entrada textual possível nem paridade com outro
+  adaptador. Não medi planos de execução nem isolei a regressão de custo relatada pelo
+  autor; tempos totais de builds diferentes não bastam para atribuí-la a ruído.
+- A seleção literal no helper novo resolve a referência para o snapshot certificado que
+  o teste acabou de criar; ela é adequada ao recorte dos modelos de remoção. A sonda
+  EV10-4-03 também materializou `legacy_selected_capture`, sem substituir o modelo.
+- Os roteiros e logs de revisão ficaram em `/tmp/mvp_ed1-revisao4-*`; os bancos efêmeros
+  foram removidos pelas fixtures. Nenhum código de produção, ADR ou decisão do Owner foi
+  alterado pela revisão.
+
+### Tabela de achados
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RV10-4-01 | `tests/test_legado_remocao.py:361`, `:366`, `:370`, `:383` | **O consumidor aceita uma chave presente que desapareceu do intervalo.** O fallback `(None, None)` só é validado quando `transicao is not None`; se a chave também não está na memória, `_faltas` devolve vazio. O teste novo até declara a chave `3` presente, sem colocá-la no intervalo, e espera sucesso. Isso contraria o modelo, que publica também as chaves `mantida`. EV10-4-04 omite uma chave presente no SQL executado e tanto o consumidor quanto a reconciliação física continuam passando. Exigir entrada com `rows_after > 0` para toda chave esperada presente; conservar a possibilidade de não haver entrada apenas para ausências históricas com memória. Corrigir a explicação e acrescentar a contraprova de chave presente omitida. A tolerância já existia no teste antigo e foi preservada/codificada pelo helper desta rodada; não é uma perda observada nos modelos íntegros. | `ajuste` | **Corrigido.** `_faltas` exige linha no intervalo para toda chave presente (`presente mas fora do intervalo`), além de `rows_after > 0`; `None` só é aceito para ausência com memória. O unitário passa a acusar a chave `3` sem linha (e a coloca como `mantida` no caso íntegro); o ciclo inteiro ganhou a contraprova de EV10-4-04 — apaga a linha `mantida` da chave `1` do intervalo materializado, a reconciliação física continua vazia e `_faltas` devolve `[('presente mas fora do intervalo', 'brands', '1')]`. O ciclo real, com o consumidor mais estrito, continua passando (as chaves presentes do diário de produção têm linha no intervalo 35→36). Docstrings alinhadas. |
