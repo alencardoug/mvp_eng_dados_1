@@ -351,6 +351,21 @@ def _ler_intervalo_e_memoria(conexao) -> tuple[dict, dict]:
     return intervalo, memoria
 
 
+def _anterior_certificada(conexao, selecionada: int) -> int | None:
+    """A certificada mais recente antes da selecionada — a mesma regra do `anterior` de `remocao.transicoes()`.
+
+    Sai dos certificados, não da tabela auditada: intervalo vazio não prova que
+    não há anterior — com anterior certificada, vazio é perda (RV10-5-01).
+    """
+    return conexao.execute(text(
+        "select max(snapshot_id) from ("
+        "  select snapshot_id from governance.legacy_captures"
+        "  where status = 'complete' and snapshot_id < :selecionada"
+        "  group by snapshot_id having count(distinct source_table) = :tabelas"
+        ") certificadas"
+    ), {"selecionada": selecionada, "tabelas": len(schema.tabelas())}).scalar_one()
+
+
 def _faltas(efeito: dict[tuple[str, str], bool], intervalo: dict, memoria: dict) -> list[tuple]:
     """O que o efeito líquido do diário exige e os modelos não mostram.
 
@@ -500,6 +515,19 @@ def test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario(efemeros,
         mutilado, memoria = _ler_intervalo_e_memoria(conexao)
     assert _faltas(efeito, mutilado, memoria) == [("presente mas fora do intervalo", "brands", "1")]
 
+    # RV10-5-01: o intervalo inteiro perdido também é perda. A anterior existe pelos certificados —
+    # a tabela auditada, vazia, não pode responder "sem anterior" —, e a equação física fecha em
+    # cima do nada, porque deriva o seu universo das próprias transições. Só o consumidor acusa.
+    with armazem.begin() as conexao:
+        conexao.execute(text("delete from trusted.legacy_capture_transitions"))
+    with armazem.connect() as conexao:
+        assert _anterior_certificada(conexao, selecionada) == anterior
+        assert _anterior_certificada(conexao, anterior) is None, "a primeira certificada não tem anterior: aí o salto é legítimo"
+        assert conexao.execute(text(_modelos_renderizados(selecionada)["legado_presenca_fisica_reconcilia"])).all() == []
+        vazio, memoria = _ler_intervalo_e_memoria(conexao)
+    assert vazio == {}
+    assert sorted(_faltas(efeito, vazio, memoria)) == [("presente mas fora do intervalo", "brands", k) for k in ("1", "8", "9")]
+
 
 # ── O ciclo real, somente leitura ────────────────────────────────────────────
 
@@ -538,18 +566,24 @@ def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, dia
     memória e só pode aparecer no intervalo como `removida`; chave cuja última
     mutação a deixou presente não pode estar na memória e **está** no intervalo
     com `rows_after > 0` — em qualquer transição de multiplicidade (`_faltas`).
+    Se existe anterior certificada, o intervalo é cobrado mesmo vazio.
     """
     with armazem.connect() as conexao:
         if not _tabela_existe(conexao, "trusted", "legacy_capture_transitions"):
             pytest.skip("modelos de exclusão física não construídos")
+        selecionada = conexao.execute(text("select snapshot_id from staging.legacy_selected_capture")).scalar_one()
+        anterior = _anterior_certificada(conexao, selecionada)
         intervalo, memoria = _ler_intervalo_e_memoria(conexao)
         limites = conexao.execute(
-            text("select min(previous_snapshot_id), min(selected_snapshot_id) from trusted.legacy_capture_transitions")
-        ).one()
-    if not intervalo:
-        pytest.skip("sem intervalo: a captura selecionada não tem anterior certificada")
+            text("select distinct previous_snapshot_id, selected_snapshot_id from trusted.legacy_capture_transitions")
+        ).all()
+    # RV10-5-01: só pula quando não há anterior certificada de fato. Intervalo vazio com anterior
+    # não é motivo de salto — é perda, e o consumidor a acusa chave a chave.
+    if anterior is None:
+        pytest.skip(f"sem intervalo: a captura {selecionada} não tem anterior certificada")
+    assert limites in ([], [(anterior, selecionada)]), f"o intervalo materializado não é o certificado: {limites}"
 
-    record_property("interval", f"{limites[0]}->{limites[1]}")
+    record_property("interval", f"{anterior}->{selecionada}")
     efeito = mutacoes.efeito_liquido(diario)
     faltas = _faltas(efeito, intervalo, memoria)
     record_property("diary_entries", len(diario))
