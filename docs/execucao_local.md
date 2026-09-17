@@ -76,7 +76,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 8 | `make stream-produce` | Executa o produtor de eventos de estoque; `LIMITE=`, `SEED=` | Etapa 7 |
 | 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
 | 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
-| 11 | `make check` | Verificação completa: testes, reconciliações e revisão de segredos | Etapa 12 |
+| 11 | `make check` | Verificação completa em três etapas, parando na primeira falha: revisão de segredos e `.gitignore`, `dbt build` (modelos, testes de dados, reconciliações), `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 17/09/2026: 4 min 27 s | Etapa 11 |
 
 ### 3.1 Parâmetros do gerador
 

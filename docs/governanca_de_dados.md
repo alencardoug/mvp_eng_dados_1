@@ -189,7 +189,11 @@ obrigação legal. A estrutura, porém, é a mesma que se aplicaria a dados reai
 
 - segredos apenas em `.env` local, nunca versionados;
 - `.env.example` versionado com as chaves e **sem** valores;
-- toda entrega passa por revisão de `.gitignore` e de segredos;
+- toda entrega passa por revisão de `.gitignore` e de segredos — automatizada como a primeira
+  etapa de `make check` (`mvp_ed1/secrets_review.py`): `.env` fora do índice e ignorado,
+  `.env.example` sem valor, nenhum valor de chave `PASSWORD|SECRET|KEY|TOKEN` do `.env` em arquivo
+  rastreado, nenhuma forma genérica de credencial, e nenhum arquivo rastreado que o `.gitignore`
+  também ignore;
 - um segredo exposto por engano é considerado comprometido: deve ser rotacionado, não apenas
   removido do histórico.
 

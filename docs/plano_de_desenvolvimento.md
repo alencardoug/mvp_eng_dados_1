@@ -274,7 +274,7 @@ Teste que o próprio autor desenha mede o que ele pensou em medir.
 | **Pré-requisito** | Etapas 7 e 10 |
 | **Entregas** | **E8**, **E9**, **E10** |
 | **Decisões** | **D14** ([ADR-0023](adr/0023-escopo-do-schema-governance.md)) — aceita em 04/09/2026 |
-| **Critérios de conclusão** | Nenhum campo sem classificação · linhagem completa e conferida contra o código · *roles* e *grants* implementados e **testados**: perfil de análise não alcança `raw`, `staging` nem `trusted` · retenção aplicável a cada objeto · suíte de testes executável por um comando, interrompendo o pipeline em caso de falha · reconciliação automática em todas as fronteiras |
+| **Critérios de conclusão** | Nenhum campo sem classificação · linhagem completa e conferida contra o código · *roles* e *grants* implementados e **testados**: perfil de análise não alcança `raw`, `staging` nem `trusted` · retenção aplicável a cada objeto · suíte de testes executável por um comando, interrompendo o pipeline em caso de falha ✓ (`make check`, 17/09/2026: segredos → `dbt build` `PASS=892` → `pytest` 254 passed, 4 min 27 s; contraprova: segredo em arquivo rastreado para a execução na primeira etapa) · reconciliação automática em todas as fronteiras |
 | **Riscos tratados** | **R4**, **R7** |
 | **Conceitos** | Catálogo e linhagem consolidados · controle de acesso por papel · retenção · suíte de qualidade e *fail fast* |
 

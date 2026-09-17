@@ -413,6 +413,20 @@ test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em
 		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
 	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
 
+check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, pytest; FATO=1 inclui o teste que escreve na fato
+	@# Três etapas, nesta ordem e sem seguir depois de uma falha. Segredos
+	@# primeiro porque custa um segundo e é a regra inviolável nº 1; o dbt antes
+	@# do pytest porque a suíte Python lê o armazém que o build acabou de
+	@# construir (captura selecionada, intervalo, memória). `RESET=1` e `FATO=1`
+	@# passam adiante com o mesmo significado que têm nos alvos de origem.
+	@echo "── 1/3 revisão de segredos e .gitignore ──"
+	@.venv/bin/python -m mvp_ed1.secrets_review
+	@echo "── 2/3 dbt build: modelos, testes de dados e reconciliações ──"
+	@$(MAKE) --no-print-directory dbt-build RESET=$(RESET)
+	@echo "── 3/3 pytest: código, contratos e integração ──"
+	@$(MAKE) --no-print-directory test FATO=$(FATO)
+	@echo "check: as três etapas passaram"
+
 test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui
 	@# O banco nasce ao lado do `source_db`, com sufixo `_carga`, recebe as
 	@# migrações e morre no fim — inclusive quando o teste falha (`trap`). O
