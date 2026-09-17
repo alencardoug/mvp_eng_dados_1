@@ -135,9 +135,104 @@ dela é a pendência, não um ADR nem uma troca de implementação agora.
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+### Parecer do revisor — Codex, 17/09/2026, quinta rodada
+
+**RV10-4-01 corrigido; resta um ajuste no desvio que antecede o consumidor.** Revisado
+`b650125..ccc30eb`, com o dossiê publicado em `464b75d` e a árvore limpa ao início.
+A correção de `_faltas` cumpre o pedido da quarta rodada: chave presente sem linha no
+intervalo é acusada; ausência histórica com memória continua válida. A contraprova
+original, que omite a chave no SQL, agora faz o teste completo falhar corretamente.
+
+O limite encontrado nesta rodada fica antes dessa chamada: intervalo inteiramente vazio
+faz o teste pular sem conferir se existe anterior certificada. **É preexistente**, também
+reproduzido em `b650125`, e não regressão introduzida pela entrega. Não encontrei novo
+defeito no código de produção nem novo bloqueante. Este parecer não encerra a Etapa 10
+nem substitui o aceite do Owner.
+
+### Conferência da entrega
+
+- **Regra declarada:** conferida integralmente contra `remocao.transicoes()` e o ADR-0045.
+  O `full outer join` inclui as chaves `mantida`, portanto exigir a linha da chave presente
+  está correto quando existe anterior certificada. Redução e aumento continuam aceitos.
+- **Contraprova do teste:** apagar a linha materializada é suficiente para exercitar
+  `_ler_intervalo_e_memoria` e `_faltas`. A sonda desta revisão também omitiu a linha no
+  SQL gerado, reproduzindo o caminho da quarta rodada, com o resultado esperado.
+- **D43:** a ressalva sobre a lista finita de entradas e a terceira alternativa ficaram
+  registradas como solicitado. O adiamento permanece; nenhuma implementação ou decisão
+  de arquitetura foi trocada neste intervalo.
+
+### Evidências produzidas nesta revisão
+
+**EV10-5-01 — suíte existente.** Comando:
+`PYTEST_ADDOPTS='--tb=short -rs' make test`, sem `FATO=1` nem `CARGA=1`.
+Recorte literal de `/tmp/mvp_ed1-revisao5-tests-validos.log`:
+
+```text
+.......................s.....................................s.......... [ 28%]
+........................................sss................sss.......... [ 56%]
+........................................................................ [ 84%]
+.......................................                                  [100%]
+247 passed, 8 skipped in 158.15s (0:02:38)
+```
+
+Dois testes pulam pelas opções de carga e escrita na fato; seis pulam porque a captura 36,
+mutada, não corresponde ao lote do manifesto. Recortes literais dos motivos:
+
+```text
+SKIPPED [1] tests/test_carga.py:51: substitui a origem pela carga reduzida; rode por `make test-carga`, que exporta MVP_TESTE_CARGA=1 num banco efêmero
+SKIPPED [1] tests/test_fato_incremental.py:105: escreve na fato de trabalho; rode `make test FATO=1` (MVP_TESTE_FATO=1)
+SKIPPED [1] tests/test_legado_deteccao.py:124: a captura 36 não é o lote 3f9e5088c722 do manifesto (3 tabelas divergem: ['customers', 'inventory_movements', 'refunds']); sincronize o lote corrente antes de comparar vereditos
+```
+
+A primeira tentativa, no sandbox, não conseguiu conectar aos bancos locais. Foi repetida
+com acesso autorizado; apenas essa repetição sustenta a validação de integração acima.
+
+**EV10-5-02 — omissão parcial e total do intervalo.** Comando:
+`.venv/bin/python /tmp/mvp_ed1-revisao5-consumidor.py`, com o ambiente local carregado.
+A sonda cria dois bancos efêmeros, certifica as capturas 851 e 852 e altera apenas o nome
+da chave `brands/1` entre elas. O diário confirma presença. Executa os modelos íntegros,
+depois omite essa chave no SQL de transições e, por fim, omite o intervalo inteiro
+(`and false`). O bruto e os certificados permanecem iguais. Compara o helper e o teste
+completo de `b650125` com os atuais; código antigo carregado em memória, sem trocar a árvore.
+Saída literal de `/tmp/mvp_ed1-revisao5-consumidor.log`:
+
+```json
+{"scenario": "integro", "certified_interval": [851, 852], "interval_rows": 2, "physical_reconciliation_errors": 0, "consumer_base": [], "consumer_current": [], "cycle_base": "PASS", "cycle_current": "PASS"}
+{"scenario": "omite_chave_presente", "certified_interval": [851, 852], "interval_rows": 1, "physical_reconciliation_errors": 0, "consumer_base": [], "consumer_current": [["presente mas fora do intervalo", "brands", "1"]], "cycle_base": "PASS", "cycle_current": "FAIL: efeito líquido do diário sem correspondência: [('presente mas fora do intervalo', 'brands', '1')]"}
+{"scenario": "intervalo_vazio", "certified_interval": [851, 852], "interval_rows": 0, "physical_reconciliation_errors": 0, "consumer_base": [], "consumer_current": [["presente mas fora do intervalo", "brands", "1"]], "cycle_base": "SKIP: sem intervalo: a captura selecionada não tem anterior certificada", "cycle_current": "SKIP: sem intervalo: a captura selecionada não tem anterior certificada"}
+```
+
+No último caso o helper corrigido acusa a perda, mas o teste completo não chega a chamá-lo.
+O motivo do `SKIP` é falso nesse cenário: as duas capturas foram certificadas. A
+reconciliação física também não acusa, pois deriva seu universo das transições vazias.
+Isso demonstra uma lacuna de validação; não demonstra perda no modelo íntegro de produção.
+
+**EV10-5-03 — diário real, somente leitura.** Na mesma sonda, consulta ao armazém de
+trabalho em transação `read only`. Saída literal:
+
+```json
+{"scenario": "diario_real_somente_leitura", "interval": [35, 36], "diary_entries": 16, "present_keys": 11, "absent_keys": 5, "present_keys_in_interval": 11, "absent_keys_only_in_memory": 5, "consumer_errors": []}
+```
+
+As chaves presentes têm linha no intervalo; as ausências históricas são respondidas pela
+memória sem linha no intervalo. A regra mais estrita não reprova esse estado correto.
+
+### Limites desta rodada
+
+- Não repeti `make dbt-build`: nenhum modelo ou gerador de produção mudou no intervalo.
+  O `PASS=891` da seção 3 permanece evidência do autor. Os modelos de remoção foram
+  executados nos bancos efêmeros pela suíte e pelas sondas.
+- Não executei DAG, Airbyte real, interrupção de job, `FATO=1`, `CARGA=1` nem o bloco
+  operacional da D44. Os seis testes de comparação com o manifesto que pularam não
+  revalidam o lote íntegro nesta rodada.
+- Não isolei o custo da macro nem comparei planos. A variação de desempenho declarada
+  na seção 4 continua sem explicação medida; a paridade com BigQuery continua pendente.
+- A injeção de falha de EV10-5-02 foi apenas nos bancos efêmeros, removidos pelas fixtures.
+  O diário real foi lido, sem mutação. Roteiro e logs ficaram em `/tmp/mvp_ed1-revisao5-*`.
+  A única alteração versionável desta revisão é este parecer.
+
+### Tabela de achados
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RV10-5-01 | `tests/test_legado_remocao.py:549–550` | **Intervalo vazio pula a validação mesmo quando existe anterior certificada.** O teste deduz a falta de anterior de `not intervalo`, antes de chamar `_faltas`. EV10-5-02 mantém duas capturas certificadas e uma chave declarada presente no diário, mas omite todas as transições: o helper acusa a falta; o teste completo retorna `SKIP`, e a reconciliação física também não acusa. **Preexistente em `b650125`; não introduzido por esta entrega.** Determinar a existência de anterior pela seleção e pelos certificados, independentemente da tabela auditada; só pular quando de fato não houver anterior. Havendo anterior, submeter também o intervalo vazio ao consumidor. Acrescentar a contraprova no nível do teste completo e preservar o caso legítimo sem anterior e as ausências históricas com memória. | `ajuste` | **Aplicado em `4a3b692`.** `_anterior_certificada(conexao, selecionada)` lê `governance.legacy_captures` com a regra de `certificadas_sql()` (`complete` nas 40 tabelas, `max(snapshot_id) < selecionada`) — a mesma do `anterior` de `remocao.transicoes()` — e a selecionada sai de `staging.legacy_selected_capture`. O ciclo real só pula quando o helper devolve `None`; com anterior, o intervalo vai ao consumidor mesmo vazio, e o par materializado, quando existe, tem de ser `(anterior, selecionada)`. Contraprova no ciclo efêmero: `delete from trusted.legacy_capture_transitions`, anterior ainda encontrada, `legado_presenca_fisica_reconcilia` devolvendo `[]` (não acusa, como EV10-5-02 mostrou) e `_faltas` acusando `1`, `8` e `9` como `presente mas fora do intervalo`; `_anterior_certificada(conexao, anterior) is None` preserva o salto legítimo da primeira certificada, e as ausências históricas com memória seguem aceitas (EV10-5-03 continua verde: `tests/test_legado_remocao.py` → `55 passed`, o ciclo real em 35→36 sem skip). |
