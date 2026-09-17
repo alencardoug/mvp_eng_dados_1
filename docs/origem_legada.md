@@ -231,7 +231,7 @@ A geração é determinística, recebe `seed` própria — declarada em
 
 O manifesto é escrito em `data/legacy/`, **fora do banco e fora do Git**. Guardá-lo ao lado do dado
 tratado convidaria a transformação a consultá-lo, e o teste passaria a medir a si mesmo. Desde
-14/09/2026 ele tem quatro partes, e um nome por lote:
+14/09/2026 ele tem cinco partes, e um nome por lote:
 
 | Parte | O que diz |
 |---|---|
@@ -239,6 +239,7 @@ tratado convidaria a transformação a consultá-lo, e o teste passaria a medir 
 | `achados` | O que o injetor fez, célula a célula: ocorrência física, código, coluna, valor antes, valor depois, resultado esperado e o **valor esperado** depois da limpeza |
 | `veredito` | O esperado de **toda** ocorrência — saída, origem da rejeição e o multiconjunto de achados, inclusive contexto e cascata —, recomputado por `legacy/oraculo.py` sobre as linhas finais (ver §5) |
 | `mutacoes` | O diário do que foi feito à origem **depois** da carga — remoção, inserção, alteração —, com o que o banco devolveu; vazio ao nascer |
+| `mutacoes_encerradas` | Os diários das cargas anteriores do **mesmo** lote, fechados com data e motivo quando a origem foi recarregada (D44, 17/09/2026). Descrevem capturas que o bruto retém, por isso não se apagam; mas não descrevem mais a origem, e só o diário aberto é comparado com as capturas |
 
 O arquivo chama-se `manifesto-<hash do lote>.json`, e `manifesto.json` é um *link* para o corrente.
 Nenhum é apagado: regerar a origem produz outro arquivo, e o anterior continua descrevendo a captura

@@ -20,6 +20,7 @@ from __future__ import annotations
 import collections
 import copy
 import datetime as dt
+import json
 
 import pytest
 
@@ -232,7 +233,7 @@ def test_o_manifesto_identifica_o_lote_por_conteudo(lote) -> None:
 
     catalogo, resultado, parametros = lote
     manifesto = writer.manifesto(catalogo, resultado, parametros)
-    assert set(manifesto) == {"lote", "achados", "veredito", "mutacoes"}
+    assert set(manifesto) == {"lote", "achados", "veredito", "mutacoes", "mutacoes_encerradas"}
     assert set(manifesto["lote"]["tabelas"]) == set(schema.tabelas())
     assert manifesto["lote"]["parametros"]["versao_catalogo"] == catalogo.versao
 
@@ -243,6 +244,37 @@ def test_o_manifesto_identifica_o_lote_por_conteudo(lote) -> None:
     assert de_novo["lote"]["tabelas"]["brands"]["linhas"] == manifesto["lote"]["tabelas"]["brands"]["linhas"]
     assert de_novo["lote"]["hash"] != manifesto["lote"]["hash"]
     assert de_novo["lote"]["tabelas"]["customers"] == manifesto["lote"]["tabelas"]["customers"]
+
+
+def test_a_carga_do_mesmo_lote_encerra_o_diario_e_o_manifesto_recomputado_o_mantem(lote, tmp_path) -> None:
+    """D44: o diário descreve a origem depois de uma carga; carga nova, diário novo — sem apagar o antigo."""
+    from mvp_ed1.legacy import writer
+
+    catalogo, resultado, parametros = lote
+    primeiro = writer.gravar_manifesto(catalogo, resultado, parametros, tmp_path, carga=True)
+    escrito = json.loads(primeiro.read_text(encoding="utf-8"))
+    assert escrito["mutacoes"] == [] and escrito["mutacoes_encerradas"] == []
+    escrito["mutacoes"] = [{"tipo": "remover", "tabela": "brands", "chaves": ["1"]}]
+    primeiro.write_text(json.dumps(escrito), encoding="utf-8")
+
+    # Só o manifesto, sem banco: o diário continua descrevendo a origem e fica aberto.
+    assert writer.gravar_manifesto(catalogo, resultado, parametros, tmp_path, carga=False) == primeiro
+    mantido = json.loads(primeiro.read_text(encoding="utf-8"))
+    assert mantido["mutacoes"] == escrito["mutacoes"] and mantido["mutacoes_encerradas"] == []
+
+    # Carga do mesmo lote: o diário aberto vai para os encerrados, com data e motivo, e um vazio nasce.
+    assert writer.gravar_manifesto(catalogo, resultado, parametros, tmp_path, carga=True) == primeiro
+    recarregado = json.loads(primeiro.read_text(encoding="utf-8"))
+    assert recarregado["mutacoes"] == []
+    assert len(recarregado["mutacoes_encerradas"]) == 1
+    encerrado = recarregado["mutacoes_encerradas"][0]
+    assert encerrado["mutacoes"] == escrito["mutacoes"] and encerrado["motivo"] == "recarga do lote"
+    assert dt.datetime.fromisoformat(encerrado["encerrado_em"]).tzinfo is not None
+
+    # Carga sem diário aberto não fabrica encerramento vazio; e o link corrente aponta para o hash.
+    assert writer.gravar_manifesto(catalogo, resultado, parametros, tmp_path, carga=True) == primeiro
+    assert len(json.loads(primeiro.read_text(encoding="utf-8"))["mutacoes_encerradas"]) == 1
+    assert (tmp_path / "manifesto.json").resolve() == primeiro.resolve()
 
 
 def test_string_vazia_e_nulo_na_identidade_de_conteudo() -> None:

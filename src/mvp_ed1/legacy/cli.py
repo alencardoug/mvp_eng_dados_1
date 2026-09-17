@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.comando == "manifesto":
-        caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS)
+        caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS, carga=False)
         print(f"\nmanifesto: {caminho} (nenhum banco foi tocado)")
         return 0
 
@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     except writer.DestinoNaoVazio as erro:
         print(f"\n{erro}", file=sys.stderr)
         return 1
-    caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS)
+    caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS, carga=True)
     medida = writer.escrever(engine, resultado, forcar=args.force)
     print(
         f"\ncarregado: {medida['linhas']:,} linhas em {medida['segundos']} s; "

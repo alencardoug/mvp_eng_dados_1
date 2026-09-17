@@ -14,6 +14,7 @@ alcance das credenciais de leitura da transformação.
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import json
 import pathlib
@@ -193,7 +194,11 @@ def manifesto(catalogo: Catalogo, resultado: Resultado, parametros: dict[str, An
       atingidas —, recomputado por `oraculo` sobre as linhas finais;
     * `mutacoes` é o diário das alterações feitas **depois** da carga
       (remoção, inserção, alteração), vazio ao nascer; quem muda a origem
-      escreve aqui o que o banco devolveu.
+      escreve aqui o que o banco devolveu;
+    * `mutacoes_encerradas` guarda os diários das cargas anteriores do mesmo
+      lote, fechados quando a origem foi recarregada (D44): descrevem capturas
+      que o bruto retém, e por isso não se apagam — mas não descrevem mais a
+      origem.
     """
     vereditos = oraculo.esperar(catalogo, resultado)
     divergencias = oraculo.conferir_com_o_injetor(resultado, vereditos)
@@ -209,11 +214,13 @@ def manifesto(catalogo: Catalogo, resultado: Resultado, parametros: dict[str, An
         "achados": [asdict(a) for a in resultado.achados],
         "veredito": oraculo.serializar(vereditos),
         "mutacoes": [],
+        "mutacoes_encerradas": [],
     }
 
 
 def gravar_manifesto(
-    catalogo: Catalogo, resultado: Resultado, parametros: dict[str, Any], diretorio: pathlib.Path
+    catalogo: Catalogo, resultado: Resultado, parametros: dict[str, Any], diretorio: pathlib.Path,
+    *, carga: bool,
 ) -> pathlib.Path:
     """Escreve `manifesto-<hash>.json` e aponta `manifesto.json` para ele.
 
@@ -221,15 +228,28 @@ def gravar_manifesto(
     anterior continua descrevendo a captura que já está retida em `raw_legacy`.
     O nome corrente é um *link* simbólico, para que quem só quer "o último" não
     precise saber o hash.
+
+    O diário de mutações do mesmo lote é história que aconteceu no banco e não
+    se recalcula. O que decide o destino dele é `carga`: só o manifesto
+    recomputado (`carga=False`) o mantém aberto; uma **carga** do lote
+    (`carga=True`) o encerra — depois de truncar e recarregar, as linhas que o
+    diário diz removidas estão de volta, e um diário que não descreve a origem
+    é falso positivo à espera do teste do ciclo real (D44).
     """
     diretorio.mkdir(parents=True, exist_ok=True)
     oraculo_do_lote = manifesto(catalogo, resultado, parametros)
     destino = diretorio / f"manifesto-{oraculo_do_lote['lote']['hash']}.json"
     if destino.exists():
-        # O mesmo lote já tem manifesto: o diário de mutações dele é história
-        # que aconteceu no banco e não se recalcula — sobrevive à regeração.
         anterior = json.loads(destino.read_text(encoding="utf-8"))
-        oraculo_do_lote["mutacoes"] = anterior.get("mutacoes", [])
+        abertas, encerradas = anterior.get("mutacoes", []), anterior.get("mutacoes_encerradas", [])
+        if carga and abertas:
+            encerradas = [*encerradas, {
+                "encerrado_em": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                "motivo": "recarga do lote",
+                "mutacoes": abertas,
+            }]
+            abertas = []
+        oraculo_do_lote["mutacoes"], oraculo_do_lote["mutacoes_encerradas"] = abertas, encerradas
     destino.write_text(json.dumps(oraculo_do_lote, ensure_ascii=False, indent=1), encoding="utf-8")
     corrente = diretorio / "manifesto.json"
     if corrente.is_symlink() or corrente.exists():
