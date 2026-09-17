@@ -11,6 +11,11 @@ sources:
     database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
     schema: raw
     loader: airbyte
+    # Governança §8: os lotes em `raw` são os necessários à reconciliação, e é
+    # o modo de sincronização (ADR-0015: `append` e `dedup + history`) que os
+    # retém — nada aqui descarta. Permanente enquanto a origem existir.
+    meta:
+      retention: permanent
 
     # O Airbyte escreve estas quatro colunas em toda tabela. `_airbyte_extracted_at`
     # é o carimbo da carga — não confundir com `updated_at`, que é o tempo de

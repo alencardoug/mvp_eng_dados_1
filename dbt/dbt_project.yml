@@ -76,6 +76,14 @@ models:
     # Estatística fresca antes do próximo modelo ler a tabela: sem isto duas
     # fatos de 7 mil linhas levavam 11 e 4 min no build (macro e pendências §5).
     +post-hook: "{{ analisar_apos_materializar() }}"
+    # Retenção por camada (Governança §8), declarada onde a camada é declarada.
+    # `rebuildable`: reconstruível do que está antes dela, nunca fonte de
+    # verdade — descartável a qualquer momento. `permanent`: evidência ou
+    # histórico que não se reconstrói — só sai por decisão registrada. Um
+    # inteiro seria dias, para quando um objeto ganhar prazo (nenhum tem hoje).
+    # `tests/test_retencao.py` cobra que todo objeto materializado tenha uma.
+    +meta:
+      retention: rebuildable
     staging:
       +schema: staging
       +materialized: view
@@ -98,15 +106,24 @@ models:
       +schema: consumption
       +materialized: view
     # Destino, não passagem (ADR-0008): tabela porque é evidência de auditoria e
-    # precisa sobreviver à queda do modelo que a produziu.
+    # precisa sobreviver à queda do modelo que a produziu — e por isso permanente.
     quarantine:
       +schema: quarantine
       +materialized: table
+      +meta:
+        retention: permanent
 
 snapshots:
   mvp_ed1:
     +target_schema: snapshots
+    # Histórico SCD (ADR-0017): o que foi capturado num instante não se
+    # reconstrói depois. Permanente.
+    +meta:
+      retention: permanent
 
 seeds:
   mvp_ed1:
     +schema: trusted
+    # Versionadas no Git: reconstruíveis de qualquer commit.
+    +meta:
+      retention: rebuildable

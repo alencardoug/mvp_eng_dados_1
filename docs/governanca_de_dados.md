@@ -105,7 +105,7 @@ models:
     meta:
       domain: "vendas"
       owner: "data_custodian"
-      retention_days: 365
+      retention: rebuildable
     columns:
       - name: customer_document
         description: "Documento de identificação do cliente (sintético)."
@@ -114,8 +114,10 @@ models:
           data_type: "pii"
 ```
 
-Chaves obrigatórias: `domain` e `owner` no modelo; `sensitivity` em toda coluna. `retention_days` e
-`data_type` conforme aplicável.
+Chaves obrigatórias: `domain` e `owner` no modelo; `sensitivity` em toda coluna; `retention` em todo
+objeto — `permanent`, `rebuildable` ou um inteiro de dias — declarada **por camada** no
+`dbt_project.yml` (`+meta`) e por fonte nos `_sources.yml`, e cobrada objeto a objeto por
+`tests/test_retencao.py` contra a §8. `data_type` conforme aplicável.
 
 **`sensitivity` é declarada uma vez e derivada em todo o resto** (desde 17/09/2026). A declaração
 vive nos modelos SQLAlchemy da origem (`models/base.py::meta`, obrigatória e validada, 418 colunas);
@@ -165,7 +167,7 @@ descrição precise ser reescrita.
 | Procedência entre origens | Registro empilhado identifica se veio da origem principal ou da legada | [Origem Legada](origem_legada.md) |
 | Certificado de captura do legado | Toda sincronização do legado deixa, por tabela, contagem e hash de conteúdo da origem antes e depois do *job*, o recebido no bruto e o vínculo com o *job*; só captura `complete` nas 40 tabelas é elegível ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | `governance.legacy_captures` — o primeiro conjunto do log de execução do [ADR-0023](adr/0023-escopo-do-schema-governance.md) materializado |
 | Regras de acesso por camada | Cada camada tem papéis de leitura e escrita | Seção 7 |
-| Retenção | Todo objeto tem prazo e critério de descarte | Seção 8 e `meta.retention_days` |
+| Retenção | Todo objeto tem prazo e critério de descarte | Seção 8 e `meta.retention` |
 | Segredos fora do repositório | Credenciais só em `.env` local; `.env.example` versionado sem valores | `.gitignore` + revisão de cada entrega |
 
 ---
@@ -205,6 +207,12 @@ Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `stagi
 | `quarantine` | Permanente | Nunca descartado sem decisão registrada — é evidência de auditoria |
 | `staging`, `trusted`, `analytics` | Reconstruíveis | Descartáveis; nunca são fonte de verdade |
 | Catálogo, dicionário e linhagem | Permanente | Versionados no Git |
+
+**Declarada por objeto desde 17/09/2026:** `meta.retention` — `permanent` para `raw`, `raw_legacy`,
+`quarantine`, `snapshots` e `governance`; `rebuildable` para `staging`, `trusted` (inclusive seeds),
+`analytics` e `consumption`. `tests/test_retencao.py` cobra que todo objeto materializado nas nove
+camadas declare uma, no vocabulário, e igual à desta tabela (contraprova: `quarantine` declarada
+`rebuildable` falha).
 
 Como todo dado é sintético e reconstruível, a retenção neste MVP é **exercício de disciplina**, não
 obrigação legal. A estrutura, porém, é a mesma que se aplicaria a dados reais.

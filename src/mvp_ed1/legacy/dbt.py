@@ -346,6 +346,10 @@ sources:
     database: "{{{{ env_var('WAREHOUSE_DB_NAME') }}}}"
     schema: raw_legacy
     loader: airbyte
+    # Governança §8 e ADR-0037: cada captura é retida por acréscimo; o
+    # descarte de capturas antigas é decisão futura, não consequência.
+    meta:
+      retention: permanent
 
     # Sem `freshness`: a origem legada é capturada sob demanda, e não há
     # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
@@ -361,6 +365,9 @@ sources:
     database: "{{{{ env_var('WAREHOUSE_DB_NAME') }}}}"
     schema: governance
     loader: mvp_ed1.legacy.captura
+    # Log de execução e controle (ADR-0023): evidência de auditoria, permanente.
+    meta:
+      retention: permanent
     tables:
       - name: legacy_captures
         description: >
