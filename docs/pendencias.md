@@ -51,13 +51,14 @@ Os achados que a terceira revisão deixou abertos — R09, R10, R12, R13, R14 e 
 **implementados e medidos em 14–15/09/2026** (D39, D40 e D41 decididas no caminho, mais a identidade
 da captura em 15/09). A revisão do desenvolvimento correu em sete rodadas (15–17/09/2026), com os
 achados de cada uma fechados e medidos antes da seguinte; a sétima não trouxe achado. **A Etapa 10
-foi aceita em 17/09/2026, condicionada ao bloco da D44** (§2).
+foi aceita em 17/09/2026, condicionada ao bloco da D44** — executado e medido no mesmo dia (§2); a
+condição está satisfeita.
 
 ---
 
 ## 2. Decisões já fechadas
 
-### D44 — decidida em 16/09/2026
+### D44 — decidida em 16/09/2026, implementada e medida em 17/09/2026
 
 **O próximo bloco de sincronizações refaz o diário de mutações no formato novo, com uma mutação só
 de representação; até lá `efeito_liquido` mantém as duas leituras.** Duas consequências da terceira
@@ -73,6 +74,24 @@ rodada de revisão, decididas juntas:
   capturas certificadas, e o diário e os modelos reais provam `mantida` — sem tocar catálogo,
   gerador ou oráculo. Injetar representações alternativas pelo gerador foi descartado: mudaria
   catálogo, oráculo, versão do catálogo (D34) e limpeza, e exigiria ADR.
+
+**Executado em 17/09/2026**, com duas decisões tomadas no caminho: a carga do mesmo lote **encerra**
+o diário em vez de o herdar (`mutacoes_encerradas`, com data e motivo — depois de truncar e
+recarregar, o diário antigo descrevia um estado que não existia), e o bloco incluiu uma remoção real
+além da troca de representação, para que o diário novo também prove `removida`. A testemunha foi
+`campaigns/4` e não um cliente: a classificação resolve o vínculo pai por igualdade textual
+(`classification.sql`, CTE `edges`), e `'0x8'` num cliente órfãria os filhos dele — comportamento
+real da limpeza, fora do escopo deste bloco, registrado em §5. Medido: origem recarregada (lote
+`3f9e5088…`, diário de 16 entradas encerrado) → captura **38** certificada 40/40 (2 min 11 s) →
+`make dbt-build` `PASS=891` (12 min 57 s) → `make test` **253 passed, 3 skipped**, com os seis testes
+de detecção rodando sobre a captura corrente (12.747 vereditos); `alterar campaigns.id 4 → 0x4` e
+`remover customers --quantidade 3` pela CLI, ambos com `presenca_apos_commit` → captura **39**
+certificada (12.744 linhas, 1 min 19 s) → `PASS=891` (12 min 39 s); no intervalo 38→39,
+`campaigns/4` é `mantida` (1→1) com `'0x4'` no bruto, `accepted` na limpeza e `campaign_id = 4` em
+`trusted`; `customers/1,2,3` são `removida` com `removed_in = 39`, e `customers/99001` — inserido pelo
+diário antigo — aparece na memória com `last_seen = 36`, `removed_in = 38`, que é o que a recarga fez;
+`make test` **248 passed, 8 skipped** (os seis de detecção pulam na captura mutada, por desenho). A
+leitura antiga saiu de `efeito_liquido`, que agora recusa entrada sem o campo.
 
 ### D42 — decidida em 15/09/2026
 
@@ -321,7 +340,18 @@ planejador a seletividade que ele tinha; ou a máquina estava sob pressão de me
 medições (9,2 GB de 11,7 GB em uso, com o Airbyte segurando ~3,6 GB em JVMs).
 
 Não há medição anterior ao empilhamento para comparar, então **não afirmo que seja regressão**. O
-que está registrado é o número, não a causa.
+que está registrado é o número, não a causa. Remedido em 17/09/2026, nos dois *builds* do bloco da
+D44: `fact_payment_transaction` em **704 s** e **680 s**, `fact_sales_order_item` em **281 s** e **235 s** — a
+mesma ordem, com Airbyte de pé (3,7 GB) e Airflow pausado; a hipótese da pressão de memória
+perde força, a da junção temporal continua sem teste.
+
+**Identidade do vínculo pai é textual na limpeza (17/09/2026).** `classification.sql` resolve a
+referência ao pai por `p.cleaned_payload->>chave = valor_do_filho`, enquanto a comparação entre
+capturas canoniza a chave por tipo (`chave_canonica`, ADR-0045). Um cliente cuja PK passasse de `'8'`
+a `'0x8'` seria `mantida` no intervalo e, ao mesmo tempo, deixaria todos os filhos `FK_ORPHAN`. Não
+acontece no bruto real (PKs inteiras e UUIDs limpos) e o bloco da D44 escolheu uma testemunha sem
+filhos por isso. Fica registrado como divergência entre duas noções de identidade, não como defeito
+medido; se um dia importar, a decisão é do Owner e pede ADR.
 
 ---
 
