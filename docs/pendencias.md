@@ -40,6 +40,15 @@ acrescentou uma terceira saída a considerar na Etapa 13: `pg_input_is_valid(tex
 o `cast` num `case` — nativo do PostgreSQL 16, já usado em `legacy/classification.sql`, sem função
 nova no armazém.
 
+*Acrescentado em 17/09/2026, para decidir junto:* há **três** noções de "mesma chave" no código —
+igualdade textual na resolução do pai (`classification.sql`, CTE `edges`), `identidade_canonica`
+(decimal por extenso, R29, reconciliação da quarentena) e `chave_canonica` (gramática do `cast`,
+ADR-0045). Um cliente cuja PK passasse de `'8'` a `'0x8'` seria `mantida` no intervalo e órfãria
+os filhos na limpeza. O bruto real não tem chave assim; até a decisão, o teste
+`legado_vinculo_nao_diverge_por_representacao` (gerado, 56 vínculos) acusa o filho que só encontra o
+pai pela forma canônica — contraprova feita em 17/09 com um cupom apontando `0x1` para a campanha
+`1`. Unificar é mudança de tratamento (versão do catálogo, oráculo, auditorias) e pede ADR.
+
 ---
 
 ## 1.1 Decididas e implementadas
@@ -329,7 +338,7 @@ medição de entrega ([ADR-0033](adr/0033-entrega-medida-em-dois-graos.md)). Tod
 
 ## 5. Medido e não explicado
 
-**Duas fatos ficaram lentas depois do empilhamento (07/09/2026).**
+**Duas fatos ficaram lentas depois do empilhamento (07/09/2026) — explicado e corrigido em 17/09/2026.**
 `fact_payment_transaction` leva **595 s** e `fact_sales_order_item`, **186 s**; as outras oito ficam
 abaixo de 3,3 s. As tabelas envolvidas são pequenas — 7.427 transações, 3.830 pagamentos, 3.661
 pedidos e 1.574 versões de cliente —, e nada nesse tamanho justifica dez minutos.
@@ -340,10 +349,37 @@ planejador a seletividade que ele tinha; ou a máquina estava sob pressão de me
 medições (9,2 GB de 11,7 GB em uso, com o Airbyte segurando ~3,6 GB em JVMs).
 
 Não há medição anterior ao empilhamento para comparar, então **não afirmo que seja regressão**. O
-que está registrado é o número, não a causa. Remedido em 17/09/2026, nos dois *builds* do bloco da
-D44: `fact_payment_transaction` em **704 s** e **680 s**, `fact_sales_order_item` em **281 s** e **235 s** — a
-mesma ordem, com Airbyte de pé (3,7 GB) e Airflow pausado; a hipótese da pressão de memória
-perde força, a da junção temporal continua sem teste.
+que está registrado é o número, não a causa.
+
+**Explicado e corrigido em 17/09/2026.** A mesma consulta leva 0,3 s sozinha e 680 s dentro do
+*build*; nos últimos 7 min ela era o único nó ativo, e o pior plano de junção forçado à mão dá 11 s
+— não era a consulta, o volume, a concorrência nem a memória. O `auto_explain` gravou o plano real:
+sem estatística nas tabelas recém-criadas pelo *build*, o planejador assume `source_system`
+seletivo (a coluna tem **dois** valores desde o empilhamento, ADR-0021 — daí "ficaram lentas depois
+do empilhamento") e junta `payment_transactions` a `orders` **só por ela**: 24,9 milhões de linhas
+intermediárias, hash em 2 048 lotes, 17 GB de arquivo temporário (`temp written=2199505` blocos)
+para 7 419 linhas de resultado. `fact_sales_order_item` é o mesmo mecanismo. Nenhuma das duas
+hipóteses acima estava certa: a junção temporal aparece no plano com 3 657 linhas, e a máquina tinha
+4,5 GB livres. A correção é declarativa — `post-hook` `analyze {{ this }}` em toda materialização de
+tabela (`dbt_project.yml`, macro `analisar_apos_materializar`), vazio para *views* e para o BigQuery,
+que não tem `ANALYZE` nem o problema.
+
+O *build* com o `ANALYZE` expôs um segundo mecanismo, em `fact_shipment_item`: **326 s** com a
+estatística presente. O CTE `remessas` é lido três vezes, e com mais de uma referência o PostgreSQL o
+materializa — a estatística de `shipments` deixa de existir para o planejador (`CTE Scan`,
+`rows=2` onde havia 3.767), e o resultado é o mesmo desenho: pedidos juntados a remessas só por
+`source_system`, 12,6 milhões de linhas, `external sort` de 3,7 GB. Nos *builds* anteriores esse
+modelo levava 6–16 s: o plano oscilava com a amostra da estatística, e o defeito só era visível
+quando caía do lado errado. Correção no modelo: `with remessas as not materialized (...)`, guardada
+por `target.type` como o `materialized` da D42. Seis outros modelos têm CTE com mais de uma referência
+(`dim_product`, `cart_lifecycle_events`, `customers`, `inventory_balances`, `orders`, `product_skus`)
+e todos rodam abaixo de 3 s; ficam como estão, e este parágrafo é o lugar de olhar se algum deles
+aparecer lento.
+
+**Medido em 17/09/2026, captura 39, os dois consertos juntos:** `fact_payment_transaction` 680 s →
+**2,0 s**, `fact_sales_order_item` 212 s → **1,2 s**, `fact_shipment_item` 326 s → **1,2 s**; `make
+dbt-build` completo **12 min 39 s → 1 min 25 s**, `PASS=892`. O mais lento agora é
+`stg_legacy__cart_items`, 25 s. Este item sai de "medido e não explicado".
 
 **Identidade do vínculo pai é textual na limpeza (17/09/2026).** `classification.sql` resolve a
 referência ao pai por `p.cleaned_payload->>chave = valor_do_filho`, enquanto a comparação entre
