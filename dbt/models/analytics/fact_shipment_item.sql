@@ -35,7 +35,14 @@
 -- pedido, e é o que a view de P14 faz, pelas linhas em
 -- `is_cycle_closing_shipment`.
 
-with remessas as (
+-- `not materialized`: `remessas` é lida três vezes (ciclo, fechamento, base),
+-- e com mais de uma referência o PostgreSQL materializa o CTE e o planejador
+-- deixa de enxergar a estatística de `shipments` — estimou 2 linhas onde havia
+-- 3.767, juntou pedidos a remessas só por `source_system` (12,6 milhões de
+-- linhas, 3,7 GB de sort em disco) e levou 326 s (17/09/2026, plano gravado
+-- pelo `auto_explain`). Inlinado, é a tabela com a estatística dela. O
+-- BigQuery não tem a palavra nem o cerco: o CTE lá é sempre expandido.
+with remessas as {{ 'not materialized ' if target.type == 'postgres' else '' }}(
 
     select * from {{ ref('shipments') }}
 
