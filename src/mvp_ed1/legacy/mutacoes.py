@@ -52,33 +52,20 @@ def efeito_liquido(diario: list[dict[str, Any]]) -> dict[tuple[str, str], bool]:
     a PK de `'1'` para `'2'` deixa `1` ausente e `2` presente (RV10-2-06).
     Chave sem identidade não entra.
 
-    Entradas anteriores a 15/09/2026 (noite) não têm o campo: para elas vale o
-    que o `RETURNING` devolveu, com a chave canonizada — a leitura que RV10-10
-    corrigiu e que estas duas contraprovas mostraram incompleta.
+    Entrada sem o campo é diário anterior a 15/09/2026, lido até 17/09 pelo
+    `RETURNING` canonizado — leitura que RV10-2-06/07 mostraram incompleta. Esse
+    diário está encerrado (D44) e não se lê mais: a entrada é recusada, não
+    interpretada.
     """
     presente: dict[tuple[str, str], bool] = {}
-
-    def registrar(tabela: str, bruta: str | None, existe: bool, *, sobrescreve: bool = True) -> None:
-        chave = remocao.canonizar(bruta, remocao.chave(tabela)[1])
-        if chave is None:  # sem identidade não entra na comparação (ADR-0045)
-            return
-        if sobrescreve:
-            presente[(tabela, chave)] = existe
-        else:
-            presente.setdefault((tabela, chave), existe)
-
     for mutacao in diario:
-        tabela, coluna = mutacao["tabela"], mutacao["chave"]
-        if "presenca_apos_commit" in mutacao:
-            for chave, restantes in mutacao["presenca_apos_commit"].items():
-                presente[(tabela, chave)] = restantes > 0
-        elif mutacao["tipo"] == "remover":
-            for linha in mutacao["devolvidas"]:
-                registrar(tabela, linha[coluna], False)
-        elif mutacao["tipo"] == "inserir":
-            registrar(tabela, mutacao["devolvida"][coluna], True)
-        elif mutacao["tipo"] == "alterar" and mutacao["devolvidas"]:
-            registrar(tabela, mutacao["valor_da_chave"], True, sobrescreve=False)
+        if "presenca_apos_commit" not in mutacao:
+            raise ValueError(
+                f"mutação `{mutacao['tipo']}` em {mutacao['tabela']} sem `presenca_apos_commit`: "
+                "diário anterior a 15/09/2026; encerre-o com uma carga do lote (D44)"
+            )
+        for chave, restantes in mutacao["presenca_apos_commit"].items():
+            presente[(mutacao["tabela"], chave)] = restantes > 0
     return presente
 
 

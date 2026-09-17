@@ -148,35 +148,13 @@ def test_o_diario_registra_a_multiplicidade_canonica_depois_do_commit(legado_efe
     assert mutacoes.efeito_liquido(diario) == {("brands", "8"): True, ("brands", "1"): False, ("brands", "2"): True}
 
 
-def test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu() -> None:
-    """Remoção parcial, alteração sem correspondência e chave por extenso (RV10-10)."""
-    diario = [
-        # Pediu `1` e `999`; só `1` existia. `999` não entra no efeito: o diário
-        # não sabe se ela existia, e marcá-la ausente fabricaria uma testemunha.
-        {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["1", "999"],
-         "devolvidas": [{"legacy_row_id": 1, "id": "1", "code": "b1", "name": "Acme"}], "linhas_apagadas": 1},
-        # `08` apagado é a chave canônica `8`, como o intervalo a grava.
-        {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["08"],
-         "devolvidas": [{"legacy_row_id": 3, "id": "08", "code": "b8", "name": "Oito"}], "linhas_apagadas": 1},
-        # Alteração de zero linhas não diz que a chave existe.
-        {"tipo": "alterar", "tabela": "brands", "chave": "id", "valor_da_chave": "777", "coluna": "name",
-         "antes": [], "devolvidas": []},
-        # Alteração com linha devolvida diz que existe — sem sobrescrever remoção anterior.
-        {"tipo": "alterar", "tabela": "brands", "chave": "id", "valor_da_chave": "2", "coluna": "name",
-         "antes": [{"legacy_row_id": 2, "valor": "Bravo"}], "devolvidas": [{"legacy_row_id": 2, "valor": None}]},
-        {"tipo": "inserir", "tabela": "brands", "chave": "id", "devolvida": {"legacy_row_id": 4, "id": "+9", "code": "b9", "name": "Nova"}},
-        # Chave sem identidade (não converte para bigint) fica fora da comparação.
-        {"tipo": "inserir", "tabela": "brands", "chave": "id", "devolvida": {"legacy_row_id": 5, "id": "x", "code": "bx", "name": "Sem id"}},
-    ]
-    assert mutacoes.efeito_liquido(diario) == {
-        ("brands", "1"): False,
-        ("brands", "8"): False,
-        ("brands", "2"): True,
-        ("brands", "9"): True,
-    }
+def test_o_efeito_liquido_sai_da_presenca_confirmada_e_recusa_o_diario_antigo() -> None:
+    """Vale a multiplicidade que o banco confirmou depois do commit, nunca o `RETURNING` (D44).
 
-    # Com `presenca_apos_commit` (entradas de 15/09 em diante) vale a multiplicidade confirmada,
-    # não o RETURNING: o alias apagado deixa a chave presente; a PK alterada move a identidade.
+    O alias apagado deixa a chave presente; a PK alterada move a identidade.
+    Entrada sem `presenca_apos_commit` é diário anterior a 15/09/2026 — encerrado,
+    e recusado em vez de interpretado.
+    """
     diario_novo = [
         {"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["08"],
          "devolvidas": [{"legacy_row_id": 3, "id": "08"}], "linhas_apagadas": 1, "presenca_apos_commit": {"8": 1}},
@@ -185,6 +163,11 @@ def test_o_efeito_liquido_sai_do_que_o_banco_devolveu_e_nao_do_que_se_pediu() ->
          "presenca_apos_commit": {"1": 0, "2": 1}},
     ]
     assert mutacoes.efeito_liquido(diario_novo) == {("brands", "8"): True, ("brands", "1"): False, ("brands", "2"): True}
+
+    antigo = [{"tipo": "remover", "tabela": "brands", "chave": "id", "chaves": ["1"],
+               "devolvidas": [{"legacy_row_id": 1, "id": "1"}], "linhas_apagadas": 1}]
+    with pytest.raises(ValueError, match="sem `presenca_apos_commit`.*D44"):
+        mutacoes.efeito_liquido(antigo)
 
 
 @pytest.mark.parametrize(
