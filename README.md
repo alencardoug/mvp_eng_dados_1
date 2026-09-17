@@ -31,7 +31,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v2.9 — Etapa 10 em implementação |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.3 — Etapa 10 aceita em 17/09/2026, condicionada à D44 |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
@@ -78,8 +78,8 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
-**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026 — achados da terceira revisão
-implementados e medidos em 15/09/2026, aguardando revisão.** Foi declarada
+**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026 e aceita em 17/09/2026 após sete
+rodadas de revisão, condicionada ao bloco de sincronizações da D44.** Foi declarada
 concluída em 06/09 e duas revisões por outro agente mostraram que não estava. O empilhamento em
 `trusted`, ausente na primeira revisão, existe desde 07/09 e teve a identidade por origem conferida
 no SQL pela terceira. Esta, de 08/09, deixou treze achados abertos; nove foram fechados com
@@ -97,8 +97,9 @@ porque a geração se mostrou por *stream*. **Medido em 15/09/2026:** 12.747 ver
 oráculo; oito capturas certificadas (jobs 28–36), uma recusada de propósito (39/40 tabelas);
 remoção, inclusão, redução, persistência e reaparecimento medidos entre capturas reais;
 `make dbt-build` completo com `PASS=891 ERROR=0`; DAG `fluxo_batch` com 12 tarefas em 13 min,
-certificando a captura dentro dela; `make test FATO=1` com 180 passed. **Aguarda a revisão do
-desenvolvimento; a etapa não está aceita.** O R25 foi implementado em 08/09 pelo
+certificando a captura dentro dela; `make test FATO=1` com 180 passed. **Aceita pelo Owner em 17/09/2026**, sob a condição da
+[D44](docs/pendencias.md#d44--decidida-em-16092026); a sétima rodada de revisão (17/09) não trouxe
+achado, e `make test` fechou em `247 passed, 8 skipped` nas três últimas. O R25 foi implementado em 08/09 pelo
 [ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
 reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
 sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém medido em

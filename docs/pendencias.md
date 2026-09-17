@@ -49,8 +49,9 @@ As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — fo
 
 Os achados que a terceira revisão deixou abertos — R09, R10, R12, R13, R14 e R26 — foram
 **implementados e medidos em 14–15/09/2026** (D39, D40 e D41 decididas no caminho, mais a identidade
-da captura em 15/09), e estão **aguardando a revisão do desenvolvimento** pelo outro agente. Entrega
-técnica não é aceite: a etapa continua reaberta até essa revisão e a sua decisão.
+da captura em 15/09). A revisão do desenvolvimento correu em sete rodadas (15–17/09/2026), com os
+achados de cada uma fechados e medidos antes da seguinte; a sétima não trouxe achado. **A Etapa 10
+foi aceita em 17/09/2026, condicionada ao bloco da D44** (§2).
 
 ---
 
@@ -333,9 +334,10 @@ o lote inteiro, contrato de `event_sequence`, e os documentos com o estado medid
 estão no dossiê de revisão entregue ao outro agente e nos donos documentais. A revisão de
 desenvolvimento voltou em 15/09/2026 com seis bloqueantes e seis ajustes (RV10-01…12); onze foram
 corrigidos e medidos no mesmo dia, e o décimo segundo (prova local da escrita BigQuery) foi adiado
-por decisão sua para a Etapa 13 — a situação de cada um está no `REVISAO.md`, que espera a próxima
-rodada. **Nenhum aceite da Etapa 10 foi presumido**: a etapa fecha quando a revisão do
-desenvolvimento e você o disserem.
+por decisão sua para a Etapa 13. Seguiram-se mais cinco rodadas até 17/09/2026 — a última sem
+achado —, e o dossiê `REVISAO.md` foi fechado e apagado nesse dia; a situação de cada achado está
+no histórico do *git* dele. **A Etapa 10 está aceita desde 17/09/2026, sob a condição da D44**; o
+que falta dela é executar o bloco de sincronizações, não decidir.
 
 ---
 

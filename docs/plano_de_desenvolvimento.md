@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.2 |
-| Etapa atual | **Etapa 10 — Corte 6: origem legada**, reaberta em 07/09/2026 (**M0** a **M4** concluídos) |
-| Última revisão | 15/09/2026 |
+| Versão | 3.3 |
+| Etapa atual | **Etapa 10 — Corte 6: origem legada**, aceita em 17/09/2026 sob a condição do bloco da D44 (**M0** a **M4** concluídos) |
+| Última revisão | 17/09/2026 |
 
 ---
 
@@ -236,9 +236,13 @@ do encerramento formal. A Etapa 10 não foi iniciada nesta revalidação.
 
 ### Etapa 10 — Corte 6: origem legada
 
-*Reaberta em 07/09/2026; achados da terceira revisão implementados e medidos em 15/09/2026,
-**aguardando revisão** — a etapa não está aceita.* Foi declarada concluída em 06/09, e a revisão
-por outro agente mostrou que não estava: **doze achados bloqueantes**, entre eles duas ausências de
+*Reaberta em 07/09/2026 e **aceita pelo Owner em 17/09/2026**, depois de sete rodadas de revisão
+por outro agente (a sétima sem achados), **sob uma condição**: o bloco de sincronizações da
+[D44](pendencias.md#d44--decidida-em-16092026) — diário de mutações refeito no formato novo e a
+troca de representação da chave provada entre duas capturas certificadas reais. O revisor deixou
+fora da medição dele o `make dbt-build` completo (o `PASS=891` abaixo é medição do autor) e o custo
+da macro de canonização; o Owner aceitou com essas ressalvas registradas.* Foi declarada concluída
+em 06/09, e a revisão por outro agente mostrou que não estava: **doze achados bloqueantes**, entre eles duas ausências de
 escopo — o empilhamento em `trusted` não existia (tratado em 07/09), e o schema legado estava fora
 do ciclo de migrações (tratado em 14/09). Os critérios abaixo trazem ✓ **só** onde há medição, com a
 captura e a versão em que foi feita.
