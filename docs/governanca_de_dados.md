@@ -48,6 +48,15 @@ A proibição vale inclusive para exemplos em documentação, mensagens de *comm
 Todo campo de todas as camadas recebe exatamente um nível. Campo sem classificação bloqueia a
 conclusão da etapa que o criou.
 
+**Como se mede** (desde 17/09/2026): `tests/test_classificacao.py` compara coluna a coluna o que
+existe no armazém (`information_schema.columns`, nas nove camadas) com o que o `manifest.json` do
+dbt declara com `sensitivity`, e vigia também o vocabulário e a declaração sem coluna. É uma
+**catraca** por camada: o piso é a cobertura medida na última entrega que classificou a camada;
+regredir falha, subir exige levantar o piso no mesmo *commit*. **Medido em 17/09/2026: 738 de 4.161
+colunas, 17,7 %** — `staging` 58 %, `governance` 88 %, `quarantine` 46 %, `trusted` 5 %, e zero em
+`raw`, `raw_legacy`, `analytics`, `consumption` e `snapshots`. O critério da Etapa 11 é todos os
+pisos em 100.
+
 Os níveis estão fixados em [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md). O vocabulário
 é inglês, por ser identificador técnico: cada valor vira nome de *policy tag* no BigQuery.
 
