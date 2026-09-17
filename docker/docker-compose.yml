@@ -89,10 +89,32 @@ services:
     # desligado e passa de 2 GB com ele ligado. O ganho que o JIT existe para
     # dar — amortizar compilação sobre muitas linhas — não se aplica: aqui a
     # expressão é enorme e as linhas são poucas.
+    #
+    # `auto_explain` grava no log do contêiner o plano **executado** de toda
+    # instrução acima de 30 s, com contagens reais e uso de buffer — foi o que
+    # explicou em uma rodada as duas fatos que passaram dez dias como "medido e
+    # não explicado" (pendências §5, 17/09/2026). Só o que ultrapassa o limiar
+    # custa alguma coisa; o build inteiro leva ~1,5 min e nada nele chega perto.
+    # `log_timing=off` evita o custo do relógio por nó. Ler: `docker logs
+    # mvp_ed1_warehouse_db | grep -A 80 'plan:'`.
     command:
       - postgres
       - -c
       - jit=off
+      - -c
+      - session_preload_libraries=auto_explain
+      - -c
+      - auto_explain.log_min_duration=30s
+      - -c
+      - auto_explain.log_analyze=on
+      - -c
+      - auto_explain.log_buffers=on
+      - -c
+      - auto_explain.log_timing=off
+      - -c
+      - auto_explain.log_nested_statements=on
+      - -c
+      - log_lock_waits=on
     ports:
       - "${WAREHOUSE_DB_PORT}:5432"
     volumes:

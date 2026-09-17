@@ -379,7 +379,10 @@ aparecer lento.
 **Medido em 17/09/2026, captura 39, os dois consertos juntos:** `fact_payment_transaction` 680 s →
 **2,0 s**, `fact_sales_order_item` 212 s → **1,2 s**, `fact_shipment_item` 326 s → **1,2 s**; `make
 dbt-build` completo **12 min 39 s → 1 min 25 s**, `PASS=892`. O mais lento agora é
-`stg_legacy__cart_items`, 25 s. Este item sai de "medido e não explicado".
+`stg_legacy__cart_items`, 25 s. Este item sai de "medido e não explicado". O `auto_explain` que
+revelou os dois planos ficou **declarado** no `docker/docker-compose.yml` do armazém (limiar de
+30 s): a próxima instrução lenta deixa o plano executado no `docker logs`, sem rodada de
+instrumentação.
 
 **Identidade do vínculo pai é textual na limpeza (17/09/2026).** `classification.sql` resolve a
 referência ao pai por `p.cleaned_payload->>chave = valor_do_filho`, enquanto a comparação entre
