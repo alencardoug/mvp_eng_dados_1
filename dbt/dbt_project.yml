@@ -73,6 +73,9 @@ models:
     +persist_docs:
       relation: true
       columns: true
+    # Estatística fresca antes do próximo modelo ler a tabela: sem isto duas
+    # fatos de 7 mil linhas levavam 11 e 4 min no build (macro e pendências §5).
+    +post-hook: "{{ analisar_apos_materializar() }}"
     staging:
       +schema: staging
       +materialized: view
