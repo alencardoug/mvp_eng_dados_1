@@ -343,3 +343,106 @@ avisos de marcador desconhecido; o comando acima é a repetição com a configur
 - Os bancos efêmeros foram removidos pelas fixtures. A cópia mutante e as sondas ficaram
   em `/tmp`; a única alteração versionável desta revisão é este parecer.
 - A confirmação da correção funcional não é aceite da Etapa 10 pelo Owner.
+
+---
+
+### Parecer do revisor — Codex, 17/09/2026, sétima rodada
+
+**RV10-5-01 resolvido, incluindo a cobertura de regressão. Sem novos achados no intervalo
+revisado.** Conferido `b9523f1..6050cd5`: implementação em `eb6f176` e resposta do autor em
+`6050cd5`, com a árvore limpa ao início. Os pareceres anteriores permanecem históricos.
+
+Revisei integralmente a extração de `_conferir_diario`, o adaptador `_veredito_do_diario`
+e a materialização da seleção no armazém efêmero. O ciclo real e as contraprovas passam
+pelo mesmo desvio de elegibilidade e pela mesma validação. O salto é convertido em valor
+nas contraprovas, portanto sua ocorrência indevida faz a asserção falhar em vez de pular
+o próprio teste. A seleção usa o modelo gerado com a captura explícita, e as referências
+apontam para a tabela materializada. Nenhum código de produção mudou nesta entrega.
+
+### Evidências da sétima rodada
+
+**EV10-7-01 — suíte existente.** Comando:
+`PYTEST_ADDOPTS='--tb=short -rs' make test`, sem `FATO=1` nem `CARGA=1`.
+Recorte literal de `/tmp/mvp_ed1-revisao7-tests.log`:
+
+```text
+.......................s.....................................s.......... [ 28%]
+........................................sss................sss.......... [ 56%]
+........................................................................ [ 84%]
+.......................................                                  [100%]
+247 passed, 8 skipped in 162.08s (0:02:42)
+```
+
+Os oito motivos de salto permanecem os de EV10-5-01: dois dependem de carga ou escrita
+na fato e seis da correspondência com o lote íntegro do manifesto. O ciclo efêmero e o
+teste do diário real passaram, sem salto.
+
+**EV10-7-02 — a contraprova agora detecta a regressão.** Copiei o arquivo vigente para
+`/tmp/test_legado_remocao_rv7_mutante.py` e repeti a única alteração de EV10-6-03, agora
+no helper compartilhado:
+
+```diff
+-    if anterior is None:
++    if not intervalo or anterior is None:
+```
+
+Com o ambiente local carregado, executei:
+
+```bash
+PYTHONPATH=/home/doug/Projetos/mvp_ed1/tests .venv/bin/pytest -c pyproject.toml -q --tb=short -rs /tmp/test_legado_remocao_rv7_mutante.py -k 'o_ciclo_inteiro or as_mutacoes_do_diario'
+```
+
+Recortes literais de `/tmp/mvp_ed1-revisao7-mutante.log`:
+
+```text
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario ______
+/tmp/test_legado_remocao_rv7_mutante.py:532: in test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario
+    assert _veredito_do_diario(conexao, diario) == (
+E   AssertionError: assert ('salto', 'se... certificada') == ('falha', [('...rands', '1')])
+E
+E     At index 0 diff: 'salto' != 'falha'
+E     Use -v to get more diff
+```
+
+```text
+1 failed, 1 passed, 53 deselected in 3.66s
+```
+
+**Falha esperada**, com código de saída 1: o ciclo efêmero detecta a volta do salto por
+intervalo inteiramente vazio. Na sexta rodada os mesmos dois testes passavam com essa
+mutação; agora a contraprova versionada protege o caminho corrigido. O arquivo original
+não foi alterado pela sonda.
+
+**EV10-7-03 — fluxo completo preservado após a extração.** Repeti
+`.venv/bin/python /tmp/mvp_ed1-revisao6-consumidor.py` contra o código vigente. A sonda
+mantém as asserções da sexta rodada, executa os modelos em bancos efêmeros e chama o teste
+do diário completo. Recortes literais de `/tmp/mvp_ed1-revisao7-consumidor.log`:
+
+```json
+{"scenario": "primeira_certificada", "selected": 861, "cycle_current": {"status": "SKIP", "detail": "sem intervalo: a captura 861 não tem anterior certificada"}}
+{"scenario": "integro", "certified_interval": [861, 862], "interval_rows": 2, "cycle_base": {"status": "PASS"}, "cycle_current": {"status": "PASS"}}
+{"scenario": "par_materializado_divergente", "certified_interval": [861, 862], "interval_rows": 2, "cycle_base": {"status": "PASS"}, "cycle_current": {"status": "FAIL", "detail": "o intervalo materializado não é o certificado: [(861, 861)]"}}
+{"probe": "fluxo_completo", "result": "PASS"}
+```
+
+A sonda também confirmou falha para omissão parcial e total do intervalo; os registros
+completos estão no mesmo log. O `FAIL` do par adulterado é esperado. O primeiro caso
+preserva o salto legítimo sem anterior, e o segundo confirma o caminho íntegro.
+
+### Situação após a sétima rodada
+
+| # | Veredito original | Situação conferida |
+|---|---|---|
+| RV10-5-01 | `ajuste` | **Resolvido tecnicamente.** Elegibilidade independente do intervalo e validação compartilhada confirmadas; a contraprova versionada agora falha ao reintroduzir o salto indevido. Nenhum ajuste remanescente deste achado. |
+
+### Limites da sétima rodada
+
+- Não repeti `make dbt-build`, Airbyte real, DAG, interrupção de job, `FATO=1`, `CARGA=1`
+  nem o bloco da D44. O `PASS=891` histórico não é medição desta rodada.
+- Não remedi custo da macro, planos de execução ou paridade com BigQuery; as ressalvas
+  anteriores sobre esses pontos permanecem.
+- As injeções de falha ficaram nos bancos efêmeros, removidos pelas fixtures, e na cópia
+  em `/tmp`. A única alteração versionável desta revisão é este parecer.
+- O encerramento técnico de RV10-5-01 não presume o aceite formal da Etapa 10 pelo Owner.
