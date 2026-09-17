@@ -76,7 +76,7 @@ A sequência abaixo leva de um repositório recém-clonado até as views de cons
 | 8 | `make stream-produce` | Executa o produtor de eventos de estoque; `LIMITE=`, `SEED=` | Etapa 7 |
 | 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
 | 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
-| 11 | `make check` | Verificação completa em três etapas, parando na primeira falha: revisão de segredos e `.gitignore`, `dbt build` (modelos, testes de dados, reconciliações), `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 17/09/2026: 4 min 27 s | Etapa 11 |
+| 11 | `make check` | Verificação completa em quatro etapas, parando na primeira falha: revisão de segredos e `.gitignore`, `dbt build` (modelos, testes de dados, reconciliações), classificação derivada em dia com os modelos, `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 17/09/2026: 4 min 27 s (antes da quarta etapa, que custa ~20 s) | Etapa 11 |
 
 ### 3.1 Parâmetros do gerador
 
@@ -183,7 +183,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
 | `make migrate-legacy-down` / `-status` / `-new` | O mesmo ciclo para o schema legado (`alembic -n legacy`) | Etapa 10 |
-| `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração | Etapa 3 |
+| `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração, e a classificação de sensibilidade derivada nos `.yml` do dbt (precisa do `manifest` de um `make dbt-build` recente) | Etapa 3 · 11 |
 | `make dbt-drop-snapshots` | **Destrói** o histórico SCD; só depois de regerar a origem | Etapa 5 |
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
 | `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |

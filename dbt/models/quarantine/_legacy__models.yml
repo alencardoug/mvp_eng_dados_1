@@ -39,6 +39,8 @@ models:
     description: Valores de negócio recebidos, sem alteração; pode conter dados pessoais sintéticos.
     meta:
       sensitivity: personal
+      sensitivity_reason: 'linha inteira em JSON: classificada como pessoal por regra, em toda tabela,
+        porque a linhagem por coluna não vê o que um payload carrega'
   - name: source_table
     description: Tabela de origem da ocorrência.
     meta:
@@ -61,6 +63,8 @@ models:
     description: Valores após conversão; inválidos preservados, nunca preenchidos por adivinhação.
     meta:
       sensitivity: personal
+      sensitivity_reason: 'linha inteira em JSON: classificada como pessoal por regra, em toda tabela,
+        porque a linhagem por coluna não vê o que um payload carrega'
   - name: classification
     description: Saída exclusiva da ocorrência, depois de todos os achados.
     meta:
@@ -89,6 +93,8 @@ models:
       sintéticos.
     meta:
       sensitivity: personal
+      sensitivity_reason: 'linha inteira em JSON: classificada como pessoal por regra, em toda tabela,
+        porque a linhagem por coluna não vê o que um payload carrega'
   data_tests:
   - dbt_utils.unique_combination_of_columns:
       arguments:

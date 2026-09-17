@@ -1,0 +1,618 @@
+# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
+# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
+# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+
+version: 2
+models:
+- name: stg_retail__goods_receipt_items
+  columns:
+  - name: goods_receipt_item_id
+    meta:
+      sensitivity: internal
+  - name: goods_receipt_id
+    meta:
+      sensitivity: internal
+  - name: purchase_order_item_id
+    meta:
+      sensitivity: internal
+  - name: quantity_received
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    meta:
+      sensitivity: confidential
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__goods_receipts
+  columns:
+  - name: goods_receipt_id
+    meta:
+      sensitivity: internal
+  - name: receipt_number
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: received_at
+    meta:
+      sensitivity: internal
+  - name: goods_receipt_status
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__inventory_balances
+  columns:
+  - name: inventory_balance_id
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity_on_hand
+    meta:
+      sensitivity: internal
+  - name: quantity_reserved
+    meta:
+      sensitivity: internal
+  - name: quantity_available
+    meta:
+      sensitivity: internal
+  - name: last_movement_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__inventory_movements
+  columns:
+  - name: movement_id
+    meta:
+      sensitivity: internal
+  - name: event_sequence
+    meta:
+      sensitivity: internal
+  - name: idempotency_key
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: movement_type
+    meta:
+      sensitivity: internal
+  - name: quantity_delta
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    meta:
+      sensitivity: confidential
+  - name: source_type
+    meta:
+      sensitivity: internal
+  - name: source_id
+    meta:
+      sensitivity: internal
+  - name: correlation_id
+    meta:
+      sensitivity: internal
+  - name: causation_id
+    meta:
+      sensitivity: internal
+  - name: aggregate_version
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: recorded_at
+    meta:
+      sensitivity: internal
+  - name: schema_version
+    meta:
+      sensitivity: internal
+  - name: event_metadata
+    meta:
+      sensitivity: internal
+  - name: arrived_by_stream
+    meta:
+      sensitivity: internal
+  - name: arrived_by_batch
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__payment_methods
+  columns:
+  - name: payment_method_id
+    meta:
+      sensitivity: internal
+  - name: payment_method_code
+    meta:
+      sensitivity: public
+  - name: payment_method_name
+    meta:
+      sensitivity: public
+  - name: method_type
+    meta:
+      sensitivity: public
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__payment_transactions
+  columns:
+  - name: payment_transaction_id
+    meta:
+      sensitivity: internal
+  - name: transaction_code
+    meta:
+      sensitivity: internal
+  - name: payment_id
+    meta:
+      sensitivity: internal
+  - name: transaction_type
+    meta:
+      sensitivity: internal
+  - name: transaction_result
+    meta:
+      sensitivity: internal
+  - name: transaction_amount
+    meta:
+      sensitivity: confidential
+  - name: gateway_response_code
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__payments
+  columns:
+  - name: payment_id
+    meta:
+      sensitivity: internal
+  - name: payment_code
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: payment_method_id
+    meta:
+      sensitivity: public
+  - name: payment_status
+    meta:
+      sensitivity: internal
+  - name: payment_amount
+    meta:
+      sensitivity: confidential
+  - name: currency
+    meta:
+      sensitivity: public
+  - name: installments
+    meta:
+      sensitivity: public
+  - name: authorized_at
+    meta:
+      sensitivity: internal
+  - name: captured_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__purchase_order_items
+  columns:
+  - name: purchase_order_item_id
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity_ordered
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    meta:
+      sensitivity: confidential
+  - name: total_cost
+    meta:
+      sensitivity: confidential
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__purchase_orders
+  columns:
+  - name: purchase_order_id
+    meta:
+      sensitivity: internal
+  - name: po_number
+    meta:
+      sensitivity: internal
+  - name: supplier_id
+    meta:
+      sensitivity: internal
+  - name: purchase_order_status
+    meta:
+      sensitivity: internal
+  - name: ordered_at
+    meta:
+      sensitivity: internal
+  - name: expected_at
+    meta:
+      sensitivity: internal
+  - name: currency
+    meta:
+      sensitivity: public
+  - name: purchase_order_total_amount
+    meta:
+      sensitivity: confidential
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__refunds
+  columns:
+  - name: refund_id
+    meta:
+      sensitivity: internal
+  - name: refund_code
+    meta:
+      sensitivity: internal
+  - name: payment_transaction_id
+    meta:
+      sensitivity: internal
+  - name: refund_amount
+    meta:
+      sensitivity: confidential
+  - name: refund_reason
+    meta:
+      sensitivity: internal
+  - name: refund_status
+    meta:
+      sensitivity: internal
+  - name: refunded_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__shipment_items
+  columns:
+  - name: shipment_item_id
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: order_item_id
+    meta:
+      sensitivity: internal
+  - name: quantity_shipped
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__shipments
+  columns:
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: shipment_code
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: carrier_id
+    meta:
+      sensitivity: public
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: shipment_status
+    meta:
+      sensitivity: internal
+  - name: tracking_code
+    meta:
+      sensitivity: internal
+  - name: freight_amount
+    meta:
+      sensitivity: confidential
+  - name: shipped_at
+    meta:
+      sensitivity: internal
+  - name: estimated_delivery_at
+    meta:
+      sensitivity: public
+  - name: delivered_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__stock_reservations
+  columns:
+  - name: stock_reservation_id
+    meta:
+      sensitivity: internal
+  - name: reservation_code
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: cart_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: quantity_reserved
+    meta:
+      sensitivity: internal
+  - name: reservation_status
+    meta:
+      sensitivity: internal
+  - name: expires_at
+    meta:
+      sensitivity: internal
+  - name: released_at
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__suppliers
+  columns:
+  - name: supplier_id
+    meta:
+      sensitivity: internal
+  - name: supplier_code
+    meta:
+      sensitivity: internal
+  - name: supplier_legal_name
+    meta:
+      sensitivity: confidential
+  - name: supplier_trade_name
+    meta:
+      sensitivity: public
+  - name: supplier_document
+    meta:
+      sensitivity: confidential
+  - name: supplier_contact_email
+    meta:
+      sensitivity: personal
+  - name: supplier_country
+    meta:
+      sensitivity: public
+  - name: payment_terms_days
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal
+- name: stg_retail__warehouses
+  columns:
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: warehouse_code
+    meta:
+      sensitivity: public
+  - name: warehouse_name
+    meta:
+      sensitivity: public
+  - name: warehouse_city
+    meta:
+      sensitivity: public
+  - name: warehouse_state
+    meta:
+      sensitivity: public
+  - name: warehouse_country
+    meta:
+      sensitivity: public
+  - name: capacity_units
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: source_deleted_at
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: ingested_at
+    meta:
+      sensitivity: internal

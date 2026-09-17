@@ -1,0 +1,341 @@
+# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
+# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
+# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+
+version: 2
+snapshots:
+- name: scd_coupon
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: coupon_id
+    meta:
+      sensitivity: internal
+  - name: coupon_code
+    meta:
+      sensitivity: public
+  - name: campaign_id
+    meta:
+      sensitivity: public
+  - name: campaign_code
+    meta:
+      sensitivity: public
+  - name: campaign_name
+    meta:
+      sensitivity: public
+  - name: campaign_objective
+    meta:
+      sensitivity: public
+  - name: discount_type
+    meta:
+      sensitivity: public
+  - name: discount_value
+    meta:
+      sensitivity: confidential
+  - name: min_order_amount
+    meta:
+      sensitivity: public
+  - name: max_redemptions
+    meta:
+      sensitivity: internal
+  - name: coupon_valid_from
+    meta:
+      sensitivity: public
+  - name: coupon_valid_to
+    meta:
+      sensitivity: public
+  - name: coupon_is_active
+    meta:
+      sensitivity: internal
+  - name: redemption_count
+    meta:
+      sensitivity: internal
+  - name: redeemed_discount_amount
+    meta:
+      sensitivity: confidential
+  - name: first_redeemed_at
+    meta:
+      sensitivity: internal
+  - name: last_redeemed_at
+    meta:
+      sensitivity: internal
+  - name: is_exhausted
+    meta:
+      sensitivity: internal
+  - name: is_redeemable_now
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_scd_id
+    meta:
+      sensitivity: internal
+  - name: dbt_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_from
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_to
+    meta:
+      sensitivity: internal
+- name: scd_customer
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: customer_code
+    meta:
+      sensitivity: internal
+  - name: first_name
+    meta:
+      sensitivity: personal
+  - name: last_name
+    meta:
+      sensitivity: personal
+  - name: customer_full_name
+    meta:
+      sensitivity: personal
+  - name: customer_document
+    meta:
+      sensitivity: personal
+  - name: birth_date
+    meta:
+      sensitivity: personal
+  - name: customer_status
+    meta:
+      sensitivity: internal
+  - name: registered_at
+    meta:
+      sensitivity: internal
+  - name: customer_segment_id
+    meta:
+      sensitivity: internal
+  - name: customer_segment_code
+    meta:
+      sensitivity: public
+  - name: customer_segment_name
+    meta:
+      sensitivity: public
+  - name: city
+    meta:
+      sensitivity: public
+  - name: state_code
+    meta:
+      sensitivity: public
+  - name: country
+    meta:
+      sensitivity: public
+  - name: first_order_at
+    meta:
+      sensitivity: internal
+  - name: last_order_at
+    meta:
+      sensitivity: internal
+  - name: order_count
+    meta:
+      sensitivity: internal
+  - name: lifetime_net_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: second_order_at
+    meta:
+      sensitivity: internal
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_repeat_buyer
+    meta:
+      sensitivity: internal
+  - name: is_churned
+    meta:
+      sensitivity: internal
+  - name: days_since_last_order
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_scd_id
+    meta:
+      sensitivity: internal
+  - name: dbt_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_from
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_to
+    meta:
+      sensitivity: internal
+- name: scd_product
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: sku
+    meta:
+      sensitivity: public
+  - name: variant_size
+    meta:
+      sensitivity: public
+  - name: variant_color
+    meta:
+      sensitivity: public
+  - name: variant_package
+    meta:
+      sensitivity: public
+  - name: barcode
+    meta:
+      sensitivity: public
+  - name: weight_grams
+    meta:
+      sensitivity: public
+  - name: variant_is_active
+    meta:
+      sensitivity: internal
+  - name: product_id
+    meta:
+      sensitivity: internal
+  - name: product_code
+    meta:
+      sensitivity: public
+  - name: product_name
+    meta:
+      sensitivity: public
+  - name: product_status
+    meta:
+      sensitivity: internal
+  - name: launched_at
+    meta:
+      sensitivity: public
+  - name: product_category_id
+    meta:
+      sensitivity: internal
+  - name: leaf_category_name
+    meta:
+      sensitivity: public
+  - name: sub_category_name
+    meta:
+      sensitivity: public
+  - name: root_category_name
+    meta:
+      sensitivity: public
+  - name: category_depth
+    meta:
+      sensitivity: public
+  - name: brand_id
+    meta:
+      sensitivity: internal
+  - name: brand_name
+    meta:
+      sensitivity: public
+  - name: brand_country
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: variant_is_deleted
+    meta:
+      sensitivity: internal
+  - name: product_is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_scd_id
+    meta:
+      sensitivity: internal
+  - name: dbt_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_from
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_to
+    meta:
+      sensitivity: internal
+- name: scd_support_agent
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: support_agent_id
+    meta:
+      sensitivity: internal
+  - name: agent_code
+    meta:
+      sensitivity: internal
+  - name: agent_first_name
+    meta:
+      sensitivity: personal
+  - name: agent_last_name
+    meta:
+      sensitivity: personal
+  - name: agent_full_name
+    meta:
+      sensitivity: personal
+  - name: agent_email
+    meta:
+      sensitivity: personal
+  - name: agent_team
+    meta:
+      sensitivity: public
+  - name: hired_at
+    meta:
+      sensitivity: internal
+  - name: agent_is_active
+    meta:
+      sensitivity: internal
+  - name: handled_ticket_count
+    meta:
+      sensitivity: internal
+  - name: handled_event_count
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_scd_id
+    meta:
+      sensitivity: internal
+  - name: dbt_updated_at
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_from
+    meta:
+      sensitivity: internal
+  - name: dbt_valid_to
+    meta:
+      sensitivity: internal

@@ -19,29 +19,53 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: channel_type
+        meta:
+          sensitivity: public
         data_type: text
       - name: root_category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: unit_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: gross_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: discount_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
 
   - name: average_order_value_by_channel_and_segment
@@ -50,21 +74,37 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: customer_segment_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: average_order_value
+        meta:
+          sensitivity: confidential
         description: Não aditiva — razão entre as duas colunas anteriores.
         data_type: numeric
 
@@ -74,30 +114,54 @@ models:
       contract: {enforced: true}
     columns:
       - name: revenue_rank
+        meta:
+          sensitivity: confidential
         data_type: bigint
         constraints: [{type: not_null}]
       - name: product_natural_key
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: sku
+        meta:
+          sensitivity: public
         data_type: text
       - name: product_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: root_category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: brand_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: is_deleted
+        meta:
+          sensitivity: internal
         description: SKU saiu do catálogo; a venda histórica dele continua contando (ADR-0029).
         data_type: boolean
       - name: unit_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: category_net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: category_revenue_share_pct
+        meta:
+          sensitivity: confidential
         description: Não aditiva — só se soma dentro da mesma categoria.
         data_type: numeric
 
@@ -107,21 +171,37 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: customer_segment_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: new_customer_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: returning_customer_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: repeat_purchase_rate_pct
+        meta:
+          sensitivity: internal
         description: Não aditiva.
         data_type: numeric
 
@@ -131,27 +211,49 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: quarter_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_quarter
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: region
+        meta:
+          sensitivity: public
         data_type: text
       - name: state_code
+        meta:
+          sensitivity: public
         data_type: text
       - name: state_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: customer_version_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: unit_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
 
   - name: discount_share_by_channel
@@ -160,27 +262,49 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: channel_type
+        meta:
+          sensitivity: public
         data_type: text
       - name: root_category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: gross_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: discount_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: discount_share_pct
+        meta:
+          sensitivity: confidential
         description: Não aditiva.
         data_type: numeric
 
@@ -190,34 +314,58 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         description: Mês em que o **carrinho foi criado**, não em que converteu.
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: channel_type
+        meta:
+          sensitivity: public
         data_type: text
       - name: cart_count
+        meta:
+          sensitivity: internal
         description: Carrinhos abertos — topo do funil.
         data_type: bigint
       - name: closed_cart_count
+        meta:
+          sensitivity: internal
         description: Denominador da conversão. Carrinho ainda aberto não entra.
         data_type: bigint
       - name: converted_cart_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: abandoned_cart_count
+        meta:
+          sensitivity: internal
         description: '{{ doc("abandoned_cart") }}'
         data_type: bigint
       - name: cart_conversion_rate_pct
+        meta:
+          sensitivity: internal
         description: Não aditiva.
         data_type: numeric
       - name: cart_value_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: abandoned_value_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
 
   # ── Etapa 6: financeiro e estoque ─────────────────────────────────────────
@@ -231,26 +379,48 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: root_category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: cost_of_goods_sold
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: gross_profit_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: gross_margin_pct
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: unit_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: dispatched_unit_count
+        meta:
+          sensitivity: internal
         data_type: bigint
   - name: inventory_turnover_by_sku_and_warehouse
     description: >
@@ -261,30 +431,56 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: quarter_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_quarter
+        meta:
+          sensitivity: internal
         data_type: text
       - name: sku
+        meta:
+          sensitivity: public
         data_type: text
       - name: product_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: warehouse_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: warehouse_region
+        meta:
+          sensitivity: public
         data_type: text
       - name: quantity_out
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: cost_of_goods_sold
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: quantity_on_hand
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: inventory_value_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: inventory_turnover
+        meta:
+          sensitivity: confidential
         data_type: numeric
   - name: payment_approval_rate_by_method
     description: >
@@ -294,28 +490,52 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: payment_method_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: method_type
+        meta:
+          sensitivity: public
         data_type: text
       - name: installments
+        meta:
+          sensitivity: public
         data_type: integer
       - name: is_instalment_plan
+        meta:
+          sensitivity: public
         data_type: boolean
       - name: authorization_attempt_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: approved_authorization_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: approval_rate_pct
+        meta:
+          sensitivity: internal
         data_type: numeric
       - name: authorized_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: captured_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
   - name: refund_rate_by_reason
     description: >
@@ -324,22 +544,40 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: payment_method_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: refund_reason
+        meta:
+          sensitivity: internal
         data_type: text
       - name: refund_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: refunded_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: captured_amount
+        meta:
+          sensitivity: confidential
         data_type: numeric
       - name: refund_rate_pct
+        meta:
+          sensitivity: confidential
         data_type: numeric
 
   # ── Etapa 7: estoque em tempo real ────────────────────────────────────────
@@ -353,47 +591,81 @@ models:
       contract: {enforced: true}
     columns:
       - name: warehouse_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: warehouse_region
+        meta:
+          sensitivity: public
         data_type: text
       - name: sku
+        meta:
+          sensitivity: public
         data_type: text
       - name: product_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: brand_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: quantity_on_hand
+        meta:
+          sensitivity: internal
         description: >
           **Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.
           Fotografia não se empilha.
         data_type: integer
       - name: quantity_reserved
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: quantity_available
+        meta:
+          sensitivity: internal
         description: '{{ doc("stock_availability") }}'
         data_type: integer
       - name: quantity_from_batch
+        meta:
+          sensitivity: internal
         description: Parcela do saldo já absorvida pela fato — o caminho frio.
         data_type: integer
       - name: quantity_from_stream
+        meta:
+          sensitivity: internal
         description: Parcela ainda só no caminho quente, que a próxima execução do dbt absorve.
         data_type: integer
       - name: stream_movement_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: reorder_point
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: is_stockout
+        meta:
+          sensitivity: internal
         description: '{{ doc("stockout") }}'
         data_type: boolean
       - name: daily_demand_units
+        meta:
+          sensitivity: internal
         description: Demanda diária média na janela de cobertura; só venda entra.
         data_type: numeric
       - name: days_of_cover
+        meta:
+          sensitivity: internal
         description: '{{ doc("days_of_cover") }}'
         data_type: numeric
       - name: last_movement_at
+        meta:
+          sensitivity: internal
         data_type: timestamp with time zone
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
@@ -409,39 +681,69 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: carrier_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: service_level
+        meta:
+          sensitivity: public
         description: '{{ doc("promised_lead_time") }}'
         data_type: text
       - name: warehouse_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: warehouse_region
+        meta:
+          sensitivity: public
         data_type: text
       - name: delivered_count
+        meta:
+          sensitivity: internal
         description: Denominador — remessas **entregues**, não despachadas.
         data_type: bigint
       - name: on_time_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: late_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: split_order_shipment_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: on_time_rate
+        meta:
+          sensitivity: internal
         description: '{{ doc("on_time_delivery") }}'
         data_type: numeric
       - name: avg_delay_days_when_late
+        meta:
+          sensitivity: internal
         description: '**Não aditiva** — média sobre as atrasadas; positivo é atraso.'
         data_type: numeric
       - name: avg_transit_days
+        meta:
+          sensitivity: internal
         data_type: numeric
       - name: failed_attempt_count
+        meta:
+          sensitivity: public
         data_type: numeric
 
   - name: order_to_delivery_time_by_region
@@ -453,34 +755,60 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: region
+        meta:
+          sensitivity: public
         data_type: text
       - name: state_code
+        meta:
+          sensitivity: public
         data_type: text
       - name: service_level
+        meta:
+          sensitivity: public
         description: Modalidade da remessa que **fechou** o ciclo.
         data_type: text
       - name: carrier_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: split_order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: shipment_count
+        meta:
+          sensitivity: internal
         data_type: numeric
       - name: avg_order_to_delivery_days
+        meta:
+          sensitivity: internal
         description: '{{ doc("order_to_delivery_cycle") }}'
         data_type: numeric
       - name: median_order_to_delivery_days
+        meta:
+          sensitivity: internal
         description: A mediana ao lado da média separa operação lenta de operação irregular.
         data_type: numeric
       - name: max_order_to_delivery_days
+        meta:
+          sensitivity: internal
         data_type: numeric
 
   # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
@@ -495,34 +823,62 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: channel_type
+        meta:
+          sensitivity: public
         data_type: text
       - name: support_category_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: support_category_group
+        meta:
+          sensitivity: public
         data_type: text
       - name: ticket_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: high_priority_ticket_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: reopened_ticket_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: solved_first_time_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: channel_order_count
+        meta:
+          sensitivity: internal
         description: Denominador do **canal**, repetido em cada linha de categoria.
         data_type: numeric
       - name: tickets_per_hundred_orders
+        meta:
+          sensitivity: internal
         data_type: numeric
       - name: avg_hours_to_resolution
+        meta:
+          sensitivity: internal
         description: '**Não aditiva** — média por chamado aberto no mês.'
         data_type: numeric
 
@@ -534,31 +890,51 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: month_number
+        meta:
+          sensitivity: internal
         data_type: integer
       - name: year_month
+        meta:
+          sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
+        meta:
+          sensitivity: public
         data_type: text
       - name: has_support_ticket
+        meta:
+          sensitivity: internal
         description: A linha `false` é o grupo de comparação, uma por mês e canal.
         data_type: boolean
       - name: support_category_name
+        meta:
+          sensitivity: public
         description: '"Sem chamado" no grupo de comparação.'
         data_type: text
       - name: order_count
+        meta:
+          sensitivity: internal
         description: >
           Pedidos com janela fechada. Um pedido que gerou chamados de duas
           categorias aparece nas duas linhas — somar entre categorias o conta
           duas vezes.
         data_type: bigint
       - name: repeat_order_count
+        meta:
+          sensitivity: internal
         data_type: bigint
       - name: repeat_purchase_rate
+        meta:
+          sensitivity: internal
         description: '{{ doc("post_order_repeat_purchase") }}'
         data_type: numeric
       - name: avg_days_to_next_order
+        meta:
+          sensitivity: internal
         description: '**Não aditiva** — média entre os que voltaram.'
         data_type: numeric

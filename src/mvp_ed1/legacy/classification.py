@@ -151,8 +151,17 @@ def generate(
 
 def metadata_files(root: Path) -> dict[Path, str]:
     """Metadados derivados junto com o SQL; payload misto inclui dados pessoais."""
+    #: Coluna JSON com a linha inteira: a linhagem por coluna não vê o que ela
+    #: carrega, e a regra é classificar no nível mais alto — `personal` — em toda
+    #: tabela, mesmo naquelas cujas colunas não chegam a isso. A justificativa
+    #: fica no `.yml` (`sensitivity_reason`), que é o que `models/sensitivity.py`
+    #: exige de toda declaração à mão mais estrita que a derivada.
+    PAYLOAD = "linha inteira em JSON: classificada como pessoal por regra, em toda tabela, porque a linhagem por coluna não vê o que um payload carrega"
+
     def column(name, description, sensitivity="internal", tests=None):
         value = {"name": str(name), "description": description, "meta": {"sensitivity": sensitivity}}
+        if sensitivity == "personal" and str(name).endswith(("payload", "payloads", "findings")):
+            value["meta"]["sensitivity_reason"] = PAYLOAD
         if tests:
             value["data_tests"] = tests
         return value

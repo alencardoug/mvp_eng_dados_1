@@ -15,12 +15,19 @@ seeds:
         state_code: varchar(2)
     columns:
       - name: state_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: region
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul]
+      - name: state_name
+        meta:
+          sensitivity: public
 
   - name: order_status_transitions
     description: >
@@ -38,15 +45,25 @@ seeds:
         to_status: varchar(16)
     columns:
       - name: to_status
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: from_status
+        meta:
+          sensitivity: public
         description: Vazio na transição inicial — o pedido não vem de estado nenhum.
         data_tests:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, '']
+      - name: is_initial
+        meta:
+          sensitivity: public
+      - name: description
+        meta:
+          sensitivity: public
 
   - name: support_categories
     description: >
@@ -63,12 +80,21 @@ seeds:
         category_code: varchar(20)
     columns:
       - name: category_code
+        meta:
+          sensitivity: public
         data_tests:
           - unique
           - not_null
           - accepted_values:
               values: [delivery, payment, product, return, account, other]
       - name: category_name
+        meta:
+          sensitivity: public
         data_tests: [not_null]
       - name: category_group
+        meta:
+          sensitivity: public
         data_tests: [not_null]
+      - name: description
+        meta:
+          sensitivity: public

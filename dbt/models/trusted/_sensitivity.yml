@@ -1,0 +1,1684 @@
+# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
+# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
+# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+
+version: 2
+models:
+- name: campaigns
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: campaign_id
+    meta:
+      sensitivity: internal
+  - name: campaign_code
+    meta:
+      sensitivity: public
+  - name: campaign_name
+    meta:
+      sensitivity: public
+  - name: campaign_objective
+    meta:
+      sensitivity: public
+  - name: campaign_valid_from
+    meta:
+      sensitivity: public
+  - name: campaign_valid_to
+    meta:
+      sensitivity: public
+  - name: budget_amount
+    meta:
+      sensitivity: confidential
+  - name: campaign_is_active
+    meta:
+      sensitivity: internal
+  - name: is_running
+    meta:
+      sensitivity: public
+  - name: is_finished
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: carriers
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: carrier_id
+    meta:
+      sensitivity: internal
+  - name: carrier_code
+    meta:
+      sensitivity: public
+  - name: carrier_name
+    meta:
+      sensitivity: public
+  - name: service_level
+    meta:
+      sensitivity: public
+  - name: service_level_rank
+    meta:
+      sensitivity: internal
+  - name: tracking_url_template
+    meta:
+      sensitivity: public
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: cart_lifecycle_events
+  columns:
+  - name: cart_event_key
+    meta:
+      sensitivity: internal
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: cart_id
+    meta:
+      sensitivity: internal
+  - name: event_type
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: event_date
+    meta:
+      sensitivity: internal
+  - name: cart_created_date
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    meta:
+      sensitivity: public
+  - name: item_count
+    meta:
+      sensitivity: internal
+  - name: unit_count
+    meta:
+      sensitivity: internal
+  - name: cart_value_amount
+    meta:
+      sensitivity: confidential
+  - name: is_anonymous
+    meta:
+      sensitivity: internal
+  - name: is_converted
+    meta:
+      sensitivity: internal
+  - name: is_abandoned
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+- name: carts
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: cart_id
+    meta:
+      sensitivity: internal
+  - name: cart_code
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    meta:
+      sensitivity: public
+  - name: cart_status
+    meta:
+      sensitivity: internal
+  - name: cart_created_at
+    meta:
+      sensitivity: internal
+  - name: cart_expires_at
+    meta:
+      sensitivity: internal
+  - name: cart_converted_at
+    meta:
+      sensitivity: internal
+  - name: item_count
+    meta:
+      sensitivity: internal
+  - name: unit_count
+    meta:
+      sensitivity: internal
+  - name: cart_value_amount
+    meta:
+      sensitivity: confidential
+  - name: first_item_added_at
+    meta:
+      sensitivity: internal
+  - name: is_anonymous
+    meta:
+      sensitivity: internal
+  - name: is_converted
+    meta:
+      sensitivity: internal
+  - name: is_abandoned
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: coupon_redemptions
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: coupon_redemption_id
+    meta:
+      sensitivity: internal
+  - name: coupon_id
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: coupon_discount_amount
+    meta:
+      sensitivity: confidential
+  - name: redeemed_at
+    meta:
+      sensitivity: internal
+  - name: redemption_sequence
+    meta:
+      sensitivity: internal
+  - name: coupon_code
+    meta:
+      sensitivity: public
+  - name: campaign_id
+    meta:
+      sensitivity: public
+  - name: campaign_objective
+    meta:
+      sensitivity: public
+  - name: discount_type
+    meta:
+      sensitivity: public
+  - name: discount_value
+    meta:
+      sensitivity: confidential
+  - name: min_order_amount
+    meta:
+      sensitivity: public
+  - name: max_redemptions
+    meta:
+      sensitivity: internal
+  - name: placed_at
+    meta:
+      sensitivity: internal
+  - name: order_subtotal_amount
+    meta:
+      sensitivity: confidential
+  - name: order_total_amount
+    meta:
+      sensitivity: confidential
+  - name: is_within_validity
+    meta:
+      sensitivity: internal
+  - name: is_above_minimum
+    meta:
+      sensitivity: confidential
+  - name: is_within_limit
+    meta:
+      sensitivity: internal
+  - name: is_discount_bounded
+    meta:
+      sensitivity: confidential
+  - name: order_is_cancelled
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: coupons
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: coupon_id
+    meta:
+      sensitivity: internal
+  - name: coupon_code
+    meta:
+      sensitivity: public
+  - name: campaign_id
+    meta:
+      sensitivity: public
+  - name: campaign_code
+    meta:
+      sensitivity: public
+  - name: campaign_name
+    meta:
+      sensitivity: public
+  - name: campaign_objective
+    meta:
+      sensitivity: public
+  - name: discount_type
+    meta:
+      sensitivity: public
+  - name: discount_value
+    meta:
+      sensitivity: confidential
+  - name: min_order_amount
+    meta:
+      sensitivity: public
+  - name: max_redemptions
+    meta:
+      sensitivity: internal
+  - name: coupon_valid_from
+    meta:
+      sensitivity: public
+  - name: coupon_valid_to
+    meta:
+      sensitivity: public
+  - name: coupon_is_active
+    meta:
+      sensitivity: internal
+  - name: redemption_count
+    meta:
+      sensitivity: internal
+  - name: redeemed_discount_amount
+    meta:
+      sensitivity: confidential
+  - name: first_redeemed_at
+    meta:
+      sensitivity: internal
+  - name: last_redeemed_at
+    meta:
+      sensitivity: internal
+  - name: is_exhausted
+    meta:
+      sensitivity: internal
+  - name: is_redeemable_now
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: customers
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: customer_code
+    meta:
+      sensitivity: internal
+  - name: first_name
+    meta:
+      sensitivity: personal
+  - name: last_name
+    meta:
+      sensitivity: personal
+  - name: customer_full_name
+    meta:
+      sensitivity: personal
+  - name: customer_document
+    meta:
+      sensitivity: personal
+  - name: birth_date
+    meta:
+      sensitivity: personal
+  - name: customer_status
+    meta:
+      sensitivity: internal
+  - name: registered_at
+    meta:
+      sensitivity: internal
+  - name: customer_segment_id
+    meta:
+      sensitivity: internal
+  - name: customer_segment_code
+    meta:
+      sensitivity: public
+  - name: customer_segment_name
+    meta:
+      sensitivity: public
+  - name: city
+    meta:
+      sensitivity: public
+  - name: state_code
+    meta:
+      sensitivity: public
+  - name: country
+    meta:
+      sensitivity: public
+  - name: first_order_at
+    meta:
+      sensitivity: internal
+  - name: last_order_at
+    meta:
+      sensitivity: internal
+  - name: order_count
+    meta:
+      sensitivity: internal
+  - name: lifetime_net_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: second_order_at
+    meta:
+      sensitivity: internal
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_repeat_buyer
+    meta:
+      sensitivity: internal
+  - name: is_churned
+    meta:
+      sensitivity: internal
+  - name: days_since_last_order
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: delivery_events
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: delivery_event_id
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: delivery_event_type
+    meta:
+      sensitivity: public
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: event_location
+    meta:
+      sensitivity: public
+  - name: event_description
+    meta:
+      sensitivity: public
+  - name: is_delivery
+    meta:
+      sensitivity: public
+  - name: is_return
+    meta:
+      sensitivity: public
+  - name: is_failed_attempt
+    meta:
+      sensitivity: public
+  - name: is_pickup
+    meta:
+      sensitivity: public
+  - name: is_out_for_delivery
+    meta:
+      sensitivity: public
+  - name: event_sequence
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: geographies
+  columns:
+  - name: country
+    meta:
+      sensitivity: public
+  - name: state_code
+    meta:
+      sensitivity: public
+  - name: state_name
+    meta:
+      sensitivity: public
+  - name: region
+    meta:
+      sensitivity: public
+  - name: city
+    meta:
+      sensitivity: public
+- name: inventory_balances
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: inventory_balance_id
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity_on_hand
+    meta:
+      sensitivity: internal
+  - name: quantity_reserved
+    meta:
+      sensitivity: internal
+  - name: quantity_available
+    meta:
+      sensitivity: internal
+  - name: last_movement_at
+    meta:
+      sensitivity: internal
+  - name: rebuilt_quantity_on_hand
+    meta:
+      sensitivity: internal
+  - name: quantity_in
+    meta:
+      sensitivity: internal
+  - name: quantity_out
+    meta:
+      sensitivity: internal
+  - name: movement_count
+    meta:
+      sensitivity: internal
+  - name: balance_drift
+    meta:
+      sensitivity: internal
+  - name: active_reserved_quantity
+    meta:
+      sensitivity: internal
+  - name: reserved_drift
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: inventory_movements
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: movement_id
+    meta:
+      sensitivity: internal
+  - name: event_sequence
+    meta:
+      sensitivity: internal
+  - name: idempotency_key
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: movement_type
+    meta:
+      sensitivity: internal
+  - name: source_type
+    meta:
+      sensitivity: internal
+  - name: source_id
+    meta:
+      sensitivity: internal
+  - name: correlation_id
+    meta:
+      sensitivity: internal
+  - name: causation_id
+    meta:
+      sensitivity: internal
+  - name: aggregate_version
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: recorded_at
+    meta:
+      sensitivity: internal
+  - name: schema_version
+    meta:
+      sensitivity: internal
+  - name: event_metadata
+    meta:
+      sensitivity: internal
+  - name: is_outbound
+    meta:
+      sensitivity: internal
+  - name: is_inbound
+    meta:
+      sensitivity: internal
+  - name: is_sale
+    meta:
+      sensitivity: internal
+  - name: quantity_delta
+    meta:
+      sensitivity: internal
+  - name: quantity_in
+    meta:
+      sensitivity: internal
+  - name: quantity_out
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    meta:
+      sensitivity: confidential
+  - name: movement_cost_amount
+    meta:
+      sensitivity: confidential
+  - name: cogs_amount
+    meta:
+      sensitivity: confidential
+  - name: recording_delay_seconds
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: order_items
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: order_item_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity
+    meta:
+      sensitivity: internal
+  - name: unit_price
+    meta:
+      sensitivity: confidential
+  - name: gross_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: discount_amount
+    meta:
+      sensitivity: confidential
+  - name: net_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: tax_amount
+    meta:
+      sensitivity: confidential
+  - name: line_total_amount
+    meta:
+      sensitivity: confidential
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: order_status_events
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: order_status_event_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: from_status
+    meta:
+      sensitivity: internal
+  - name: to_status
+    meta:
+      sensitivity: internal
+  - name: changed_at
+    meta:
+      sensitivity: internal
+  - name: change_reason
+    meta:
+      sensitivity: internal
+  - name: status_sequence
+    meta:
+      sensitivity: internal
+  - name: previous_changed_at
+    meta:
+      sensitivity: internal
+  - name: hours_in_previous_status
+    meta:
+      sensitivity: internal
+  - name: is_order_creation
+    meta:
+      sensitivity: internal
+  - name: is_current_status
+    meta:
+      sensitivity: internal
+  - name: is_terminal_status
+    meta:
+      sensitivity: internal
+  - name: is_cancellation
+    meta:
+      sensitivity: internal
+  - name: is_return
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: orders
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: order_number
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    meta:
+      sensitivity: public
+  - name: cart_id
+    meta:
+      sensitivity: internal
+  - name: order_status
+    meta:
+      sensitivity: internal
+  - name: placed_at
+    meta:
+      sensitivity: internal
+  - name: currency
+    meta:
+      sensitivity: public
+  - name: subtotal_amount
+    meta:
+      sensitivity: confidential
+  - name: order_discount_amount
+    meta:
+      sensitivity: confidential
+  - name: shipping_amount
+    meta:
+      sensitivity: confidential
+  - name: order_tax_amount
+    meta:
+      sensitivity: confidential
+  - name: order_total_amount
+    meta:
+      sensitivity: confidential
+  - name: item_count
+    meta:
+      sensitivity: internal
+  - name: unit_count
+    meta:
+      sensitivity: internal
+  - name: items_gross_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: items_net_revenue_amount
+    meta:
+      sensitivity: confidential
+  - name: is_from_cart
+    meta:
+      sensitivity: internal
+  - name: is_cancelled
+    meta:
+      sensitivity: internal
+  - name: is_realised
+    meta:
+      sensitivity: internal
+  - name: next_order_at
+    meta:
+      sensitivity: internal
+  - name: days_to_next_order
+    meta:
+      sensitivity: internal
+  - name: is_repeat_window_closed
+    meta:
+      sensitivity: internal
+  - name: has_post_order_repeat
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: payment_methods
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: payment_method_id
+    meta:
+      sensitivity: internal
+  - name: payment_method_code
+    meta:
+      sensitivity: public
+  - name: payment_method_name
+    meta:
+      sensitivity: public
+  - name: method_type
+    meta:
+      sensitivity: public
+  - name: is_card
+    meta:
+      sensitivity: public
+  - name: is_instant
+    meta:
+      sensitivity: public
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: payment_transactions
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: payment_transaction_id
+    meta:
+      sensitivity: internal
+  - name: transaction_code
+    meta:
+      sensitivity: internal
+  - name: payment_id
+    meta:
+      sensitivity: internal
+  - name: transaction_type
+    meta:
+      sensitivity: internal
+  - name: transaction_result
+    meta:
+      sensitivity: internal
+  - name: transaction_amount
+    meta:
+      sensitivity: confidential
+  - name: gateway_response_code
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: is_approved
+    meta:
+      sensitivity: internal
+  - name: is_authorization
+    meta:
+      sensitivity: internal
+  - name: is_capture
+    meta:
+      sensitivity: internal
+  - name: is_refund
+    meta:
+      sensitivity: internal
+  - name: is_void
+    meta:
+      sensitivity: internal
+  - name: captured_amount
+    meta:
+      sensitivity: confidential
+  - name: authorized_amount
+    meta:
+      sensitivity: confidential
+  - name: refunded_amount
+    meta:
+      sensitivity: confidential
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: payments
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: payment_id
+    meta:
+      sensitivity: internal
+  - name: payment_code
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: payment_method_id
+    meta:
+      sensitivity: public
+  - name: payment_status
+    meta:
+      sensitivity: internal
+  - name: payment_amount
+    meta:
+      sensitivity: confidential
+  - name: currency
+    meta:
+      sensitivity: public
+  - name: installments
+    meta:
+      sensitivity: public
+  - name: authorized_at
+    meta:
+      sensitivity: internal
+  - name: captured_at
+    meta:
+      sensitivity: internal
+  - name: transaction_count
+    meta:
+      sensitivity: internal
+  - name: authorization_count
+    meta:
+      sensitivity: internal
+  - name: approved_authorization_count
+    meta:
+      sensitivity: internal
+  - name: authorized_amount
+    meta:
+      sensitivity: confidential
+  - name: captured_amount
+    meta:
+      sensitivity: confidential
+  - name: refunded_amount
+    meta:
+      sensitivity: confidential
+  - name: net_captured_amount
+    meta:
+      sensitivity: confidential
+  - name: first_authorized_at
+    meta:
+      sensitivity: internal
+  - name: first_captured_at
+    meta:
+      sensitivity: internal
+  - name: is_captured
+    meta:
+      sensitivity: internal
+  - name: is_failed
+    meta:
+      sensitivity: internal
+  - name: is_instalment_plan
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: product_skus
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: sku
+    meta:
+      sensitivity: public
+  - name: variant_size
+    meta:
+      sensitivity: public
+  - name: variant_color
+    meta:
+      sensitivity: public
+  - name: variant_package
+    meta:
+      sensitivity: public
+  - name: barcode
+    meta:
+      sensitivity: public
+  - name: weight_grams
+    meta:
+      sensitivity: public
+  - name: variant_is_active
+    meta:
+      sensitivity: internal
+  - name: product_id
+    meta:
+      sensitivity: internal
+  - name: product_code
+    meta:
+      sensitivity: public
+  - name: product_name
+    meta:
+      sensitivity: public
+  - name: product_status
+    meta:
+      sensitivity: internal
+  - name: launched_at
+    meta:
+      sensitivity: public
+  - name: product_category_id
+    meta:
+      sensitivity: internal
+  - name: leaf_category_name
+    meta:
+      sensitivity: public
+  - name: sub_category_name
+    meta:
+      sensitivity: public
+  - name: root_category_name
+    meta:
+      sensitivity: public
+  - name: category_depth
+    meta:
+      sensitivity: public
+  - name: brand_id
+    meta:
+      sensitivity: internal
+  - name: brand_name
+    meta:
+      sensitivity: public
+  - name: brand_country
+    meta:
+      sensitivity: public
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: variant_is_deleted
+    meta:
+      sensitivity: internal
+  - name: product_is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: purchase_order_items
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: purchase_order_item_id
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity_ordered
+    meta:
+      sensitivity: internal
+  - name: unit_cost
+    meta:
+      sensitivity: confidential
+  - name: ordered_cost_amount
+    meta:
+      sensitivity: confidential
+  - name: quantity_received
+    meta:
+      sensitivity: internal
+  - name: received_cost_amount
+    meta:
+      sensitivity: confidential
+  - name: quantity_outstanding
+    meta:
+      sensitivity: internal
+  - name: first_received_at
+    meta:
+      sensitivity: internal
+  - name: last_received_at
+    meta:
+      sensitivity: internal
+  - name: is_fully_received
+    meta:
+      sensitivity: internal
+  - name: is_not_received
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: purchase_orders
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: purchase_order_id
+    meta:
+      sensitivity: internal
+  - name: po_number
+    meta:
+      sensitivity: internal
+  - name: supplier_id
+    meta:
+      sensitivity: internal
+  - name: purchase_order_status
+    meta:
+      sensitivity: internal
+  - name: ordered_at
+    meta:
+      sensitivity: internal
+  - name: expected_at
+    meta:
+      sensitivity: internal
+  - name: currency
+    meta:
+      sensitivity: public
+  - name: purchase_order_total_amount
+    meta:
+      sensitivity: confidential
+  - name: item_count
+    meta:
+      sensitivity: internal
+  - name: quantity_ordered
+    meta:
+      sensitivity: internal
+  - name: quantity_received
+    meta:
+      sensitivity: internal
+  - name: items_ordered_cost_amount
+    meta:
+      sensitivity: confidential
+  - name: items_received_cost_amount
+    meta:
+      sensitivity: confidential
+  - name: is_fully_received
+    meta:
+      sensitivity: internal
+  - name: is_cancelled
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: refunds
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: refund_id
+    meta:
+      sensitivity: internal
+  - name: refund_code
+    meta:
+      sensitivity: internal
+  - name: payment_transaction_id
+    meta:
+      sensitivity: internal
+  - name: payment_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: refund_amount
+    meta:
+      sensitivity: confidential
+  - name: refund_reason
+    meta:
+      sensitivity: internal
+  - name: refund_status
+    meta:
+      sensitivity: internal
+  - name: refunded_at
+    meta:
+      sensitivity: internal
+  - name: captured_amount
+    meta:
+      sensitivity: confidential
+  - name: captured_at
+    meta:
+      sensitivity: internal
+  - name: is_completed
+    meta:
+      sensitivity: internal
+  - name: is_full_refund
+    meta:
+      sensitivity: confidential
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: sales_channels
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: sales_channel_id
+    meta:
+      sensitivity: internal
+  - name: sales_channel_code
+    meta:
+      sensitivity: public
+  - name: sales_channel_name
+    meta:
+      sensitivity: public
+  - name: channel_type
+    meta:
+      sensitivity: public
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: shipment_items
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: shipment_item_id
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: order_item_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: product_variant_id
+    meta:
+      sensitivity: internal
+  - name: quantity_shipped
+    meta:
+      sensitivity: internal
+  - name: quantity_ordered
+    meta:
+      sensitivity: internal
+  - name: shipped_share_of_line
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: shipments
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: shipment_code
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: carrier_id
+    meta:
+      sensitivity: public
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: shipment_status
+    meta:
+      sensitivity: internal
+  - name: tracking_code
+    meta:
+      sensitivity: internal
+  - name: freight_amount
+    meta:
+      sensitivity: confidential
+  - name: shipped_at
+    meta:
+      sensitivity: internal
+  - name: estimated_delivery_at
+    meta:
+      sensitivity: public
+  - name: delivered_at
+    meta:
+      sensitivity: internal
+  - name: returned_at
+    meta:
+      sensitivity: internal
+  - name: picked_up_at
+    meta:
+      sensitivity: internal
+  - name: out_for_delivery_at
+    meta:
+      sensitivity: internal
+  - name: delivered_at_projected
+    meta:
+      sensitivity: internal
+  - name: failed_attempt_count
+    meta:
+      sensitivity: public
+  - name: delivery_event_count
+    meta:
+      sensitivity: internal
+  - name: first_event_at
+    meta:
+      sensitivity: internal
+  - name: last_event_at
+    meta:
+      sensitivity: internal
+  - name: is_delivered
+    meta:
+      sensitivity: internal
+  - name: is_returned
+    meta:
+      sensitivity: internal
+  - name: is_lost
+    meta:
+      sensitivity: internal
+  - name: is_dispatched
+    meta:
+      sensitivity: internal
+  - name: is_on_time
+    meta:
+      sensitivity: internal
+  - name: delivery_delay_days
+    meta:
+      sensitivity: internal
+  - name: transit_days
+    meta:
+      sensitivity: internal
+  - name: is_delivery_unbacked
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: suppliers
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: supplier_id
+    meta:
+      sensitivity: internal
+  - name: supplier_code
+    meta:
+      sensitivity: internal
+  - name: supplier_legal_name
+    meta:
+      sensitivity: confidential
+  - name: supplier_trade_name
+    meta:
+      sensitivity: public
+  - name: supplier_document
+    meta:
+      sensitivity: confidential
+  - name: supplier_contact_email
+    meta:
+      sensitivity: personal
+  - name: supplier_country
+    meta:
+      sensitivity: public
+  - name: payment_terms_days
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: support_agents
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: support_agent_id
+    meta:
+      sensitivity: internal
+  - name: agent_code
+    meta:
+      sensitivity: internal
+  - name: agent_first_name
+    meta:
+      sensitivity: personal
+  - name: agent_last_name
+    meta:
+      sensitivity: personal
+  - name: agent_full_name
+    meta:
+      sensitivity: personal
+  - name: agent_email
+    meta:
+      sensitivity: personal
+  - name: agent_team
+    meta:
+      sensitivity: public
+  - name: hired_at
+    meta:
+      sensitivity: internal
+  - name: agent_is_active
+    meta:
+      sensitivity: internal
+  - name: handled_ticket_count
+    meta:
+      sensitivity: internal
+  - name: handled_event_count
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: support_tickets
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: support_ticket_id
+    meta:
+      sensitivity: internal
+  - name: ticket_number
+    meta:
+      sensitivity: internal
+  - name: customer_id
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: assigned_agent_id
+    meta:
+      sensitivity: internal
+  - name: ticket_category
+    meta:
+      sensitivity: public
+  - name: ticket_priority
+    meta:
+      sensitivity: internal
+  - name: ticket_status
+    meta:
+      sensitivity: internal
+  - name: ticket_subject
+    meta:
+      sensitivity: personal
+  - name: opened_at
+    meta:
+      sensitivity: internal
+  - name: closed_at
+    meta:
+      sensitivity: internal
+  - name: first_event_at
+    meta:
+      sensitivity: internal
+  - name: last_event_at
+    meta:
+      sensitivity: internal
+  - name: first_assigned_at
+    meta:
+      sensitivity: internal
+  - name: first_resolved_at
+    meta:
+      sensitivity: internal
+  - name: last_resolved_at
+    meta:
+      sensitivity: internal
+  - name: ticket_event_count
+    meta:
+      sensitivity: internal
+  - name: reopening_count
+    meta:
+      sensitivity: internal
+  - name: message_count
+    meta:
+      sensitivity: internal
+  - name: customer_message_count
+    meta:
+      sensitivity: internal
+  - name: is_closed
+    meta:
+      sensitivity: internal
+  - name: has_order
+    meta:
+      sensitivity: internal
+  - name: was_reopened
+    meta:
+      sensitivity: internal
+  - name: is_solved_first_time
+    meta:
+      sensitivity: internal
+  - name: hours_to_assignment
+    meta:
+      sensitivity: internal
+  - name: hours_to_resolution
+    meta:
+      sensitivity: internal
+  - name: hours_open
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal
+- name: ticket_events
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: ticket_event_id
+    meta:
+      sensitivity: internal
+  - name: support_ticket_id
+    meta:
+      sensitivity: internal
+  - name: support_agent_id
+    meta:
+      sensitivity: internal
+  - name: ticket_event_type
+    meta:
+      sensitivity: internal
+  - name: occurred_at
+    meta:
+      sensitivity: internal
+  - name: ticket_message
+    meta:
+      sensitivity: personal
+  - name: is_ticket_creation
+    meta:
+      sensitivity: internal
+  - name: is_assignment
+    meta:
+      sensitivity: internal
+  - name: is_message
+    meta:
+      sensitivity: internal
+  - name: is_status_change
+    meta:
+      sensitivity: internal
+  - name: is_resolution
+    meta:
+      sensitivity: internal
+  - name: is_reopening
+    meta:
+      sensitivity: internal
+  - name: is_from_customer
+    meta:
+      sensitivity: internal
+  - name: event_sequence
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+- name: warehouses
+  columns:
+  - name: source_system
+    meta:
+      sensitivity: internal
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: warehouse_code
+    meta:
+      sensitivity: public
+  - name: warehouse_name
+    meta:
+      sensitivity: public
+  - name: warehouse_city
+    meta:
+      sensitivity: public
+  - name: warehouse_state
+    meta:
+      sensitivity: public
+  - name: warehouse_state_name
+    meta:
+      sensitivity: public
+  - name: warehouse_region
+    meta:
+      sensitivity: public
+  - name: warehouse_country
+    meta:
+      sensitivity: public
+  - name: capacity_units
+    meta:
+      sensitivity: confidential
+  - name: is_active
+    meta:
+      sensitivity: internal
+  - name: is_deleted
+    meta:
+      sensitivity: internal
+  - name: source_created_at
+    meta:
+      sensitivity: internal
+  - name: source_updated_at
+    meta:
+      sensitivity: internal

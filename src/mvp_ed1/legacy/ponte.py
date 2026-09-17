@@ -35,6 +35,7 @@ from sqlalchemy.dialects import postgresql
 
 from mvp_ed1.legacy import schema
 from mvp_ed1.models import Base
+from mvp_ed1.models.sensitivity import TECHNICAL, expression_level
 
 #: Onde estão os modelos de `staging` da origem principal, de onde sai o mapa.
 ORIGEM = pathlib.Path("dbt/models/staging")
@@ -285,6 +286,36 @@ def empilhaveis() -> tuple[str, ...]:
     return tuple(t for t in schema.tabelas() if t not in SEM_CONTRAPARTE)
 
 
+def sensibilidades(tabela: str) -> list[tuple[str, str]]:
+    """`(apelido, nível)` de cada coluna da ponte, pela mesma regra da linhagem dos modelos.
+
+    A expressão de cada coluna é a do `staging` da origem principal; o nível é
+    o mais restritivo entre as colunas da origem que entram no valor
+    (`models/sensitivity.py::expression_level`), declarado uma vez nos modelos
+    SQLAlchemy. O que não é coluna da origem — metadado da captura, derivada
+    recalculada, palavra reservada — é técnico ou se resolve pela derivada.
+    """
+    origem = Base.metadata.tables[f"{Base.metadata.schema}.{tabela}"]
+    colunas = frozenset(schema.colunas(tabela))
+
+    def nivel_de(nome: str) -> str | None:
+        if nome in colunas:
+            return origem.columns[nome].info["sensitivity"]
+        if nome in FORA_DA_ORIGEM:
+            return TECHNICAL
+        derivada = _derivada(tabela, nome)
+        if derivada is not None:
+            return expression_level(derivada, nivel_de)
+        return None
+
+    sql = (ORIGEM / f"stg_retail__{tabela}.sql").read_text(encoding="utf-8")
+    saida = []
+    for item in _projecao(sql):
+        expressao, apelido = _parte(item)
+        saida.append((apelido, expression_level(re.sub(r"\b[a-z]\.(?=[a-z_])", "", expressao.strip()), nivel_de)))
+    return saida
+
+
 def models_yml() -> str:
     """Declaração das pontes, sem repetir a descrição de coluna do `staging`.
 
@@ -292,10 +323,23 @@ def models_yml() -> str:
     a descrição delas já vive lá. Copiá-la para cá criaria uma segunda cópia que
     envelheceria — o que a documentação do projeto trata como defeito. O que
     esta declaração acrescenta é o que só a ponte sabe: de que tabela do legado
-    ela vem, e em que modelo o resultado é empilhado.
+    ela vem, em que modelo o resultado é empilhado — e a sensibilidade de cada
+    coluna, derivada da declaração dos modelos (`sensibilidades`).
     """
     onde = {tabela: modelo_trusted for modelo_trusted, tabela in CONDUTORAS.items()}
     onde.update(ENRIQUECIMENTO)
+
+    # A linhagem do dbt vê a ponte como extração de um payload JSON declarado
+    # `personal`; a ponte sabe mais — cada coluna vem de uma coluna da origem —
+    # e diz isso em `sensitivity_reason`, que é o que `models/sensitivity.py`
+    # exige de toda declaração que discorde da derivada.
+    motivo = "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+
+    def colunas(tabela: str) -> str:
+        return "\n".join(
+            f'      - name: {apelido}\n        meta:\n          sensitivity: {nivel}\n          sensitivity_reason: "{motivo}"'
+            for apelido, nivel in sensibilidades(tabela)
+        )
 
     entradas = "\n".join(
         f"""  - name: legado__{tabela}
@@ -305,7 +349,9 @@ def models_yml() -> str:
       onde estão descritas.
     meta:
       domain: legado
-      owner: data_custodian"""
+      owner: data_custodian
+    columns:
+{colunas(tabela)}"""
         for tabela in empilhaveis()
     )
     return f"""# Gerado por `make legacy-models`. Não edite: a lista sai de ponte.py.

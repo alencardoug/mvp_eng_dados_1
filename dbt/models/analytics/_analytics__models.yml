@@ -18,9 +18,52 @@ models:
     description: Calendário do período simulado. Dimensão estática, gerada da série de datas.
     columns:
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: full_date
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
+      - name: year_number
+        meta:
+          sensitivity: internal
+      - name: quarter_number
+        meta:
+          sensitivity: internal
+      - name: month_number
+        meta:
+          sensitivity: internal
+      - name: month_name
+        meta:
+          sensitivity: internal
+      - name: year_month
+        meta:
+          sensitivity: internal
+      - name: day_of_month
+        meta:
+          sensitivity: internal
+      - name: day_of_week
+        meta:
+          sensitivity: internal
+      - name: day_name
+        meta:
+          sensitivity: internal
+      - name: iso_week_number
+        meta:
+          sensitivity: internal
+      - name: month_start_date
+        meta:
+          sensitivity: internal
+      - name: quarter_start_date
+        meta:
+          sensitivity: internal
+      - name: year_start_date
+        meta:
+          sensitivity: internal
+      - name: is_weekend
+        meta:
+          sensitivity: internal
 
   - name: dim_customer
     description: '{{ doc("active_customer") }}'
@@ -29,17 +72,99 @@ models:
           chave_natural: customer_natural_key
     columns:
       - name: customer_key
+        meta:
+          sensitivity: internal
         description: Chave substituta da **versão** do cliente (ADR-0017).
         data_tests: [unique, not_null]
       - name: customer_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: is_active
+        meta:
+          sensitivity: internal
         description: '{{ doc("active_customer") }}'
       - name: is_repeat_buyer
+        meta:
+          sensitivity: internal
         description: '{{ doc("repeat_purchase") }}'
       - name: is_deleted
+        meta:
+          sensitivity: internal
         description: Exclusão lógica na origem; a linha permanece na dimensão (ADR-0029).
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: customer_code
+        meta:
+          sensitivity: internal
+      - name: first_name
+        meta:
+          sensitivity: personal
+      - name: last_name
+        meta:
+          sensitivity: personal
+      - name: customer_full_name
+        meta:
+          sensitivity: personal
+      - name: customer_document
+        meta:
+          sensitivity: personal
+      - name: birth_date
+        meta:
+          sensitivity: personal
+      - name: registered_at
+        meta:
+          sensitivity: internal
+      - name: first_order_at
+        meta:
+          sensitivity: internal
+      - name: last_order_at
+        meta:
+          sensitivity: internal
+      - name: order_count
+        meta:
+          sensitivity: internal
+      - name: lifetime_net_revenue_amount
+        meta:
+          sensitivity: confidential
+      - name: is_churned
+        meta:
+          sensitivity: internal
+      - name: days_since_last_order
+        meta:
+          sensitivity: internal
+      - name: customer_status
+        meta:
+          sensitivity: internal
+      - name: customer_segment_id
+        meta:
+          sensitivity: internal
+      - name: customer_segment_code
+        meta:
+          sensitivity: public
+      - name: customer_segment_name
+        meta:
+          sensitivity: public
+      - name: city
+        meta:
+          sensitivity: public
+      - name: state_code
+        meta:
+          sensitivity: public
+      - name: country
+        meta:
+          sensitivity: public
+      - name: valid_from
+        meta:
+          sensitivity: internal
+      - name: valid_to
+        meta:
+          sensitivity: internal
+      - name: is_current
+        meta:
+          sensitivity: internal
 
   - name: dim_product
     description: SKU com produto, categoria e marca. SCD tipo 2.
@@ -48,11 +173,92 @@ models:
           chave_natural: product_natural_key
     columns:
       - name: product_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: product_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: is_deleted
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: sku
+        meta:
+          sensitivity: public
+      - name: product_code
+        meta:
+          sensitivity: public
+      - name: product_name
+        meta:
+          sensitivity: public
+      - name: variant_size
+        meta:
+          sensitivity: public
+      - name: variant_color
+        meta:
+          sensitivity: public
+      - name: variant_package
+        meta:
+          sensitivity: public
+      - name: barcode
+        meta:
+          sensitivity: public
+      - name: weight_grams
+        meta:
+          sensitivity: public
+      - name: product_id
+        meta:
+          sensitivity: internal
+      - name: launched_at
+        meta:
+          sensitivity: public
+      - name: product_status
+        meta:
+          sensitivity: internal
+      - name: variant_is_active
+        meta:
+          sensitivity: internal
+      - name: product_category_id
+        meta:
+          sensitivity: internal
+      - name: leaf_category_name
+        meta:
+          sensitivity: public
+      - name: sub_category_name
+        meta:
+          sensitivity: public
+      - name: root_category_name
+        meta:
+          sensitivity: public
+      - name: brand_id
+        meta:
+          sensitivity: internal
+      - name: brand_name
+        meta:
+          sensitivity: public
+      - name: brand_country
+        meta:
+          sensitivity: public
+      - name: variant_is_deleted
+        meta:
+          sensitivity: internal
+      - name: product_is_deleted
+        meta:
+          sensitivity: internal
+      - name: valid_from
+        meta:
+          sensitivity: internal
+      - name: valid_to
+        meta:
+          sensitivity: internal
+      - name: is_current
+        meta:
+          sensitivity: internal
 
   - name: dim_category
     data_tests:
@@ -61,14 +267,47 @@ models:
             combination_of_columns: [source_system, category_natural_key]
     columns:
       - name: category_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: category_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: category_name
+        meta:
+          sensitivity: public
+      - name: sub_category_name
+        meta:
+          sensitivity: public
+      - name: root_category_name
+        meta:
+          sensitivity: public
+      - name: category_depth
+        meta:
+          sensitivity: public
 
   - name: dim_brand
     columns:
       - name: brand_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: brand_natural_key
+        meta:
+          sensitivity: internal
+      - name: brand_name
+        meta:
+          sensitivity: public
+      - name: brand_country
+        meta:
+          sensitivity: public
 
   - name: dim_sales_channel
     description: >
@@ -77,11 +316,33 @@ models:
       fato — que some de todo recorte em vez de aparecer agrupada.
     columns:
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: channel_type
+        meta:
+          sensitivity: public
         data_tests:
           - accepted_values:
               values: [web, app, store, unknown]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: sales_channel_natural_key
+        meta:
+          sensitivity: internal
+      - name: sales_channel_code
+        meta:
+          sensitivity: public
+      - name: sales_channel_name
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
 
   - name: dim_geography
     description: >
@@ -89,12 +350,28 @@ models:
       um membro "Desconhecido" para que a fato nunca fique com chave nula.
     columns:
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: region
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul, Desconhecido]
+      - name: country
+        meta:
+          sensitivity: public
+      - name: state_code
+        meta:
+          sensitivity: public
+      - name: state_name
+        meta:
+          sensitivity: public
+      - name: city
+        meta:
+          sensitivity: public
 
   # ── Fatos ──────────────────────────────────────────────────────────────────
   - name: fact_sales_order_item
@@ -104,38 +381,113 @@ models:
       somá-los no grão de item multiplicaria o frete pelo número de itens.
     columns:
       - name: order_item_key
+        meta:
+          sensitivity: internal
         description: Chave do grão. O `unique` abaixo é o que prova o grão declarado.
         data_tests: [unique, not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: product_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: category_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_category'), field: category_key}
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: net_revenue_amount
+        meta:
+          sensitivity: confidential
         description: '{{ doc("net_revenue") }}'
         data_tests: [not_null]
       - name: quantity
+        meta:
+          sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: brand_key
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: order_item_id
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: order_status
+        meta:
+          sensitivity: internal
+      - name: order_date
+        meta:
+          sensitivity: internal
+      - name: placed_at
+        meta:
+          sensitivity: internal
+      - name: is_realised
+        meta:
+          sensitivity: internal
+      - name: is_cancelled
+        meta:
+          sensitivity: internal
+      - name: is_from_cart
+        meta:
+          sensitivity: internal
+      - name: has_post_order_repeat
+        meta:
+          sensitivity: internal
+      - name: is_repeat_window_closed
+        meta:
+          sensitivity: internal
+      - name: days_to_next_order
+        meta:
+          sensitivity: internal
+      - name: unit_price
+        meta:
+          sensitivity: confidential
+      - name: gross_revenue_amount
+        meta:
+          sensitivity: confidential
+      - name: discount_amount
+        meta:
+          sensitivity: confidential
+      - name: tax_amount
+        meta:
+          sensitivity: confidential
+      - name: line_total_amount
+        meta:
+          sensitivity: confidential
 
   - name: fact_cart_event
     description: >
@@ -145,28 +497,82 @@ models:
       qualquer recorte.
     columns:
       - name: cart_event_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: event_date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: cart_created_date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         description: Nulo em sessão anônima — o carrinho existe, o cliente não foi identificado.
         data_tests:
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: event_type
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [created, converted, abandoned, expired]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: cart_id
+        meta:
+          sensitivity: internal
+      - name: occurred_at
+        meta:
+          sensitivity: internal
+      - name: event_date
+        meta:
+          sensitivity: internal
+      - name: cart_created_date
+        meta:
+          sensitivity: internal
+      - name: is_anonymous
+        meta:
+          sensitivity: internal
+      - name: cart_count
+        meta:
+          sensitivity: internal
+      - name: closed_cart_count
+        meta:
+          sensitivity: internal
+      - name: converted_cart_count
+        meta:
+          sensitivity: internal
+      - name: abandoned_cart_count
+        meta:
+          sensitivity: internal
+      - name: cart_item_count
+        meta:
+          sensitivity: internal
+      - name: cart_unit_count
+        meta:
+          sensitivity: internal
+      - name: cart_value_amount
+        meta:
+          sensitivity: confidential
+      - name: abandoned_value_amount
+        meta:
+          sensitivity: confidential
 
   # ══════════════════════════════════════════════════════════════════════════
   # Etapa 6 — financeiro e estoque
@@ -175,11 +581,39 @@ models:
   - name: dim_payment_method
     columns:
       - name: payment_method_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: method_type
+        meta:
+          sensitivity: public
         data_tests:
           - accepted_values:
               values: [credit_card, debit_card, pix, boleto, wallet, voucher]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: payment_method_natural_key
+        meta:
+          sensitivity: internal
+      - name: payment_method_code
+        meta:
+          sensitivity: public
+      - name: payment_method_name
+        meta:
+          sensitivity: public
+      - name: is_card
+        meta:
+          sensitivity: public
+      - name: is_instant
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
 
   - name: dim_supplier
     description: Fornecedor. SCD tipo 1 nesta etapa — a divergência do §3.2 está declarada no modelo.
@@ -189,19 +623,87 @@ models:
             combination_of_columns: [source_system, supplier_natural_key]
     columns:
       - name: supplier_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: supplier_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: supplier_code
+        meta:
+          sensitivity: internal
+      - name: supplier_legal_name
+        meta:
+          sensitivity: confidential
+      - name: supplier_name
+        meta:
+          sensitivity: confidential
+      - name: supplier_country
+        meta:
+          sensitivity: public
+      - name: payment_terms_days
+        meta:
+          sensitivity: confidential
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
 
   - name: dim_warehouse
     description: Armazém, com a **mesma** `dim_geography` do endereço de entrega.
     columns:
       - name: warehouse_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: warehouse_natural_key
+        meta:
+          sensitivity: internal
+      - name: warehouse_code
+        meta:
+          sensitivity: public
+      - name: warehouse_name
+        meta:
+          sensitivity: public
+      - name: warehouse_city
+        meta:
+          sensitivity: public
+      - name: warehouse_state
+        meta:
+          sensitivity: public
+      - name: warehouse_state_name
+        meta:
+          sensitivity: public
+      - name: warehouse_region
+        meta:
+          sensitivity: public
+      - name: warehouse_country
+        meta:
+          sensitivity: public
+      - name: capacity_units
+        meta:
+          sensitivity: confidential
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
 
   - name: fact_payment_transaction
     description: >
@@ -210,58 +712,255 @@ models:
       existe se a recusa estiver aqui.
     columns:
       - name: payment_transaction_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: payment_method_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_payment_method'), field: payment_method_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: transaction_type
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [authorization, capture, void, refund]
       - name: transaction_result
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [succeeded, failed, pending]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: sales_channel_key
+        meta:
+          sensitivity: internal
+      - name: payment_transaction_id
+        meta:
+          sensitivity: internal
+      - name: transaction_code
+        meta:
+          sensitivity: internal
+      - name: payment_id
+        meta:
+          sensitivity: internal
+      - name: payment_code
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: gateway_response_code
+        meta:
+          sensitivity: internal
+      - name: occurred_at
+        meta:
+          sensitivity: internal
+      - name: installments
+        meta:
+          sensitivity: public
+      - name: is_instalment_plan
+        meta:
+          sensitivity: public
+      - name: attempt_count
+        meta:
+          sensitivity: internal
+      - name: approved_count
+        meta:
+          sensitivity: internal
+      - name: authorization_count
+        meta:
+          sensitivity: internal
+      - name: approved_authorization_count
+        meta:
+          sensitivity: internal
+      - name: transaction_amount
+        meta:
+          sensitivity: confidential
+      - name: authorized_amount
+        meta:
+          sensitivity: confidential
+      - name: captured_amount
+        meta:
+          sensitivity: confidential
+      - name: refunded_amount
+        meta:
+          sensitivity: confidential
 
   - name: fact_refund
     description: '**Grão: um reembolso realizado.**'
     columns:
       - name: refund_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: refund_amount
+        meta:
+          sensitivity: confidential
         data_tests:
           - not_null
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 0.01}
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: payment_method_key
+        meta:
+          sensitivity: internal
+      - name: customer_key
+        meta:
+          sensitivity: internal
+      - name: sales_channel_key
+        meta:
+          sensitivity: internal
+      - name: refund_id
+        meta:
+          sensitivity: internal
+      - name: refund_code
+        meta:
+          sensitivity: internal
+      - name: payment_transaction_id
+        meta:
+          sensitivity: internal
+      - name: payment_id
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: refund_reason
+        meta:
+          sensitivity: internal
+      - name: refund_status
+        meta:
+          sensitivity: internal
+      - name: refunded_at
+        meta:
+          sensitivity: internal
+      - name: is_completed
+        meta:
+          sensitivity: internal
+      - name: is_full_refund
+        meta:
+          sensitivity: confidential
+      - name: refund_count
+        meta:
+          sensitivity: internal
+      - name: originally_captured_amount
+        meta:
+          sensitivity: confidential
+      - name: completed_refund_amount
+        meta:
+          sensitivity: confidential
 
   - name: fact_purchase_order_item
     description: '**Grão: um item de uma ordem de compra.**'
     columns:
       - name: purchase_order_item_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: supplier_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_supplier'), field: supplier_key}
       - name: product_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: quantity_ordered
+        meta:
+          sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: date_key
+        meta:
+          sensitivity: internal
+      - name: category_key
+        meta:
+          sensitivity: internal
+      - name: purchase_order_item_id
+        meta:
+          sensitivity: internal
+      - name: purchase_order_id
+        meta:
+          sensitivity: internal
+      - name: po_number
+        meta:
+          sensitivity: internal
+      - name: purchase_order_status
+        meta:
+          sensitivity: internal
+      - name: ordered_at
+        meta:
+          sensitivity: internal
+      - name: expected_at
+        meta:
+          sensitivity: internal
+      - name: first_received_at
+        meta:
+          sensitivity: internal
+      - name: last_received_at
+        meta:
+          sensitivity: internal
+      - name: is_fully_received
+        meta:
+          sensitivity: internal
+      - name: is_not_received
+        meta:
+          sensitivity: internal
+      - name: is_cancelled
+        meta:
+          sensitivity: internal
+      - name: quantity_received
+        meta:
+          sensitivity: internal
+      - name: quantity_outstanding
+        meta:
+          sensitivity: internal
+      - name: unit_cost
+        meta:
+          sensitivity: confidential
+      - name: ordered_cost_amount
+        meta:
+          sensitivity: confidential
+      - name: received_cost_amount
+        meta:
+          sensitivity: confidential
 
   - name: fact_inventory_movement
     description: >
@@ -281,35 +980,104 @@ models:
             combination_of_columns: [source_system, idempotency_key]
     columns:
       - name: movement_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: movement_id
+        meta:
+          sensitivity: internal
         description: Chave do evento; é ela que torna o reprocessamento idempotente.
         data_tests: [unique, not_null]
       - name: idempotency_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: product_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: warehouse_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_warehouse'), field: warehouse_key}
       - name: quantity_delta
+        meta:
+          sensitivity: internal
         description: '**Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.'
         data_tests: [not_null]
       - name: cogs_amount
+        meta:
+          sensitivity: confidential
         description: '{{ doc("cost_of_goods_sold") }}'
         data_tests: [not_null]
       - name: movement_type
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [purchase_receipt, customer_return, transfer_in, adjustment_in,
                        sale_dispatch, supplier_return, transfer_out, adjustment_out]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: event_sequence
+        meta:
+          sensitivity: internal
+      - name: source_type
+        meta:
+          sensitivity: internal
+      - name: source_id
+        meta:
+          sensitivity: internal
+      - name: correlation_id
+        meta:
+          sensitivity: internal
+      - name: aggregate_version
+        meta:
+          sensitivity: internal
+      - name: occurred_at
+        meta:
+          sensitivity: internal
+      - name: recorded_at
+        meta:
+          sensitivity: internal
+      - name: movement_date
+        meta:
+          sensitivity: internal
+      - name: is_inbound
+        meta:
+          sensitivity: internal
+      - name: is_outbound
+        meta:
+          sensitivity: internal
+      - name: is_sale
+        meta:
+          sensitivity: internal
+      - name: quantity_in
+        meta:
+          sensitivity: internal
+      - name: quantity_out
+        meta:
+          sensitivity: internal
+      - name: unit_cost
+        meta:
+          sensitivity: confidential
+      - name: movement_cost_amount
+        meta:
+          sensitivity: confidential
+      - name: recording_delay_seconds
+        meta:
+          sensitivity: internal
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
   - name: dim_carrier
@@ -323,16 +1091,42 @@ models:
             combination_of_columns: [source_system, carrier_natural_key]
     columns:
       - name: carrier_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: carrier_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: service_level
+        meta:
+          sensitivity: public
         description: '{{ doc("promised_lead_time") }}'
         data_tests:
           - not_null
           - accepted_values: {values: [standard, express, same_day]}
       - name: is_deleted
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: carrier_code
+        meta:
+          sensitivity: public
+      - name: carrier_name
+        meta:
+          sensitivity: public
+      - name: service_level_rank
+        meta:
+          sensitivity: internal
+      - name: tracking_url_template
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
 
   - name: fact_shipment_item
     description: >
@@ -346,16 +1140,24 @@ models:
             combination_of_columns: [source_system, shipment_item_id]
     columns:
       - name: shipment_item_key
+        meta:
+          sensitivity: internal
         description: Prova do grão — uma linha por item de remessa.
         data_tests: [unique, not_null]
       - name: shipment_item_id
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         description: Data de **despacho** da remessa.
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: delivered_date_key
+        meta:
+          sensitivity: internal
         description: >
           Data de **chegada**. Nula enquanto a remessa não chega, e o nulo
           significa *ainda não chegou* — o motivo está no cabeçalho do modelo.
@@ -364,41 +1166,145 @@ models:
         data_tests:
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: carrier_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_carrier'), field: carrier_key}
       - name: warehouse_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_warehouse'), field: warehouse_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: product_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: is_on_time
+        meta:
+          sensitivity: internal
         description: '{{ doc("on_time_delivery") }}'
       - name: order_to_delivery_days
+        meta:
+          sensitivity: internal
         description: '{{ doc("order_to_delivery_cycle") }}'
       - name: quantity_shipped
+        meta:
+          sensitivity: internal
         description: '**Aditiva** — unidades que viajaram nesta caixa.'
         data_tests: [not_null]
       - name: shipment_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [created, picking, dispatched, in_transit, delivered, returned, lost]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: shipment_id
+        meta:
+          sensitivity: internal
+      - name: order_item_id
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: shipment_code
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: tracking_code
+        meta:
+          sensitivity: internal
+      - name: order_status
+        meta:
+          sensitivity: internal
+      - name: placed_at
+        meta:
+          sensitivity: internal
+      - name: shipped_at
+        meta:
+          sensitivity: internal
+      - name: estimated_delivery_at
+        meta:
+          sensitivity: public
+      - name: delivered_at
+        meta:
+          sensitivity: internal
+      - name: returned_at
+        meta:
+          sensitivity: internal
+      - name: is_dispatched
+        meta:
+          sensitivity: internal
+      - name: is_delivered
+        meta:
+          sensitivity: internal
+      - name: is_returned
+        meta:
+          sensitivity: internal
+      - name: is_lost
+        meta:
+          sensitivity: internal
+      - name: order_shipment_count
+        meta:
+          sensitivity: internal
+      - name: delivered_shipment_count
+        meta:
+          sensitivity: internal
+      - name: is_order_cycle_closed
+        meta:
+          sensitivity: internal
+      - name: is_cycle_closing_shipment
+        meta:
+          sensitivity: internal
+      - name: is_split_order
+        meta:
+          sensitivity: internal
+      - name: order_delivered_at
+        meta:
+          sensitivity: internal
+      - name: quantity_ordered
+        meta:
+          sensitivity: internal
+      - name: shipped_share_of_line
+        meta:
+          sensitivity: internal
+      - name: failed_attempt_count
+        meta:
+          sensitivity: public
+      - name: delivery_delay_days
+        meta:
+          sensitivity: internal
+      - name: transit_days
+        meta:
+          sensitivity: internal
 
   - name: fact_order_status_event
     description: >
@@ -411,40 +1317,105 @@ models:
             combination_of_columns: [source_system, order_status_event_id]
     columns:
       - name: order_status_event_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_status_event_id
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: to_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: from_status
+        meta:
+          sensitivity: internal
         description: Nulo na criação do pedido — a primeira transição não vem de estado nenhum.
         data_tests:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: hours_in_previous_status
+        meta:
+          sensitivity: internal
         description: '**Não aditiva** — tempo no estado de origem; soma dentro do pedido, nunca entre pedidos.'
       - name: transition_count
+        meta:
+          sensitivity: internal
         description: '**Aditiva** — sempre 1, para que a contagem seja uma soma explícita.'
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: change_reason
+        meta:
+          sensitivity: internal
+      - name: status_sequence
+        meta:
+          sensitivity: internal
+      - name: placed_at
+        meta:
+          sensitivity: internal
+      - name: changed_at
+        meta:
+          sensitivity: internal
+      - name: previous_changed_at
+        meta:
+          sensitivity: internal
+      - name: current_order_status
+        meta:
+          sensitivity: internal
+      - name: is_order_creation
+        meta:
+          sensitivity: internal
+      - name: is_current_status
+        meta:
+          sensitivity: internal
+      - name: is_terminal_status
+        meta:
+          sensitivity: internal
+      - name: is_cancellation
+        meta:
+          sensitivity: internal
+      - name: is_return
+        meta:
+          sensitivity: internal
+      - name: is_realised
+        meta:
+          sensitivity: internal
 
   # ── Etapa 9 — relacionamento e histórico ───────────────────────────────────
   - name: dim_campaign
@@ -455,14 +1426,50 @@ models:
             combination_of_columns: [source_system, campaign_natural_key]
     columns:
       - name: campaign_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: campaign_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: campaign_objective
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [acquisition, retention, reactivation, clearance]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: campaign_code
+        meta:
+          sensitivity: public
+      - name: campaign_name
+        meta:
+          sensitivity: public
+      - name: campaign_valid_from
+        meta:
+          sensitivity: public
+      - name: campaign_valid_to
+        meta:
+          sensitivity: public
+      - name: budget_amount
+        meta:
+          sensitivity: confidential
+      - name: campaign_is_active
+        meta:
+          sensitivity: internal
+      - name: is_running
+        meta:
+          sensitivity: public
+      - name: is_finished
+        meta:
+          sensitivity: public
+      - name: is_deleted
+        meta:
+          sensitivity: internal
 
   - name: dim_support_category
     description: >
@@ -471,11 +1478,23 @@ models:
       agrupamento.
     columns:
       - name: support_category_key
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: support_category_natural_key
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: support_category_name
+        meta:
+          sensitivity: public
         data_tests: [not_null]
+      - name: support_category_group
+        meta:
+          sensitivity: public
+      - name: support_category_description
+        meta:
+          sensitivity: public
 
   - name: dim_coupon
     description: >
@@ -488,15 +1507,80 @@ models:
           chave_natural: coupon_natural_key
     columns:
       - name: coupon_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: discount_type
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [percentage, fixed]}
       - name: is_deleted
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: coupon_code
+        meta:
+          sensitivity: public
+      - name: coupon_valid_from
+        meta:
+          sensitivity: public
+      - name: coupon_valid_to
+        meta:
+          sensitivity: public
+      - name: max_redemptions
+        meta:
+          sensitivity: internal
+      - name: redemption_count
+        meta:
+          sensitivity: internal
+      - name: redeemed_discount_amount
+        meta:
+          sensitivity: confidential
+      - name: is_exhausted
+        meta:
+          sensitivity: internal
+      - name: is_redeemable_now
+        meta:
+          sensitivity: public
+      - name: campaign_id
+        meta:
+          sensitivity: public
+      - name: campaign_code
+        meta:
+          sensitivity: public
+      - name: campaign_name
+        meta:
+          sensitivity: public
+      - name: campaign_objective
+        meta:
+          sensitivity: public
+      - name: discount_value
+        meta:
+          sensitivity: confidential
+      - name: min_order_amount
+        meta:
+          sensitivity: public
+      - name: coupon_is_active
+        meta:
+          sensitivity: internal
+      - name: valid_from
+        meta:
+          sensitivity: internal
+      - name: valid_to
+        meta:
+          sensitivity: internal
+      - name: is_current
+        meta:
+          sensitivity: internal
 
   - name: dim_support_agent
     description: >
@@ -508,13 +1592,60 @@ models:
           chave_natural: support_agent_natural_key
     columns:
       - name: support_agent_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: support_agent_natural_key
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: agent_team
+        meta:
+          sensitivity: public
         data_tests: [not_null]
       - name: is_deleted
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: agent_code
+        meta:
+          sensitivity: internal
+      - name: agent_first_name
+        meta:
+          sensitivity: personal
+      - name: agent_last_name
+        meta:
+          sensitivity: personal
+      - name: agent_full_name
+        meta:
+          sensitivity: personal
+      - name: agent_email
+        meta:
+          sensitivity: personal
+      - name: hired_at
+        meta:
+          sensitivity: internal
+      - name: handled_ticket_count
+        meta:
+          sensitivity: internal
+      - name: handled_event_count
+        meta:
+          sensitivity: internal
+      - name: agent_is_active
+        meta:
+          sensitivity: internal
+      - name: valid_from
+        meta:
+          sensitivity: internal
+      - name: valid_to
+        meta:
+          sensitivity: internal
+      - name: is_current
+        meta:
+          sensitivity: internal
 
   - name: fact_coupon_redemption
     description: >
@@ -530,45 +1661,124 @@ models:
             combination_of_columns: [source_system, order_id]
     columns:
       - name: coupon_redemption_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_redemption_id
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: order_id
+        meta:
+          sensitivity: internal
         description: >
           Um cupom por pedido — **por origem**. A unicidade está no teste de
           combinação do modelo: dois sistemas numeram pedidos a partir de 1, e
           exigi-la do id sozinho reprovaria dado correto.
         data_tests: [not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: coupon_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_coupon'), field: coupon_key}
       - name: campaign_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_campaign'), field: campaign_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: is_eligible
+        meta:
+          sensitivity: confidential
         description: As três condições da invariante 12 juntas — vigência, piso e teto.
         data_tests: [not_null]
       - name: coupon_discount_amount
+        meta:
+          sensitivity: confidential
         description: '**Aditiva** — desconto efetivamente concedido.'
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: coupon_id
+        meta:
+          sensitivity: internal
+      - name: order_number
+        meta:
+          sensitivity: internal
+      - name: coupon_code
+        meta:
+          sensitivity: public
+      - name: discount_type
+        meta:
+          sensitivity: public
+      - name: campaign_objective
+        meta:
+          sensitivity: public
+      - name: redemption_sequence
+        meta:
+          sensitivity: internal
+      - name: redeemed_at
+        meta:
+          sensitivity: internal
+      - name: placed_at
+        meta:
+          sensitivity: internal
+      - name: is_within_validity
+        meta:
+          sensitivity: internal
+      - name: is_above_minimum
+        meta:
+          sensitivity: confidential
+      - name: is_within_limit
+        meta:
+          sensitivity: internal
+      - name: is_discount_bounded
+        meta:
+          sensitivity: confidential
+      - name: order_is_cancelled
+        meta:
+          sensitivity: internal
+      - name: is_realised
+        meta:
+          sensitivity: internal
+      - name: redemption_count
+        meta:
+          sensitivity: internal
+      - name: order_subtotal_amount
+        meta:
+          sensitivity: confidential
+      - name: order_total_amount
+        meta:
+          sensitivity: confidential
+      - name: discount_share_of_order
+        meta:
+          sensitivity: confidential
 
   - name: fact_support_ticket_event
     description: >
@@ -580,40 +1790,138 @@ models:
             combination_of_columns: [source_system, ticket_event_id]
     columns:
       - name: support_ticket_event_key
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: ticket_event_id
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: support_category_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_support_category'), field: support_category_key}
       - name: support_agent_key
+        meta:
+          sensitivity: internal
         description: Membro desconhecido quando o autor do evento é o cliente.
         data_tests:
           - not_null
           - relationships: {to: ref('dim_support_agent'), field: support_agent_key}
       - name: sales_channel_key
+        meta:
+          sensitivity: internal
         description: Membro desconhecido quando o chamado não nasceu de um pedido.
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: ticket_event_type
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [created, assigned, message, status_changed, resolved, reopened]
       - name: event_count
+        meta:
+          sensitivity: internal
         description: '**Aditiva** — sempre 1, para que a contagem de eventos seja uma soma explícita.'
         data_tests: [not_null]
+      - name: source_system
+        meta:
+          sensitivity: internal
+      - name: support_ticket_id
+        meta:
+          sensitivity: internal
+      - name: ticket_number
+        meta:
+          sensitivity: internal
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: ticket_category
+        meta:
+          sensitivity: public
+      - name: ticket_priority
+        meta:
+          sensitivity: internal
+      - name: ticket_status
+        meta:
+          sensitivity: internal
+      - name: event_sequence
+        meta:
+          sensitivity: internal
+      - name: occurred_at
+        meta:
+          sensitivity: internal
+      - name: opened_at
+        meta:
+          sensitivity: internal
+      - name: closed_at
+        meta:
+          sensitivity: internal
+      - name: order_placed_at
+        meta:
+          sensitivity: internal
+      - name: is_ticket_creation
+        meta:
+          sensitivity: internal
+      - name: is_assignment
+        meta:
+          sensitivity: internal
+      - name: is_message
+        meta:
+          sensitivity: internal
+      - name: is_status_change
+        meta:
+          sensitivity: internal
+      - name: is_resolution
+        meta:
+          sensitivity: internal
+      - name: is_reopening
+        meta:
+          sensitivity: internal
+      - name: is_from_customer
+        meta:
+          sensitivity: internal
+      - name: is_closed
+        meta:
+          sensitivity: internal
+      - name: has_order
+        meta:
+          sensitivity: internal
+      - name: was_reopened
+        meta:
+          sensitivity: internal
+      - name: is_solved_first_time
+        meta:
+          sensitivity: internal
+      - name: reopening_count
+        meta:
+          sensitivity: internal
+      - name: hours_to_assignment
+        meta:
+          sensitivity: internal
+      - name: hours_to_resolution
+        meta:
+          sensitivity: internal

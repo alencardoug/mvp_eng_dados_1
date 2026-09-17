@@ -7,12 +7,11 @@ mede isso — mede quantas vezes a palavra foi escrita. O que mede é a compara�
 entre o que **existe** no banco (`information_schema.columns`, nas nove camadas)
 e o que está **declarado** no `manifest.json` do dbt, coluna a coluna.
 
-A cobertura hoje está longe de 100 % (medido em 17/09/2026: 738 de 4.161,
-17,7 %), e um portão vermelho por dias é um portão ignorado. Por isso o teste é
-uma **catraca**: cada camada tem o piso medido na última entrega que a
-classificou; regredir abaixo do piso falha, subir exige levantar o piso no
-mesmo commit — o diff é a revisão —, e o critério da etapa está satisfeito
-quando todos os pisos são 100 e a asserção vira igualdade.
+Na manhã de 17/09/2026 a cobertura era 738 de 4.161 (17,7 %); à tarde, com a
+classificação **derivada** dos modelos SQLAlchemy (`models/sensitivity.py`),
+4.161 de 4.161. O teste é uma **catraca** por camada: o piso é o medido na
+última entrega; regredir falha, e com todos os pisos em 100 a asserção é
+igualdade — coluna nova sem classificação derivada ou declarada falha aqui.
 """
 
 from __future__ import annotations
@@ -39,16 +38,9 @@ CAMADAS = ("raw", "raw_legacy", "staging", "trusted", "analytics", "consumption"
 #: Piso de cobertura por camada, em % de colunas materializadas com `sensitivity`
 #: declarada, medido na última entrega que classificou a camada. Levantar é
 #: obrigação de quem classifica; baixar não existe.
-PISO_POR_CAMADA: dict[str, int] = {          # medido em 17/09/2026
-    "raw": 0,            #    0 de   545 — fontes declaradas sem colunas
-    "raw_legacy": 0,     #    0 de   616 — idem, `_legacy__sources.yml` é gerado sem colunas
-    "staging": 58,       #  656 de 1.114
-    "trusted": 5,        #   55 de 1.069
-    "analytics": 0,      #    0 de   477
-    "consumption": 0,    #    0 de   188
-    "quarantine": 46,    #   12 de    26
-    "snapshots": 0,      #    0 de   109
-    "governance": 88,    #   15 de    17 — `_versions` não é fonte do dbt
+PISO_POR_CAMADA: dict[str, int] = {          # 100 em todas desde 17/09/2026: classificação derivada dos modelos
+    "raw": 100, "raw_legacy": 100, "staging": 100, "trusted": 100, "analytics": 100,
+    "consumption": 100, "quarantine": 100, "snapshots": 100, "governance": 100,
 }
 
 

@@ -20,45 +20,1933 @@ sources:
     # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
     tables:
       - name: brands
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: country
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: campaigns
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: objective
+            meta:
+              sensitivity: public
+          - name: valid_from
+            meta:
+              sensitivity: public
+          - name: valid_to
+            meta:
+              sensitivity: public
+          - name: budget_amount
+            meta:
+              sensitivity: confidential
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: carriers
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: service_level
+            meta:
+              sensitivity: public
+          - name: tracking_url_template
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: customer_segments
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: description
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: payment_methods
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: method_type
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: product_categories
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: parent_id
+            meta:
+              sensitivity: public
+          - name: depth
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: sales_channels
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: channel_type
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: suppliers
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: supplier_code
+            meta:
+              sensitivity: internal
+          - name: legal_name
+            meta:
+              sensitivity: confidential
+          - name: trade_name
+            meta:
+              sensitivity: public
+          - name: document
+            meta:
+              sensitivity: confidential
+          - name: contact_email
+            meta:
+              sensitivity: personal
+          - name: country
+            meta:
+              sensitivity: public
+          - name: payment_terms_days
+            meta:
+              sensitivity: confidential
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: support_agents
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: agent_code
+            meta:
+              sensitivity: internal
+          - name: first_name
+            meta:
+              sensitivity: personal
+          - name: last_name
+            meta:
+              sensitivity: personal
+          - name: email
+            meta:
+              sensitivity: personal
+          - name: team
+            meta:
+              sensitivity: public
+          - name: hired_at
+            meta:
+              sensitivity: internal
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: warehouses
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: city
+            meta:
+              sensitivity: public
+          - name: state
+            meta:
+              sensitivity: public
+          - name: country
+            meta:
+              sensitivity: public
+          - name: capacity_units
+            meta:
+              sensitivity: confidential
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: coupons
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: campaign_id
+            meta:
+              sensitivity: public
+          - name: discount_type
+            meta:
+              sensitivity: public
+          - name: discount_value
+            meta:
+              sensitivity: confidential
+          - name: min_order_amount
+            meta:
+              sensitivity: public
+          - name: max_redemptions
+            meta:
+              sensitivity: internal
+          - name: valid_from
+            meta:
+              sensitivity: public
+          - name: valid_to
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: customers
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: customer_code
+            meta:
+              sensitivity: internal
+          - name: segment_id
+            meta:
+              sensitivity: internal
+          - name: first_name
+            meta:
+              sensitivity: personal
+          - name: last_name
+            meta:
+              sensitivity: personal
+          - name: document
+            meta:
+              sensitivity: personal
+          - name: birth_date
+            meta:
+              sensitivity: personal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: registered_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: price_lists
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: code
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: sales_channel_id
+            meta:
+              sensitivity: public
+          - name: currency
+            meta:
+              sensitivity: public
+          - name: valid_from
+            meta:
+              sensitivity: public
+          - name: valid_to
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: products
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: product_code
+            meta:
+              sensitivity: public
+          - name: category_id
+            meta:
+              sensitivity: public
+          - name: brand_id
+            meta:
+              sensitivity: public
+          - name: name
+            meta:
+              sensitivity: public
+          - name: description
+            meta:
+              sensitivity: public
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: launched_at
+            meta:
+              sensitivity: public
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: purchase_orders
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: po_number
+            meta:
+              sensitivity: internal
+          - name: supplier_id
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: ordered_at
+            meta:
+              sensitivity: internal
+          - name: expected_at
+            meta:
+              sensitivity: internal
+          - name: currency
+            meta:
+              sensitivity: public
+          - name: total_amount
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: carts
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: cart_code
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: sales_channel_id
+            meta:
+              sensitivity: public
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: expires_at
+            meta:
+              sensitivity: internal
+          - name: converted_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: customer_addresses
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: address_type
+            meta:
+              sensitivity: internal
+          - name: street
+            meta:
+              sensitivity: personal
+          - name: number
+            meta:
+              sensitivity: personal
+          - name: complement
+            meta:
+              sensitivity: personal
+          - name: district
+            meta:
+              sensitivity: personal
+          - name: city
+            meta:
+              sensitivity: public
+          - name: state
+            meta:
+              sensitivity: public
+          - name: postal_code
+            meta:
+              sensitivity: personal
+          - name: country
+            meta:
+              sensitivity: public
+          - name: is_primary
+            meta:
+              sensitivity: internal
+          - name: valid_from
+            meta:
+              sensitivity: internal
+          - name: valid_to
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: customer_contacts
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: contact_type
+            meta:
+              sensitivity: internal
+          - name: contact_value
+            meta:
+              sensitivity: personal
+          - name: is_primary
+            meta:
+              sensitivity: internal
+          - name: is_verified
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: customer_preferences
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: language
+            meta:
+              sensitivity: internal
+          - name: currency
+            meta:
+              sensitivity: public
+          - name: marketing_opt_in
+            meta:
+              sensitivity: confidential
+          - name: newsletter_opt_in
+            meta:
+              sensitivity: confidential
+          - name: consent_updated_at
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: goods_receipts
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: receipt_number
+            meta:
+              sensitivity: internal
+          - name: purchase_order_id
+            meta:
+              sensitivity: internal
+          - name: warehouse_id
+            meta:
+              sensitivity: internal
+          - name: received_at
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: product_variants
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: product_id
+            meta:
+              sensitivity: public
+          - name: sku
+            meta:
+              sensitivity: public
+          - name: size
+            meta:
+              sensitivity: public
+          - name: color
+            meta:
+              sensitivity: public
+          - name: package
+            meta:
+              sensitivity: public
+          - name: barcode
+            meta:
+              sensitivity: public
+          - name: weight_grams
+            meta:
+              sensitivity: public
+          - name: is_active
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: cart_items
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: cart_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: quantity
+            meta:
+              sensitivity: internal
+          - name: unit_price
+            meta:
+              sensitivity: confidential
+          - name: added_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: inventory_balances
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: warehouse_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: quantity_on_hand
+            meta:
+              sensitivity: internal
+          - name: quantity_reserved
+            meta:
+              sensitivity: internal
+          - name: last_movement_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: inventory_movements
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: movement_id
+            meta:
+              sensitivity: internal
+          - name: idempotency_key
+            meta:
+              sensitivity: internal
+          - name: warehouse_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: movement_type
+            meta:
+              sensitivity: internal
+          - name: quantity_delta
+            meta:
+              sensitivity: internal
+          - name: unit_cost
+            meta:
+              sensitivity: confidential
+          - name: source_type
+            meta:
+              sensitivity: internal
+          - name: source_id
+            meta:
+              sensitivity: internal
+          - name: correlation_id
+            meta:
+              sensitivity: internal
+          - name: causation_id
+            meta:
+              sensitivity: internal
+          - name: aggregate_version
+            meta:
+              sensitivity: internal
+          - name: occurred_at
+            meta:
+              sensitivity: internal
+          - name: recorded_at
+            meta:
+              sensitivity: internal
+          - name: schema_version
+            meta:
+              sensitivity: internal
+          - name: metadata
+            meta:
+              sensitivity: internal
       - name: orders
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: order_number
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: sales_channel_id
+            meta:
+              sensitivity: public
+          - name: cart_id
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: placed_at
+            meta:
+              sensitivity: internal
+          - name: currency
+            meta:
+              sensitivity: public
+          - name: subtotal_amount
+            meta:
+              sensitivity: confidential
+          - name: discount_amount
+            meta:
+              sensitivity: confidential
+          - name: shipping_amount
+            meta:
+              sensitivity: confidential
+          - name: tax_amount
+            meta:
+              sensitivity: confidential
+          - name: total_amount
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: product_prices
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: price_list_id
+            meta:
+              sensitivity: public
+          - name: product_variant_id
+            meta:
+              sensitivity: public
+          - name: unit_price
+            meta:
+              sensitivity: confidential
+          - name: valid_from
+            meta:
+              sensitivity: public
+          - name: valid_to
+            meta:
+              sensitivity: public
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: purchase_order_items
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: purchase_order_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: quantity_ordered
+            meta:
+              sensitivity: internal
+          - name: unit_cost
+            meta:
+              sensitivity: confidential
+          - name: total_cost
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: coupon_redemptions
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: coupon_id
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: discount_amount
+            meta:
+              sensitivity: confidential
+          - name: redeemed_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
       - name: goods_receipt_items
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: goods_receipt_id
+            meta:
+              sensitivity: internal
+          - name: purchase_order_item_id
+            meta:
+              sensitivity: internal
+          - name: quantity_received
+            meta:
+              sensitivity: internal
+          - name: unit_cost
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: order_items
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: quantity
+            meta:
+              sensitivity: internal
+          - name: unit_price
+            meta:
+              sensitivity: confidential
+          - name: discount_amount
+            meta:
+              sensitivity: confidential
+          - name: tax_amount
+            meta:
+              sensitivity: confidential
+          - name: total_amount
+            meta:
+              sensitivity: confidential
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: order_status_history
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: from_status
+            meta:
+              sensitivity: internal
+          - name: to_status
+            meta:
+              sensitivity: internal
+          - name: changed_at
+            meta:
+              sensitivity: internal
+          - name: reason
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
       - name: payments
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: payment_code
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: payment_method_id
+            meta:
+              sensitivity: public
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: amount
+            meta:
+              sensitivity: confidential
+          - name: currency
+            meta:
+              sensitivity: public
+          - name: installments
+            meta:
+              sensitivity: public
+          - name: authorized_at
+            meta:
+              sensitivity: internal
+          - name: captured_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: shipments
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: shipment_code
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: carrier_id
+            meta:
+              sensitivity: public
+          - name: warehouse_id
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: tracking_code
+            meta:
+              sensitivity: internal
+          - name: freight_amount
+            meta:
+              sensitivity: confidential
+          - name: shipped_at
+            meta:
+              sensitivity: internal
+          - name: estimated_delivery_at
+            meta:
+              sensitivity: public
+          - name: delivered_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: stock_reservations
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: reservation_code
+            meta:
+              sensitivity: internal
+          - name: warehouse_id
+            meta:
+              sensitivity: internal
+          - name: product_variant_id
+            meta:
+              sensitivity: internal
+          - name: cart_id
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: quantity
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: expires_at
+            meta:
+              sensitivity: internal
+          - name: released_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: delivery_events
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: shipment_id
+            meta:
+              sensitivity: internal
+          - name: event_type
+            meta:
+              sensitivity: public
+          - name: occurred_at
+            meta:
+              sensitivity: internal
+          - name: location
+            meta:
+              sensitivity: public
+          - name: description
+            meta:
+              sensitivity: public
+          - name: created_at
+            meta:
+              sensitivity: internal
       - name: payment_transactions
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: transaction_code
+            meta:
+              sensitivity: internal
+          - name: payment_id
+            meta:
+              sensitivity: internal
+          - name: transaction_type
+            meta:
+              sensitivity: internal
+          - name: result
+            meta:
+              sensitivity: internal
+          - name: amount
+            meta:
+              sensitivity: confidential
+          - name: gateway_response_code
+            meta:
+              sensitivity: internal
+          - name: occurred_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
       - name: shipment_items
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: shipment_id
+            meta:
+              sensitivity: internal
+          - name: order_item_id
+            meta:
+              sensitivity: internal
+          - name: quantity
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: support_tickets
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: ticket_number
+            meta:
+              sensitivity: internal
+          - name: customer_id
+            meta:
+              sensitivity: internal
+          - name: order_id
+            meta:
+              sensitivity: internal
+          - name: shipment_id
+            meta:
+              sensitivity: internal
+          - name: assigned_agent_id
+            meta:
+              sensitivity: internal
+          - name: category
+            meta:
+              sensitivity: public
+          - name: priority
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: subject
+            meta:
+              sensitivity: personal
+          - name: opened_at
+            meta:
+              sensitivity: internal
+          - name: closed_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: refunds
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: refund_code
+            meta:
+              sensitivity: internal
+          - name: payment_transaction_id
+            meta:
+              sensitivity: internal
+          - name: amount
+            meta:
+              sensitivity: confidential
+          - name: reason
+            meta:
+              sensitivity: internal
+          - name: status
+            meta:
+              sensitivity: internal
+          - name: refunded_at
+            meta:
+              sensitivity: internal
+          - name: created_at
+            meta:
+              sensitivity: internal
+          - name: updated_at
+            meta:
+              sensitivity: internal
+          - name: deleted_at
+            meta:
+              sensitivity: internal
       - name: ticket_events
+        columns:
+          - name: _airbyte_raw_id
+            meta:
+              sensitivity: internal
+          - name: _airbyte_extracted_at
+            meta:
+              sensitivity: internal
+          - name: _airbyte_meta
+            meta:
+              sensitivity: internal
+          - name: _airbyte_generation_id
+            meta:
+              sensitivity: internal
+          - name: legacy_row_id
+            meta:
+              sensitivity: internal
+          - name: id
+            meta:
+              sensitivity: internal
+          - name: ticket_id
+            meta:
+              sensitivity: internal
+          - name: agent_id
+            meta:
+              sensitivity: internal
+          - name: event_type
+            meta:
+              sensitivity: internal
+          - name: occurred_at
+            meta:
+              sensitivity: internal
+          - name: message
+            meta:
+              sensitivity: personal
+          - name: created_at
+            meta:
+              sensitivity: internal
 
   - name: governance
     description: >
@@ -153,5 +2041,21 @@ sources:
           - name: completed_at
             description: >
               Instante da fase 2, ou do abandono.
+            meta:
+              sensitivity: internal
+      - name: _versions
+        description: >
+          Migrações do schema `governance` já aplicadas (`mvp_ed1.governance`):
+          nome e instante. Controle, não dado de negócio.
+        meta:
+          domain: legado
+          owner: data_custodian
+        columns:
+          - name: nome
+            description: Nome da migração, na ordem da lista de `MIGRACOES`.
+            meta:
+              sensitivity: internal
+          - name: aplicada_em
+            description: Instante em que foi aplicada.
             meta:
               sensitivity: internal

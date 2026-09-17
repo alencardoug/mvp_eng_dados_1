@@ -52,10 +52,10 @@ conclusão da etapa que o criou.
 existe no armazém (`information_schema.columns`, nas nove camadas) com o que o `manifest.json` do
 dbt declara com `sensitivity`, e vigia também o vocabulário e a declaração sem coluna. É uma
 **catraca** por camada: o piso é a cobertura medida na última entrega que classificou a camada;
-regredir falha, subir exige levantar o piso no mesmo *commit*. **Medido em 17/09/2026: 738 de 4.161
-colunas, 17,7 %** — `staging` 58 %, `governance` 88 %, `quarantine` 46 %, `trusted` 5 %, e zero em
-`raw`, `raw_legacy`, `analytics`, `consumption` e `snapshots`. O critério da Etapa 11 é todos os
-pisos em 100.
+regredir falha, subir exige levantar o piso no mesmo *commit*. **Medido em 17/09/2026:** de manhã, 738
+de 4.161 colunas (17,7 %); à tarde, com a classificação derivada dos modelos (§5.1), **4.161 de
+4.161** — todos os pisos em 100, e a asserção é igualdade: coluna nova sem classificação falha em
+`make check`.
 
 Os níveis estão fixados em [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md). O vocabulário
 é inglês, por ser identificador técnico: cada valor vira nome de *policy tag* no BigQuery.
@@ -116,6 +116,23 @@ models:
 
 Chaves obrigatórias: `domain` e `owner` no modelo; `sensitivity` em toda coluna. `retention_days` e
 `data_type` conforme aplicável.
+
+**`sensitivity` é declarada uma vez e derivada em todo o resto** (desde 17/09/2026). A declaração
+vive nos modelos SQLAlchemy da origem (`models/base.py::meta`, obrigatória e validada, 418 colunas);
+as 4 mil colunas do armazém são transporte, renome, conversão ou combinação dessas, e
+`make catalog` (`models/sensitivity.py`) escreve o `sensitivity` de cada uma nos `.yml` por
+**linhagem do SQL compilado**: uma folha só herda; várias folhas recebem a mais restritiva
+(`public < internal < confidential < personal`); o que decide o ramo de um `case` não entra, só o que
+vira valor; coluna sem folha (literal, `row_number()`, hash de chave, `count(*)`) e as colunas técnicas
+(`_airbyte_*`, `_stream_*`, `dbt_*`) são `internal`. O `.yml` escrito à mão é preservado linha a
+linha e só o `meta.sensitivity` é inserido ou reescrito; modelo sem `.yml` entra em `_sensitivity.yml`
+(gerado) no diretório dele; os `.yml` gerados por `make legacy-models` derivam a mesma declaração no
+próprio gerador. Quem discorda do derivado numa coluna declara `sensitivity` à mão **com
+`sensitivity_reason`** — sem a justificativa o derivado prevalece na próxima geração. Exceções de hoje:
+os payloads JSON do legado (`personal` por regra, porque a linhagem não vê o que um JSON carrega) e as
+pontes `legado__*` (o nível real de cada coluna extraída do payload). `make check` falha se algum
+`.yml` estiver atrás dos modelos. Seeds são declaração, não derivado: a classificação delas é escrita
+em `dbt/seeds/_seeds.yml`. A regra está provada em `tests/test_classificacao_derivada.py`.
 
 ### 5.2 Materialização da governança na fase GCP
 

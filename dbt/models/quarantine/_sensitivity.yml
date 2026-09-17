@@ -1,0 +1,50 @@
+# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
+# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
+# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+
+version: 2
+models:
+- name: rejected_shipment_deliveries
+  columns:
+  - name: shipment_id
+    meta:
+      sensitivity: internal
+  - name: shipment_code
+    meta:
+      sensitivity: internal
+  - name: order_id
+    meta:
+      sensitivity: internal
+  - name: carrier_id
+    meta:
+      sensitivity: public
+  - name: warehouse_id
+    meta:
+      sensitivity: internal
+  - name: shipment_status
+    meta:
+      sensitivity: internal
+  - name: shipped_at
+    meta:
+      sensitivity: internal
+  - name: estimated_delivery_at
+    meta:
+      sensitivity: public
+  - name: delivered_at_projected
+    meta:
+      sensitivity: internal
+  - name: delivery_event_count
+    meta:
+      sensitivity: internal
+  - name: last_event_at
+    meta:
+      sensitivity: internal
+  - name: rejection_code
+    meta:
+      sensitivity: internal
+  - name: rejection_reason
+    meta:
+      sensitivity: internal
+  - name: rejected_from
+    meta:
+      sensitivity: internal

@@ -309,7 +309,18 @@ def sources_yml() -> str:
     fluxo lê, e campo lido sem dicionário nem sensibilidade é o que a
     definição de pronto proíbe (`CLAUDE.md` §7; achado RV10-11).
     """
-    linhas = "\n".join(f"      - name: {t}" for t in schema.tabelas())
+    from mvp_ed1.models.sensitivity import source_leaves
+
+    # Coluna a coluna, com a sensibilidade declarada nos modelos SQLAlchemy —
+    # a mesma folha que a linhagem dos modelos usa (`models/sensitivity.py`).
+    _, niveis = source_leaves()
+    linhas = "\n".join(
+        f"      - name: {t}\n        columns:\n" + "\n".join(
+            f"          - name: {c}\n            meta:\n              sensitivity: {n}"
+            for (camada, tabela, c), n in niveis.items() if camada == "raw_legacy" and tabela == t
+        )
+        for t in schema.tabelas()
+    )
     certificado = "\n".join(
         f"          - name: {nome}\n"
         f"            description: >\n"
@@ -362,6 +373,22 @@ sources:
           owner: data_custodian
         columns:
 {certificado}
+      - name: _versions
+        description: >
+          Migrações do schema `governance` já aplicadas (`mvp_ed1.governance`):
+          nome e instante. Controle, não dado de negócio.
+        meta:
+          domain: legado
+          owner: data_custodian
+        columns:
+          - name: nome
+            description: Nome da migração, na ordem da lista de `MIGRACOES`.
+            meta:
+              sensitivity: internal
+          - name: aplicada_em
+            description: Instante em que foi aplicada.
+            meta:
+              sensitivity: internal
 """
 
 

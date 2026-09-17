@@ -15,42 +15,157 @@ models:
     description: Segmentos comerciais de cliente, um por linha.
     columns:
       - name: customer_segment_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_segment_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
+      - name: customer_segment_name
+        meta:
+          sensitivity: public
+      - name: customer_segment_description
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__sales_channels
     description: Canais de venda. Dimensão conformada de `dim_sales_channel`.
     columns:
       - name: sales_channel_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: channel_type
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [web, app, store]
+      - name: sales_channel_code
+        meta:
+          sensitivity: public
+      - name: sales_channel_name
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__product_categories
     description: Hierarquia de categorias, com profundidade derivada do pai.
     columns:
       - name: product_category_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: parent_product_category_id
+        meta:
+          sensitivity: public
         data_tests:
           - relationships:
               to: ref('stg_retail__product_categories')
               field: product_category_id
       - name: category_depth
+        meta:
+          sensitivity: public
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 3
+      - name: product_category_code
+        meta:
+          sensitivity: public
+      - name: product_category_name
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__brands
     description: Marcas do catálogo.
     columns:
       - name: brand_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
+      - name: brand_code
+        meta:
+          sensitivity: public
+      - name: brand_name
+        meta:
+          sensitivity: public
+      - name: brand_country
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   # ── Mutáveis com cursor ────────────────────────────────────────────────────
   - name: stg_retail__customers
@@ -59,113 +174,352 @@ models:
       datamart, conforme o ADR-0015 — a linha não some, ela fica marcada.
     columns:
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_code
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_segment_id
+        meta:
+          sensitivity: internal
         data_tests:
           - relationships:
               to: ref('stg_retail__customer_segments')
               field: customer_segment_id
       - name: customer_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [active, inactive, blocked, pending]
+      - name: first_name
+        meta:
+          sensitivity: personal
+      - name: last_name
+        meta:
+          sensitivity: personal
+      - name: customer_full_name
+        meta:
+          sensitivity: personal
+      - name: customer_document
+        meta:
+          sensitivity: personal
+      - name: birth_date
+        meta:
+          sensitivity: personal
+      - name: registered_at
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__customer_addresses
     description: Endereços com vigência; alimenta `dim_geography`.
     columns:
       - name: customer_address_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: address_type
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [billing, shipping]
       - name: state
+        meta:
+          sensitivity: public
         data_tests:
           - dbt_expectations.expect_column_value_lengths_to_equal:
               value: 2
+      - name: street
+        meta:
+          sensitivity: personal
+      - name: street_number
+        meta:
+          sensitivity: personal
+      - name: complement
+        meta:
+          sensitivity: personal
+      - name: district
+        meta:
+          sensitivity: personal
+      - name: city
+        meta:
+          sensitivity: public
+      - name: postal_code
+        meta:
+          sensitivity: personal
+      - name: country
+        meta:
+          sensitivity: public
+      - name: is_primary
+        meta:
+          sensitivity: internal
+      - name: valid_from
+        meta:
+          sensitivity: internal
+      - name: valid_to
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__products
     columns:
       - name: product_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: product_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: product_category_id
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__product_categories')
               field: product_category_id
       - name: product_status
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [draft, active, discontinued]
+      - name: brand_id
+        meta:
+          sensitivity: public
+      - name: product_name
+        meta:
+          sensitivity: public
+      - name: product_description
+        meta:
+          sensitivity: public
+      - name: launched_at
+        meta:
+          sensitivity: public
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__product_variants
     description: SKUs. Grão de produto de `fact_sales_order_item`.
     columns:
       - name: product_variant_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: sku
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: product_id
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__products')
               field: product_id
+      - name: variant_size
+        meta:
+          sensitivity: public
+      - name: variant_color
+        meta:
+          sensitivity: public
+      - name: variant_package
+        meta:
+          sensitivity: public
+      - name: barcode
+        meta:
+          sensitivity: public
+      - name: weight_grams
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__carts
     description: Carrinhos. Origem de `fact_cart_event` (ADR-0028).
     columns:
       - name: cart_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_code
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [open, converted, abandoned, expired]
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests:
           - relationships:
               to: ref('stg_retail__customers')
               field: customer_id
+      - name: sales_channel_id
+        meta:
+          sensitivity: public
+      - name: cart_created_at
+        meta:
+          sensitivity: internal
+      - name: cart_expires_at
+        meta:
+          sensitivity: internal
+      - name: cart_converted_at
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__cart_items
     description: Maior tabela do projeto. Dá o valor do carrinho abandonado.
     columns:
       - name: cart_item_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__carts')
               field: cart_id
       - name: quantity
+        meta:
+          sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
+      - name: product_variant_id
+        meta:
+          sensitivity: internal
+      - name: unit_price
+        meta:
+          sensitivity: confidential
+      - name: added_at
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__orders
     description: Cabeçalho do pedido. `order_total_amount` viaja como dimensão degenerada.
     columns:
       - name: order_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_number
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_id
+        meta:
+          sensitivity: internal
         description: Único quando preenchido — um carrinho converte em no máximo um pedido.
         data_tests:
           - unique
@@ -173,16 +527,59 @@ models:
               to: ref('stg_retail__carts')
               field: cart_id
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: order_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
+      - name: sales_channel_id
+        meta:
+          sensitivity: public
+      - name: placed_at
+        meta:
+          sensitivity: internal
+      - name: currency
+        meta:
+          sensitivity: public
+      - name: subtotal_amount
+        meta:
+          sensitivity: confidential
+      - name: order_discount_amount
+        meta:
+          sensitivity: confidential
+      - name: shipping_amount
+        meta:
+          sensitivity: confidential
+      - name: order_tax_amount
+        meta:
+          sensitivity: confidential
+      - name: order_total_amount
+        meta:
+          sensitivity: confidential
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__order_items
     description: >
@@ -191,24 +588,59 @@ models:
       faria `subtotal_amount` deixar de bater com a soma dos itens.
     columns:
       - name: order_item_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__orders')
               field: order_id
       - name: product_variant_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__product_variants')
               field: product_variant_id
       - name: is_deleted
+        meta:
+          sensitivity: internal
         data_tests:
           - accepted_values:
               values: [false]
               quote: false
+      - name: quantity
+        meta:
+          sensitivity: internal
+      - name: unit_price
+        meta:
+          sensitivity: confidential
+      - name: discount_amount
+        meta:
+          sensitivity: confidential
+      - name: tax_amount
+        meta:
+          sensitivity: confidential
+      - name: line_total_amount
+        meta:
+          sensitivity: confidential
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
   - name: stg_retail__carriers
@@ -217,13 +649,43 @@ models:
       promessa de prazo no despacho.
     columns:
       - name: carrier_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: carrier_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: service_level
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [standard, express, same_day]}
+      - name: carrier_name
+        meta:
+          sensitivity: public
+      - name: tracking_url_template
+        meta:
+          sensitivity: public
+      - name: is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__delivery_events
     description: >
@@ -231,22 +693,45 @@ models:
       rastro descritivo ao lado de `shipments.delivered_at`.
     columns:
       - name: delivery_event_id
+        meta:
+          sensitivity: internal
         description: Único depois da deduplicação de entrega ao menos uma vez.
         data_tests: [unique, not_null]
       - name: shipment_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__shipments')
               field: shipment_id
       - name: delivery_event_type
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [picked_up, in_transit, out_for_delivery, delivery_attempt,
                        delivered, returned]
       - name: occurred_at
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: event_location
+        meta:
+          sensitivity: public
+      - name: event_description
+        meta:
+          sensitivity: public
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__order_status_history
     description: >
@@ -254,33 +739,92 @@ models:
       `fact_order_status_event`.
     columns:
       - name: order_status_event_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__orders')
               field: order_id
       - name: to_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: changed_at
+        meta:
+          sensitivity: internal
         data_tests: [not_null]
+      - name: from_status
+        meta:
+          sensitivity: internal
+      - name: change_reason
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
   - name: stg_retail__campaigns
     columns:
       - name: campaign_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: campaign_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: campaign_objective
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [acquisition, retention, reactivation, clearance]
+      - name: campaign_name
+        meta:
+          sensitivity: public
+      - name: campaign_valid_from
+        meta:
+          sensitivity: public
+      - name: campaign_valid_to
+        meta:
+          sensitivity: public
+      - name: budget_amount
+        meta:
+          sensitivity: confidential
+      - name: campaign_is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__coupons
     description: >
@@ -289,49 +833,152 @@ models:
       `max_redemptions`, *sem teto*.
     columns:
       - name: coupon_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_code
+        meta:
+          sensitivity: public
         data_tests: [unique, not_null]
       - name: campaign_id
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__campaigns')
               field: campaign_id
       - name: discount_type
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [percentage, fixed]}
+      - name: discount_value
+        meta:
+          sensitivity: confidential
+      - name: min_order_amount
+        meta:
+          sensitivity: public
+      - name: max_redemptions
+        meta:
+          sensitivity: internal
+      - name: coupon_valid_from
+        meta:
+          sensitivity: public
+      - name: coupon_valid_to
+        meta:
+          sensitivity: public
+      - name: coupon_is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__coupon_redemptions
     description: Um resgate por pedido, garantido por índice único na origem.
     columns:
       - name: coupon_redemption_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
+        meta:
+          sensitivity: internal
         description: Único — dois cupons no mesmo pedido tornariam o rateio do desconto ambíguo.
         data_tests: [unique, not_null]
       - name: coupon_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__coupons')
               field: coupon_id
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__customers')
               field: customer_id
+      - name: coupon_discount_amount
+        meta:
+          sensitivity: confidential
+      - name: redeemed_at
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__support_agents
     columns:
       - name: support_agent_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: agent_code
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: agent_team
+        meta:
+          sensitivity: public
         data_tests: [not_null]
+      - name: agent_first_name
+        meta:
+          sensitivity: personal
+      - name: agent_last_name
+        meta:
+          sensitivity: personal
+      - name: agent_full_name
+        meta:
+          sensitivity: personal
+      - name: agent_email
+        meta:
+          sensitivity: personal
+      - name: hired_at
+        meta:
+          sensitivity: internal
+      - name: agent_is_active
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__support_tickets
     description: >
@@ -339,39 +986,109 @@ models:
       pedido —, e é esse nulo que os exclui da comparação de P16 (ADR-0036).
     columns:
       - name: support_ticket_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: ticket_number
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: ticket_category
+        meta:
+          sensitivity: public
         data_tests:
           - not_null
           - accepted_values:
               values: [delivery, payment, product, return, account, other]
       - name: ticket_status
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [open, in_progress, waiting_customer, resolved, closed]
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: shipment_id
+        meta:
+          sensitivity: internal
+      - name: assigned_agent_id
+        meta:
+          sensitivity: internal
+      - name: ticket_priority
+        meta:
+          sensitivity: internal
+      - name: ticket_subject
+        meta:
+          sensitivity: personal
+      - name: opened_at
+        meta:
+          sensitivity: internal
+      - name: closed_at
+        meta:
+          sensitivity: internal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: source_updated_at
+        meta:
+          sensitivity: internal
+      - name: source_deleted_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal
 
   - name: stg_retail__ticket_events
     description: '`support_agent_id` nulo é autor **cliente**, não dado faltando.'
     columns:
       - name: ticket_event_id
+        meta:
+          sensitivity: internal
         data_tests: [unique, not_null]
       - name: support_ticket_id
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - relationships:
               to: ref('stg_retail__support_tickets')
               field: support_ticket_id
       - name: ticket_event_type
+        meta:
+          sensitivity: internal
         data_tests:
           - not_null
           - accepted_values:
               values: [created, assigned, message, status_changed, resolved, reopened]
+      - name: support_agent_id
+        meta:
+          sensitivity: internal
+      - name: occurred_at
+        meta:
+          sensitivity: internal
+      - name: ticket_message
+        meta:
+          sensitivity: personal
+      - name: source_created_at
+        meta:
+          sensitivity: internal
+      - name: is_deleted
+        meta:
+          sensitivity: internal
+      - name: ingested_at
+        meta:
+          sensitivity: internal

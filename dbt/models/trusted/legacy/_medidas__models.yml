@@ -23,10 +23,28 @@ models:
       - name: divergence_amount
         description: Total declarado menos a soma dos itens que chegaram ao armazém.
         meta:
-          sensitivity: internal
+          sensitivity: confidential
         data_tests: [not_null]
       - name: explicada_pela_quarentena
         description: Há ao menos um item deste pedido em quarentena explicando a diferença.
         meta:
-          sensitivity: internal
+          sensitivity: personal
         data_tests: [not_null]
+      - name: order_id
+        meta:
+          sensitivity: internal
+      - name: subtotal_amount
+        meta:
+          sensitivity: confidential
+      - name: items_gross_revenue_amount
+        meta:
+          sensitivity: confidential
+      - name: itens_empilhados
+        meta:
+          sensitivity: internal
+      - name: itens_rejeitados
+        meta:
+          sensitivity: internal
+      - name: motivos_da_rejeicao
+        meta:
+          sensitivity: internal
