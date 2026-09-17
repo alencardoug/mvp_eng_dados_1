@@ -236,3 +236,110 @@ memória sem linha no intervalo. A regra mais estrita não reprova esse estado c
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RV10-5-01 | `tests/test_legado_remocao.py:549–550` | **Intervalo vazio pula a validação mesmo quando existe anterior certificada.** O teste deduz a falta de anterior de `not intervalo`, antes de chamar `_faltas`. EV10-5-02 mantém duas capturas certificadas e uma chave declarada presente no diário, mas omite todas as transições: o helper acusa a falta; o teste completo retorna `SKIP`, e a reconciliação física também não acusa. **Preexistente em `b650125`; não introduzido por esta entrega.** Determinar a existência de anterior pela seleção e pelos certificados, independentemente da tabela auditada; só pular quando de fato não houver anterior. Havendo anterior, submeter também o intervalo vazio ao consumidor. Acrescentar a contraprova no nível do teste completo e preservar o caso legítimo sem anterior e as ausências históricas com memória. | `ajuste` | **Aplicado em `4a3b692`.** `_anterior_certificada(conexao, selecionada)` lê `governance.legacy_captures` com a regra de `certificadas_sql()` (`complete` nas 40 tabelas, `max(snapshot_id) < selecionada`) — a mesma do `anterior` de `remocao.transicoes()` — e a selecionada sai de `staging.legacy_selected_capture`. O ciclo real só pula quando o helper devolve `None`; com anterior, o intervalo vai ao consumidor mesmo vazio, e o par materializado, quando existe, tem de ser `(anterior, selecionada)`. Contraprova no ciclo efêmero: `delete from trusted.legacy_capture_transitions`, anterior ainda encontrada, `legado_presenca_fisica_reconcilia` devolvendo `[]` (não acusa, como EV10-5-02 mostrou) e `_faltas` acusando `1`, `8` e `9` como `presente mas fora do intervalo`; `_anterior_certificada(conexao, anterior) is None` preserva o salto legítimo da primeira certificada, e as ausências históricas com memória seguem aceitas (EV10-5-03 continua verde: `tests/test_legado_remocao.py` → `55 passed`, o ciclo real em 35→36 sem skip). |
+
+---
+
+### Parecer do revisor — Codex, 17/09/2026, sexta rodada
+
+**A correção funcional de RV10-5-01 está confirmada; falta a contraprova de regressão no
+teste completo.** O intervalo desta conferência é `464b75d..b9523f1`: implementação em
+`4a3b692` e resposta do autor em `b9523f1`, com a árvore limpa ao início. O escopo da seção 1
+e as medições anteriores permanecem históricos; não representam estes dois commits novos.
+
+Revisei integralmente `_anterior_certificada`, a alteração no teste do diário e a
+contraprova acrescentada ao ciclo efêmero. O helper segue a regra de `certificadas_sql()`
+e o corte estrito de `remocao.transicoes()`: seleciona a maior captura anterior com
+`complete` nas 40 tabelas. A seleção vem do modelo materializado, e a conferência do par
+recusa limites divergentes. Nenhum código de produção mudou neste intervalo.
+
+A sonda que chama o teste completo agora confirma o comportamento solicitado: a perda
+total do intervalo falha; a primeira captura sem anterior pula legitimamente. O que ainda
+não foi atendido é a parte do achado que pede **contraprova no nível do teste completo**.
+O teste versionado novo chama `_anterior_certificada` e `_faltas` separadamente; não passa
+pelo desvio onde estava o defeito. EV10-6-03 mostra que restaurar esse desvio deixa os dois
+testes envolvidos verdes. É a cobertura restante do mesmo achado, não um novo defeito
+funcional ou um novo bloqueante.
+
+### Evidências da sexta rodada
+
+**EV10-6-01 — suíte existente.** Comando:
+`PYTEST_ADDOPTS='--tb=short -rs' make test`, sem `FATO=1` nem `CARGA=1`.
+Recorte literal de `/tmp/mvp_ed1-revisao6-tests.log`:
+
+```text
+.......................s.....................................s.......... [ 28%]
+........................................sss................sss.......... [ 56%]
+........................................................................ [ 84%]
+.......................................                                  [100%]
+247 passed, 8 skipped in 154.75s (0:02:34)
+```
+
+Os motivos dos oito testes pulados continuam os de EV10-5-01: dois dependem de carga ou
+escrita na fato e seis dependem do lote íntegro do manifesto, diferente da captura 36.
+O teste do diário real passou sem pular.
+
+**EV10-6-02 — fluxo completo, com seleção materializada.** Comando:
+`.venv/bin/python /tmp/mvp_ed1-revisao6-consumidor.py`, com o ambiente local carregado.
+Dois bancos efêmeros, capturas 861 e 862 certificadas, alteração do nome de `brands/1`
+registrada no diário. A seleção é materializada a partir de `captura_selecionada()`;
+a sonda chama `test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria` diretamente.
+O teste de `464b75d` é carregado em memória para comparação. Recortes literais de
+`/tmp/mvp_ed1-revisao6-consumidor.log`:
+
+```json
+{"scenario": "primeira_certificada", "selected": 861, "cycle_current": {"status": "SKIP", "detail": "sem intervalo: a captura 861 não tem anterior certificada"}}
+{"scenario": "integro", "certified_interval": [861, 862], "interval_rows": 2, "cycle_base": {"status": "PASS"}, "cycle_current": {"status": "PASS"}}
+{"scenario": "omite_chave_presente", "certified_interval": [861, 862], "interval_rows": 1, "cycle_base": {"status": "FAIL", "detail": "efeito líquido do diário sem correspondência: [('presente mas fora do intervalo', 'brands', '1')]"}, "cycle_current": {"status": "FAIL", "detail": "efeito líquido do diário sem correspondência: [('presente mas fora do intervalo', 'brands', '1')]"}}
+{"scenario": "intervalo_vazio", "certified_interval": [861, 862], "interval_rows": 0, "cycle_base": {"status": "SKIP", "detail": "sem intervalo: a captura selecionada não tem anterior certificada"}, "cycle_current": {"status": "FAIL", "detail": "efeito líquido do diário sem correspondência: [('presente mas fora do intervalo', 'brands', '1')]"}}
+{"scenario": "par_materializado_divergente", "certified_interval": [861, 862], "interval_rows": 2, "cycle_base": {"status": "PASS"}, "cycle_current": {"status": "FAIL", "detail": "o intervalo materializado não é o certificado: [(861, 861)]"}}
+{"probe": "fluxo_completo", "result": "PASS"}
+```
+
+Os `FAIL` acima são falhas esperadas e conferidas pela sonda. A omissão parcial e total
+foi injetada no SQL das transições; no último caso, só o par materializado foi adulterado.
+As alterações ficaram nos bancos efêmeros.
+
+**EV10-6-03 — a contraprova versionada não detecta a volta do salto indevido.** Copiei
+`tests/test_legado_remocao.py` para `/tmp/test_legado_remocao_rv6_mutante.py` e alterei
+somente a condição do teste completo:
+
+```diff
+-    if anterior is None:
++    if not intervalo or anterior is None:
+```
+
+Isso restaura o desvio indevido de RV10-5-01, mantendo os helpers e os demais testes
+intactos. Executei os dois testes que poderiam exercer essa integração — ciclo efêmero
+com a nova contraprova e consumidor do diário real — usando a configuração do projeto:
+
+```bash
+PYTHONPATH=/home/doug/Projetos/mvp_ed1/tests .venv/bin/pytest -c pyproject.toml -q --tb=short -rs /tmp/test_legado_remocao_rv6_mutante.py -k 'o_ciclo_inteiro or as_mutacoes_do_diario'
+```
+
+Saída literal de `/tmp/mvp_ed1-revisao6-mutante-configurado.log`:
+
+```text
+..                                                                       [100%]
+2 passed, 53 deselected in 2.90s
+```
+
+O ciclo efêmero não chama o teste completo, e o diário real tem intervalo preenchido;
+nenhum atravessa o desvio com intervalo vazio. Não executei a suíte inteira sobre a
+cópia mutante. A primeira execução dessa cópia não carregava `pyproject.toml` e emitia
+avisos de marcador desconhecido; o comando acima é a repetição com a configuração correta.
+
+### Situação do achado após a sexta rodada
+
+| # | Onde | O que resta | Veredito | Situação |
+|---|---|---|---|---|
+| RV10-5-01 | `tests/test_legado_remocao.py:519–530` | **A contraprova não atravessa o desvio corrigido.** As asserções de `_anterior_certificada` e `_faltas` isolados não protegem o teste completo contra a volta do salto por intervalo vazio; EV10-6-03 restaura esse salto e os dois testes envolvidos passam. Materializar a seleção necessária no banco efêmero e exercitar o fluxo completo, cobrando falha por chave presente ausente com duas certificadas e salto legítimo apenas sem anterior. Um helper compartilhado também serve se incluir o desvio de elegibilidade e a validação. A contraprova deve falhar ao reintroduzir `if not intervalo`. | `ajuste` | **Aplicado em `eb6f176`.** O teste completo virou `_conferir_diario(conexao, diario)` — elegibilidade (`skip` só com `_anterior_certificada` nula) e validação num lugar só; o ciclo real o chama. O ciclo efêmero o exercita por `_veredito_do_diario`, que devolve `("passa",)`, `("salto", motivo)` ou `("falha", faltas)` como valor — porque um `Skipped` escapando de `pytest.raises(AssertionError)` pulava o teste inteiro em silêncio, o mesmo defeito no teste que o cobre (foi o primeiro resultado da cópia mutante). O armazém efêmero passa a materializar `staging.legacy_selected_capture` pelo gerador real (`captura_selecionada()` com `legacy_snapshot_id` explícito), e `ref` aponta para ela como no dbt. Cobertura pelo fluxo completo: íntegro `passa`; chave `1` omitida `falha` com `[('presente mas fora do intervalo', 'brands', '1')]`; intervalo inteiro apagado `falha` com `8`, `9` e `1`, com a equação física ainda em `[]`; modelos reconstruídos sobre a primeira certificada → `salto` com `a captura {anterior} não tem anterior certificada`. Contraprova de EV10-6-03 repetida: cópia com `if not intervalo or anterior is None` → `o_ciclo_inteiro` **falha** (`assert ('salto', …) == ('falha', [('presente mas fora do intervalo', 'brands', '1')])`), `1 failed, 1 passed`. Suíte inteira: `247 passed, 8 skipped in 152.10s`, mesmos oito motivos de EV10-6-01. |
+
+### Limites da sexta rodada
+
+- Não repeti `make dbt-build`, sincronização real do Airbyte, DAG, interrupção de job,
+  `FATO=1`, `CARGA=1` ou o bloco da D44. O `PASS=891` anterior não é medição desta rodada.
+- Não remedi o custo da macro, planos de execução ou paridade com BigQuery. As ressalvas
+  anteriores sobre esses pontos permanecem.
+- Os bancos efêmeros foram removidos pelas fixtures. A cópia mutante e as sondas ficaram
+  em `/tmp`; a única alteração versionável desta revisão é este parecer.
+- A confirmação da correção funcional não é aceite da Etapa 10 pelo Owner.
