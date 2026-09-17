@@ -1,6 +1,6 @@
 """Modelos da exclusão física do legado (ADR-0045) — gerados da declaração, como os demais.
 
-Três modelos em `trusted` e um teste de dados, todos a partir de `Base.metadata`
+Três modelos em `trusted` e dois testes de dados, todos a partir de `Base.metadata`
 (a chave primária e o seu tipo, tabela a tabela) e da lista de tabelas de
 `schema`. Escrever os quarenta braços à mão daria uma segunda lista que
 divergiria da primeira no dia em que uma tabela entrasse ou saísse.
@@ -19,7 +19,11 @@ divergiria da primeira no dia em que uma tabela entrasse ou saísse.
   equação nenhuma;
 * `legado_presenca_fisica_reconcilia` — o teste: por tabela,
   `linhas(anterior) − Σ max(0, n_ant − n_sel) + Σ max(0, n_sel − n_ant)
-  + Δ sem_identidade = linhas(selecionada)`.
+  + Δ sem_identidade = linhas(selecionada)`;
+* `legado_vinculo_nao_diverge_por_representacao` — a sentinela: a limpeza
+  resolve o pai por igualdade **textual** e a comparação entre capturas pela
+  chave **canônica** (D43); um filho que só encontra o pai pela segunda seria
+  órfão em silêncio, e este teste o acusa em vez disso.
 """
 
 from __future__ import annotations
@@ -405,6 +409,57 @@ where coalesce(a.linhas, 0) - t.perdidas + t.ganhas + t.delta_sem_identidade <> 
 """
 
 
+def referencias() -> list[tuple[str, str, str, str, str]]:
+    """`(filha, coluna, pai, chave, tipo)` de cada chave estrangeira declarada, na ordem do modelo."""
+    saida = []
+    for tabela in schema.tabelas():
+        for fk in sorted(Base.metadata.tables[f"oltp.{tabela}"].foreign_keys, key=lambda f: f.parent.name):
+            pai = fk.column.table.name
+            saida.append((tabela, fk.parent.name, pai, fk.column.name, chave(pai)[1]))
+    return saida
+
+
+def teste_vinculo_por_representacao() -> str:
+    ramos = "\n    union all\n".join(
+        f"""    select '{filha}' as source_table, f.legacy_row_id, '{coluna}' as column_name,
+        '{pai}' as parent_table, f.cleaned_payload->>'{coluna}' as parent_value
+    from registros f
+    where f.source_table = '{filha}' and f.cleaned_payload->>'{coluna}' is not null
+      and not exists (
+          select 1 from registros p
+          where p.source_table = '{pai}' and p.cleaned_payload->>'{chave_pai}' = f.cleaned_payload->>'{coluna}'
+      )
+      and exists (
+          select 1 from registros p
+          where p.source_table = '{pai}'
+            and {{{{ chave_canonica("p.cleaned_payload->>'{chave_pai}'", '{tipo}') }}}}
+              = {{{{ chave_canonica("f.cleaned_payload->>'{coluna}'", '{tipo}') }}}}
+      )"""
+        for filha, coluna, pai, chave_pai, tipo in referencias()
+    )
+    return f"""{AVISO}
+-- Sentinela da identidade do vínculo (17/09/2026, registrada junto à D43).
+--
+-- A classificação resolve a referência ao pai por igualdade **textual**
+-- (`classification.sql`, CTE `edges`); a comparação entre capturas resolve a
+-- mesma chave pela forma **canônica** do tipo (`chave_canonica`, ADR-0045).
+-- Enquanto as chaves do bruto forem inteiros e UUIDs limpos as duas coincidem.
+-- No dia em que um pai for escrito `0x8` e o filho `8`, o intervalo dirá
+-- `mantida` e a limpeza dirá `FK_ORPHAN` — e este teste acusa o filho, em vez
+-- de deixar a divergência passar como órfão legítimo. Não muda tratamento
+-- nenhum: unificar as noções de identidade é decisão da D43.
+
+with registros as (
+
+    select source_table, legacy_row_id, cleaned_payload
+    from {{{{ ref('legacy_records') }}}}
+
+)
+
+{ramos}
+"""
+
+
 def gerar(destino: pathlib.Path = DESTINO, testes: pathlib.Path = TESTES) -> list[pathlib.Path]:
     destino.mkdir(parents=True, exist_ok=True)
     testes.mkdir(parents=True, exist_ok=True)
@@ -413,6 +468,7 @@ def gerar(destino: pathlib.Path = DESTINO, testes: pathlib.Path = TESTES) -> lis
         destino / "legacy_capture_transitions.sql": transicoes(),
         destino / "legacy_removed_records.sql": removidos(),
         testes / "legado_presenca_fisica_reconcilia.sql": teste_presenca_fisica(),
+        testes / "legado_vinculo_nao_diverge_por_representacao.sql": teste_vinculo_por_representacao(),
     }
     for caminho, conteudo in saidas.items():
         caminho.write_text(conteudo, encoding="utf-8")

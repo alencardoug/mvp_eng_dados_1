@@ -217,6 +217,11 @@ efeito da geração sobre os dados dependentes foi medido, como registra
   por `classification.py`) — o primeiro uso deles no projeto: capturas fictícias, certificadas pela
   mesma regra do modelo real, cobrindo remoção, inclusão, redução de multiplicidade, sem identidade,
   captura sem mudança, reaparecimento com nova exclusão e anterior incompleta ignorada;
+- a identidade do vínculo pai tem **sentinela** (`legado_vinculo_nao_diverge_por_representacao`,
+  gerado por `remocao.py` das 56 chaves estrangeiras declaradas): a limpeza resolve o pai por
+  igualdade textual e a comparação entre capturas pela chave canônica; um filho que só encontra o
+  pai pela segunda é acusado, em vez de virar `FK_ORPHAN` em silêncio. Não muda tratamento —
+  unificar as noções de identidade é a [D43](pendencias.md#d43--a-guarda-de-identidade-como-função-no-armazém-adiada-em-16092026);
 - um tratamento por versão de catálogo: resultado diferente sob a mesma versão **recusa** substituir
   a auditoria guardada, em vez de apagá-la ([D33 a D35](pendencias.md#2-decisões-já-fechadas));
 - invariante que atravessa entidades é exigida onde a quarentena não explica a diferença — e toda
