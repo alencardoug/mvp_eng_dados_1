@@ -717,6 +717,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
+    { name = "sqlglot" },
 ]
 
 [package.dev-dependencies]
@@ -735,6 +736,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
     { name = "sqlalchemy", specifier = ">=2.0,<3.0" },
+    { name = "sqlglot", specifier = ">=30,<31" },
 ]
 
 [package.metadata.requires-dev]

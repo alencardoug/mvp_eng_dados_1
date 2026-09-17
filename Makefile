@@ -157,8 +157,12 @@ migrate-new: require-env require-venv ## Gera rascunho de migração; exige M="m
 	@echo "RASCUNHO gerado. Revise antes de aplicar: o autogenerate não detecta"
 	@echo "renomeação, conversão de tipo nem mudança de constraint (ADR-0010)."
 
-catalog: require-venv ## Regenera dicionário, inventário e diagrama ER dos modelos e da configuração
+catalog: require-venv ## Regenera dicionário, inventário, diagrama ER e a classificação derivada dos modelos
 	@.venv/bin/python -m mvp_ed1.models.export
+	@# A sensibilidade de cada coluna do armazém é derivada da declarada nos
+	@# modelos, por linhagem do SQL compilado — precisa do manifest de um
+	@# `make dbt-build` recente. Sem ele, avisa e não escreve nada.
+	@.venv/bin/python -m mvp_ed1.models.sensitivity
 
 seed-data: require-env require-venv ## Gera e carrega os dados sintéticos; SCALE, SEED, AS_OF, FORCE=1
 	@$(GERADOR) seed \
@@ -413,19 +417,22 @@ test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em
 		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
 	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
 
-check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, pytest; FATO=1 inclui o teste que escreve na fato
-	@# Três etapas, nesta ordem e sem seguir depois de uma falha. Segredos
+check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, classificação derivada, pytest; FATO=1 inclui o teste que escreve na fato
+	@# Quatro etapas, nesta ordem e sem seguir depois de uma falha. Segredos
 	@# primeiro porque custa um segundo e é a regra inviolável nº 1; o dbt antes
 	@# do pytest porque a suíte Python lê o armazém que o build acabou de
-	@# construir (captura selecionada, intervalo, memória). `RESET=1` e `FATO=1`
+	@# construir (captura selecionada, intervalo, memória); a classificação
+	@# derivada depois do build porque lê o manifest dele. `RESET=1` e `FATO=1`
 	@# passam adiante com o mesmo significado que têm nos alvos de origem.
-	@echo "── 1/3 revisão de segredos e .gitignore ──"
+	@echo "── 1/4 revisão de segredos e .gitignore ──"
 	@.venv/bin/python -m mvp_ed1.secrets_review
-	@echo "── 2/3 dbt build: modelos, testes de dados e reconciliações ──"
+	@echo "── 2/4 dbt build: modelos, testes de dados e reconciliações ──"
 	@$(MAKE) --no-print-directory dbt-build RESET=$(RESET)
-	@echo "── 3/3 pytest: código, contratos e integração ──"
+	@echo "── 3/4 classificação derivada em dia com os modelos ──"
+	@.venv/bin/python -m mvp_ed1.models.sensitivity --check
+	@echo "── 4/4 pytest: código, contratos e integração ──"
 	@$(MAKE) --no-print-directory test FATO=$(FATO)
-	@echo "check: as três etapas passaram"
+	@echo "check: as quatro etapas passaram"
 
 test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui
 	@# O banco nasce ao lado do `source_db`, com sufixo `_carga`, recebe as

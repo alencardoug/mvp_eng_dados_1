@@ -61,7 +61,9 @@ def test_env_example_com_valor_e_env_rastreado_sao_acusados(repositorio: pathlib
 
 
 def test_forma_generica_de_credencial_e_acusada_sem_depender_do_env(repositorio: pathlib.Path) -> None:
-    (repositorio / "chave.pem").write_text("-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n", encoding="utf-8")
+    # Montada em partes: escrita inteira, a própria revisão acusaria este arquivo.
+    cabecalho = "-----BEGIN " + "RSA PRIVATE KEY-----"
+    (repositorio / "chave.pem").write_text(f"{cabecalho}\nMIIE...\n", encoding="utf-8")
     (repositorio / ".env").unlink()
     _git(repositorio, "add", "chave.pem")
     assert secrets_review.review(repositorio) == ["chave.pem: forma de credencial `-----BEGIN RSA PRIVATE K…`"]
