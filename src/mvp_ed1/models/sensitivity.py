@@ -34,7 +34,10 @@ coluna e para quem a lê depois. É a única forma de exceção, e ela é visív
   ou atualizado **no lugar**, preservando o resto do arquivo linha a linha;
 * modelo sem entrada em `.yml` nenhum: entra em `_sensitivity.yml` no diretório
   dele — arquivo inteiramente gerado, reescrito com **todos** os modelos que lhe
-  pertencem a cada geração, e removido quando não sobra nenhum;
+  pertencem a cada geração, e removido quando não sobra nenhum. Para promover um
+  modelo a um `.yml` à mão, acrescente a entrada e rode `make catalog` **antes**
+  do dbt: o disco, não o manifest, diz onde o modelo está documentado, e é a
+  geração que retira a entrada gerada antes de o dbt recusar a duplicidade;
 * fonte `raw` (e `raw_legacy`): as colunas entram em `_retail__sources.yml`, sob
   cada tabela — **espelho** da declaração SQLAlchemy, que continua sendo a folha;
   um espelho atrasado não sobrepõe a origem;
@@ -42,7 +45,9 @@ coluna e para quem a lê depois. É a única forma de exceção, e ela é visív
   nasce no próprio gerador (`legacy/classification.py`), da mesma declaração.
 
 `--check` não escreve: sai com 1 se algum arquivo estaria diferente, e é o que
-`make check` roda para garantir que o derivado não ficou para trás.
+`make check` roda para garantir que o derivado não ficou para trás. Derivação
+incompleta — manifest de `dbt parse`, sem SQL compilado, ou SQL que o parser não
+lê — não escreve nem apaga nada, com ou sem `--check`.
 
 As folhas por coluna que esta leitura produz (`Derivation.leaves`) são a mesma
 coisa de que `models/lineage.py` parte para fechar a linhagem até a origem: uma
@@ -372,13 +377,38 @@ class Plan:
     left_to_generator: list[str] = field(default_factory=list)
 
 
+def manual_entries() -> dict[str, tuple[pathlib.Path, dict[str, dict]]]:
+    """`modelo → (.yml escrito à mão, coluna → meta)` de tudo o que os `.yml` do projeto documentam à mão, **lido do disco**.
+
+    O disco, e não o manifest, decide onde um modelo está documentado: quem
+    promove um modelo a um `.yml` à mão acrescenta a entrada e roda
+    `make catalog` — o manifest ainda aponta para o gerado, e o dbt se recusaria
+    a compilar com as duas entradas. Ler o disco é o que permite retirar a
+    entrada gerada **antes** dessa recusa, sem editar o derivado à mão.
+    """
+    entradas: dict[str, tuple[pathlib.Path, dict[str, dict]]] = {}
+    for caminho in sorted(list((DBT / "models").rglob("*.yml")) + list((DBT / "snapshots").rglob("*.yml"))):
+        if _is_generated(caminho):
+            continue
+        documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        for entrada in (documento.get("models") or []) + (documento.get("snapshots") or []):
+            colunas = {c["name"]: (c.get("meta") or {}) for c in entrada.get("columns") or []}
+            entradas[entrada["name"]] = (caminho, colunas)
+    return entradas
+
+
 def plan(manifest: dict, derivation: Derivation) -> Plan:
     resultado = Plan()
+    manuais = manual_entries()
     for node_id, colunas in derivation.levels.items():
         no = manifest["nodes"][node_id]
         if no["resource_type"] == "seed":
             continue
-        declaradas = {c["name"]: (c.get("meta") or {}) for c in no.get("columns", {}).values()}
+        manual = manuais.get(no["name"])
+        if manual:
+            caminho, declaradas = manual
+        else:
+            declaradas = {c["name"]: (c.get("meta") or {}) for c in no.get("columns", {}).values()}
         alvo: dict[str, str] = {}
         for coluna, derivado in colunas.items():
             meta = declaradas.get(coluna, {})
@@ -389,21 +419,23 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
                 if atual:
                     resultado.changes.append(f"{no['name']}.{coluna}: `{atual}` → `{derivado}`")
                 alvo[coluna] = derivado
+        if manual:
+            if alvo:
+                resultado.patches[caminho][no["name"]] = alvo
+            continue
         if not (no.get("patch_path") and not no["patch_path"].endswith("/" + GENERATED_FILE)):
             # Arquivo inteiramente gerado: é reescrito por inteiro, então **todo** modelo que
             # lhe pertence entra, mude ou não — um que ficasse de fora por não ter mudado
-            # sumiria do arquivo na primeira alteração de outro. Modelo que ganhou entrada
-            # num .yml à mão cai no ramo de baixo e, por isso mesmo, sai daqui.
+            # sumiria do arquivo na primeira alteração de outro. Modelo com entrada num .yml
+            # à mão já saiu acima e, por isso mesmo, sai daqui.
             diretorio = DBT / pathlib.Path(no["original_file_path"]).parent
             resultado.generated[diretorio / GENERATED_FILE][no["name"]] = colunas
             continue
         if not alvo:
             continue
+        # Só resta o .yml gerado por `make legacy-models`: a sensibilidade dele é do gerador.
         caminho = DBT / no["patch_path"].split("://", 1)[1]
-        if _is_generated(caminho):
-            resultado.left_to_generator.append(f"{no['name']}: {len(alvo)} colunas sem sensitivity em {caminho.relative_to(ROOT)} (gerado)")
-            continue
-        resultado.patches[caminho][no["name"]] = alvo
+        resultado.left_to_generator.append(f"{no['name']}: {len(alvo)} colunas sem sensitivity em {caminho.relative_to(ROOT)} (gerado)")
 
     # Fontes raw: colunas sob cada tabela de _retail__sources.yml.
     _, niveis = source_leaves()
@@ -533,13 +565,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     derivacao = derive(manifest)
-    plano = plan(manifest, derivacao)
-    arquivos = render_files(plano)
-
     for aviso in derivacao.warnings:
         print(f"aviso: {aviso}", file=sys.stderr)
     for problema in derivacao.problems:
         print(f"derivação: {problema}", file=sys.stderr)
+    if derivacao.problems:
+        # Derivação incompleta não escreve nem apaga nada: um manifest de `dbt parse`
+        # (sem SQL compilado) deixaria todo modelo com zero colunas, e o arquivo gerado
+        # seria reescrito vazio antes de o código de saída dizer que algo falhou.
+        print(f"derivação incompleta ({len(derivacao.problems)} problema(s)): nenhum arquivo é tocado; "
+              "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
+        return 1
+    plano = plan(manifest, derivacao)
+    arquivos = render_files(plano)
+
     for mudanca in plano.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)
     for pendente in plano.left_to_generator:
@@ -553,7 +592,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"desatualizado: {caminho.relative_to(ROOT)}", file=sys.stderr)
         for caminho in obsoletos:
             print(f"obsoleto (sem modelo): {caminho.relative_to(ROOT)}", file=sys.stderr)
-        falhou = bool(mudados or obsoletos or derivacao.problems or plano.left_to_generator)
+        falhou = bool(mudados or obsoletos or plano.left_to_generator)
         print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; "
               f"{len(mudados) + len(obsoletos)} arquivo(s) desatualizado(s)")
         return 1 if falhou else 0
@@ -567,7 +606,7 @@ def main(argv: list[str] | None = None) -> int:
         caminho.unlink()
         print(f"removido: {caminho.relative_to(ROOT)}")
     print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; {len(mudados) + len(obsoletos)} arquivo(s) escrito(s)")
-    return 1 if (derivacao.problems or plano.left_to_generator) else 0
+    return 1 if plano.left_to_generator else 0
 
 
 if __name__ == "__main__":

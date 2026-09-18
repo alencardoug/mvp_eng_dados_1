@@ -8,6 +8,7 @@ restritivo, o que decide o ramo do `case` não entra, `union` casa por posição
 
 from __future__ import annotations
 
+import json
 import textwrap
 
 import sqlglot
@@ -146,6 +147,9 @@ def test_arquivo_gerado_leva_todos_os_modelos_que_lhe_pertencem(tmp_path, monkey
     Quatro situações numa geração só: coluna que muda, modelo que não muda,
     modelo novo sem `.yml`, e modelo que ganhou entrada num `.yml` à mão — os
     três primeiros ficam no gerado; o último sai dele e vira `patch` no manual.
+    O promovido é lido do **disco**: o manifest ainda o aponta para o gerado,
+    porque o dbt se recusa a compilar com as duas entradas — é a geração que
+    retira a entrada gerada antes dessa recusa.
     """
     monkeypatch.setattr(s, "DBT", tmp_path)
     manual = tmp_path / "models" / "trusted" / "_trusted__models.yml"
@@ -156,7 +160,7 @@ def test_arquivo_gerado_leva_todos_os_modelos_que_lhe_pertencem(tmp_path, monkey
         "model.mvp_ed1.muda":      _no("muda", "trusted", {"id": "internal", "nome": "public"}, gerado),
         "model.mvp_ed1.fica":      _no("fica", "trusted", {"id": "internal"}, gerado),
         "model.mvp_ed1.novo":      _no("novo", "trusted", {}, None),
-        "model.mvp_ed1.promovido": _no("promovido", "trusted", {}, "mvp_ed1://models/trusted/_trusted__models.yml"),
+        "model.mvp_ed1.promovido": _no("promovido", "trusted", {"id": "internal"}, gerado),
     }}
     derivado = s.Derivation(levels={
         "model.mvp_ed1.muda": {"id": "internal", "nome": "personal"},
@@ -174,21 +178,58 @@ def test_arquivo_gerado_leva_todos_os_modelos_que_lhe_pertencem(tmp_path, monkey
     texto = s.render_files(plano)[arquivo]
     assert [m["name"] for m in yaml.safe_load(texto)["models"]] == ["fica", "muda", "novo"]
 
-    # Segunda geração, sem nada a mudar: o mesmo arquivo, byte a byte — e nenhum obsoleto.
-    arquivo.write_text(texto, encoding="utf-8")
-    for node_id, niveis in derivado.levels.items():
-        manifest["nodes"][node_id]["columns"] = {c: {"name": c, "meta": {"sensitivity": n}} for c, n in niveis.items()}
-    for nome in ("novo",):
+    # Segunda geração, com os dois arquivos escritos e o manifest ainda o da primeira
+    # (`patch_path` do promovido no gerado): o mesmo arquivo, byte a byte — e nenhum obsoleto.
+    for caminho, conteudo in s.render_files(plano).items():
+        caminho.write_text(conteudo, encoding="utf-8")
+    for nome in ("muda", "novo"):
+        manifest["nodes"][f"model.mvp_ed1.{nome}"]["columns"] = {
+            c: {"name": c, "meta": {"sensitivity": n}} for c, n in derivado.levels[f"model.mvp_ed1.{nome}"].items()}
         manifest["nodes"][f"model.mvp_ed1.{nome}"]["patch_path"] = gerado
     plano2 = s.plan(manifest, derivado)
     assert plano2.changes == [] and plano2.patches == {}
     assert s.render_files(plano2)[arquivo] == texto
     assert s.stale_generated(plano2) == []
+    assert yaml.safe_load(manual.read_text(encoding="utf-8"))["models"][0]["columns"] == [{"name": "id", "meta": {"sensitivity": "internal"}}]
 
     # Todos promovidos ao `.yml` à mão: o gerado fica sem modelo e é apontado como obsoleto.
-    for node_id in derivado.levels:
-        manifest["nodes"][node_id]["patch_path"] = "mvp_ed1://models/trusted/_trusted__models.yml"
-    assert s.stale_generated(s.plan(manifest, derivado)) == [arquivo]
+    manual.write_text("version: 2\nmodels:\n" + "".join(f"  - name: {n}\n" for n in ("muda", "fica", "novo", "promovido")), encoding="utf-8")
+    plano3 = s.plan(manifest, derivado)
+    assert plano3.generated == {} and set(plano3.patches) == {manual}
+    assert s.stale_generated(plano3) == [arquivo]
+
+
+def test_derivacao_incompleta_nao_escreve_nem_apaga_nada(tmp_path, monkeypatch, capsys) -> None:
+    """Manifest de `dbt parse` (sem SQL compilado) ou SQL que o parser não lê: `main()` recusa antes de tocar em arquivo.
+
+    Sem isso o gerado seria reescrito com zero colunas e o código de saída 1
+    chegaria depois do estrago — foi o achado RV11-2-01.
+    """
+    dbt = tmp_path / "dbt"
+    (dbt / "models" / "trusted").mkdir(parents=True)
+    (dbt / "target").mkdir()
+    monkeypatch.setattr(s, "ROOT", tmp_path)
+    monkeypatch.setattr(s, "DBT", dbt)
+    monkeypatch.setattr(s, "MANIFEST", dbt / "target" / "manifest.json")
+    gerado = dbt / "models" / "trusted" / s.GENERATED_FILE
+    original = s.render_generated({"a": {"first_name": "personal"}, "b": {"id": "internal"}})
+    gerado.write_text(original, encoding="utf-8")
+
+    def no(nome: str, sql: str | None) -> dict:
+        return {"unique_id": f"model.mvp_ed1.{nome}", "resource_type": "model", "name": nome, "schema": "trusted", "database": "wh",
+                "original_file_path": f"models/trusted/{nome}.sql", "patch_path": f"mvp_ed1://models/trusted/{s.GENERATED_FILE}",
+                "depends_on": {"nodes": []}, "columns": {}, "compiled_code": sql}
+
+    bom = 'select first_name from "wh"."raw"."customers"'
+    for caso, nodes in {
+        "compilação parcial": {"model.mvp_ed1.a": no("a", bom), "model.mvp_ed1.b": no("b", None)},
+        "erro de parser num modelo": {"model.mvp_ed1.a": no("a", bom), "model.mvp_ed1.b": no("b", "select from where (")},
+    }.items():
+        s.MANIFEST.write_text(json.dumps({"sources": {}, "nodes": nodes}), encoding="utf-8")
+        for argv in ([], ["--check"]):
+            assert s.main(argv) == 1, caso
+            assert gerado.read_text(encoding="utf-8") == original, f"{caso}: arquivo tocado com {argv}"
+            assert "nenhum arquivo é tocado" in capsys.readouterr().err
 
 
 def test_o_espelho_de_raw_nao_sobrepoe_a_declaracao_sqlalchemy() -> None:

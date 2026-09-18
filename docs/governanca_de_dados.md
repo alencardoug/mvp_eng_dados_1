@@ -132,8 +132,10 @@ as 4 mil colunas do armazém são transporte, renome, conversão ou combinação
 vira valor; coluna sem folha (literal, `row_number()`, hash de chave, `count(*)`) e as colunas técnicas
 (`_airbyte_*`, `_stream_*`, `dbt_*`) são `internal`. O `.yml` escrito à mão é preservado linha a
 linha e só o `meta.sensitivity` é inserido ou reescrito; modelo sem `.yml` entra em `_sensitivity.yml`
-(gerado) no diretório dele; os `.yml` gerados por `make legacy-models` derivam a mesma declaração no
-próprio gerador. Quem discorda do derivado numa coluna declara `sensitivity` à mão **com
+(gerado) no diretório dele — para promovê-lo a um `.yml` à mão, acrescente a entrada e rode
+`make catalog` **antes** do dbt: o gerado perde a entrada e o manual ganha a classificação, sem editar
+o derivado; os `.yml` gerados por `make legacy-models` derivam a mesma declaração no próprio gerador.
+Derivação incompleta — manifest de `dbt parse`, SQL que o parser não lê — não escreve nem apaga nada. Quem discorda do derivado numa coluna declara `sensitivity` à mão **com
 `sensitivity_reason`** — sem a justificativa o derivado prevalece na próxima geração. Exceções de hoje:
 os payloads JSON do legado (`personal` por regra, porque a linhagem não vê o que um JSON carrega) e as
 pontes `legado__*` (o nível real de cada coluna extraída do payload). `make check` falha se algum

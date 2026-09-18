@@ -275,12 +275,18 @@ def main(argv: list[str] | None = None) -> int:
     linhagem = build(manifest)
     for problema in linhagem.problems:
         print(f"linhagem: {problema}", file=sys.stderr)
+    if linhagem.problems:
+        # Mesma regra de `sensitivity.main`: linhagem incompleta não reescreve a §3 do
+        # Dicionário — um manifest de `dbt parse` a deixaria vazia antes do código de saída.
+        print(f"linhagem incompleta ({len(linhagem.problems)} problema(s)): nada é escrito; "
+              "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
+        return 1
 
     if "--all" in argv:
         for (schema, relacao), colunas in sorted(linhagem.leaves.items()):
             for coluna in colunas:
                 print(f"{schema}.{relacao}.{coluna}\t{_grouped(linhagem, linhagem.origins(schema, relacao, coluna))}")
-        return 1 if linhagem.problems else 0
+        return 0
 
     esperado = render(linhagem, manifest)
     atual = _section(DICIONARIO.read_text(encoding="utf-8"))
@@ -290,12 +296,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"desatualizado: {DICIONARIO.relative_to(ROOT)} §3 — rode `make catalog`", file=sys.stderr)
         print(f"linhagem de {total} colunas em {len(linhagem.leaves)} relações; "
               f"§3 do dicionário {'em dia' if atual == esperado else 'desatualizada'}")
-        return 1 if (atual != esperado or linhagem.problems) else 0
+        return 1 if atual != esperado else 0
     if atual != esperado:
         export._substituir(DICIONARIO, esperado, ocorrencia=1)
     print(f"linhagem de {total} colunas em {len(linhagem.leaves)} relações; "
           f"§3 do dicionário {'reescrita' if atual != esperado else 'já em dia'}")
-    return 1 if linhagem.problems else 0
+    return 0
 
 
 if __name__ == "__main__":
