@@ -119,7 +119,9 @@ objeto — `permanent`, `rebuildable` ou um inteiro de dias — declarada **por 
 `dbt_project.yml` (`+meta`) e por fonte nos `_sources.yml`, e cobrada objeto a objeto por
 `tests/test_retencao.py` contra a §8. `data_type` conforme aplicável. O acesso segue o mesmo
 arranjo, pelas chaves da §7: `writers` no `meta` de cada camada e fonte, `+grants` por camada de
-modelos e `meta.grants` por fonte.
+modelos e `meta.grants` por fonte. `lineage` numa coluna — lista de `schema.tabela.coluna` —
+declara a origem que o SQL não deixa ver, e vale mais que a derivada; hoje só as pontes do legado a
+carregam, geradas por `legacy/ponte.py` (lista vazia é constante).
 
 **`sensitivity` é declarada uma vez e derivada em todo o resto** (desde 17/09/2026). A declaração
 vive nos modelos SQLAlchemy da origem (`models/base.py::meta`, obrigatória e validada, 418 colunas);
@@ -165,7 +167,7 @@ descrição precise ser reescrita.
 | Controle | O que exige | Onde é registrado |
 |---|---|---|
 | Classificação por campo | Todo campo tem um nível da seção 4 | `.yml` do dbt e [Dicionário de Dados](dicionario_de_dados.md) |
-| Linhagem origem → consumo | Toda coluna analítica aponta para a sua origem | Linhagem do dbt |
+| Linhagem origem → consumo | Toda coluna analítica aponta para a sua origem | Linhagem do dbt entre modelos; por coluna e fora do dbt, [Dicionário §3](dicionario_de_dados.md#3-linhagem), gerada de `models/lineage.py` e conferida por `make check` |
 | Procedência entre origens | Registro empilhado identifica se veio da origem principal ou da legada | [Origem Legada](origem_legada.md) |
 | Certificado de captura do legado | Toda sincronização do legado deixa, por tabela, contagem e hash de conteúdo da origem antes e depois do *job*, o recebido no bruto e o vínculo com o *job*; só captura `complete` nas 40 tabelas é elegível ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | `governance.legacy_captures` — o primeiro conjunto do log de execução do [ADR-0023](adr/0023-escopo-do-schema-governance.md) materializado |
 | Regras de acesso por camada | Cada camada tem papéis de leitura e escrita | Seção 7, `+grants`, `meta.grants` e `meta.writers` |

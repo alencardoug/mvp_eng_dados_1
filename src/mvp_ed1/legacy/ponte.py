@@ -35,7 +35,7 @@ from sqlalchemy.dialects import postgresql
 
 from mvp_ed1.legacy import schema
 from mvp_ed1.models import Base
-from mvp_ed1.models.sensitivity import TECHNICAL, expression_level
+from mvp_ed1.models.sensitivity import TECHNICAL, expression_level, value_columns
 
 #: Onde estão os modelos de `staging` da origem principal, de onde sai o mapa.
 ORIGEM = pathlib.Path("dbt/models/staging")
@@ -70,6 +70,15 @@ FORA_DA_ORIGEM: dict[str, str] = {
     # `legacy_row_id` é renumerado a cada geração, e nenhum consumidor pode
     # tratar esta coluna, nas linhas legadas, como sequência de negócio.
     "event_sequence": "legacy_row_id",
+}
+
+#: De onde vem o que `FORA_DA_ORIGEM` põe no lugar: a coluna de `raw_legacy`
+#: por trás de cada substituto que é coluna (`snapshot_at` é o carimbo da
+#: captura, `legacy_row_id` a identidade da linha). Substituto que é literal
+#: (`true`, `false`) não vem de lugar nenhum.
+PROVENIENCIA: dict[str, str] = {
+    "snapshot_at": "_airbyte_extracted_at",
+    "legacy_row_id": schema.IDENTIDADE,
 }
 
 #: Palavras que a projeção usa e que não são identificador de coluna. A lista é
@@ -316,6 +325,37 @@ def sensibilidades(tabela: str) -> list[tuple[str, str]]:
     return saida
 
 
+def origens(tabela: str) -> list[tuple[str, list[str]]]:
+    """`(apelido, colunas de raw_legacy)` de cada coluna da ponte — a linhagem que o JSON esconde.
+
+    A linhagem por SQL (`models/lineage.py`) vê a ponte como extração de um
+    payload feito de todas as colunas de todas as tabelas do legado; a ponte
+    sabe de qual tabela e de quais colunas cada apelido vem, porque a expressão
+    é a do `staging` da origem principal. Mesma caminhada de `sensibilidades`,
+    devolvendo as colunas em vez do nível.
+    """
+    colunas = frozenset(schema.colunas(tabela))
+
+    def de(nome: str) -> list[str]:
+        if nome in colunas:
+            return [f"raw_legacy.{tabela}.{nome}"]
+        if nome in FORA_DA_ORIGEM:
+            substituto = FORA_DA_ORIGEM[nome]
+            return [f"raw_legacy.{tabela}.{PROVENIENCIA[substituto]}"] if substituto in PROVENIENCIA else []
+        derivada = _derivada(tabela, nome)
+        if derivada is not None:
+            return [origem for n in value_columns(derivada) for origem in de(n)]
+        return []
+
+    sql = (ORIGEM / f"stg_retail__{tabela}.sql").read_text(encoding="utf-8")
+    saida = []
+    for item in _projecao(sql):
+        expressao, apelido = _parte(item)
+        nomes = value_columns(re.sub(r"\b[a-z]\.(?=[a-z_])", "", expressao.strip()))
+        saida.append((apelido, sorted({origem for n in nomes for origem in de(n)})))
+    return saida
+
+
 def models_yml() -> str:
     """Declaração das pontes, sem repetir a descrição de coluna do `staging`.
 
@@ -335,9 +375,14 @@ def models_yml() -> str:
     # exige de toda declaração que discorde da derivada.
     motivo = "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
 
+    # Pela mesma razão, a ponte declara a linhagem de cada coluna: sem isso a
+    # linhagem por SQL apontaria cada apelido para o payload inteiro das 40
+    # tabelas. `lineage` vazio é declaração também — constante, sem origem.
     def colunas(tabela: str) -> str:
+        de = dict(origens(tabela))
         return "\n".join(
-            f'      - name: {apelido}\n        meta:\n          sensitivity: {nivel}\n          sensitivity_reason: "{motivo}"'
+            f'      - name: {apelido}\n        meta:\n          sensitivity: {nivel}\n'
+            f'          sensitivity_reason: "{motivo}"\n          lineage: [{", ".join(de[apelido])}]'
             for apelido, nivel in sensibilidades(tabela)
         )
 

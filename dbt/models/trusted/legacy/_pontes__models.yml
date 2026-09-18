@@ -16,42 +16,52 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.id]
       - name: brand_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.code]
       - name: brand_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.name]
       - name: brand_country
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.country]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.brands._airbyte_extracted_at]
   - name: legado__campaigns
     description: >
       Registros aptos de `legacy.campaigns` na forma de `stg_retail__campaigns`,
@@ -65,54 +75,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.id]
       - name: campaign_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.code]
       - name: campaign_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.name]
       - name: campaign_objective
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.objective]
       - name: campaign_valid_from
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.valid_from]
       - name: campaign_valid_to
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.valid_to]
       - name: budget_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.budget_amount]
       - name: campaign_is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.campaigns._airbyte_extracted_at]
   - name: legado__carriers
     description: >
       Registros aptos de `legacy.carriers` na forma de `stg_retail__carriers`,
@@ -126,46 +149,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.id]
       - name: carrier_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.code]
       - name: carrier_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.name]
       - name: service_level
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.service_level]
       - name: tracking_url_template
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.tracking_url_template]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carriers._airbyte_extracted_at]
   - name: legado__customer_segments
     description: >
       Registros aptos de `legacy.customer_segments` na forma de `stg_retail__customer_segments`,
@@ -179,42 +213,52 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.id]
       - name: customer_segment_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.code]
       - name: customer_segment_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.name]
       - name: customer_segment_description
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.description]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_segments._airbyte_extracted_at]
   - name: legado__payment_methods
     description: >
       Registros aptos de `legacy.payment_methods` na forma de `stg_retail__payment_methods`,
@@ -228,42 +272,52 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.id]
       - name: payment_method_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.code]
       - name: payment_method_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.name]
       - name: method_type
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.method_type]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_methods._airbyte_extracted_at]
   - name: legado__product_categories
     description: >
       Registros aptos de `legacy.product_categories` na forma de `stg_retail__product_categories`,
@@ -277,46 +331,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.id]
       - name: product_category_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.code]
       - name: product_category_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.name]
       - name: parent_product_category_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.parent_id]
       - name: category_depth
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.depth]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_categories._airbyte_extracted_at]
   - name: legado__sales_channels
     description: >
       Registros aptos de `legacy.sales_channels` na forma de `stg_retail__sales_channels`,
@@ -330,42 +395,52 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.id]
       - name: sales_channel_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.code]
       - name: sales_channel_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.name]
       - name: channel_type
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.channel_type]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.sales_channels._airbyte_extracted_at]
   - name: legado__suppliers
     description: >
       Registros aptos de `legacy.suppliers` na forma de `stg_retail__suppliers`,
@@ -379,58 +454,72 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.id]
       - name: supplier_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.supplier_code]
       - name: supplier_legal_name
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.legal_name]
       - name: supplier_trade_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.trade_name]
       - name: supplier_document
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.document]
       - name: supplier_contact_email
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.contact_email]
       - name: supplier_country
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.country]
       - name: payment_terms_days
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.payment_terms_days]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.suppliers._airbyte_extracted_at]
   - name: legado__support_agents
     description: >
       Registros aptos de `legacy.support_agents` na forma de `stg_retail__support_agents`,
@@ -444,58 +533,72 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.id]
       - name: agent_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.agent_code]
       - name: agent_first_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.first_name]
       - name: agent_last_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.last_name]
       - name: agent_full_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.first_name, raw_legacy.support_agents.last_name]
       - name: agent_email
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.email]
       - name: agent_team
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.team]
       - name: hired_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.hired_at]
       - name: agent_is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_agents._airbyte_extracted_at]
   - name: legado__warehouses
     description: >
       Registros aptos de `legacy.warehouses` na forma de `stg_retail__warehouses`,
@@ -509,54 +612,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.id]
       - name: warehouse_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.code]
       - name: warehouse_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.name]
       - name: warehouse_city
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.city]
       - name: warehouse_state
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.state]
       - name: warehouse_country
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.country]
       - name: capacity_units
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.capacity_units]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.warehouses._airbyte_extracted_at]
   - name: legado__coupons
     description: >
       Registros aptos de `legacy.coupons` na forma de `stg_retail__coupons`,
@@ -570,62 +686,77 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.id]
       - name: coupon_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.code]
       - name: campaign_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.campaign_id]
       - name: discount_type
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.discount_type]
       - name: discount_value
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.discount_value]
       - name: min_order_amount
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.min_order_amount]
       - name: max_redemptions
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.max_redemptions]
       - name: coupon_valid_from
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.valid_from]
       - name: coupon_valid_to
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.valid_to]
       - name: coupon_is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupons._airbyte_extracted_at]
   - name: legado__customers
     description: >
       Registros aptos de `legacy.customers` na forma de `stg_retail__customers`,
@@ -639,62 +770,77 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.id]
       - name: customer_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.customer_code]
       - name: customer_segment_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.segment_id]
       - name: first_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.first_name]
       - name: last_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.last_name]
       - name: customer_full_name
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.first_name, raw_legacy.customers.last_name]
       - name: customer_document
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.document]
       - name: birth_date
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.birth_date]
       - name: customer_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.status]
       - name: registered_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.registered_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customers._airbyte_extracted_at]
   - name: legado__products
     description: >
       Registros aptos de `legacy.products` na forma de `stg_retail__products`,
@@ -708,54 +854,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.id]
       - name: product_code
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.product_code]
       - name: product_category_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.category_id]
       - name: brand_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.brand_id]
       - name: product_name
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.name]
       - name: product_description
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.description]
       - name: product_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.status]
       - name: launched_at
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.launched_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.products._airbyte_extracted_at]
   - name: legado__purchase_orders
     description: >
       Registros aptos de `legacy.purchase_orders` na forma de `stg_retail__purchase_orders`,
@@ -769,54 +928,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.id]
       - name: po_number
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.po_number]
       - name: supplier_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.supplier_id]
       - name: purchase_order_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.status]
       - name: ordered_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.ordered_at]
       - name: expected_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.expected_at]
       - name: currency
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.currency]
       - name: purchase_order_total_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.total_amount]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_orders._airbyte_extracted_at]
   - name: legado__carts
     description: >
       Registros aptos de `legacy.carts` na forma de `stg_retail__carts`,
@@ -830,54 +1002,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.id]
       - name: cart_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.cart_code]
       - name: customer_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.customer_id]
       - name: sales_channel_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.sales_channel_id]
       - name: cart_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.status]
       - name: cart_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.created_at]
       - name: cart_expires_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.expires_at]
       - name: cart_converted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.converted_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.carts._airbyte_extracted_at]
   - name: legado__customer_addresses
     description: >
       Registros aptos de `legacy.customer_addresses` na forma de `stg_retail__customer_addresses`,
@@ -891,78 +1076,97 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.id]
       - name: customer_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.customer_id]
       - name: address_type
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.address_type]
       - name: street
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.street]
       - name: street_number
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.number]
       - name: complement
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.complement]
       - name: district
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.district]
       - name: city
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.city]
       - name: state
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.state]
       - name: postal_code
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.postal_code]
       - name: country
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.country]
       - name: is_primary
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.is_primary]
       - name: valid_from
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.valid_from]
       - name: valid_to
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.valid_to]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.customer_addresses._airbyte_extracted_at]
   - name: legado__goods_receipts
     description: >
       Registros aptos de `legacy.goods_receipts` na forma de `stg_retail__goods_receipts`,
@@ -976,46 +1180,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.id]
       - name: receipt_number
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.receipt_number]
       - name: purchase_order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.purchase_order_id]
       - name: warehouse_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.warehouse_id]
       - name: received_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.received_at]
       - name: goods_receipt_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.status]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipts._airbyte_extracted_at]
   - name: legado__product_variants
     description: >
       Registros aptos de `legacy.product_variants` na forma de `stg_retail__product_variants`,
@@ -1029,58 +1244,72 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.id]
       - name: product_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.product_id]
       - name: sku
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.sku]
       - name: variant_size
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.size]
       - name: variant_color
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.color]
       - name: variant_package
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.package]
       - name: barcode
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.barcode]
       - name: weight_grams
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.weight_grams]
       - name: is_active
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.is_active]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.product_variants._airbyte_extracted_at]
   - name: legado__cart_items
     description: >
       Registros aptos de `legacy.cart_items` na forma de `stg_retail__cart_items`,
@@ -1094,46 +1323,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.id]
       - name: cart_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.cart_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.product_variant_id]
       - name: quantity
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.quantity]
       - name: unit_price
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.unit_price]
       - name: added_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.added_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.cart_items._airbyte_extracted_at]
   - name: legado__inventory_balances
     description: >
       Registros aptos de `legacy.inventory_balances` na forma de `stg_retail__inventory_balances`,
@@ -1147,50 +1387,62 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.id]
       - name: warehouse_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.warehouse_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.product_variant_id]
       - name: quantity_on_hand
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.quantity_on_hand]
       - name: quantity_reserved
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.quantity_reserved]
       - name: quantity_available
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.quantity_on_hand, raw_legacy.inventory_balances.quantity_reserved]
       - name: last_movement_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.last_movement_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_balances._airbyte_extracted_at]
   - name: legado__inventory_movements
     description: >
       Registros aptos de `legacy.inventory_movements` na forma de `stg_retail__inventory_movements`,
@@ -1204,90 +1456,112 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.movement_id]
       - name: event_sequence
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.legacy_row_id]
       - name: idempotency_key
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.idempotency_key]
       - name: warehouse_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.warehouse_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.product_variant_id]
       - name: movement_type
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.movement_type]
       - name: quantity_delta
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.quantity_delta]
       - name: unit_cost
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.unit_cost]
       - name: source_type
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.source_type]
       - name: source_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.source_id]
       - name: correlation_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.correlation_id]
       - name: causation_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.causation_id]
       - name: aggregate_version
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.aggregate_version]
       - name: occurred_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.occurred_at]
       - name: recorded_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.recorded_at]
       - name: schema_version
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.schema_version]
       - name: event_metadata
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.metadata]
       - name: arrived_by_stream
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: arrived_by_batch
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements.recorded_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.inventory_movements._airbyte_extracted_at]
   - name: legado__orders
     description: >
       Registros aptos de `legacy.orders` na forma de `stg_retail__orders`,
@@ -1301,74 +1575,92 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.id]
       - name: order_number
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.order_number]
       - name: customer_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.customer_id]
       - name: sales_channel_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.sales_channel_id]
       - name: cart_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.cart_id]
       - name: order_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.status]
       - name: placed_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.placed_at]
       - name: currency
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.currency]
       - name: subtotal_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.subtotal_amount]
       - name: order_discount_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.discount_amount]
       - name: shipping_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.shipping_amount]
       - name: order_tax_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.tax_amount]
       - name: order_total_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.total_amount]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.orders._airbyte_extracted_at]
   - name: legado__purchase_order_items
     description: >
       Registros aptos de `legacy.purchase_order_items` na forma de `stg_retail__purchase_order_items`,
@@ -1382,46 +1674,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.id]
       - name: purchase_order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.purchase_order_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.product_variant_id]
       - name: quantity_ordered
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.quantity_ordered]
       - name: unit_cost
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.unit_cost]
       - name: total_cost
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.total_cost]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.purchase_order_items._airbyte_extracted_at]
   - name: legado__coupon_redemptions
     description: >
       Registros aptos de `legacy.coupon_redemptions` na forma de `stg_retail__coupon_redemptions`,
@@ -1435,38 +1738,47 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.id]
       - name: coupon_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.coupon_id]
       - name: customer_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.customer_id]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.order_id]
       - name: coupon_discount_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.discount_amount]
       - name: redeemed_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.redeemed_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions.created_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.coupon_redemptions._airbyte_extracted_at]
   - name: legado__goods_receipt_items
     description: >
       Registros aptos de `legacy.goods_receipt_items` na forma de `stg_retail__goods_receipt_items`,
@@ -1480,42 +1792,52 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.id]
       - name: goods_receipt_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.goods_receipt_id]
       - name: purchase_order_item_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.purchase_order_item_id]
       - name: quantity_received
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.quantity_received]
       - name: unit_cost
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.unit_cost]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.goods_receipt_items._airbyte_extracted_at]
   - name: legado__order_items
     description: >
       Registros aptos de `legacy.order_items` na forma de `stg_retail__order_items`,
@@ -1529,54 +1851,67 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.id]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.order_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.product_variant_id]
       - name: quantity
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.quantity]
       - name: unit_price
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.unit_price]
       - name: discount_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.discount_amount]
       - name: tax_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.tax_amount]
       - name: line_total_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.total_amount]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_items._airbyte_extracted_at]
   - name: legado__order_status_history
     description: >
       Registros aptos de `legacy.order_status_history` na forma de `stg_retail__order_status_history`,
@@ -1590,38 +1925,47 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.id]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.order_id]
       - name: from_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.from_status]
       - name: to_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.to_status]
       - name: changed_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.changed_at]
       - name: change_reason
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.reason]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history.created_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.order_status_history._airbyte_extracted_at]
   - name: legado__payments
     description: >
       Registros aptos de `legacy.payments` na forma de `stg_retail__payments`,
@@ -1635,62 +1979,77 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.id]
       - name: payment_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.payment_code]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.order_id]
       - name: payment_method_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.payment_method_id]
       - name: payment_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.status]
       - name: payment_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.amount]
       - name: currency
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.currency]
       - name: installments
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.installments]
       - name: authorized_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.authorized_at]
       - name: captured_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.captured_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payments._airbyte_extracted_at]
   - name: legado__shipments
     description: >
       Registros aptos de `legacy.shipments` na forma de `stg_retail__shipments`,
@@ -1704,66 +2063,82 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.id]
       - name: shipment_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.shipment_code]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.order_id]
       - name: carrier_id
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.carrier_id]
       - name: warehouse_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.warehouse_id]
       - name: shipment_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.status]
       - name: tracking_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.tracking_code]
       - name: freight_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.freight_amount]
       - name: shipped_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.shipped_at]
       - name: estimated_delivery_at
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.estimated_delivery_at]
       - name: delivered_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.delivered_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipments._airbyte_extracted_at]
   - name: legado__stock_reservations
     description: >
       Registros aptos de `legacy.stock_reservations` na forma de `stg_retail__stock_reservations`,
@@ -1777,62 +2152,77 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.id]
       - name: reservation_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.reservation_code]
       - name: warehouse_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.warehouse_id]
       - name: product_variant_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.product_variant_id]
       - name: cart_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.cart_id]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.order_id]
       - name: quantity_reserved
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.quantity]
       - name: reservation_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.status]
       - name: expires_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.expires_at]
       - name: released_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.released_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.stock_reservations._airbyte_extracted_at]
   - name: legado__delivery_events
     description: >
       Registros aptos de `legacy.delivery_events` na forma de `stg_retail__delivery_events`,
@@ -1846,38 +2236,47 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.id]
       - name: shipment_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.shipment_id]
       - name: delivery_event_type
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.event_type]
       - name: occurred_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.occurred_at]
       - name: event_location
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.location]
       - name: event_description
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.description]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events.created_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.delivery_events._airbyte_extracted_at]
   - name: legado__payment_transactions
     description: >
       Registros aptos de `legacy.payment_transactions` na forma de `stg_retail__payment_transactions`,
@@ -1891,46 +2290,57 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.id]
       - name: transaction_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.transaction_code]
       - name: payment_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.payment_id]
       - name: transaction_type
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.transaction_type]
       - name: transaction_result
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.result]
       - name: transaction_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.amount]
       - name: gateway_response_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.gateway_response_code]
       - name: occurred_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.occurred_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions.created_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.payment_transactions._airbyte_extracted_at]
   - name: legado__shipment_items
     description: >
       Registros aptos de `legacy.shipment_items` na forma de `stg_retail__shipment_items`,
@@ -1944,38 +2354,47 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.id]
       - name: shipment_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.shipment_id]
       - name: order_item_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.order_item_id]
       - name: quantity_shipped
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.quantity]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.shipment_items._airbyte_extracted_at]
   - name: legado__support_tickets
     description: >
       Registros aptos de `legacy.support_tickets` na forma de `stg_retail__support_tickets`,
@@ -1989,70 +2408,87 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.id]
       - name: ticket_number
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.ticket_number]
       - name: customer_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.customer_id]
       - name: order_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.order_id]
       - name: shipment_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.shipment_id]
       - name: assigned_agent_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.assigned_agent_id]
       - name: ticket_category
         meta:
           sensitivity: public
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.category]
       - name: ticket_priority
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.priority]
       - name: ticket_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.status]
       - name: ticket_subject
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.subject]
       - name: opened_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.opened_at]
       - name: closed_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.closed_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.support_tickets._airbyte_extracted_at]
   - name: legado__refunds
     description: >
       Registros aptos de `legacy.refunds` na forma de `stg_retail__refunds`,
@@ -2066,50 +2502,62 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.id]
       - name: refund_code
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.refund_code]
       - name: payment_transaction_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.payment_transaction_id]
       - name: refund_amount
         meta:
           sensitivity: confidential
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.amount]
       - name: refund_reason
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.reason]
       - name: refund_status
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.status]
       - name: refunded_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.refunded_at]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.created_at]
       - name: source_updated_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.updated_at]
       - name: source_deleted_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.deleted_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds.deleted_at]
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.refunds._airbyte_extracted_at]
   - name: legado__ticket_events
     description: >
       Registros aptos de `legacy.ticket_events` na forma de `stg_retail__ticket_events`,
@@ -2123,35 +2571,44 @@ models:
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.id]
       - name: support_ticket_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.ticket_id]
       - name: support_agent_id
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.agent_id]
       - name: ticket_event_type
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.event_type]
       - name: occurred_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.occurred_at]
       - name: ticket_message
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.message]
       - name: source_created_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events.created_at]
       - name: is_deleted
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: []
       - name: ingested_at
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
+          lineage: [raw_legacy.ticket_events._airbyte_extracted_at]

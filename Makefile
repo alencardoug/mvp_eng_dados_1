@@ -157,12 +157,14 @@ migrate-new: require-env require-venv ## Gera rascunho de migração; exige M="m
 	@echo "RASCUNHO gerado. Revise antes de aplicar: o autogenerate não detecta"
 	@echo "renomeação, conversão de tipo nem mudança de constraint (ADR-0010)."
 
-catalog: require-venv ## Regenera dicionário, inventário, diagrama ER e a classificação derivada dos modelos
+catalog: require-venv ## Regenera dicionário, inventário, diagrama ER, a classificação derivada e a linhagem por coluna
 	@.venv/bin/python -m mvp_ed1.models.export
 	@# A sensibilidade de cada coluna do armazém é derivada da declarada nos
 	@# modelos, por linhagem do SQL compilado — precisa do manifest de um
-	@# `make dbt-build` recente. Sem ele, avisa e não escreve nada.
+	@# `make dbt-build` recente. Sem ele, avisa e não escreve nada. A linhagem
+	@# por coluna (Dicionário §3) sai da mesma leitura, logo depois.
 	@.venv/bin/python -m mvp_ed1.models.sensitivity
+	@.venv/bin/python -m mvp_ed1.models.lineage
 
 seed-data: require-env require-venv ## Gera e carrega os dados sintéticos; SCALE, SEED, AS_OF, FORCE=1
 	@$(GERADOR) seed \
@@ -417,19 +419,20 @@ test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em
 		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
 	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
 
-check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, classificação derivada, pytest; FATO=1 inclui o teste que escreve na fato
+check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, classificação e linhagem derivadas, pytest; FATO=1 inclui o teste que escreve na fato
 	@# Quatro etapas, nesta ordem e sem seguir depois de uma falha. Segredos
 	@# primeiro porque custa um segundo e é a regra inviolável nº 1; o dbt antes
 	@# do pytest porque a suíte Python lê o armazém que o build acabou de
-	@# construir (captura selecionada, intervalo, memória); a classificação
-	@# derivada depois do build porque lê o manifest dele. `RESET=1` e `FATO=1`
+	@# construir (captura selecionada, intervalo, memória); a classificação e a
+	@# linhagem derivadas depois do build porque leem o manifest dele. `RESET=1` e `FATO=1`
 	@# passam adiante com o mesmo significado que têm nos alvos de origem.
 	@echo "── 1/4 revisão de segredos e .gitignore ──"
 	@.venv/bin/python -m mvp_ed1.secrets_review
 	@echo "── 2/4 dbt build: modelos, testes de dados e reconciliações ──"
 	@$(MAKE) --no-print-directory dbt-build RESET=$(RESET)
-	@echo "── 3/4 classificação derivada em dia com os modelos ──"
+	@echo "── 3/4 classificação derivada e linhagem em dia com os modelos ──"
 	@.venv/bin/python -m mvp_ed1.models.sensitivity --check
+	@.venv/bin/python -m mvp_ed1.models.lineage --check
 	@echo "── 4/4 pytest: código, contratos e integração ──"
 	@$(MAKE) --no-print-directory test FATO=$(FATO)
 	@echo "check: as quatro etapas passaram"

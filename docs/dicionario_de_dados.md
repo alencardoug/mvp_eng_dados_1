@@ -13,9 +13,9 @@
 | Fonte de verdade | Arquivos `.yml` do projeto dbt |
 | Este documento | Índice navegável e registro do que ainda não está no dbt |
 | Como é gerado | `make catalog`, a partir dos modelos SQLAlchemy |
-| Versão | 2.0 |
-| Situação | Schema `oltp` preenchido; camadas do armazém a partir da Etapa 5 |
-| Última revisão | 04/09/2026 |
+| Versão | 2.1 |
+| Situação | Schema `oltp` preenchido; linhagem por coluna e travessias fora do dbt geradas desde 18/09/2026 |
+| Última revisão | 18/09/2026 |
 
 ---
 
@@ -25,11 +25,13 @@ A descrição campo a campo **não é digitada aqui**. Ela vive nos arquivos `.y
 modelo que descreve, conforme o [padrão de metadados](governanca_de_dados.md#51-padrão-de-metadados).
 Manter a descrição ao lado do código é o que impede que catálogo e realidade divirjam.
 
-Este documento cumpre três papéis que o dbt não cobre:
+Este documento cumpre quatro papéis que o dbt não cobre:
 
 1. **Índice** dos objetos por camada, para leitura sem executar nada;
 2. **Registro** da camada transacional, que não é modelada pelo dbt;
-3. **Rastro de decisões** de classificação que precisam de justificativa em texto.
+3. **Rastro de decisões** de classificação que precisam de justificativa em texto;
+4. **Linhagem** que o dbt não enxerga ou não publica: as travessias fora dele e a origem de cada
+   coluna do consumo, derivada do SQL compilado (§3).
 
 ### 1.1 Regra de atualização
 
@@ -780,12 +782,323 @@ Interações, atribuições e mudanças de estado do chamado.
 
 ## 3. Linhagem
 
-*Vazia.* A linhagem detalhada é gerada pelo dbt; esta seção registra apenas as travessias que o dbt
-não enxerga — a extração feita pelo Airbyte e o caminho de streaming.
+A linhagem entre modelos é a do dbt — `ref` e `source`, navegável em `make dbt-docs`. Esta seção
+registra o que o dbt não enxerga ou não publica: as travessias feitas fora dele (a extração pelo
+Airbyte, o caminho de *streaming* e o certificado de captura) e a linhagem **por coluna**, do
+consumo até as fontes, derivada do SQL compilado por `models/lineage.py` — a mesma leitura que
+deriva a classificação ([Governança §5.1](governanca_de_dados.md#51-padrão-de-metadados)). Onde o
+SQL não vê a origem, a declaração vale: as pontes do legado extraem de um payload JSON e declaram
+`meta.lineage`, geradas por `legacy/ponte.py`. O trecho abaixo é escrito por `make catalog` e
+conferido por `make check`; `tests/test_linhagem.py` prova que toda coluna fecha numa origem.
+
+<!-- gerado a partir dos modelos; não editar à mão -->
+As travessias abaixo são lidas das declarações de cada caminho; os totais e a origem de cada
+coluna, do SQL compilado pelo dbt (`models/lineage.py`). Nada aqui é digitado.
+
+### 3.1 Travessias fora do dbt
 
 | Origem | Destino | Mecanismo | Frequência | Observação |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `oltp` — 36 tabelas | `raw` | Airbyte, modo por tabela (`dedup_history` em 23, `full_refresh` em 8, `append` em 5) — [`airbyte/streams.yml`](../airbyte/streams.yml), ADR-0015 | a cada execução da DAG `fluxo_batch` (sem agenda: disparo manual) | réplica descartável; as colunas chegam com o nome da origem, mais `_airbyte_*` |
+| `oltp.inventory_movements` | `raw.inventory_movements_stream` | Debezium (WAL) → Redpanda `mvp.oltp.inventory_movements` → Beam — [`streaming/fluxo.yml`](../streaming/fluxo.yml), ADR-0031 | contínua enquanto o *streaming* está de pé | um delta imutável por movimento, mais `_stream_*`; o Airbyte carrega a mesma tabela em lote como reconciliação |
+| `legacy` — 40 tabelas | `raw_legacy` | Airbyte, `full_refresh_append` para todas — ADR-0037 | por captura (`make sync-legacy` ou a tarefa da DAG) | captura retida por acréscimo, nunca sobrescrita; valores como texto, defeitos preservados |
+| `legacy` — 40 tabelas | `governance.legacy_captures` | `mvp_ed1.legacy.captura`: contagem e hash da origem antes e depois do *job*, bruto recebido — ADR-0044 | por captura, em duas fases em torno do *job* | certificado por *stream*; só captura `complete` nas 40 tabelas é elegível |
+
+### 3.2 Linhagem por coluna — totais
+
+Toda coluna de todo modelo fecha numa origem: uma coluna de **fonte** (`raw`, `raw_legacy`,
+`governance`), uma coluna de **seed** (declarada no Git) ou uma coluna **gerada** (calendário,
+numeração, literal, chave técnica, contagem de linhas), que não vem do valor de coluna nenhuma.
+Uma coluna conta como *de fonte*
+quando ao menos uma das suas origens é fonte; *só de seed* quando nenhuma é fonte e alguma é seed.
+
+| Camada | Colunas | De fonte | Só de seed | Só geradas |
+|---|---:|---:|---:|---:|
+| `staging` | 1114 | 1026 | 0 | 88 |
+| `trusted` | 1069 | 972 | 15 | 82 |
+| `analytics` | 477 | 387 | 10 | 80 |
+| `consumption` | 188 | 117 | 9 | 62 |
+| `quarantine` | 26 | 16 | 0 | 10 |
+| `snapshots` | 109 | 86 | 0 | 23 |
+| **total** | **2983** | **2604** | **34** | **345** |
+
+### 3.3 Origem de cada coluna de `consumption`
+
+O contrato de consumo, view a view. `raw.*` é a réplica do `oltp` pelo Airbyte e
+`raw_legacy.*` a captura do legado — as duas travessias da §3.1; uma coluna com as duas é
+o empilhamento do ADR-0021. Origem *(seed)* é tabela declarada no Git; *(gerada)* é coluna
+que não vem do valor de coluna nenhuma — o calendário, uma contagem de linhas na fato. As
+demais camadas têm a mesma linhagem calculada, não publicada:
+`python -m mvp_ed1.models.lineage --all` a imprime.
+
+#### `average_order_value_by_channel_and_segment`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `customer_segment_name` | `raw.customer_segments.name` · `raw_legacy.customer_segments.name` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `average_order_value` | `raw.order_items.{discount_amount, order_id, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, order_id, quantity, unit_price}` |
+
+#### `cart_conversion_rate_by_channel`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
+| `cart_count` | `analytics.fact_cart_event.cart_count` (gerada) |
+| `closed_cart_count` | `analytics.fact_cart_event.closed_cart_count` (gerada) |
+| `converted_cart_count` | `analytics.fact_cart_event.converted_cart_count` (gerada) |
+| `abandoned_cart_count` | `analytics.fact_cart_event.abandoned_cart_count` (gerada) |
+| `cart_conversion_rate_pct` | `analytics.fact_cart_event.{closed_cart_count, converted_cart_count}` (gerada) |
+| `cart_value_amount` | `raw.cart_items.{quantity, unit_price}` · `raw_legacy.cart_items.{quantity, unit_price}` |
+| `abandoned_value_amount` | `raw.cart_items.{quantity, unit_price}` · `raw_legacy.cart_items.{quantity, unit_price}` |
+
+#### `discount_share_by_channel`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
+| `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `gross_revenue_amount` | `raw.order_items.{quantity, unit_price}` · `raw_legacy.order_items.{quantity, unit_price}` |
+| `discount_amount` | `raw.order_items.discount_amount` · `raw_legacy.order_items.discount_amount` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `discount_share_pct` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+
+#### `gross_margin_by_category`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `cost_of_goods_sold` | `raw.inventory_movements.{quantity_delta, unit_cost}` · `raw.inventory_movements_stream.{quantity_delta, unit_cost}` · `raw_legacy.inventory_movements.{quantity_delta, unit_cost}` |
+| `gross_profit_amount` | `raw.inventory_movements.{quantity_delta, unit_cost}` · `raw.inventory_movements_stream.{quantity_delta, unit_cost}` · `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.inventory_movements.{quantity_delta, unit_cost}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `gross_margin_pct` | `raw.inventory_movements.{quantity_delta, unit_cost}` · `raw.inventory_movements_stream.{quantity_delta, unit_cost}` · `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.inventory_movements.{quantity_delta, unit_cost}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
+| `dispatched_unit_count` | `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_movements.quantity_delta` |
+
+#### `inventory_turnover_by_sku_and_warehouse`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `quarter_number` | `analytics.dim_date.quarter_number` (gerada) |
+| `year_quarter` | `analytics.dim_date.{quarter_number, year_number}` (gerada) |
+| `sku` | `raw.product_variants.sku` · `raw_legacy.product_variants.sku` |
+| `product_name` | `raw.products.name` · `raw_legacy.products.name` |
+| `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `warehouse_name` | `raw.warehouses.name` · `raw_legacy.warehouses.name` |
+| `warehouse_region` | `trusted.brazilian_states.region` (seed) |
+| `quantity_out` | `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_movements.quantity_delta` |
+| `cost_of_goods_sold` | `raw.inventory_movements.{quantity_delta, unit_cost}` · `raw.inventory_movements_stream.{quantity_delta, unit_cost}` · `raw_legacy.inventory_movements.{quantity_delta, unit_cost}` |
+| `quantity_on_hand` | `raw.inventory_balances.quantity_on_hand` · `raw_legacy.inventory_balances.quantity_on_hand` |
+| `inventory_value_amount` | `raw.inventory_balances.quantity_on_hand` · `raw.inventory_movements.unit_cost` · `raw.inventory_movements_stream.unit_cost` · `raw_legacy.inventory_balances.quantity_on_hand` · `raw_legacy.inventory_movements.unit_cost` |
+| `inventory_turnover` | `raw.inventory_balances.quantity_on_hand` · `raw.inventory_movements.{quantity_delta, unit_cost}` · `raw.inventory_movements_stream.{quantity_delta, unit_cost}` · `raw_legacy.inventory_balances.quantity_on_hand` · `raw_legacy.inventory_movements.{quantity_delta, unit_cost}` |
+
+#### `monthly_revenue_by_channel_and_category`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
+| `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
+| `gross_revenue_amount` | `raw.order_items.{quantity, unit_price}` · `raw_legacy.order_items.{quantity, unit_price}` |
+| `discount_amount` | `raw.order_items.discount_amount` · `raw_legacy.order_items.discount_amount` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+
+#### `new_and_repeat_customers_by_month`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `customer_segment_name` | `raw.customer_segments.name` · `raw_legacy.customer_segments.name` |
+| `new_customer_count` | `consumption.new_and_repeat_customers_by_month.new_customer_count` (gerada) |
+| `returning_customer_count` | `raw.orders.placed_at` · `raw_legacy.orders.placed_at` |
+| `repeat_purchase_rate_pct` | `raw.orders.placed_at` · `raw_legacy.orders.placed_at` |
+
+#### `on_time_delivery_rate_by_carrier`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `carrier_name` | `raw.carriers.name` · `raw_legacy.carriers.name` |
+| `service_level` | `raw.carriers.service_level` · `raw_legacy.carriers.service_level` |
+| `warehouse_name` | `raw.warehouses.name` · `raw_legacy.warehouses.name` |
+| `warehouse_region` | `trusted.brazilian_states.region` (seed) |
+| `delivered_count` | `consumption.on_time_delivery_rate_by_carrier.delivered_count` (gerada) |
+| `on_time_count` | `raw.delivery_events.{event_type, occurred_at}` · `raw.shipments.estimated_delivery_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.shipments.estimated_delivery_at` |
+| `late_count` | `raw.delivery_events.{event_type, occurred_at}` · `raw.shipments.estimated_delivery_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.shipments.estimated_delivery_at` |
+| `split_order_shipment_count` | `analytics.fact_shipment_item.is_split_order` (gerada) |
+| `on_time_rate` | `raw.delivery_events.{event_type, occurred_at}` · `raw.shipments.estimated_delivery_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.shipments.estimated_delivery_at` |
+| `avg_delay_days_when_late` | `raw.delivery_events.{event_type, occurred_at}` · `raw.shipments.estimated_delivery_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.shipments.estimated_delivery_at` |
+| `avg_transit_days` | `raw.delivery_events.{event_type, occurred_at}` · `raw.shipments.shipped_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.shipments.shipped_at` |
+| `failed_attempt_count` | `raw.delivery_events.event_type` · `raw_legacy.delivery_events.event_type` |
+
+#### `order_to_delivery_time_by_region`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `region` | `trusted.brazilian_states.region` (seed) |
+| `state_code` | `raw.customer_addresses.state` · `raw_legacy.customer_addresses.state` |
+| `service_level` | `raw.carriers.service_level` · `raw_legacy.carriers.service_level` |
+| `carrier_name` | `raw.carriers.name` · `raw_legacy.carriers.name` |
+| `order_count` | `consumption.order_to_delivery_time_by_region.order_count` (gerada) |
+| `split_order_count` | `analytics.fact_shipment_item.is_split_order` (gerada) |
+| `shipment_count` | `analytics.fact_shipment_item.order_shipment_count` (gerada) |
+| `avg_order_to_delivery_days` | `raw.delivery_events.{event_type, occurred_at}` · `raw.orders.placed_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.orders.placed_at` |
+| `median_order_to_delivery_days` | `raw.delivery_events.{event_type, occurred_at}` · `raw.orders.placed_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.orders.placed_at` |
+| `max_order_to_delivery_days` | `raw.delivery_events.{event_type, occurred_at}` · `raw.orders.placed_at` · `raw_legacy.delivery_events.{event_type, occurred_at}` · `raw_legacy.orders.placed_at` |
+
+#### `payment_approval_rate_by_method`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `payment_method_name` | `raw.payment_methods.name` · `raw_legacy.payment_methods.name` |
+| `method_type` | `raw.payment_methods.method_type` · `raw_legacy.payment_methods.method_type` |
+| `installments` | `raw.payments.installments` · `raw_legacy.payments.installments` |
+| `is_instalment_plan` | `raw.payments.installments` · `raw_legacy.payments.installments` |
+| `authorization_attempt_count` | `analytics.fact_payment_transaction.authorization_count` (gerada) |
+| `approved_authorization_count` | `analytics.fact_payment_transaction.approved_authorization_count` (gerada) |
+| `approval_rate_pct` | `analytics.fact_payment_transaction.{approved_authorization_count, authorization_count}` (gerada) |
+| `authorized_amount` | `raw.payment_transactions.amount` · `raw_legacy.payment_transactions.amount` |
+| `captured_amount` | `raw.payment_transactions.amount` · `raw_legacy.payment_transactions.amount` |
+
+#### `refund_rate_by_reason`
+
+| Coluna | Origem |
+|---|---|
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `payment_method_name` | `raw.payment_methods.name` · `raw_legacy.payment_methods.name` |
+| `refund_reason` | `raw.refunds.reason` · `raw_legacy.refunds.reason` |
+| `refund_count` | `analytics.fact_refund.refund_count` (gerada) |
+| `refunded_amount` | `raw.refunds.amount` · `raw_legacy.refunds.amount` |
+| `captured_amount` | `raw.payment_transactions.amount` · `raw_legacy.payment_transactions.amount` |
+| `refund_rate_pct` | `raw.payment_transactions.amount` · `raw.refunds.amount` · `raw_legacy.payment_transactions.amount` · `raw_legacy.refunds.amount` |
+
+#### `repeat_purchase_rate_after_support`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `has_support_ticket` | `consumption.repeat_purchase_rate_after_support.has_support_ticket` (gerada) |
+| `support_category_name` | `trusted.support_categories.category_name` (seed) |
+| `order_count` | `consumption.repeat_purchase_rate_after_support.order_count` (gerada) |
+| `repeat_order_count` | `raw.orders.{customer_id, id, placed_at}` · `raw_legacy.orders.{customer_id, id, placed_at}` |
+| `repeat_purchase_rate` | `raw.orders.{customer_id, id, placed_at}` · `raw_legacy.orders.{customer_id, id, placed_at}` |
+| `avg_days_to_next_order` | `raw.orders.{customer_id, id, placed_at}` · `raw_legacy.orders.{customer_id, id, placed_at}` |
+
+#### `revenue_by_delivery_region`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `quarter_number` | `analytics.dim_date.quarter_number` (gerada) |
+| `year_quarter` | `analytics.dim_date.{quarter_number, year_number}` (gerada) |
+| `region` | `trusted.brazilian_states.region` (seed) |
+| `state_code` | `raw.customer_addresses.state` · `raw_legacy.customer_addresses.state` |
+| `state_name` | `trusted.brazilian_states.state_name` (seed) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `customer_version_count` | `raw.customers.id` · `raw_legacy.customers.id` · `snapshots.scd_customer.dbt_valid_from` (gerada) · `trusted.customers.source_system` (gerada) |
+| `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+
+#### `skus_below_reorder_point`
+
+| Coluna | Origem |
+|---|---|
+| `warehouse_name` | `raw.warehouses.name` · `raw_legacy.warehouses.name` |
+| `warehouse_region` | `trusted.brazilian_states.region` (seed) |
+| `sku` | `raw.product_variants.sku` · `raw_legacy.product_variants.sku` |
+| `product_name` | `raw.products.name` · `raw_legacy.products.name` |
+| `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `brand_name` | `raw.brands.name` · `raw_legacy.brands.name` |
+| `quantity_on_hand` | `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_movements.quantity_delta` |
+| `quantity_reserved` | `raw.inventory_balances.quantity_reserved` · `raw_legacy.inventory_balances.quantity_reserved` |
+| `quantity_available` | `raw.inventory_balances.quantity_reserved` · `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_balances.quantity_reserved` · `raw_legacy.inventory_movements.quantity_delta` |
+| `quantity_from_batch` | `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_movements.quantity_delta` |
+| `quantity_from_stream` | `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_movements.quantity_delta` |
+| `stream_movement_count` | `consumption.skus_below_reorder_point.stream_movement_count` (gerada) |
+| `reorder_point` | `consumption.skus_below_reorder_point.reorder_point` (gerada) |
+| `is_stockout` | `raw.inventory_balances.quantity_reserved` · `raw.inventory_movements.quantity_delta` · `raw.inventory_movements_stream.quantity_delta` · `raw_legacy.inventory_balances.quantity_reserved` · `raw_legacy.inventory_movements.quantity_delta` |
+| `daily_demand_units` | `raw.inventory_movements.{movement_type, occurred_at, quantity_delta}` · `raw.inventory_movements_stream.{movement_type, occurred_at, quantity_delta}` · `raw_legacy.inventory_movements.{movement_type, occurred_at, quantity_delta}` |
+| `days_of_cover` | `raw.inventory_balances.quantity_reserved` · `raw.inventory_movements.{movement_type, occurred_at, quantity_delta}` · `raw.inventory_movements_stream.{movement_type, occurred_at, quantity_delta}` · `raw_legacy.inventory_balances.quantity_reserved` · `raw_legacy.inventory_movements.{movement_type, occurred_at, quantity_delta}` |
+| `last_movement_at` | `raw.inventory_movements.occurred_at` · `raw.inventory_movements_stream.occurred_at` · `raw_legacy.inventory_movements.occurred_at` |
+
+#### `support_tickets_per_hundred_orders`
+
+| Coluna | Origem |
+|---|---|
+| `year_number` | `analytics.dim_date.year_number` (gerada) |
+| `month_number` | `analytics.dim_date.month_number` (gerada) |
+| `year_month` | `analytics.dim_date.year_month` (gerada) |
+| `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
+| `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
+| `support_category_name` | `trusted.support_categories.category_name` (seed) |
+| `support_category_group` | `trusted.support_categories.category_group` (seed) |
+| `ticket_count` | `consumption.support_tickets_per_hundred_orders.ticket_count` (gerada) |
+| `high_priority_ticket_count` | `raw.support_tickets.priority` · `raw_legacy.support_tickets.priority` |
+| `reopened_ticket_count` | `raw.ticket_events.event_type` · `raw_legacy.ticket_events.event_type` |
+| `solved_first_time_count` | `raw.ticket_events.{event_type, occurred_at}` · `raw_legacy.ticket_events.{event_type, occurred_at}` |
+| `channel_order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `tickets_per_hundred_orders` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `avg_hours_to_resolution` | `raw.support_tickets.opened_at` · `raw.ticket_events.{event_type, occurred_at}` · `raw_legacy.support_tickets.opened_at` · `raw_legacy.ticket_events.{event_type, occurred_at}` |
+
+#### `top_skus_by_revenue`
+
+| Coluna | Origem |
+|---|---|
+| `revenue_rank` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `product_natural_key` | `raw.product_variants.id` · `raw_legacy.product_variants.id` |
+| `sku` | `raw.product_variants.sku` · `raw_legacy.product_variants.sku` |
+| `product_name` | `raw.products.name` · `raw_legacy.products.name` |
+| `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
+| `brand_name` | `raw.brands.name` · `raw_legacy.brands.name` |
+| `is_deleted` | `raw.product_categories.deleted_at` · `raw.product_variants.deleted_at` · `raw.products.deleted_at` · `raw_legacy.product_categories.deleted_at` · `raw_legacy.product_variants.deleted_at` · `raw_legacy.products.deleted_at` |
+| `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
+| `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `category_net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+| `category_revenue_share_pct` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
+<!-- fim do trecho gerado -->
 
 ---
 

@@ -41,6 +41,10 @@ coluna e para quem a lê depois. É a única forma de exceção, e ela é visív
 `--check` não escreve: sai com 1 se algum arquivo estaria diferente, e é o que
 `make check` roda para garantir que o derivado não ficou para trás.
 
+As folhas por coluna que esta leitura produz (`Derivation.leaves`) são a mesma
+coisa de que `models/lineage.py` parte para fechar a linhagem até a origem: uma
+leitura do SQL, dois derivados.
+
 Uso: ``python -m mvp_ed1.models.sensitivity [--check]`` (também em ``make catalog``).
 """
 
@@ -132,31 +136,35 @@ def value_children(e: exp.Expression) -> list[exp.Expression]:
     return list(e.iter_expressions())
 
 
+def value_columns(sql: str) -> list[str]:
+    """Nomes das colunas que **entram no valor** de uma expressão SQL avulsa, na ordem em que aparecem."""
+    nomes: list[str] = []
+    pilha = [sqlglot.parse_one(sql, read="postgres")]
+    while pilha:
+        e = pilha.pop()
+        if isinstance(e, exp.Column):
+            nomes.append(e.name)
+        else:
+            pilha.extend(value_children(e))
+    return nomes
+
+
 def expression_level(sql: str, lookup) -> str:
     """Nível de uma expressão SQL avulsa: o mais restritivo entre as colunas que entram no valor.
 
     `lookup(nome)` devolve o nível de uma coluna pelo nome, ou `None` para o
     que não é coluna de dado (palavra reservada, metadado de transporte).
     """
-    niveis: list[str] = []
-    pilha = [sqlglot.parse_one(sql, read="postgres")]
-    while pilha:
-        e = pilha.pop()
-        if isinstance(e, exp.Column):
-            nivel = lookup(e.name)
-            if nivel:
-                niveis.append(nivel)
-        else:
-            pilha.extend(value_children(e))
-    return strictest(niveis)
+    return strictest([nivel for nivel in map(lookup, value_columns(sql)) if nivel])
 
 
 # ── Derivação ───────────────────────────────────────────────────────────────────
 
 @dataclass
 class Derivation:
-    """O resultado: nível por coluna de cada nó, e o que não pôde ser derivado."""
+    """O resultado: nível por coluna de cada nó, as folhas de que cada coluna é feita, e o que não pôde ser derivado."""
     levels: dict[str, dict[str, str]] = field(default_factory=dict)      # node_id → coluna → nível
+    leaves: dict[str, dict[str, set["Leaf"]]] = field(default_factory=dict)  # node_id → coluna → folhas imediatas
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -206,10 +214,14 @@ def derive(manifest: dict) -> Derivation:
                 if not declarado.get(nome):
                     saida.problems.append(f"{node_id}: coluna `{nome}` da seed sem `sensitivity` em dbt/seeds/_seeds.yml — seed é declaração, não derivado")
                 colunas[nome] = declarado.get(nome) or TECHNICAL
+            folhas = {nome: set() for nome in colunas}     # seed é origem: não vem de lugar nenhum
         else:
-            colunas = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings)
+            folhas = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings)
+            colunas = {nome: strictest([niveis[f] for f in chaves]) for nome, chaves in folhas.items()}
             if no["resource_type"] == "snapshot":
                 colunas.update(dict.fromkeys(SNAPSHOT_COLUMNS, TECHNICAL))
+                folhas.update({c: set() for c in SNAPSHOT_COLUMNS})
+        saida.leaves[node_id] = folhas
         # Exceção declarada e justificada vale — e vale para quem lê o modelo
         # depois: a ponte do legado extrai colunas de um payload JSON pessoal e
         # declara o nível real de cada uma; o que a lê herda esse nível, não o
@@ -224,7 +236,8 @@ def derive(manifest: dict) -> Derivation:
     return saida
 
 
-def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str]) -> dict[str, str]:
+def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str]) -> dict[str, set["Leaf"]]:
+    """Por coluna de saída do nó, as folhas imediatas — colunas de fonte ou de modelo anterior."""
     sql = no.get("compiled_code") or ""
     if not sql.strip():
         problems.append(f"{no['unique_id']}: sem SQL compilado no manifest; rode `make dbt-build`")
@@ -239,7 +252,7 @@ def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], war
     folhas = _leaves_by_output(qualificada, no["unique_id"], (no["schema"], no.get("alias") or no["name"]), niveis, problems, warnings)
     if not folhas:
         problems.append(f"{no['unique_id']}: nenhuma projeção reconhecida no SQL compilado")
-    return {nome: strictest([niveis[f] for f in chaves]) for nome, chaves in folhas.items()}
+    return folhas
 
 
 Leaf = tuple[str, str, str]
