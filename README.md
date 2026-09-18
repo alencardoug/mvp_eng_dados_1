@@ -31,19 +31,19 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.3 — Etapa 10 aceita em 17/09/2026; condição (D44) satisfeita |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.4 — Etapa 11 com os seis critérios satisfeitos em 18/09/2026, aguardando aceite |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.3 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.12 — toda fronteira com teste |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.8 — medições da D31 separadas das históricas |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.12 — DAG do fechamento da Etapa 11 medida |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.4 — acesso por papel implementado e testado |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 1 pendente em 16/09/2026 (D43, adiada para a fase GCP) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 2 pendentes em 18/09/2026: o aceite da Etapa 11 e a D43 (adiada para a fase GCP) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 47 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
@@ -77,6 +77,19 @@ PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo.
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
+
+**Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos entre 17 e
+18/09/2026 e a definição de pronto aplicada, aguardando o aceite do Owner.** Um comando de
+verificação com *fail fast* (`make check`: segredos → `dbt build` → classificação e linhagem
+derivadas → `pytest`); **4.161 de 4.161** colunas classificadas por derivação dos modelos; retenção
+declarada em todo objeto; **cinco papéis de acesso** sem login, com a concessão declarada por camada
+no dbt e provada por 1.390 leituras assumindo cada papel — `analyst` lê as 16 views e nada mais;
+**linhagem por coluna** do consumo até as fontes, gerada do SQL compilado e conferida a cada
+`make check` (2.983 de 2.983 colunas fecham numa origem); e **reconciliação automática nas oito
+fronteiras** da Qualidade §7, que no primeiro fechamento expôs três estados de uma origem
+regenerada discordando entre si — corrigidos no mesmo dia pelo procedimento documentado. Medido em
+18/09/2026: `make check` verde com `PASS=905` e 283 testes Python; DAG `fluxo_batch` de ponta a
+ponta com 13 tarefas em 7 min 58 s, captura **43** certificada; migrações do zero nos três bancos.
 
 **Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026 e aceita em 17/09/2026 após sete
 rodadas de revisão; a condição do aceite — o bloco de sincronizações da D44 — foi executada e medida

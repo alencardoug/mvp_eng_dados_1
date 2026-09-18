@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.3 |
+| Versão | 3.4 |
 | Etapa atual | **Etapa 10 — Corte 6: origem legada**, aceita em 17/09/2026 sob a condição do bloco da D44 (**M0** a **M4** concluídos) |
-| Última revisão | 17/09/2026 (bloco da D44 executado) |
+| Última revisão | 18/09/2026 (Etapa 11 fechada, aguardando aceite) |
 
 ---
 
@@ -267,6 +267,17 @@ Teste que o próprio autor desenha mede o que ele pensou em medir.
 ## 5. Consolidação e nuvem
 
 ### Etapa 11 — Consolidação de governança e qualidade
+
+*Os seis critérios abaixo foram satisfeitos entre 17 e 18/09/2026, cada um com a sua medição, e a
+[definição de pronto](../CLAUDE.md#7-definição-de-pronto) foi aplicada em 18/09/2026: migrações do
+zero nos três bancos (origem por `make test-carga`, legado com as 40 tabelas, armazém por
+`governance.garantir()`), DAG `fluxo_batch` de ponta a ponta (13 tarefas `success` em 7 min 58 s,
+captura 43 certificada, tarefa nova `dbt_fronteiras` com os 14 testes de fronteira — sem ela, a
+seleção indireta do dbt os executava na tarefa da primeira camada que citam), `make check` verde e
+revisão de segredos. Nenhum componente novo, logo nenhum ADR novo: a etapa implementou decisões já
+tomadas — ADR-0011 (papéis), ADR-0023 (governança), ADR-0031 (aterrissagem), ADR-0044
+(certificado). **Aguarda o aceite do Owner**, que revisa o declarativo por inteiro e o derivado por
+amostragem — a lista está nas [pendências](pendencias.md#aceite-da-etapa-11).*
 
 | | |
 |---|---|

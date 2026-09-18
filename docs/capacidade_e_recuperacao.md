@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.11 |
+| Versão | 2.12 |
 | Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7; custo de memória do tratamento do legado medido na §2.10. Recuperação da Etapa 12 ainda não entregue |
-| Última revisão | 15/09/2026 |
+| Última revisão | 18/09/2026 |
 
 ---
 
@@ -106,16 +106,25 @@ simultaneamente de pé. A primeira coluna é a medição da Etapa 5, com 12 flux
 segunda é a da Etapa 6, com 27; a terceira é a da Etapa 8, com 30 e uma tarefa a mais — a
 quarentena, que estreou como camada.
 
-| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 | Etapa 9 | Etapa 10 |
-|---|---:|---:|---:|---:|---:|
-| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s | 1 min 31 s | 2 min 37 s |
-| `sincronizar_legado_para_raw_legacy` | — | — | — | — | 2 min 7 s, em paralelo |
-| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s | 16 s · 16 s · 12 s | 19 s · 34 s · 32 s |
-| `dbt_quarantine` | — | — | 7 s | 7 s | 9 s |
-| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s | 8 s · 20 s · 9 s | 8 s · 22 s · 11 s |
-| `dbt_docs` | 13 s | 16 s | 13 s | 16 s | 22 s |
-| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** | **3 min 21 s** | **5 min 20 s** |
-| **Tarefas** | 8 | 8 | 9 | 9 | 10 |
+| Tarefa | Etapa 5 | Etapa 6 | Etapa 8 | Etapa 9 | Etapa 10 | Etapa 11 |
+|---|---:|---:|---:|---:|---:|---:|
+| `sincronizar_oltp_para_raw` (incremental) | 1 min 20 s | 1 min 32 s | 1 min 37 s | 1 min 31 s | 2 min 37 s | 3 min 9 s |
+| `sincronizar_legado_para_raw_legacy` | — | — | — | — | 2 min 7 s, em paralelo | 3 min 29 s, em paralelo |
+| `dbt_seed` · `dbt_staging` · `dbt_trusted` | 16 s · 13 s · 11 s | 18 s · 15 s · 10 s | 15 s · 15 s · 13 s | 16 s · 16 s · 12 s | 19 s · 34 s · 32 s | 29 s · 60 s · 47 s |
+| `dbt_quarantine` | — | — | 7 s | 7 s | 9 s | 14 s |
+| `dbt_snapshots` · `dbt_analytics` · `dbt_consumption` | 10 s · 15 s · 10 s | 8 s · 18 s · 10 s | 8 s · 21 s · 10 s | 8 s · 20 s · 9 s | 8 s · 22 s · 11 s | 11 s · 29 s · 15 s |
+| `dbt_fronteiras` (testes de fronteira, novo) | — | — | — | — | — | 13 s |
+| `dbt_docs` | 13 s | 16 s | 13 s | 16 s | 22 s | 30 s |
+| **Total da execução** | **2 min 53 s** | **3 min 12 s** | **3 min 25 s** | **3 min 21 s** | **5 min 20 s** | **7 min 58 s** |
+| **Tarefas** | 8 | 8 | 9 | 9 | 10 | 11 |
+
+A coluna da Etapa 11 é a execução de **18/09/2026**, no fechamento da etapa, com Airbyte e Airflow de
+pé e o streaming em baixo: 13 tarefas no Airflow (as 11 acima mais as duas fases do certificado de
+captura), todas `success`; a captura 43 certificada nas 40 tabelas; `dbt_fronteiras` é a tarefa nova
+que executa os 14 testes de fronteira depois da última camada. As duas sincronizações estão mais
+lentas que na Etapa 10 (3 min 9 s e 3 min 29 s) porque a conexão do `oltp` tinha sido recriada por
+`make sync-airbyte RESET=1` horas antes e releu tudo, e as duas correram em paralelo com o Airflow e
+o Airbyte no mesmo teto de memória; o dbt inteiro, de `seed` a `docs`, levou 4 min 14 s.
 
 A Etapa 10 é a primeira em que o total **salta**: 5 min 20 s contra 3 min 21 s. A causa não é a
 transformação — é a segunda origem. As duas capturas correm em paralelo e a mais lenta define o

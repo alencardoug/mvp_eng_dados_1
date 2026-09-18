@@ -10,14 +10,57 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 10 — Corte 6: origem legada, reaberta; três rodadas de revisão de desenvolvimento respondidas (RV10-01…12, RV10-2-01…10, RV10-3-01…04 — a terceira em 16/09/2026, dois bloqueantes e dois ajustes corrigidos), **aguardando a quarta rodada** |
-| Aprovações pendentes | 0 |
+| Etapa atual | Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos e a definição de pronto aplicada em 18/09/2026, **aguardando o seu aceite** |
+| Aprovações pendentes | 1 (aceite da Etapa 11) |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
-| Última revisão | 16/09/2026 |
+| Última revisão | 18/09/2026 |
 
 ---
 
 ## 1. Esperando você
+
+### Aceite da Etapa 11
+
+**Pedido:** aceitar a Etapa 11 como concluída — ou devolver com achados. Os seis critérios estão
+marcados no [plano](plano_de_desenvolvimento.md#etapa-11--consolidação-de-governança-e-qualidade),
+cada um com data e medição, e a definição de pronto do `CLAUDE.md` foi aplicada em 18/09/2026:
+migrações do zero nos três bancos, DAG de ponta a ponta (13 tarefas `success`, captura 43
+certificada, 14 testes de fronteira na tarefa nova `dbt_fronteiras`), `make check` verde
+(`PASS=905`, 283 testes Python), revisão de segredos, catálogo e linhagem em dia, nenhum ADR novo
+porque nenhum componente novo. Se quiser manter o padrão da Etapa 10, uma rodada de revisão por
+outro agente cabe antes do aceite; o dossiê é este item mais os documentos abaixo.
+
+**O que revisar por inteiro (declarativo, CLAUDE.md §5):**
+
+- `dbt/dbt_project.yml` — `+grants`, `meta.writers`, `meta.retention` por camada e o `on-run-end`;
+- `dbt/models/staging/_retail__sources.yml` — `meta` da fonte `raw` e da tabela de aterrissagem;
+- `dbt/models/analytics/_analytics__models.yml` — as dez declarações de
+  `fato_reconcilia_com_a_condutora` (condutora, medidas, a regra do carrinho);
+- `src/mvp_ed1/governance.py` — `PAPEIS` e `_garantir_papeis`; `src/mvp_ed1/legacy/dbt.py` e
+  `ponte.py` — o que os geradores passaram a emitir (`writers`, `grants`, `lineage`, o teste
+  `retail_empilhado_reconcilia` e a etiqueta `fronteira`);
+- `tests/test_acesso.py::POLITICA`, `tests/test_retencao.py::POLITICA` e
+  `tests/test_linhagem.py` — a política como o teste a lê;
+- `dbt/macros/aplicar_acesso_por_camada.sql`, `test_fato_reconcilia_com_a_condutora.sql` e
+  `src/mvp_ed1/models/lineage.py` — as regras;
+- `airflow/dags/fluxo_batch.py` — a tarefa `dbt_fronteiras` e os `--exclude`;
+- [Governança](governanca_de_dados.md) §5.1, §6, §7 e §8; [Qualidade](qualidade_de_dados.md) §7;
+  [Dicionário](dicionario_de_dados.md) §3 (o texto, não o gerado).
+
+**O que revisar por amostragem (derivado):** `_pontes__models.yml` (457 colunas com `lineage`), a
+§3.3 do Dicionário (188 colunas de consumo com origem), `retail_empilhado_reconcilia.sql`,
+`_legacy__sources.yml` e os `.yml` de sensibilidade.
+
+**Uma decisão embutida no aceite.** A [Governança
+§10](governanca_de_dados.md#10-revisão-desta-política) diz que alteração na política exige a sua
+decisão explícita. A tabela da §7 mudou em 18/09/2026 para refletir ADRs já aceitos, não para
+decidir coisa nova: `streamer` escreve em `raw.inventory_movements_stream` (ADR-0031, não
+`analytics` como o ADR-0011 previa); `governance` é escrito pela ingestão — o certificado de captura
+(ADR-0044) — e lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e
+`snapshots`. Aceitar a etapa é ratificar essa leitura; se discordar de alguma linha, é uma linha na
+declaração e o teste acompanha.
+
+*Efeito de não decidir:* a Etapa 12 não começa — o pré-requisito dela é esta.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -395,6 +438,14 @@ medido; se um dia importar, a decisão é do Owner e pede ADR.
 ---
 
 ## 6. Do lado do assistente
+
+**Etapa 11 (17–18/09/2026):** `make check` como comando único com *fail fast*; classificação de
+4.161 de 4.161 colunas derivada dos modelos por linhagem; retenção declarada por objeto; cinco
+papéis de acesso sem login com concessão declarada por camada, assumida e testada; linhagem por
+coluna do consumo até as fontes, gerada e conferida; reconciliação automática nas oito fronteiras.
+O fechamento das fronteiras achou três estados da origem regenerada discordando entre si (seis
+saldos e 2.200 movimentos velhos em `raw` e na fato incremental) — corrigidos pelo procedimento da
+Execução Local §3.2 no mesmo dia. Nada está do meu lado: o item acima é o aceite, que é seu.
 
 A D31 está encerrada. Na Etapa 10, tudo o que a terceira revisão pediu está **implementado e
 medido** (15/09/2026): certificação de captura por conteúdo em duas fases (ADR-0044), detecção de

@@ -8,9 +8,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 1.2 |
+| Versão | 1.3 |
 | Responsável | Owner principal |
-| Última revisão | 15/09/2026 |
+| Última revisão | 18/09/2026 — revisão de fim da Etapa 11: nenhum risco novo; R4 e R7 com tratamento ampliado |
 
 Um risco só sai desta tabela quando deixa de existir — não quando deixa de incomodar. Riscos
 novos entram a qualquer momento; a revisão obrigatória acontece ao final de cada etapa.
@@ -32,9 +32,9 @@ novos entram a qualquer momento; a revisão obrigatória acontece ao final de ca
 
 | ID | Risco | Impacto | Tratamento |
 |---|---|---|---|
-| **R4** | Governança tratada como etapa final | Alto | Catálogo, linhagem e classificação desde a primeira tabela; atualizar o dicionário é critério de conclusão de etapa |
+| **R4** | Governança tratada como etapa final | Alto | Catálogo, linhagem e classificação desde a primeira tabela; atualizar o dicionário é critério de conclusão de etapa. Desde a Etapa 11 (18/09/2026) as três são **cobradas a cada `make check`**: classificação 100 % derivada dos modelos, linhagem por coluna gerada e conferida contra o SQL, acesso por papel assumido e executado |
 | **R5** | Dados sintéticos irrealistas | Médio | Distribuições revisadas, invariantes de negócio testadas, recalibração após medição |
-| **R7** | Segredos versionados por engano | Muito alto | `.gitignore` + `.env.example` sem valores + revisão em toda entrega |
+| **R7** | Segredos versionados por engano | Muito alto | `.gitignore` + `.env.example` sem valores + revisão em toda entrega — a primeira etapa do `make check` desde 17/09/2026, e os papéis de acesso são grupos sem login, sem senha nova no `.env` |
 
 ## Riscos técnicos e de ambiente
 
