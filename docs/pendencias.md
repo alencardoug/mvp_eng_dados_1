@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 11 — Consolidação de governança e qualidade, **aceita em 18/09/2026**; a Etapa 12 (fechamento da fase local, M5) pode começar |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano em revisão, D45–D48 decididas |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 18/09/2026 |
@@ -82,6 +82,24 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 ---
 
 ## 2. Decisões já fechadas
+
+### D45 a D48 — decididas em 18/09/2026, na abertura da Etapa 12
+
+Quatro decisões de execução do fechamento da fase local, tomadas sobre o plano transitório da
+Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas). Nenhuma troca ferramenta,
+camada ou modelagem; nenhum ADR.
+
+- **D45 — "ambiente limpo" é (c):** clone novo, `.env` novo, `make airbyte-down` e `make reset`
+  nesta máquina; "máquina que nunca viu o projeto" fica registrada como contrapartida da fase
+  seguinte (a VM do §4.1 da conversa de custos, depois da Etapa 13).
+- **D46 — o pacote de recuperação vive em `data/recovery/`** (ignorado pelo Git), com
+  `RECOVERY_DIR` sobrescrevível.
+- **D47 — a versão da fase local é `v1.0.0`**, marcada no *commit* que fecha M5; a fase GCP será
+  `v2.0.0`.
+- **D48 — segredo achado no histórico:** senha de contêiner local se regenera e se registra, sem
+  reescrever histórico; chave de nuvem ou token externo se revoga **e** se reescreve, só pela
+  mão do Owner (hoje não existe nenhuma).
+
 
 ### D44 — decidida em 16/09/2026, implementada e medida em 17/09/2026
 
