@@ -1,4 +1,8 @@
 # Comandos de verificação deste projeto, um por linha.
 # O dossiê roda cada um e cola a saída. Linha com # é ignorada.
-make test
-make dbt-build
+#
+# Desde a Etapa 11 o comando único é `make check`: segredos → dbt build (modelos,
+# testes de dados e reconciliações) → classificação e linhagem derivadas em dia
+# → pytest, parando na primeira falha. Ele engloba os dois que estavam aqui
+# (`make test` e `make dbt-build`).
+make check
