@@ -360,11 +360,15 @@ a soma dobra; `raw` carregava seis saldos (`inventory_balances`, ids 2912–2917
 tinha — resto de uma regeneração da origem sem `make sync-airbyte RESET=1`, que o modo
 `dedup_history` não apaga sozinho; e, refeita a réplica, o livro do caminho quente
 (`raw.inventory_movements_stream`, 15.900 linhas) carregava 2.200 movimentos de antes da mesma
-regeneração, que a origem (13.700) não tem — `saldo_reconstruido_confere_com_a_projecao` acusa 1.514
-posições até o *re-snapshot* do CDC ([Execução Local
-§3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming)). Os dois estados velhos
-concordavam entre si, e por isso nenhum teste os via: o que os expôs foi fechar a primeira
-fronteira. O teste acusa e a resposta é sincronizar, não ajustar o teste.
+regeneração, que a origem (13.700) não tem — `saldo_reconstruido_confere_com_a_projecao` acusou
+1.514 posições. Os dois estados velhos concordavam entre si, e por isso nenhum teste os via: o que
+os expôs foi fechar a primeira fronteira. A resposta foi o procedimento da [Execução Local
+§3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming), não ajustar o teste: sink
+esvaziado, slot e tópicos descartados, *re-snapshot* do CDC — 13.700 chaves nos dois caminhos, 0 só
+de um lado, 0 divergências nas colunas de negócio, 0 pares com saldo diferente — e `--full-refresh`
+da fato incremental, que também guardava os 2.200 (o histórico SCD não precisou ser refeito: a
+regeneração era determinística e idêntica). `make check` verde no mesmo dia, `PASS=905`, 283 testes
+Python.
 
 ---
 

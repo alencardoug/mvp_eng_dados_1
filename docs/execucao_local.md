@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.9 |
+| Versão | 1.10 |
 | Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
-| Última revisão | 15/09/2026 |
+| Última revisão | 18/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -154,7 +154,12 @@ Airbyte conserva o erro. O decodificador também recusa `TRUNCATE`; não faça a
    saldo por armazém/SKU, não apenas a soma geral.
 5. Só após a igualdade, execute `make dbt-build RESET=1`: snapshots SCD e fato incremental precisam
    ser refeitos juntos. Guarde `dbt/target/run_results.json` antes que outra tarefa o sobrescreva.
-   A geração do catálogo não substitui a evidência do build e dos testes.
+   A geração do catálogo não substitui a evidência do build e dos testes. *Medido em 18/09/2026:*
+   se a regeneração é determinística e idêntica — mesma semente, mesmos parâmetros —, o histórico
+   SCD não muda e não precisa ser destruído; o que **não** esquece sozinho é a fato incremental, que
+   guarda os movimentos velhos até um `dbt build --select fact_inventory_movement+ --full-refresh`.
+   `fato_reconcilia_com_a_condutora` e `incremental_confere_com_a_reconstrucao_completa` acusam
+   enquanto isso não for feito.
 6. Se a mudança afetou o livro de estoque, reexercite produtor, duplicatas e alertas pelos alvos
    existentes. Registre `LIMITE`, `SEED` e o deslocamento de `.stream/producer_state.json`: a mesma
    semente **retoma**, não necessariamente começa em zero. Depois de cessar a produção, espere o
