@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.3 |
+| Versão | 2.4 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 14/09/2026 |
+| Última revisão | 18/09/2026 |
 
 ---
 
@@ -117,7 +117,9 @@ models:
 Chaves obrigatórias: `domain` e `owner` no modelo; `sensitivity` em toda coluna; `retention` em todo
 objeto — `permanent`, `rebuildable` ou um inteiro de dias — declarada **por camada** no
 `dbt_project.yml` (`+meta`) e por fonte nos `_sources.yml`, e cobrada objeto a objeto por
-`tests/test_retencao.py` contra a §8. `data_type` conforme aplicável.
+`tests/test_retencao.py` contra a §8. `data_type` conforme aplicável. O acesso segue o mesmo
+arranjo, pelas chaves da §7: `writers` no `meta` de cada camada e fonte, `+grants` por camada de
+modelos e `meta.grants` por fonte.
 
 **`sensitivity` é declarada uma vez e derivada em todo o resto** (desde 17/09/2026). A declaração
 vive nos modelos SQLAlchemy da origem (`models/base.py::meta`, obrigatória e validada, 418 colunas);
@@ -166,7 +168,7 @@ descrição precise ser reescrita.
 | Linhagem origem → consumo | Toda coluna analítica aponta para a sua origem | Linhagem do dbt |
 | Procedência entre origens | Registro empilhado identifica se veio da origem principal ou da legada | [Origem Legada](origem_legada.md) |
 | Certificado de captura do legado | Toda sincronização do legado deixa, por tabela, contagem e hash de conteúdo da origem antes e depois do *job*, o recebido no bruto e o vínculo com o *job*; só captura `complete` nas 40 tabelas é elegível ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | `governance.legacy_captures` — o primeiro conjunto do log de execução do [ADR-0023](adr/0023-escopo-do-schema-governance.md) materializado |
-| Regras de acesso por camada | Cada camada tem papéis de leitura e escrita | Seção 7 |
+| Regras de acesso por camada | Cada camada tem papéis de leitura e escrita | Seção 7, `+grants`, `meta.grants` e `meta.writers` |
 | Retenção | Todo objeto tem prazo e critério de descarte | Seção 8 e `meta.retention` |
 | Segredos fora do repositório | Credenciais só em `.env` local; `.env.example` versionado sem valores | `.gitignore` + revisão de cada entrega |
 
@@ -179,21 +181,44 @@ são *roles* do PostgreSQL; na fase GCP, contas de serviço e grupos IAM por dat
 
 | Papel | Escreve | Lê | Equivalente na fase GCP |
 |---|---|---|---|
-| `ingestor` | `raw`, `raw_legacy` | as próprias | Conta de serviço do Airbyte |
-| `transformer` | `staging`, `trusted`, `analytics`, `quarantine` | camadas anteriores | Conta de serviço do dbt |
-| `streamer` | `analytics` | — | Conta de serviço do Dataflow |
+| `ingestor` | `raw`, `raw_legacy`, `governance` | as próprias | Conta de serviço do Airbyte |
+| `transformer` | `staging`, `trusted`, `analytics`, `consumption`, `quarantine`, `snapshots` | camadas anteriores | Conta de serviço do dbt |
+| `streamer` | `raw.inventory_movements_stream` | a própria | Conta de serviço do Dataflow |
 | `analyst` | — | `consumption` apenas | Grupo IAM no dataset das views |
-| `auditor` | — | `quarantine` | Grupo IAM de auditoria |
+| `auditor` | — | `quarantine`, `governance` | Grupo IAM de auditoria |
 
-`governance` e `snapshots` não aparecem na tabela porque não são camadas de fluxo: `governance` é
-escrito pelo Airflow e pelo dbt e lido pelo `auditor`
+`governance` e `snapshots` não são camadas de fluxo: `governance` recebe o certificado de captura
+do legado, escrito pela ingestão ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)),
+e é lido pelo dbt — só para a elegibilidade da captura — e pelo `auditor`
 ([ADR-0023](adr/0023-escopo-do-schema-governance.md)); `snapshots` é mantido exclusivamente pelo dbt
-([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)) e não é lido por ninguém fora do pipeline.
+([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)) e não é lido por ninguém fora do pipeline. O
+`streamer` escreve em `raw`, e não em `analytics` como o [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md)
+previa: o [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) aterrissou o caminho quente
+ao lado da tabela do Airbyte, e o papel acompanha o dado.
 
 Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `staging`, `trusted` ou
 `analytics`. O contrato de consumo é a view, e o schema `consumption`
 ([ADR-0008](adr/0008-schemas-do-armazem.md)) torna a regra testável por asserção de falha: um
 `SELECT` de `analyst` contra `raw` **precisa** falhar.
+
+**Implementado e testado desde 18/09/2026.** Os cinco papéis são grupos de privilégio **sem login**
+no armazém, criados por `mvp_ed1.governance.garantir()` antes de todo `make dbt-build` — quem se
+conecta é membro de um deles, e hoje o único login é o superusuário do `.env`, que os assume por
+`set role`; não há senha por papel, como não haverá na fase GCP. A concessão é declarada onde a
+camada é declarada: `+grants` por camada no `dbt_project.yml` (quem lê, aplicado pelo dbt objeto a
+objeto ao materializar), `meta.grants` por fonte nos `_sources.yml` (`raw`, `raw_legacy` e
+`governance`, que o dbt não materializa) e `meta.writers` em ambos (quem escreve o schema). O
+`on-run-end` (`aplicar_acesso_por_camada`) concede `usage` e `create` no schema, aplica os grants
+das fontes e **revoga** o que não está declarado, a cada execução. `tests/test_acesso.py` confere
+que o declarado é esta tabela e depois **assume cada papel e executa**: leitura em todo objeto
+declarado das nove camadas (5 papéis × 278 objetos, 1.390 leituras), criação de tabela em cada
+schema (revertida) e `insert` na aterrissagem do caminho quente — o permitido passa e o proibido
+falha com *permission denied*. Contraprovas feitas na entrega: grant dado à mão ao `analyst` em
+`trusted` acusa e é revogado na execução seguinte, assim como privilégio a mais numa tabela de
+fonte; papel apagado volta no `garantir()`; declaração fora desta tabela falha o teste. O passo
+seguinte, fora desta entrega, é cada componente conectar-se como membro do próprio papel (Airbyte,
+dbt, Beam e o certificado de captura) — hoje todos usam o superusuário, e a mudança exige subir cada
+ambiente para provar.
 
 ---
 

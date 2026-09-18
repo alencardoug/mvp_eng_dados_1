@@ -14,8 +14,16 @@ sources:
     # Governança §8: os lotes em `raw` são os necessários à reconciliação, e é
     # o modo de sincronização (ADR-0015: `append` e `dedup + history`) que os
     # retém — nada aqui descarta. Permanente enquanto a origem existir.
+    #
+    # Acesso (Governança §7): dois escritores, cada um dono do que escreve —
+    # o Airbyte (`ingestor`) e o pipeline Beam (`streamer`, ADR-0031) —, e um
+    # leitor, o dbt. O dbt não concede em fonte; `grants` aqui vale para cada
+    # tabela desta fonte e é aplicado pelo `on-run-end` (`aplicar_acesso_por_camada`).
     meta:
       retention: permanent
+      writers: [ingestor, streamer]
+      grants:
+        select: [transformer]
 
     # O Airbyte escreve estas quatro colunas em toda tabela. `_airbyte_extracted_at`
     # é o carimbo da carga — não confundir com `updated_at`, que é o tempo de
@@ -1711,6 +1719,13 @@ sources:
           com idempotência por `movement_id` (ADR-0019). Caminho oficial de
           ingestão incremental do livro de estoque.
         loaded_at_field: _stream_extracted_at
+        # Substitui o `grants` da fonte só nesta tabela (lista completa):
+        # `insert` é a escrita do `streamer`; `select` porque o
+        # `on conflict do nothing ... returning` lê a chave.
+        meta:
+          grants:
+            select: [streamer, transformer]
+            insert: [streamer]
         columns:
           - name: movement_id
             meta:

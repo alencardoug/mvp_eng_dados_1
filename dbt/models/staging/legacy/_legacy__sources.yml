@@ -17,8 +17,13 @@ sources:
     loader: airbyte
     # Governança §8 e ADR-0037: cada captura é retida por acréscimo; o
     # descarte de capturas antigas é decisão futura, não consequência.
+    # Acesso (Governança §7): o Airbyte escreve, o dbt lê — `grants` aqui vale
+    # para cada tabela desta fonte e é aplicado pelo `on-run-end`.
     meta:
       retention: permanent
+      writers: [ingestor]
+      grants:
+        select: [transformer]
 
     # Sem `freshness`: a origem legada é capturada sob demanda, e não há
     # promessa de atualidade a cobrar dela — ela é um sistema que ninguém mexe.
@@ -1962,8 +1967,13 @@ sources:
     schema: governance
     loader: mvp_ed1.legacy.captura
     # Log de execução e controle (ADR-0023): evidência de auditoria, permanente.
+    # Acesso (Governança §7): quem escreve é o certificado de captura, parte
+    # da ingestão (`ingestor`); leem o dbt, para a elegibilidade, e o auditor.
     meta:
       retention: permanent
+      writers: [ingestor]
+      grants:
+        select: [auditor, transformer]
     tables:
       - name: legacy_captures
         description: >

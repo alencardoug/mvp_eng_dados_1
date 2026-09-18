@@ -7,6 +7,14 @@
 | Decisor | Owner principal · Líder de Governança |
 | Decisão pendente resolvida | D09 |
 
+> **Nota — 18/09/2026.** Implementado na Etapa 11 como esta decisão pede: cinco papéis sem login
+> (`mvp_ed1.governance`), concessão declarada por camada no dbt e o teste por asserção de falha em
+> `tests/test_acesso.py`. Uma linha da tabela abaixo envelheceu: o `streamer` escreve em
+> `raw.inventory_movements_stream`, não em `analytics`, desde o
+> [ADR-0031](0031-aterrissagem-do-caminho-quente-em-raw.md); e `governance` é escrito pela ingestão
+> (o certificado de captura, [ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md)). A
+> tabela vigente é a da [Governança §7](../governanca_de_dados.md#7-regras-de-acesso-por-camada).
+
 ## Contexto
 
 O princípio **P3** exige que todo campo receba classificação na entrega que o cria, e a Etapa 11

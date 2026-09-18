@@ -22,6 +22,12 @@ docs-paths: ["models", "../docs/glossario_de_negocio"]
 
 clean-targets: ["target", "dbt_packages"]
 
+# Acesso por camada, nível de schema (Governança §7). O `+grants` de cada camada
+# abaixo é aplicado pelo dbt objeto a objeto; `usage` e `create` no schema, os
+# grants das fontes e o `revoke` do que não está declarado saem desta macro.
+on-run-end:
+  - "{{ aplicar_acesso_por_camada() }}"
+
 vars:
   # O "hoje" da simulação. Precisa ser igual ao `periodo.as_of_date` de
   # `src/mvp_ed1/generator/geracao.yml`, e um teste do `pytest` confere que são —
@@ -82,8 +88,19 @@ models:
     # histórico que não se reconstrói — só sai por decisão registrada. Um
     # inteiro seria dias, para quando um objeto ganhar prazo (nenhum tem hoje).
     # `tests/test_retencao.py` cobra que todo objeto materializado tenha uma.
+    #
+    # Acesso (Governança §7, ADR-0011), declarado onde a camada é declarada,
+    # como a retenção. `+grants` é quem **lê** — o dbt concede objeto a objeto
+    # ao materializar; a lista é a completa de cada camada, não um acréscimo.
+    # `writers` é quem **escreve** o schema (`create`, via `on-run-end`). O
+    # padrão das camadas do pipeline é ninguém além do `transformer`, que é o
+    # dbt: é ele quem lê o que acabou de escrever, nos testes e no modelo
+    # seguinte. `tests/test_acesso.py` assume cada papel e cobra a tabela.
+    +grants:
+      select: [transformer]
     +meta:
       retention: rebuildable
+      writers: [transformer]
     staging:
       +schema: staging
       +materialized: view
@@ -105,6 +122,11 @@ models:
     consumption:
       +schema: consumption
       +materialized: view
+      # A única camada que o perfil de análise alcança: o contrato de consumo
+      # é a view (ADR-0008), e a view lê `analytics` com os privilégios de quem
+      # a criou — o `analyst` não precisa, e não tem, acesso ao que está atrás.
+      +grants:
+        select: [analyst, transformer]
     # Destino, não passagem (ADR-0008): tabela porque é evidência de auditoria e
     # precisa sobreviver à queda do modelo que a produziu — e por isso permanente.
     quarantine:
@@ -112,18 +134,29 @@ models:
       +materialized: table
       +meta:
         retention: permanent
+      # Evidência de auditoria: o `auditor` lê; ninguém além do dbt escreve.
+      +grants:
+        select: [auditor, transformer]
 
 snapshots:
   mvp_ed1:
     +target_schema: snapshots
     # Histórico SCD (ADR-0017): o que foi capturado num instante não se
-    # reconstrói depois. Permanente.
+    # reconstrói depois. Permanente. Mantido só pelo dbt, lido por ninguém
+    # fora do pipeline (Governança §7).
     +meta:
       retention: permanent
+      writers: [transformer]
+    +grants:
+      select: [transformer]
 
 seeds:
   mvp_ed1:
     +schema: trusted
-    # Versionadas no Git: reconstruíveis de qualquer commit.
+    # Versionadas no Git: reconstruíveis de qualquer commit. Vivem em
+    # `trusted` e seguem o acesso da camada.
     +meta:
       retention: rebuildable
+      writers: [transformer]
+    +grants:
+      select: [transformer]

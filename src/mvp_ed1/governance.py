@@ -8,6 +8,14 @@ destas tabelas vive aqui: uma lista **ordenada** de migrações, cada uma
 idempotente, aplicadas por `garantir()` e registradas em `governance._versions`.
 Acrescentar coluna é acrescentar uma migração à lista — nunca editar a anterior.
 
+Os papéis de acesso do [ADR-0011] nascem aqui pela mesma razão: são objetos do
+*cluster*, não do dbt, e um `init` do contêiner só roda com o volume vazio — um
+armazém já povoado nunca os receberia. `garantir()` os cria se faltarem, a cada
+execução, no ambiente novo e no existente. O que cada papel alcança não está
+aqui: é declarado camada a camada no dbt (`+grants`, `meta.writers`,
+`meta.grants`) e aplicado ao fim de cada execução
+(`macros/aplicar_acesso_por_camada.sql`).
+
 Se a Etapa 11 decidir levar o armazém para o Alembic, esta lista é o que vira
 histórico; até lá, é o que impede DDL solto.
 """
@@ -17,6 +25,21 @@ from __future__ import annotations
 from sqlalchemy import Engine, text
 
 SCHEMA = "governance"
+
+#: Papéis de acesso (ADR-0011, Governança §7), na ordem da tabela. São grupos de
+#: privilégio **sem login**: quem se conecta é membro de um deles — hoje o único
+#: login do armazém é o superusuário do `.env`, que os assume por `set role`.
+#: Sem login não há senha nova no `.env`, e o equivalente na fase GCP é o mesmo:
+#: grupo IAM ou conta de serviço, nunca uma credencial por papel.
+PAPEIS: tuple[str, ...] = ("ingestor", "transformer", "streamer", "analyst", "auditor")
+
+_DESCRICAO_DOS_PAPEIS: dict[str, str] = {
+    "ingestor": "Escreve raw e raw_legacy (Airbyte) e o certificado de captura em governance; lê só o que é seu.",
+    "transformer": "Escreve staging, trusted, analytics, consumption, quarantine e snapshots (dbt); lê as camadas anteriores.",
+    "streamer": "Escreve raw.inventory_movements_stream (Beam, ADR-0031); nada mais.",
+    "analyst": "Lê consumption, e só consumption — o contrato de consumo é a view (ADR-0008).",
+    "auditor": "Lê quarantine e governance; não escreve.",
+}
 
 #: Migrações em ordem: (nome, comandos). Cada comando é idempotente por si.
 MIGRACOES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -69,6 +92,29 @@ MIGRACOES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+def _garantir_papeis(conexao) -> None:
+    """Cria os papéis que faltam. Não é migração de propósito: migração roda uma
+    vez, e um papel apagado à mão só voltaria com outra migração; aqui ele volta
+    na execução seguinte. `create role` não tem `if not exists` — o bloco `do`
+    faz as vezes. Os papéis são criados, nunca alterados nem apagados por aqui;
+    o que cada um alcança é assunto do dbt (ver docstring do módulo)."""
+    for papel in PAPEIS:
+        conexao.execute(
+            text(
+                f"""
+                do $$
+                begin
+                    if not exists (select from pg_roles where rolname = '{papel}') then
+                        create role {papel} nologin;
+                    end if;
+                end
+                $$
+                """
+            )
+        )
+        conexao.execute(text(f"comment on role {papel} is '{_DESCRICAO_DOS_PAPEIS[papel]}'"))
+
+
 def garantir(engine: Engine) -> list[str]:
     """Aplica as migrações que faltam e devolve os nomes aplicados nesta chamada."""
     aplicadas: list[str] = []
@@ -90,6 +136,7 @@ def garantir(engine: Engine) -> list[str]:
                 conexao.execute(text(comando))
             conexao.execute(text(f"insert into {SCHEMA}._versions (nome) values (:n)"), {"n": nome})
             aplicadas.append(nome)
+        _garantir_papeis(conexao)
     return aplicadas
 
 
