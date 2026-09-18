@@ -30,13 +30,17 @@ certificada, 14 testes de fronteira na tarefa nova `dbt_fronteiras`), `make chec
 porque nenhum componente novo. Se quiser manter o padrão da Etapa 10, uma rodada de revisão por
 outro agente cabe antes do aceite; o dossiê é este item mais os documentos abaixo.
 
-**Revisão por outro agente feita em 18/09/2026** (Codex, sobre `b1a3975..5fe88b7`): cinco achados,
-três bloqueantes e dois ajustes, todos aplicados no mesmo dia — a regeneração parcial da
-classificação apagava modelos do `_sensitivity.yml`; a reconciliação `oltp → raw` comparava
-contagens, não conjuntos; o `streamer` recebia `create` em `raw`; um leitor com `create` a mais não
-o perdia no `on-run-end`; e o espelho de `raw` sobrepunha a declaração SQLAlchemy. Cada um ganhou
-teste próprio (`tests/test_classificacao_derivada.py`, `tests/test_reconciliacao_raw.py`,
-`tests/test_acesso_macro.py`) e contraprova no banco. O aceite continua sendo seu.
+**Revisão por outro agente, fechada em 18/09/2026** (Codex, três rodadas sobre
+`b1a3975..118f17a`): sete achados, quatro bloqueantes e três ajustes, todos aplicados no mesmo dia
+e confirmados pelo revisor na rodada seguinte — a regeneração parcial da classificação apagava
+modelos do `_sensitivity.yml`; a reconciliação `oltp → raw` comparava contagens, não conjuntos; o
+`streamer` recebia `create` em `raw`; um leitor com `create` a mais não o perdia no `on-run-end`; o
+espelho de `raw` sobrepunha a declaração SQLAlchemy; um manifest de `dbt parse` fazia o gerador
+apagar classificações (e a §3 do Dicionário) antes de acusar erro; e promover um modelo a um `.yml`
+à mão era impossível pelo caminho real do dbt. Cada um ganhou teste próprio
+(`tests/test_classificacao_derivada.py`, `tests/test_reconciliacao_raw.py`,
+`tests/test_acesso_macro.py`) e contraprova no banco ou em cópia isolada com o dbt instalado.
+Rodada 3: **nenhum achado aberto**. O aceite continua sendo seu.
 
 **O que revisar por inteiro (declarativo, CLAUDE.md §5):**
 
