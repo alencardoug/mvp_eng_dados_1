@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.4 |
-| Etapa atual | **Etapa 10 — Corte 6: origem legada**, aceita em 17/09/2026 sob a condição do bloco da D44 (**M0** a **M4** concluídos) |
-| Última revisão | 18/09/2026 (Etapa 11 fechada, aguardando aceite) |
+| Versão | 3.5 |
+| Etapa atual | **Etapa 11 — Consolidação de governança e qualidade**, aceita em 18/09/2026 (**M0** a **M4** concluídos); próxima: Etapa 12, fechamento da fase local (**M5**) |
+| Última revisão | 18/09/2026 (Etapa 11 aceita) |
 
 ---
 
@@ -276,8 +276,9 @@ captura 43 certificada, tarefa nova `dbt_fronteiras` com os 14 testes de frontei
 seleção indireta do dbt os executava na tarefa da primeira camada que citam), `make check` verde e
 revisão de segredos. Nenhum componente novo, logo nenhum ADR novo: a etapa implementou decisões já
 tomadas — ADR-0011 (papéis), ADR-0023 (governança), ADR-0031 (aterrissagem), ADR-0044
-(certificado). **Aguarda o aceite do Owner**, que revisa o declarativo por inteiro e o derivado por
-amostragem — a lista está nas [pendências](pendencias.md#aceite-da-etapa-11).*
+(certificado). **Aceita pelo Owner em 18/09/2026**, depois de três rodadas de revisão por outro
+agente no mesmo dia — sete achados, todos aplicados e confirmados; o registro está nas
+[pendências](pendencias.md#11-decididas-e-implementadas).*
 
 | | |
 |---|---|

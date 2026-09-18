@@ -10,69 +10,14 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos e a definição de pronto aplicada em 18/09/2026, **aguardando o seu aceite** |
-| Aprovações pendentes | 1 (aceite da Etapa 11) |
+| Etapa atual | Etapa 11 — Consolidação de governança e qualidade, **aceita em 18/09/2026**; a Etapa 12 (fechamento da fase local, M5) pode começar |
+| Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 18/09/2026 |
 
 ---
 
 ## 1. Esperando você
-
-### Aceite da Etapa 11
-
-**Pedido:** aceitar a Etapa 11 como concluída — ou devolver com achados. Os seis critérios estão
-marcados no [plano](plano_de_desenvolvimento.md#etapa-11--consolidação-de-governança-e-qualidade),
-cada um com data e medição, e a definição de pronto do `CLAUDE.md` foi aplicada em 18/09/2026:
-migrações do zero nos três bancos, DAG de ponta a ponta (13 tarefas `success`, captura 43
-certificada, 14 testes de fronteira na tarefa nova `dbt_fronteiras`), `make check` verde
-(`PASS=905`, 283 testes Python), revisão de segredos, catálogo e linhagem em dia, nenhum ADR novo
-porque nenhum componente novo. Se quiser manter o padrão da Etapa 10, uma rodada de revisão por
-outro agente cabe antes do aceite; o dossiê é este item mais os documentos abaixo.
-
-**Revisão por outro agente, fechada em 18/09/2026** (Codex, três rodadas sobre
-`b1a3975..118f17a`): sete achados, quatro bloqueantes e três ajustes, todos aplicados no mesmo dia
-e confirmados pelo revisor na rodada seguinte — a regeneração parcial da classificação apagava
-modelos do `_sensitivity.yml`; a reconciliação `oltp → raw` comparava contagens, não conjuntos; o
-`streamer` recebia `create` em `raw`; um leitor com `create` a mais não o perdia no `on-run-end`; o
-espelho de `raw` sobrepunha a declaração SQLAlchemy; um manifest de `dbt parse` fazia o gerador
-apagar classificações (e a §3 do Dicionário) antes de acusar erro; e promover um modelo a um `.yml`
-à mão era impossível pelo caminho real do dbt. Cada um ganhou teste próprio
-(`tests/test_classificacao_derivada.py`, `tests/test_reconciliacao_raw.py`,
-`tests/test_acesso_macro.py`) e contraprova no banco ou em cópia isolada com o dbt instalado.
-Rodada 3: **nenhum achado aberto**. O aceite continua sendo seu.
-
-**O que revisar por inteiro (declarativo, CLAUDE.md §5):**
-
-- `dbt/dbt_project.yml` — `+grants`, `meta.writers`, `meta.retention` por camada e o `on-run-end`;
-- `dbt/models/staging/_retail__sources.yml` — `meta` da fonte `raw` e da tabela de aterrissagem;
-- `dbt/models/analytics/_analytics__models.yml` — as dez declarações de
-  `fato_reconcilia_com_a_condutora` (condutora, medidas, a regra do carrinho);
-- `src/mvp_ed1/governance.py` — `PAPEIS` e `_garantir_papeis`; `src/mvp_ed1/legacy/dbt.py` e
-  `ponte.py` — o que os geradores passaram a emitir (`writers`, `grants`, `lineage`, o teste
-  `retail_empilhado_reconcilia` e a etiqueta `fronteira`);
-- `tests/test_acesso.py::POLITICA`, `tests/test_retencao.py::POLITICA`,
-  `tests/test_acesso_macro.py` e `tests/test_linhagem.py` — a política como o teste a lê;
-- `dbt/macros/aplicar_acesso_por_camada.sql`, `test_fato_reconcilia_com_a_condutora.sql` e
-  `src/mvp_ed1/models/lineage.py` — as regras;
-- `airflow/dags/fluxo_batch.py` — a tarefa `dbt_fronteiras` e os `--exclude`;
-- [Governança](governanca_de_dados.md) §5.1, §6, §7 e §8; [Qualidade](qualidade_de_dados.md) §7;
-  [Dicionário](dicionario_de_dados.md) §3 (o texto, não o gerado).
-
-**O que revisar por amostragem (derivado):** `_pontes__models.yml` (457 colunas com `lineage`), a
-§3.3 do Dicionário (188 colunas de consumo com origem), `retail_empilhado_reconcilia.sql`,
-`_legacy__sources.yml` e os `.yml` de sensibilidade.
-
-**Uma decisão embutida no aceite.** A [Governança
-§10](governanca_de_dados.md#10-revisão-desta-política) diz que alteração na política exige a sua
-decisão explícita. A tabela da §7 mudou em 18/09/2026 para refletir ADRs já aceitos, não para
-decidir coisa nova: `streamer` escreve em `raw.inventory_movements_stream` (ADR-0031, não
-`analytics` como o ADR-0011 previa); `governance` é escrito pela ingestão — o certificado de captura
-(ADR-0044) — e lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e
-`snapshots`. Aceitar a etapa é ratificar essa leitura; se discordar de alguma linha, é uma linha na
-declaração e o teste acompanha.
-
-*Efeito de não decidir:* a Etapa 12 não começa — o pré-requisito dela é esta.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -117,6 +62,22 @@ da captura em 15/09). A revisão do desenvolvimento correu em sete rodadas (15�
 achados de cada uma fechados e medidos antes da seguinte; a sétima não trouxe achado. **A Etapa 10
 foi aceita em 17/09/2026, condicionada ao bloco da D44** — executado e medido no mesmo dia (§2); a
 condição está satisfeita.
+
+**A Etapa 11 foi aceita em 18/09/2026**, no mesmo dia em que fechou: os seis critérios medidos
+(plano, Etapa 11), a definição de pronto aplicada e três rodadas de revisão por outro agente
+(Codex) sobre `b1a3975..118f17a` — sete achados, quatro bloqueantes e três ajustes, todos aplicados
+e confirmados pelo revisor na rodada seguinte; a terceira não abriu nada. Os achados: a
+regeneração parcial da classificação apagava modelos do `_sensitivity.yml`; a reconciliação
+`oltp → raw` comparava contagens, não conjuntos; o `streamer` recebia `create` em `raw`; um leitor
+com `create` a mais não o perdia no `on-run-end`; o espelho de `raw` sobrepunha a declaração
+SQLAlchemy; um manifest de `dbt parse` fazia o gerador apagar classificações (e a §3 do Dicionário)
+antes de acusar erro; e promover um modelo a um `.yml` à mão era impossível pelo caminho real do
+dbt. Cada um tem teste próprio (`tests/test_classificacao_derivada.py`,
+`tests/test_reconciliacao_raw.py`, `tests/test_acesso_macro.py`). O aceite ratificou também a
+leitura da tabela da [Governança §7](governanca_de_dados.md#7-regras-de-acesso-por-camada) feita em
+18/09 (a §10 exige decisão explícita para alteração na política): `streamer` escreve só
+`raw.inventory_movements_stream`, sem `create` no schema; `governance` é escrito pela ingestão e
+lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `snapshots`.
 
 ---
 
