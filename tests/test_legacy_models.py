@@ -1,6 +1,6 @@
 """O SQL derivado deve refletir o gerador, inclusive sem banco disponível."""
 
-from mvp_ed1.legacy import dbt, schema
+from mvp_ed1.legacy import dbt, ponte, schema
 from mvp_ed1.legacy.catalogo import carregar
 
 
@@ -12,6 +12,17 @@ def test_generated_legacy_models_are_current() -> None:
         assert path.read_text(encoding="utf-8") == dbt.modelo(
             catalog, table, catalog.promessas, limits
         ), f"{path}: regenere com make legacy-models"
+
+
+def test_generated_reconciliation_tests_are_current() -> None:
+    """Os três testes do empilhamento em `dbt/tests/` são o que `ponte.py` gera hoje."""
+    for nome, esperado in (
+        ("legado_ponte_preserva_o_conjunto_apto", ponte.teste_da_ponte()),
+        ("legado_empilhado_reconcilia", ponte.teste_do_empilhamento()),
+        ("retail_empilhado_reconcilia", ponte.teste_do_empilhamento_retail()),
+    ):
+        path = ponte.TESTES / f"{nome}.sql"
+        assert path.read_text(encoding="utf-8") == esperado, f"{path}: regenere com make legacy-models"
 
 
 def test_cleaning_preserves_catalog_order_including_rejections() -> None:

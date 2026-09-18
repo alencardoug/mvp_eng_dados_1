@@ -11,6 +11,10 @@ version: 2
 #                 correspondentes ficam sem par e o *build* quebra.
 #   vigência      as SCD tipo 2 não podem ter vigências sobrepostas, senão o
 #                 *join* temporal duplica linha de fato (invariante 11).
+#   reconciliação toda fato declara a relação condutora de `trusted` de que
+#                 nasce e as medidas que têm de somar igual dos dois lados
+#                 (`fato_reconcilia_com_a_condutora`, Qualidade §7). É o que
+#                 pega a junção interna que derruba linha em silêncio.
 
 models:
   # ── Dimensões ──────────────────────────────────────────────────────────────
@@ -379,6 +383,14 @@ models:
       **Grão: uma linha de item de pedido.** Um SKU comprado em um pedido.
       Medidas todas aditivas; valores de nível de pedido não estão aqui, porque
       somá-los no grão de item multiplicaria o frete pelo número de itens.
+    data_tests:
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('order_items')
+            medidas:
+              quantity: quantity
+              net_revenue_amount: net_revenue_amount
+              line_total_amount: line_total_amount
     columns:
       - name: order_item_key
         meta:
@@ -495,6 +507,14 @@ models:
       por carrinho, a abertura e o desfecho. As medidas são contadores que valem
       só na linha em que fazem sentido, de modo que toda soma esteja certa em
       qualquer recorte.
+    data_tests:
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('cart_lifecycle_events')
+            # A fato zera o valor fora da linha de abertura (comentário do modelo);
+            # a condutora recebe a mesma regra, senão o carrinho somaria em dobro.
+            medidas:
+              cart_value_amount: "case when event_type = 'created' then cart_value_amount else 0 end"
     columns:
       - name: cart_event_key
         meta:
@@ -710,6 +730,13 @@ models:
       **Grão: uma tentativa ou operação financeira.** A operação recusada fica —
       "quantas tentativas foram precisas para receber" é a pergunta P09, e ela só
       existe se a recusa estiver aqui.
+    data_tests:
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('payment_transactions')
+            medidas:
+              transaction_amount: transaction_amount
+              captured_amount: captured_amount
     columns:
       - name: payment_transaction_key
         meta:
@@ -808,6 +835,12 @@ models:
 
   - name: fact_refund
     description: '**Grão: um reembolso realizado.**'
+    data_tests:
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('refunds')
+            medidas:
+              refund_amount: refund_amount
     columns:
       - name: refund_key
         meta:
@@ -882,6 +915,13 @@ models:
 
   - name: fact_purchase_order_item
     description: '**Grão: um item de uma ordem de compra.**'
+    data_tests:
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('purchase_order_items')
+            medidas:
+              quantity_ordered: quantity_ordered
+              received_cost_amount: received_cost_amount
     columns:
       - name: purchase_order_item_key
         meta:
@@ -978,6 +1018,12 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [source_system, idempotency_key]
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('inventory_movements')
+            medidas:
+              quantity_delta: quantity_delta
+              cogs_amount: cogs_amount
     columns:
       - name: movement_key
         meta:
@@ -1138,6 +1184,11 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [source_system, shipment_item_id]
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('shipment_items')
+            medidas:
+              quantity_shipped: quantity_shipped
     columns:
       - name: shipment_item_key
         meta:
@@ -1315,6 +1366,11 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [source_system, order_status_event_id]
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('order_status_events')
+            medidas:
+              hours_in_previous_status: hours_in_previous_status
     columns:
       - name: order_status_event_key
         meta:
@@ -1659,6 +1715,11 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [source_system, order_id]
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('coupon_redemptions')
+            medidas:
+              coupon_discount_amount: coupon_discount_amount
     columns:
       - name: coupon_redemption_key
         meta:
@@ -1788,6 +1849,10 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [source_system, ticket_event_id]
+      - fato_reconcilia_com_a_condutora:
+          arguments:
+            condutora: ref('ticket_events')
+            # só contagem: as horas até atribuição e resolução nascem na própria fato
     columns:
       - name: support_ticket_event_key
         meta:

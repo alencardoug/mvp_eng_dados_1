@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.11 |
-| Última revisão | 14/09/2026 |
+| Versão | 1.12 |
+| Última revisão | 18/09/2026 |
 
 ---
 
@@ -337,19 +337,34 @@ suprimidos nem suas declarações alteradas para encerrar a D31.
 A reconciliação é o teste que dá sentido a todos os outros: prova que nada foi perdido nem criado
 no caminho.
 
-| Fronteira | O que deve fechar |
-|---|---|
-| `oltp` → `raw` | Contagem por tabela e por lote |
-| `raw_legacy` → tratamento | `extraídos = aceitos + corrigidos + rejeitados` |
-| `raw_legacy` captura anterior → selecionada | `linhas(anterior) − Σ max(0, n_ant − n_sel) + Σ max(0, n_sel − n_ant) + Δ sem_identidade = linhas(selecionada)`, por tabela, em linhas físicas — só entre capturas certificadas ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md), [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) |
-| `staging` → `trusted` | Contagem e regras aplicadas, com rejeições rastreáveis |
-| Livro de entrega ↔ coluna da remessa | Toda remessa que a origem projeta como entregue tem evento `delivered`; a que não tem fica em `quarantine` com motivo ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)) |
-| `trusted` → `analytics` | Grão declarado e medidas somadas |
-| *Batch* + streaming → view de saldo | O saldo da view é a soma dos deltas que a fato absorveu mais os que ela ainda não contém, sem interseção — a fronteira é a ausência do `movement_id` na fato ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) |
-| CDC ↔ carga completa | Todo movimento chega pelos dois caminhos; o que chega só pelo lote é lacuna do CDC |
+| Fronteira | O que deve fechar | Onde é conferido, a cada `make check` |
+|---|---|---|
+| `oltp` → `raw` | Contagem por tabela e por lote | `tests/test_reconciliacao_raw.py`: as identidades de cada tabela em `raw` são as da origem no instante da extração (a entrega é ao menos uma vez, então o que fecha é o conjunto de chaves, não a contagem de linhas), e toda linha pertence a um *job* identificado, com a contagem por lote registrada |
+| `raw_legacy` → tratamento | `extraídos = aceitos + corrigidos + rejeitados` | `legacy_classification_reconciles` e `legacy_outputs_reconcile` |
+| `raw_legacy` captura anterior → selecionada | `linhas(anterior) − Σ max(0, n_ant − n_sel) + Σ max(0, n_sel − n_ant) + Δ sem_identidade = linhas(selecionada)`, por tabela, em linhas físicas — só entre capturas certificadas ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md), [ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) | `legado_presenca_fisica_reconcilia` (gerado do catálogo) |
+| `staging` → `trusted` | Contagem e regras aplicadas, com rejeições rastreáveis | Os dois ramos do empilhamento, pela mesma lista de condutoras: `retail_empilhado_reconcilia` e `legado_empilhado_reconcilia` + `legado_ponte_preserva_o_conjunto_apto` (gerados de `ponte.py`); a rejeição rastreável é a da fronteira seguinte e a de `legacy_outputs_reconcile` |
+| Livro de entrega ↔ coluna da remessa | Toda remessa que a origem projeta como entregue tem evento `delivered`; a que não tem fica em `quarantine` com motivo ([ADR-0034](adr/0034-entrega-do-livro-de-eventos.md)) | `entrega_projetada_tem_evento_no_livro` |
+| `trusted` → `analytics` | Grão declarado e medidas somadas | O grão, pelo `unique` da chave de cada fato; as medidas, por `fato_reconcilia_com_a_condutora` declarado nas dez fatos em `_analytics__models.yml` — contagem e soma de cada medida iguais à relação de `trusted` de que a fato nasce; a incremental ainda tem `incremental_confere_com_a_reconstrucao_completa` e `legado_na_fato_segue_a_captura_corrente` |
+| *Batch* + streaming → view de saldo | O saldo da view é a soma dos deltas que a fato absorveu mais os que ela ainda não contém, sem interseção — a fronteira é a ausência do `movement_id` na fato ([ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) | `saldo_da_view_confere_com_o_livro_distinto` refaz a view pelo conjunto distinto de movimentos e compara as três parcelas linha a linha; `saldo_reconstruido_confere_com_a_projecao` fecha o livro com a projeção da origem, no corte comum (§6.1) |
+| CDC ↔ carga completa | Todo movimento chega pelos dois caminhos; o que chega só pelo lote é lacuna do CDC | `caminhos_de_ingestao_reconciliam` |
 
 Nenhuma etapa descarta registros em silêncio: o que não passa vai para quarentena com motivo
 registrado.
+
+**Toda fronteira tem teste desde 18/09/2026.** Três nasceram nesse dia — `oltp → raw`, o ramo
+`retail` de `staging → trusted` e a composição da view de saldo — e a fronteira `trusted →
+analytics` ganhou a família de reconciliação das fatos. O primeiro fechamento do conjunto rendeu
+três achados, todos verdadeiros: `fact_cart_event` zera `cart_value_amount` fora da linha de
+abertura (regra escrita no modelo), e a condutora precisa receber a mesma regra na declaração, senão
+a soma dobra; `raw` carregava seis saldos (`inventory_balances`, ids 2912–2917) que a origem já não
+tinha — resto de uma regeneração da origem sem `make sync-airbyte RESET=1`, que o modo
+`dedup_history` não apaga sozinho; e, refeita a réplica, o livro do caminho quente
+(`raw.inventory_movements_stream`, 15.900 linhas) carregava 2.200 movimentos de antes da mesma
+regeneração, que a origem (13.700) não tem — `saldo_reconstruido_confere_com_a_projecao` acusa 1.514
+posições até o *re-snapshot* do CDC ([Execução Local
+§3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming)). Os dois estados velhos
+concordavam entre si, e por isso nenhum teste os via: o que os expôs foi fechar a primeira
+fronteira. O teste acusa e a resposta é sincronizar, não ajustar o teste.
 
 ---
 

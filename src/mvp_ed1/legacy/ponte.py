@@ -485,13 +485,45 @@ where (select count(*) from {{{{ ref('legado__{tabela}') }}}})
 """
 
 
+def teste_do_empilhamento_retail() -> str:
+    """A contagem da origem principal em cada modelo condutor é a do seu `staging`."""
+    ramos = "\n\nunion all\n\n".join(
+        f"""select
+    '{modelo_trusted}'                          as modelo,
+    '{tabela}'                                  as tabela,
+    (select count(*) from {{{{ ref('stg_retail__{tabela}') }}}}) as em_staging,
+    (select count(*) from {{{{ ref('{modelo_trusted}') }}}}
+        where source_system = 'retail')         as empilhados
+where (select count(*) from {{{{ ref('stg_retail__{tabela}') }}}})
+   <> (select count(*) from {{{{ ref('{modelo_trusted}') }}}}
+        where source_system = 'retail')"""
+        for modelo_trusted, tabela in sorted(CONDUTORAS.items())
+    )
+    return f"""{AVISO}
+-- O que cada modelo empilhou da origem principal é o que o `staging` lhe deu.
+--
+-- A fronteira `staging → trusted` da Qualidade §7, no ramo `retail` — o irmão
+-- de `legado_empilhado_reconcilia`, que cobre o ramo legado. O `staging` já
+-- deduplicou a entrega ao menos uma vez do Airbyte; daqui até `trusted` não se
+-- perde nem se ganha registro: junção interna que derruba linha, ou `where`
+-- que a filtra sem mandá-la para `quarantine`, é o descarte mudo que a regra
+-- 4 proíbe. A mesma lista de condutoras dos dois lados: o que o legado
+-- empilha é o que a origem principal empilha.
+--
+-- Uma linha no resultado é um modelo em que as duas contagens divergiram.
+
+{ramos}
+"""
+
+
 def gerar_testes(destino: pathlib.Path = TESTES) -> list[pathlib.Path]:
-    """Escreve os dois testes de reconciliação do empilhamento."""
+    """Escreve os três testes de reconciliação do empilhamento."""
     destino.mkdir(parents=True, exist_ok=True)
     escritos = []
     for nome, conteudo in (
         ("legado_ponte_preserva_o_conjunto_apto", teste_da_ponte()),
         ("legado_empilhado_reconcilia", teste_do_empilhamento()),
+        ("retail_empilhado_reconcilia", teste_do_empilhamento_retail()),
     ):
         caminho = destino / f"{nome}.sql"
         caminho.write_text(conteudo, encoding="utf-8")
