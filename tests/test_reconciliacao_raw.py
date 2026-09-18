@@ -17,8 +17,13 @@ Por lote: toda linha de `raw` pertence a um *job* identificado (`sync_id` no
 contagem por lote é registrada, não igualada — dentro de um lote a releitura
 da fronteira repete a linha, e isso é o contrato, não desvio.
 
-Uma tabela que falha aqui está **atrás da origem**: a resposta é sincronizar
-(a DAG `fluxo_batch` ou `make sync-airbyte`), não ajustar o teste.
+A comparação é de **conjuntos**, nos dois sentidos, não de contagens: uma
+identidade perdida compensada por uma sobra fecharia a contagem e é exatamente
+o que uma regeneração da origem sem *reset* do destino deixa para trás
+(Qualidade §7). Identidade da origem ausente em `raw` é `raw` **atrás da
+origem**: a resposta é sincronizar (a DAG `fluxo_batch` ou `make sync-airbyte`).
+Identidade em `raw` sem origem é sobra de uma origem regenerada ou apagada:
+a resposta é `make sync-airbyte RESET=1`. Nenhuma das duas se resolve no teste.
 """
 
 from __future__ import annotations
@@ -74,9 +79,37 @@ def _carimbo_de_criacao(tabela: str) -> str:
 
 
 def _identidade(tabela: str) -> str:
-    """A chave primária declarada no modelo, como expressão contável — `id` em 39 tabelas, `movement_id` no livro."""
+    """A chave primária declarada no modelo, como expressão selecionável — `id` em 39 tabelas, `movement_id` no livro."""
     chave = [c.name for c in _modelo(tabela).primary_key.columns]
     return chave[0] if len(chave) == 1 else "(" + ", ".join(chave) + ")"
+
+
+def _identidades(origem, armazem, tabela: str) -> tuple[set, set, object] | None:
+    """As identidades da origem até o instante da extração e as de `raw`, ou `None` se `raw` está vazia."""
+    corte = armazem.execute(text(f"select max(_airbyte_extracted_at) from raw.{tabela}")).scalar_one()
+    if corte is None:
+        return None
+    # Como texto dos dois lados: o Airbyte grava `uuid` da origem como `varchar`
+    # em `raw` (`inventory_movements.movement_id`), e o conjunto tem de casar por valor.
+    chave = f"cast({_identidade(tabela)} as text)"
+    em_raw = {linha[0] for linha in armazem.execute(text(f"select distinct {chave} from raw.{tabela}"))}
+    na_origem = {linha[0] for linha in origem.execute(text(
+        f"select {chave} from {Base.metadata.schema}.{tabela} where {_carimbo_de_criacao(tabela)} <= :corte"
+    ), {"corte": corte})}
+    return na_origem, em_raw, corte
+
+
+def _divergencia(tabela: str, modo: str, na_origem: set, em_raw: set, corte) -> str | None:
+    """A frase de uma tabela que não fecha, com o sentido certo — ou `None` quando os conjuntos são iguais."""
+    perdidas, sobras = na_origem - em_raw, em_raw - na_origem
+    if not perdidas and not sobras:
+        return None
+    partes = []
+    if perdidas:
+        partes.append(f"{len(perdidas)} da origem até {corte:%d/%m %H:%M} ausente(s) em raw — raw atrás da origem, ex.: {sorted(perdidas)[:5]}")
+    if sobras:
+        partes.append(f"{len(sobras)} em raw sem origem — sobra de regeneração, ex.: {sorted(sobras)[:5]}")
+    return f"{tabela} ({modo}): " + "; ".join(partes)
 
 
 def test_toda_tabela_ingerida_tem_as_identidades_da_origem_no_instante_da_extracao(bancos, record_property) -> None:
@@ -84,19 +117,42 @@ def test_toda_tabela_ingerida_tem_as_identidades_da_origem_no_instante_da_extrac
     divergentes: list[str] = []
     with origem.connect() as o, armazem.connect() as a:
         for tabela, modo in sorted(_tabelas_ingeridas().items()):
-            corte, em_raw = a.execute(text(
-                f"select max(_airbyte_extracted_at), count(distinct {_identidade(tabela)}) from raw.{tabela}"
-            )).one()
-            if corte is None:
+            conjuntos = _identidades(o, a, tabela)
+            if conjuntos is None:
                 divergentes.append(f"{tabela} ({modo}): `raw` vazia")
                 continue
-            na_origem = o.execute(text(
-                f"select count(*) from {Base.metadata.schema}.{tabela} where {_carimbo_de_criacao(tabela)} <= :corte"
-            ), {"corte": corte}).scalar_one()
-            record_property(f"{tabela}", f"origem={na_origem} raw={em_raw} corte={corte.isoformat()}")
-            if na_origem != em_raw:
-                divergentes.append(f"{tabela} ({modo}): origem {na_origem} identidades até {corte:%d/%m %H:%M}, raw {em_raw}")
-    assert divergentes == [], "raw atrás da origem — sincronize antes de conferir:\n" + "\n".join(divergentes)
+            na_origem, em_raw, corte = conjuntos
+            record_property(f"{tabela}", f"origem={len(na_origem)} raw={len(em_raw)} perdidas={len(na_origem - em_raw)} "
+                                         f"sobras={len(em_raw - na_origem)} corte={corte.isoformat()}")
+            if frase := _divergencia(tabela, modo, na_origem, em_raw, corte):
+                divergentes.append(frase)
+    assert divergentes == [], "identidades não fecham entre origem e raw:\n" + "\n".join(divergentes)
+
+
+def test_a_comparacao_acusa_perda_compensada_por_sobra(bancos) -> None:
+    """Contraprova: trocar uma identidade de `raw.customers` por uma que a origem não tem mantém a contagem e tem de falhar.
+
+    A troca é feita dentro de uma transação **revertida** — nada fica em `raw`;
+    é o mesmo recurso das sondas de acesso. Sem esta prova, o teste acima só
+    afirmaria que compara conjuntos.
+    """
+    origem, armazem = bancos
+    with origem.connect() as o, armazem.connect() as a:
+        conjuntos = _identidades(o, a, "customers")
+        if conjuntos is None:
+            pytest.skip("raw.customers vazia; sincronize antes")
+        na_origem, em_raw, corte = conjuntos
+        assert na_origem == em_raw, "a contraprova exige uma tabela que fecha antes da troca"
+        trocada = min(em_raw, key=int)
+        a.execute(text("update raw.customers set id = -1 where id = :id"), {"id": int(trocada)})
+        try:
+            na_origem2, em_raw2, _ = _identidades(o, a, "customers")
+        finally:
+            a.rollback()
+        assert len(em_raw2) == len(em_raw), "a troca não pode alterar a contagem — é o que a contagem deixava passar"
+        frase = _divergencia("customers", "dedup", na_origem2, em_raw2, corte)
+        assert frase is not None and "1 da origem" in frase and "1 em raw sem origem" in frase, frase
+        assert em_raw2 - na_origem2 == {"-1"} and na_origem2 - em_raw2 == {trocada}
 
 
 def test_toda_linha_de_raw_pertence_a_um_lote_identificado(bancos, record_property) -> None:
