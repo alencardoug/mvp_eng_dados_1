@@ -30,6 +30,14 @@ certificada, 14 testes de fronteira na tarefa nova `dbt_fronteiras`), `make chec
 porque nenhum componente novo. Se quiser manter o padrão da Etapa 10, uma rodada de revisão por
 outro agente cabe antes do aceite; o dossiê é este item mais os documentos abaixo.
 
+**Revisão por outro agente feita em 18/09/2026** (Codex, sobre `b1a3975..5fe88b7`): cinco achados,
+três bloqueantes e dois ajustes, todos aplicados no mesmo dia — a regeneração parcial da
+classificação apagava modelos do `_sensitivity.yml`; a reconciliação `oltp → raw` comparava
+contagens, não conjuntos; o `streamer` recebia `create` em `raw`; um leitor com `create` a mais não
+o perdia no `on-run-end`; e o espelho de `raw` sobrepunha a declaração SQLAlchemy. Cada um ganhou
+teste próprio (`tests/test_classificacao_derivada.py`, `tests/test_reconciliacao_raw.py`,
+`tests/test_acesso_macro.py`) e contraprova no banco. O aceite continua sendo seu.
+
 **O que revisar por inteiro (declarativo, CLAUDE.md §5):**
 
 - `dbt/dbt_project.yml` — `+grants`, `meta.writers`, `meta.retention` por camada e o `on-run-end`;
@@ -39,8 +47,8 @@ outro agente cabe antes do aceite; o dossiê é este item mais os documentos aba
 - `src/mvp_ed1/governance.py` — `PAPEIS` e `_garantir_papeis`; `src/mvp_ed1/legacy/dbt.py` e
   `ponte.py` — o que os geradores passaram a emitir (`writers`, `grants`, `lineage`, o teste
   `retail_empilhado_reconcilia` e a etiqueta `fronteira`);
-- `tests/test_acesso.py::POLITICA`, `tests/test_retencao.py::POLITICA` e
-  `tests/test_linhagem.py` — a política como o teste a lê;
+- `tests/test_acesso.py::POLITICA`, `tests/test_retencao.py::POLITICA`,
+  `tests/test_acesso_macro.py` e `tests/test_linhagem.py` — a política como o teste a lê;
 - `dbt/macros/aplicar_acesso_por_camada.sql`, `test_fato_reconcilia_com_a_condutora.sql` e
   `src/mvp_ed1/models/lineage.py` — as regras;
 - `airflow/dags/fluxo_batch.py` — a tarefa `dbt_fronteiras` e os `--exclude`;

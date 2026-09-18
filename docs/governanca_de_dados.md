@@ -217,7 +217,10 @@ declarado das nove camadas (5 papéis × 278 objetos, 1.390 leituras), criação
 schema (revertida) e `insert` na aterrissagem do caminho quente — o permitido passa e o proibido
 falha com *permission denied*. Contraprovas feitas na entrega: grant dado à mão ao `analyst` em
 `trusted` acusa e é revogado na execução seguinte, assim como privilégio a mais numa tabela de
-fonte; papel apagado volta no `garantir()`; declaração fora desta tabela falha o teste. O passo
+fonte e `create` a mais num leitor (`analyst` em `consumption`, `auditor` em `quarantine` — revisão
+de 18/09/2026); papel apagado volta no `garantir()`; declaração fora desta tabela falha o teste. O
+`streamer` não tem `create` em `raw`: escreve uma tabela, e criá-la é preparação do ambiente feita
+por quem é dono do schema, não privilégio do papel. O passo
 seguinte, fora desta entrega, é cada componente conectar-se como membro do próprio papel (Airbyte,
 dbt, Beam e o certificado de captura) — hoje todos usam o superusuário, e a mudança exige subir cada
 ambiente para provar.

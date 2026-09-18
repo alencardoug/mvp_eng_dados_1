@@ -103,6 +103,12 @@ def garantir_tabela(destino: Destino, motor: sa.Engine | None = None) -> sa.Tabl
     O `raw` é criado pelo Airbyte, e esta tabela convive com as dele sem
     colisão: o modo `full_refresh_overwrite` derruba as tabelas **do próprio
     Airbyte**, e esta não é uma delas.
+
+    Isto é preparação do ambiente, não escrita do pipeline: roda com a conexão
+    de quem é dono de `raw` (hoje o superusuário do `.env`). O papel `streamer`
+    recebe `insert` nesta tabela e nada de `create` no schema (Governança §7);
+    quando o Beam passar a conectar-se como `streamer`, este passo sai daqui e
+    vai para quem prepara o armazém.
     """
     motor = motor or engine()
     alvo = tabela(destino)

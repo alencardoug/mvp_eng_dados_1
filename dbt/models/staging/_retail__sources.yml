@@ -15,13 +15,17 @@ sources:
     # o modo de sincronização (ADR-0015: `append` e `dedup + history`) que os
     # retém — nada aqui descarta. Permanente enquanto a origem existir.
     #
-    # Acesso (Governança §7): dois escritores, cada um dono do que escreve —
-    # o Airbyte (`ingestor`) e o pipeline Beam (`streamer`, ADR-0031) —, e um
-    # leitor, o dbt. O dbt não concede em fonte; `grants` aqui vale para cada
-    # tabela desta fonte e é aplicado pelo `on-run-end` (`aplicar_acesso_por_camada`).
+    # Acesso (Governança §7): um escritor do schema, o Airbyte (`ingestor`),
+    # dono das tabelas que cria; e um leitor, o dbt. O pipeline Beam
+    # (`streamer`, ADR-0031) **não** escreve o schema — escreve uma tabela só,
+    # `inventory_movements_stream`, e a concessão dele está lá embaixo, nela.
+    # Criar essa tabela é preparação do ambiente, feita por quem é dono de `raw`
+    # (`streaming/sink.py::garantir_tabela`), não privilégio do papel. O dbt não
+    # concede em fonte; `grants` aqui vale para cada tabela desta fonte e é
+    # aplicado pelo `on-run-end` (`aplicar_acesso_por_camada`).
     meta:
       retention: permanent
-      writers: [ingestor, streamer]
+      writers: [ingestor]
       grants:
         select: [transformer]
 

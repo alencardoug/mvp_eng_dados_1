@@ -25,8 +25,10 @@
     algum objeto do schema ou declarado escritor dele; `create` para os
     escritores; os grants das fontes; e o `revoke` do que **não** está declarado
     — um papel que deixou de ser leitor de uma camada perde o `usage` na
-    execução seguinte, sem mão humana. Só schemas e tabelas que existem entram:
-    numa execução parcial em ambiente novo não há o que conceder.
+    execução seguinte, e um leitor que tenha `create` (dado à mão, ou porque
+    deixou de ser escritor e continuou leitor) perde o `create`, sem mão
+    humana. Só schemas e tabelas que existem entram: numa execução parcial em
+    ambiente novo não há o que conceder.
 
     Hoje o dbt executa como o superusuário do `.env`, dono de tudo — o que faz
     os grants das camadas de origem caberem aqui. Quando cada componente tiver a
@@ -82,6 +84,10 @@
     {%- for papel in papeis | sort if papel not in quem_entra -%}
         {%- do comandos.append("revoke all privileges on all tables in schema " ~ schema ~ " from " ~ papel) -%}
         {%- do comandos.append("revoke all privileges on schema " ~ schema ~ " from " ~ papel) -%}
+    {%- endfor -%}
+    {#- Quem entra sem ser escritor fica só com o `usage`: o `create` a mais converge aqui. -#}
+    {%- for papel in quem_entra if papel not in quem_escreve -%}
+        {%- do comandos.append("revoke create on schema " ~ schema ~ " from " ~ papel) -%}
     {%- endfor -%}
     {%- if quem_entra -%}
         {%- do comandos.append("grant usage on schema " ~ schema ~ " to " ~ (quem_entra | join(', '))) -%}

@@ -38,10 +38,11 @@ pytestmark = pytest.mark.integracao
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST = RAIZ / "dbt" / "target" / "manifest.json"
 
-#: Governança §7, por camada: quem lê e quem escreve. `streamer` só escreve, e
-#: só a própria tabela — a exceção está em EXCECOES.
+#: Governança §7, por camada: quem lê e quem escreve (`create` no schema).
+#: `streamer` não escreve schema nenhum: escreve uma tabela só, e a concessão
+#: dela está em EXCECOES — criar outra tabela em `raw` tem de lhe ser negado.
 POLITICA: dict[str, dict[str, list[str]]] = {
-    "raw":         {"le": ["transformer"],            "escreve": ["ingestor", "streamer"]},
+    "raw":         {"le": ["transformer"],            "escreve": ["ingestor"]},
     "raw_legacy":  {"le": ["transformer"],            "escreve": ["ingestor"]},
     "staging":     {"le": ["transformer"],            "escreve": ["transformer"]},
     "trusted":     {"le": ["transformer"],            "escreve": ["transformer"]},
