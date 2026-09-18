@@ -186,15 +186,25 @@ def fluxo_batch():
             bash_command=f"{DBT} {comando} {selecao} {vars_}".strip(),
         )
 
+    # ── Testes de fronteira ficam para o fim ─────────────────────────────────
+    # A seleção indireta do dbt (`eager`) traz para uma tarefa todo teste que
+    # cite **qualquer** modelo dela — inclusive os que comparam esta camada com
+    # a seguinte, que ainda não foi construída. Esses comparariam o novo com o
+    # velho da execução anterior e acusariam diferença que é só ordem de
+    # execução. Todo teste que atravessa camadas leva a etiqueta `fronteira`
+    # (Qualidade §7), sai das tarefas por camada e roda em `dbt_fronteiras`,
+    # depois da última camada. É o mesmo remédio de `legado_reconciliacao`,
+    # que compara `trusted` com a quarentena.
+    fronteira = "--exclude tag:fronteira"
     # `seed` antes de tudo: `brazilian_states` é dado de referência que
     # `trusted.geographies` lê, e ele não vem da origem.
     semear = camada("seed", "", comando="seed")
-    staging = camada("staging", "--select staging")
+    staging = camada("staging", f"--select staging {fronteira}")
     # O teste que compara `trusted` com a quarentena sai daqui: os dois lados
     # dele só existem depois da tarefa seguinte. Sem o `--exclude`, a seleção
     # indireta do dbt o traz de volta e ele compara a captura nova com a
     # quarentena da anterior.
-    trusted = camada("trusted", "--select trusted --exclude tag:legado_reconciliacao")
+    trusted = camada("trusted", f"--select trusted --exclude tag:legado_reconciliacao tag:fronteira")
     # A quarentena sai de `trusted` e não alimenta ninguém — é destino, não
     # passagem (ADR-0008). Roda aqui porque o teste que a confere só tem o que
     # ler depois que ela existe, e porque uma rejeição descoberta tarde é uma
@@ -202,8 +212,10 @@ def fluxo_batch():
     quarentena = camada("quarantine", "--select quarantine tag:legado_reconciliacao")
     # `snapshot` no meio: lê `trusted`, é lido por `analytics`.
     snapshots = camada("snapshots", "", comando="snapshot")
-    analytics = camada("analytics", "--select analytics")
-    consumption = camada("consumption", "--select consumption")
+    analytics = camada("analytics", f"--select analytics {fronteira}")
+    consumption = camada("consumption", f"--select consumption {fronteira}")
+    # Todas as camadas construídas: as fronteiras entre elas têm os dois lados.
+    fronteiras = camada("fronteiras", "--select tag:fronteira", comando="test")
     # O catálogo é a última coisa: ele descreve o que acabou de ser construído.
     catalogo = camada("docs", "generate", comando="docs")
 
@@ -225,6 +237,7 @@ def fluxo_batch():
         >> snapshots
         >> analytics
         >> consumption
+        >> fronteiras
         >> catalogo
     )
 

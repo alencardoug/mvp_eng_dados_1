@@ -351,6 +351,15 @@ no caminho.
 Nenhuma etapa descarta registros em silêncio: o que não passa vai para quarentena com motivo
 registrado.
 
+**Onde os testes de fronteira rodam.** Todo teste que compara camadas construídas em tarefas
+diferentes da DAG leva a etiqueta `fronteira` — os quatorze: `retail_empilhado_reconcilia`,
+`saldo_da_view_confere_com_o_livro_distinto`, `incremental_confere_com_a_reconstrucao_completa`,
+`legado_na_fato_segue_a_captura_corrente` e os dez `fato_reconcilia_com_a_condutora`. A seleção
+indireta do dbt (*eager*) os traria para a tarefa da **primeira** camada que citam, comparando o
+novo com o velho da execução anterior; por isso saem das tarefas por camada e rodam em
+`dbt_fronteiras`, depois de `consumption`. É o mesmo remédio de `legado_reconciliacao`, que compara
+`trusted` com a quarentena. No `make dbt-build` não há o problema: a ordem é a do grafo.
+
 **Toda fronteira tem teste desde 18/09/2026.** Três nasceram nesse dia — `oltp → raw`, o ramo
 `retail` de `staging → trusted` e a composição da view de saldo — e a fronteira `trusted →
 analytics` ganhou a família de reconciliação das fatos. O primeiro fechamento do conjunto rendeu

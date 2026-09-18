@@ -4,6 +4,11 @@
 -- ║  aqui é sintoma — corrija em src/mvp_ed1/legacy/ponte.py.                ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 
+{{ config(tags=['fronteira']) }}
+
+-- Compara `staging` com `trusted`, que a DAG constrói em tarefas diferentes:
+-- roda na tarefa `dbt_fronteiras`, depois das duas (airflow/dags/fluxo_batch.py).
+--
 -- O que cada modelo empilhou da origem principal é o que o `staging` lhe deu.
 --
 -- A fronteira `staging → trusted` da Qualidade §7, no ramo `retail` — o irmão

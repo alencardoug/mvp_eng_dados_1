@@ -500,6 +500,11 @@ where (select count(*) from {{{{ ref('stg_retail__{tabela}') }}}})
         for modelo_trusted, tabela in sorted(CONDUTORAS.items())
     )
     return f"""{AVISO}
+{{{{ config(tags=['fronteira']) }}}}
+
+-- Compara `staging` com `trusted`, que a DAG constrói em tarefas diferentes:
+-- roda na tarefa `dbt_fronteiras`, depois das duas (airflow/dags/fluxo_batch.py).
+--
 -- O que cada modelo empilhou da origem principal é o que o `staging` lhe deu.
 --
 -- A fronteira `staging → trusted` da Qualidade §7, no ramo `retail` — o irmão

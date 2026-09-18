@@ -1,3 +1,10 @@
+{{ config(tags=['fronteira']) }}
+
+-- Compara camadas que a DAG constrói em tarefas diferentes: só tem o que ler
+-- depois da última delas. Fora das tarefas por camada, roda na tarefa
+-- `dbt_fronteiras` (airflow/dags/fluxo_batch.py); no `make dbt-build`, na
+-- ordem natural do grafo.
+
 -- Quarta proteção da exceção incremental (ADR-0016).
 --
 -- A exceção de `fact_inventory_movement` só foi concedida com quatro

@@ -1,3 +1,10 @@
+{{ config(tags=['fronteira']) }}
+
+-- Compara camadas que a DAG constrói em tarefas diferentes: só tem o que ler
+-- depois da última delas. Fora das tarefas por camada, roda na tarefa
+-- `dbt_fronteiras` (airflow/dags/fluxo_batch.py); no `make dbt-build`, na
+-- ordem natural do grafo.
+
 -- A partição legada da fato é exatamente a captura corrente — nos dois sentidos.
 --
 -- O teste de reconciliação irmão

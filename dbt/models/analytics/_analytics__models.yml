@@ -14,7 +14,9 @@ version: 2
 #   reconciliação toda fato declara a relação condutora de `trusted` de que
 #                 nasce e as medidas que têm de somar igual dos dois lados
 #                 (`fato_reconcilia_com_a_condutora`, Qualidade §7). É o que
-#                 pega a junção interna que derruba linha em silêncio.
+#                 pega a junção interna que derruba linha em silêncio. Leva a
+#                 etiqueta `fronteira`: compara camadas que a DAG constrói em
+#                 tarefas diferentes, e só roda depois da última delas.
 
 models:
   # ── Dimensões ──────────────────────────────────────────────────────────────
@@ -385,6 +387,8 @@ models:
       somá-los no grão de item multiplicaria o frete pelo número de itens.
     data_tests:
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('order_items')
             medidas:
@@ -509,6 +513,8 @@ models:
       qualquer recorte.
     data_tests:
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('cart_lifecycle_events')
             # A fato zera o valor fora da linha de abertura (comentário do modelo);
@@ -732,6 +738,8 @@ models:
       existe se a recusa estiver aqui.
     data_tests:
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('payment_transactions')
             medidas:
@@ -837,6 +845,8 @@ models:
     description: '**Grão: um reembolso realizado.**'
     data_tests:
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('refunds')
             medidas:
@@ -917,6 +927,8 @@ models:
     description: '**Grão: um item de uma ordem de compra.**'
     data_tests:
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('purchase_order_items')
             medidas:
@@ -1019,6 +1031,8 @@ models:
           arguments:
             combination_of_columns: [source_system, idempotency_key]
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('inventory_movements')
             medidas:
@@ -1185,6 +1199,8 @@ models:
           arguments:
             combination_of_columns: [source_system, shipment_item_id]
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('shipment_items')
             medidas:
@@ -1367,6 +1383,8 @@ models:
           arguments:
             combination_of_columns: [source_system, order_status_event_id]
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('order_status_events')
             medidas:
@@ -1716,6 +1734,8 @@ models:
           arguments:
             combination_of_columns: [source_system, order_id]
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('coupon_redemptions')
             medidas:
@@ -1850,6 +1870,8 @@ models:
           arguments:
             combination_of_columns: [source_system, ticket_event_id]
       - fato_reconcilia_com_a_condutora:
+          config:
+            tags: [fronteira]
           arguments:
             condutora: ref('ticket_events')
             # só contagem: as horas até atribuição e resolução nascem na própria fato
