@@ -33,8 +33,11 @@ coluna e para quem a lê depois. É a única forma de exceção, e ela é visív
 * modelo documentado num `.yml` escrito à mão: o `meta.sensitivity` é inserido
   ou atualizado **no lugar**, preservando o resto do arquivo linha a linha;
 * modelo sem entrada em `.yml` nenhum: entra em `_sensitivity.yml` no diretório
-  dele — arquivo inteiramente gerado;
-* fonte `raw`: as colunas entram em `_retail__sources.yml`, sob cada tabela;
+  dele — arquivo inteiramente gerado, reescrito com **todos** os modelos que lhe
+  pertencem a cada geração, e removido quando não sobra nenhum;
+* fonte `raw` (e `raw_legacy`): as colunas entram em `_retail__sources.yml`, sob
+  cada tabela — **espelho** da declaração SQLAlchemy, que continua sendo a folha;
+  um espelho atrasado não sobrepõe a origem;
 * `.yml` gerado por `make legacy-models`: não é tocado — a sensibilidade dele
   nasce no próprio gerador (`legacy/classification.py`), da mesma declaração.
 
@@ -194,7 +197,13 @@ def derive(manifest: dict) -> Derivation:
     saida = Derivation()
 
     # Fontes declaradas com colunas no .yml (governance.legacy_captures) são folhas prontas.
+    # As de `raw` e `raw_legacy` não: o `meta.sensitivity` delas é espelho da declaração
+    # SQLAlchemy, escrito por `plan()`, e um espelho atrasado não pode sobrepor a origem —
+    # a reclassificação de uma coluna tem de chegar ao derivado na mesma geração.
+    espelhadas = set(esquema)
     for fonte in manifest["sources"].values():
+        if fonte["schema"] in espelhadas:
+            continue
         for coluna in fonte.get("columns", {}).values():
             nivel = (coluna.get("meta") or {}).get("sensitivity")
             if nivel:
@@ -380,17 +389,21 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
                 if atual:
                     resultado.changes.append(f"{no['name']}.{coluna}: `{atual}` → `{derivado}`")
                 alvo[coluna] = derivado
-        if not alvo:
-            continue
-        if no.get("patch_path") and not no["patch_path"].endswith("/" + GENERATED_FILE):
-            caminho = DBT / no["patch_path"].split("://", 1)[1]
-            if _is_generated(caminho):
-                resultado.left_to_generator.append(f"{no['name']}: {len(alvo)} colunas sem sensitivity em {caminho.relative_to(ROOT)} (gerado)")
-                continue
-            resultado.patches[caminho][no["name"]] = alvo
-        else:
+        if not (no.get("patch_path") and not no["patch_path"].endswith("/" + GENERATED_FILE)):
+            # Arquivo inteiramente gerado: é reescrito por inteiro, então **todo** modelo que
+            # lhe pertence entra, mude ou não — um que ficasse de fora por não ter mudado
+            # sumiria do arquivo na primeira alteração de outro. Modelo que ganhou entrada
+            # num .yml à mão cai no ramo de baixo e, por isso mesmo, sai daqui.
             diretorio = DBT / pathlib.Path(no["original_file_path"]).parent
             resultado.generated[diretorio / GENERATED_FILE][no["name"]] = colunas
+            continue
+        if not alvo:
+            continue
+        caminho = DBT / no["patch_path"].split("://", 1)[1]
+        if _is_generated(caminho):
+            resultado.left_to_generator.append(f"{no['name']}: {len(alvo)} colunas sem sensitivity em {caminho.relative_to(ROOT)} (gerado)")
+            continue
+        resultado.patches[caminho][no["name"]] = alvo
 
     # Fontes raw: colunas sob cada tabela de _retail__sources.yml.
     _, niveis = source_leaves()
@@ -493,6 +506,12 @@ def render_files(plano: Plan) -> dict[pathlib.Path, str]:
     return saida
 
 
+def stale_generated(plano: Plan) -> list[pathlib.Path]:
+    """`_sensitivity.yml` em disco que nenhum modelo mais habita — todos ganharam entrada à mão."""
+    existentes = set((DBT / "models").rglob(GENERATED_FILE)) | set((DBT / "snapshots").rglob(GENERATED_FILE))
+    return sorted(existentes - set(plano.generated))
+
+
 def _verify(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, str]]) -> None:
     """O arquivo escrito ainda é YAML válido e diz o que se pediu."""
     documento = yaml.safe_load(conteudo)
@@ -527,13 +546,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"gerador: {pendente}", file=sys.stderr)
 
     mudados = {c: t for c, t in arquivos.items() if not c.exists() or c.read_text(encoding="utf-8") != t}
+    obsoletos = stale_generated(plano)
     total = sum(len(v) for v in derivacao.levels.values())
     if conferir:
         for caminho in sorted(mudados):
             print(f"desatualizado: {caminho.relative_to(ROOT)}", file=sys.stderr)
-        falhou = bool(mudados or derivacao.problems or plano.left_to_generator)
+        for caminho in obsoletos:
+            print(f"obsoleto (sem modelo): {caminho.relative_to(ROOT)}", file=sys.stderr)
+        falhou = bool(mudados or obsoletos or derivacao.problems or plano.left_to_generator)
         print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; "
-              f"{len(mudados)} arquivo(s) desatualizado(s)")
+              f"{len(mudados) + len(obsoletos)} arquivo(s) desatualizado(s)")
         return 1 if falhou else 0
 
     for caminho, texto in mudados.items():
@@ -541,7 +563,10 @@ def main(argv: list[str] | None = None) -> int:
         _verify(caminho, texto, esperado)
         caminho.write_text(texto, encoding="utf-8")
         print(f"escrito: {caminho.relative_to(ROOT)}")
-    print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; {len(mudados)} arquivo(s) escrito(s)")
+    for caminho in obsoletos:
+        caminho.unlink()
+        print(f"removido: {caminho.relative_to(ROOT)}")
+    print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; {len(mudados) + len(obsoletos)} arquivo(s) escrito(s)")
     return 1 if (derivacao.problems or plano.left_to_generator) else 0
 
 
