@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano revisado (revisão 3), D45–D49 decididas |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na revisão 4 depois de duas rodadas do revisor, D45–D50 decididas |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 18/09/2026 |
@@ -83,10 +83,11 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 
 ## 2. Decisões já fechadas
 
-### D45 a D49 — decididas em 18/09/2026, na abertura da Etapa 12
+### D45 a D50 — decididas em 18/09/2026, na abertura da Etapa 12
 
-Cinco decisões de execução do fechamento da fase local, tomadas sobre o plano transitório da
-Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas) — a quinta na revisão do plano. Nenhuma troca ferramenta,
+Seis decisões de execução do fechamento da fase local, tomadas sobre o plano transitório da
+Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas) — as duas últimas nas duas
+rodadas de revisão do plano. Nenhuma troca ferramenta,
 camada ou modelagem; nenhum ADR.
 
 - **D45 — "ambiente limpo" é (c):** clone novo, `.env` novo, `make airbyte-down` e `make reset`
@@ -105,6 +106,13 @@ camada ou modelagem; nenhum ADR.
   antes dos ADRs 0037, 0044 e 0045, que fizeram do armazém guardião de capturas, certificados e
   histórico SCD que nenhuma reconstrução reproduz. O resto do armazém continua sendo refeito e
   provado igual. A §3 é reescrita no fechamento da etapa como consequência dos ADRs, sem ADR novo.
+- **D50 — a identidade da captura num Airbyte novo:** guarda na certificação (captura com
+  `sync_id ≤ max(snapshot_id)` já certificado é recusada com motivo próprio) e regra operacional
+  para instalação nova do Airbyte (avançar a sequência de *jobs* além do maior retido, conferido
+  antes da primeira sincronização). Decidida sobre o achado RV12-2-02 da segunda rodada de
+  revisão do plano: `snapshot_id` é o `job_id` do Airbyte, que recomeça em 1 numa instalação nova
+  e colidiria com as capturas retidas pelo pacote. A identidade do ADR-0044 não muda; o ADR ganha a
+  consequência. A alternativa de identidade composta (modelagem, ADR novo) foi descartada.
 
 
 ### D44 — decidida em 16/09/2026, implementada e medida em 17/09/2026
