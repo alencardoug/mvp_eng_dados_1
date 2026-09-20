@@ -108,8 +108,7 @@ def comando_pack(args: argparse.Namespace) -> int:
     )
     print(f"[recovery] três dumps em {destino.candidato}")
 
-    copiados = pacote.copiar_artefatos(RAIZ, destino.candidato)
-    ausentes = [a for a in pacote.ARTEFATOS if a not in copiados]
+    copiados, ausentes = pacote.copiar_artefatos(RAIZ, destino.candidato)
 
     origem, legado, armazem = _motor(db.SOURCE), _motor(db.LEGACY), _motor(db.WAREHOUSE)
     try:
@@ -151,7 +150,11 @@ def comando_pack(args: argparse.Namespace) -> int:
 
     print(f"[recovery] manifesto, roteiro e checksums gravados")
     if ausentes:
-        print(f"[recovery] ATENÇÃO: artefatos ausentes, não copiados: {ausentes}", file=sys.stderr)
+        print(
+            f"[recovery] ATENÇÃO: nenhum arquivo para os padrões {ausentes} — "
+            "os oráculos que dependem deles não estarão no pacote",
+            file=sys.stderr,
+        )
     print(f"candidato pronto em {destino.candidato}")
     return 0
 
@@ -367,11 +370,15 @@ def comando_restore_artefatos(args: argparse.Namespace) -> int:
     import shutil
 
     pasta = _pasta_do_pacote(args)
-    for relativo in pacote.ARTEFATOS:
+    manifesto = pacote.Manifesto.ler(pasta)
+    relativos = manifesto.dados.get("artefatos_copiados", [])
+    if not relativos:
+        print("[recovery] o pacote não trouxe artefato nenhum — nada a devolver")
+    for relativo in relativos:
         origem = pasta / relativo
         if not origem.exists():
-            print(f"[recovery] {relativo}: não estava no pacote — nada a devolver")
-            continue
+            print(f"[recovery] {relativo}: declarado no manifesto e ausente do pacote", file=sys.stderr)
+            return 1
         alvo = RAIZ / relativo
         alvo.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(origem, alvo)

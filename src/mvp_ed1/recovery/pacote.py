@@ -42,8 +42,12 @@ from typing import Any
 #: Os schemas do armazém que são memória. O resto do armazém se reconstrói.
 SCHEMAS_DE_MEMORIA = ("raw_legacy", "governance", "snapshots", "quarantine")
 
-#: Arquivos de trabalho, fora do Git, que os oráculos usam.
-ARTEFATOS = ("data/legacy/manifesto.json", "data/legacy/diario.json", ".stream/producer_state.json")
+#: Arquivos de trabalho, fora do Git, que os oráculos usam — por **padrão**, e
+#: não por nome fixo. `data/legacy/` guarda o manifesto corrente e os de
+#: gerações anteriores (`manifesto-<hash>.json`), e nomear só um deixaria os
+#: outros para trás. Medido ao montar o primeiro pacote: a lista fixa citava um
+#: `diario.json` que não existe e ignorava dois manifestos que existem.
+ARTEFATOS = ("data/legacy/*.json", ".stream/producer_state.json")
 
 NOME_DO_MANIFESTO = "manifesto.json"
 NOME_DOS_CHECKSUMS = "checksums.sha256"
@@ -175,18 +179,27 @@ def commit_atual(raiz: pathlib.Path) -> str:
     ).stdout.strip()
 
 
-def copiar_artefatos(raiz: pathlib.Path, destino: pathlib.Path) -> list[str]:
-    """Os arquivos de trabalho que os oráculos usam. Ausência é dita, não suposta."""
+def copiar_artefatos(raiz: pathlib.Path, destino: pathlib.Path) -> tuple[list[str], list[str]]:
+    """Os arquivos de trabalho que os oráculos usam.
+
+    Devolve `(copiados, padrões sem nenhum arquivo)`. Padrão vazio é **dito**,
+    não suposto: sem o manifesto do legado os testes pulam ou usam o de outra
+    geração, e um pacote que não avisa disso parece completo.
+    """
     copiados: list[str] = []
-    for relativo in ARTEFATOS:
-        origem = raiz / relativo
-        if not origem.exists():
+    vazios: list[str] = []
+    for padrao in ARTEFATOS:
+        encontrados = sorted(raiz.glob(padrao))
+        if not encontrados:
+            vazios.append(padrao)
             continue
-        alvo = destino / relativo
-        alvo.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(origem, alvo)
-        copiados.append(relativo)
-    return copiados
+        for origem in encontrados:
+            relativo = origem.relative_to(raiz)
+            alvo = destino / relativo
+            alvo.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(origem, alvo)
+            copiados.append(str(relativo))
+    return copiados, vazios
 
 
 def promover(destino: Destino) -> pathlib.Path:
