@@ -213,6 +213,59 @@ def comando_pipeline(args) -> int:
     return 0
 
 
+# ── Fim declarado para o caminho quente ─────────────────────────────────────
+def comando_corte(_args: argparse.Namespace) -> int:
+    from mvp_ed1.streaming import espera
+
+    print(espera.corte_da_origem())
+    return 0
+
+
+def comando_aguardar(args: argparse.Namespace) -> int:
+    """Espera o livro alcançar o corte; imprime o progresso a cada leitura."""
+    import os as _os
+
+    from mvp_ed1.streaming import espera
+
+    vivo = None
+    if args.pid is not None:
+        def vivo() -> bool:  # noqa: D401 — predicado, não descrição
+            try:
+                _os.kill(args.pid, 0)
+            except (OSError, ProcessLookupError):
+                return False
+            return True
+
+    def reportar(f: espera.Faltantes) -> None:
+        LOG.info(
+            "livro %d/%d até a sequência %d — faltam %d%s",
+            f.livro, f.origem, args.ate_seq, f.faltam,
+            f" (ex.: {', '.join(f.exemplos)})" if f.exemplos else "",
+        )
+
+    r = espera.aguardar(
+        args.ate_seq, prazo_s=args.prazo, intervalo_s=args.intervalo,
+        vivo=vivo, reportar=reportar,
+    )
+    if r.alcancado:
+        print(
+            f"livro alcançou a sequência {args.ate_seq}: {r.ultimo.livro} eventos "
+            f"em {r.segundos:.1f}s"
+            + (f"; {r.ultimo.intrusas} chaves no livro que a origem não tem" if r.ultimo.intrusas else "")
+        )
+        return 0
+    motivo = {
+        "prazo": f"prazo de {args.prazo:.0f}s esgotado",
+        "morreu": f"o pipeline (PID {args.pid}) morreu sob a espera",
+    }[r.motivo]
+    print(
+        f"ERRO: {motivo} — faltam {r.ultimo.faltam} de {r.ultimo.origem} eventos "
+        f"até a sequência {args.ate_seq}.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -243,6 +296,20 @@ def main(argv: list[str] | None = None) -> int:
     pr.set_defaults(func=comando_produzir)
 
     sub.add_parser("pipeline", help="sobe o pipeline Beam").set_defaults(func=comando_pipeline)
+
+    sub.add_parser(
+        "corte", help="imprime o max(event_sequence) da origem — o fim de uma medição"
+    ).set_defaults(func=comando_corte)
+
+    ag = sub.add_parser("aguardar", help="espera o livro quente alcançar um corte")
+    ag.add_argument("--ate-seq", type=int, required=True)
+    ag.add_argument("--prazo", type=float, default=900.0, help="segundos")
+    ag.add_argument("--intervalo", type=float, default=2.0, help="segundos entre leituras")
+    ag.add_argument(
+        "--pid", type=int, default=None,
+        help="PID do pipeline; se ele morrer, a espera falha em vez de esgotar o prazo",
+    )
+    ag.set_defaults(func=comando_aguardar)
 
     args = p.parse_args(argv)
     return args.func(args)

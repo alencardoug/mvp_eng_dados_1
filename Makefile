@@ -48,6 +48,12 @@ BASE := source_db legacy_db warehouse_db
 # `@bancos`) também são declarados lá, e citados aqui por nome: repetir a lista
 # neste arquivo seria a mesma divergência, um serviço novo depois.
 CONTEINERES := docker/conteineres.sh
+AIRFLOW_CLI := docker/airflow_cli.sh
+
+# Medição (Etapa 12, B1). A lógica vive em docker/medir.sh; daqui só se passa
+# o alvo. `ATE=` é o que separa "disparei" de "rodou".
+MEDIR := docker/medir.sh
+DAG := fluxo_batch
 
 # Verificação de recursos antes de subir um subconjunto pesado do ambiente (R11).
 # A lógica vive em docker/preflight.sh. O contrato daqui: `--trocar` autoriza o
@@ -70,7 +76,8 @@ endef
         stream-up stream-down stream-connector stream-status stream-run stream-produce \
         stream-duplicate stream-alerts stream-reset-sink \
         preflight airbyte-pause airbyte-resume stream-pause stream-resume \
-        airflow-pause airflow-resume require-env require-venv require-abctl require-terraform
+        airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
+        require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis:"
@@ -226,6 +233,9 @@ require-terraform:
 preflight: ## Diz se cabe subir um subconjunto do ambiente; ALVO=airbyte|airflow|streaming
 	@docker/preflight.sh $(ALVO)
 
+medir: ## Mede um alvo: ALVO= [ATE=<alvo de espera>], ou CENARIO=streaming [LIMITE=n]
+	@$(MEDIR) $(if $(CENARIO),--cenario $(CENARIO) $(if $(LIMITE),--limite $(LIMITE)),$(ALVO) $(if $(ATE),--ate $(ATE)))
+
 # ── Pausa e retomada ────────────────────────────────────────────────────────
 # Devolver memória à máquina sem desmontar nada. `airbyte-down` é
 # `abctl local uninstall`: destrói o cluster, e voltar custa uma reinstalação
@@ -336,19 +346,18 @@ airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, tr
 airflow-down: require-env ## Derruba o Airflow; FORCE=1 apaga também o histórico de execuções
 	@$(COMPOSE_AIRFLOW) down $(if $(filter 1,$(FORCE)),-v)
 
-dag-run: require-env ## Dispara a DAG do caminho frio (fluxo_batch)
-	@# DAG nasce pausada no Airflow, e execução enfileirada em DAG pausada fica
-	@# `queued` para sempre — o disparo "funciona" e não faz nada. Espera o
-	@# processador de DAGs registrá-la antes de despausar: logo depois de um
-	@# `airflow-up`, ela ainda não existe no banco de metadados.
-	@for i in $$(seq 1 30); do \
-		$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
-			airflow dags unpause fluxo_batch >/dev/null 2>&1 && break; \
-		sleep 2; \
-	done
-	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler airflow dags trigger fluxo_batch >/dev/null
-	@echo "DAG 'fluxo_batch' disparada. Acompanhe em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2)"
-	@echo "ou por: make dag-status"
+dag-run: require-env ## Dispara a DAG do caminho frio e imprime o run_id
+	@# O run_id é capturado e gravado em data/medicoes/ultimo_run_id: sem ele
+	@# não há como esperar *aquela* execução, e "a última" muda de identidade
+	@# se alguém dispara outra. A espera do processador de DAGs e o unpause
+	@# ficam no script, que é o dono do assunto.
+	@run=$$($(AIRFLOW_CLI) disparar $(DAG)) || exit 1; \
+		echo "DAG '$(DAG)' disparada: $$run"; \
+		echo "Acompanhe em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2)"; \
+		echo "ou por: make dag-status; espere o fim com: make dag-wait"
+
+dag-wait: require-env ## Espera a execução terminar; RUN_ID= (padrão: a última disparada), PRAZO=
+	@$(AIRFLOW_CLI) aguardar $(DAG) "$(RUN_ID)" $(or $(PRAZO),1800)
 
 dag-status: require-env ## Mostra o estado das tarefas da última execução da DAG
 	@$(COMPOSE_AIRFLOW) exec -T airflow_scheduler \
@@ -383,6 +392,13 @@ stream-produce: require-env ## Emite eventos novos no livro da origem; LIMITE=, 
 stream-duplicate: require-env ## Republica mensagens no transporte — teste de idempotência; QUANTAS=
 	@$(STREAM) duplicar $(if $(QUANTAS),--quantas $(QUANTAS))
 
+stream-corte: require-env ## Imprime o max(event_sequence) da origem — o fim de uma medição
+	@$(STREAM) corte
+
+stream-wait: require-env ## Espera o livro quente alcançar ATE_SEQ=; PID= vigia o pipeline, PRAZO=
+	@test -n "$(ATE_SEQ)" || { echo "ERRO: ATE_SEQ= é obrigatório — espera sem corte mediria para sempre."; exit 2; }
+	@$(STREAM) aguardar --ate-seq $(ATE_SEQ) $(if $(PID),--pid $(PID)) $(if $(PRAZO),--prazo $(PRAZO))
+
 stream-alerts: require-env ## Lê e resume o tópico de alerta de estoque baixo
 	@$(STREAM) alertas $(if $(MOSTRAR),--mostrar $(MOSTRAR)) $(if $(GRUPO),--grupo $(GRUPO))
 
@@ -410,6 +426,9 @@ print('  schema snapshots descartado')"
 
 dbt-test: require-env require-venv ## Somente os testes de dados
 	@$(DBT) test $(DBT_ARGS)
+
+docs-generate: require-env require-venv ## Só gera o catálogo — tem fim, e por isso é o que se mede
+	@$(DBT) docs generate
 
 dbt-docs: require-env require-venv ## Gera e serve o catálogo com dicionário, linhagem e glossário
 	@$(DBT) docs generate && $(DBT) docs serve

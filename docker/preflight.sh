@@ -22,6 +22,10 @@ set -uo pipefail
 # razão de o Airflow ter ficado invisível aqui até a Etapa 12 (RV12-2-03).
 # shellcheck source=conteineres.sh
 . "$(dirname "${BASH_SOURCE[0]}")/conteineres.sh"
+# As armadilhas da CLI do Airflow — ruído no stdout, `dag_id` obrigatório, DAG
+# repetida — vivem num arquivo só; aqui fica a política, não o transporte.
+# shellcheck source=airflow_cli.sh
+. "$(dirname "${BASH_SOURCE[0]}")/airflow_cli.sh"
 
 ALVO="${1:?uso: preflight.sh <airbyte|airflow|streaming> [--trocar]}"
 TROCAR=false
@@ -32,7 +36,7 @@ TROCAR=false
 # pendura quem chamou. Expirar é **indeterminado**, e indeterminado é bloqueio.
 PRAZO_CONSULTA="${PREFLIGHT_PRAZO_CONSULTA:-20}"
 PRAZO_TOTAL="${PREFLIGHT_PRAZO_TOTAL:-90}"
-AIRFLOW_SCHEDULER=""
+AIRFLOW_PRAZO_CONSULTA="$PRAZO_CONSULTA"
 
 # --- custos, em MB -----------------------------------------------------------
 # Airbyte: PICO medido em 07/09/2026 durante `make sync-airbyte`, amostrando o
@@ -134,28 +138,6 @@ _restaurar() {
 # Falha de verificação NÃO é sinônimo de "não há trabalho": se o comando não
 # responde, o retorno é "indeterminado" e quem chama trata como bloqueio. Perder
 # uma sincronização silenciosamente é pior que uma recusa a mais.
-# O ruído de inicialização do Airflow (Alembic e plugins) sai no **stdout**,
-# não no stderr: `2>/dev/null` não limpa nada. O JSON é o que sobra depois de
-# descartar as linhas de log, que todas começam por carimbo de tempo.
-_limpar_log() { sed -E '/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z?[[:space:]]+\[/d; /^[[:space:]]*$/d'; }
-
-# Uma consulta ao Airflow, com prazo próprio. Sai 124 quando expira (`timeout`).
-_airflow_consulta() {
-	timeout "$PRAZO_CONSULTA" docker exec "$AIRFLOW_SCHEDULER" "$@" 2>/dev/null
-}
-
-_dag_ids() {
-	grep -oE '"dag_id"[[:space:]]*:[[:space:]]*"[^"]+"' \
-		| sed -E 's/.*"([^"]+)"$/\1/' | sort -u
-}
-
-_run_id() {
-	local r
-	r=$(printf '%s' "$1" | grep -oE '"run_id"[[:space:]]*:[[:space:]]*"[^"]+"' \
-		| head -1 | sed -E 's/.*"([^"]+)"$/\1/')
-	[ -n "$r" ] && printf ' (%s)' "$r"
-}
-
 # A consulta de trabalho do Airflow, escrita por inteiro (RV12-3-03, RV12-4-04):
 #
 # - **por DAG, porque o Airflow 3.2.2 exige `dag_id`** — sem ele a CLI sai com
@@ -171,25 +153,22 @@ _run_id() {
 # Enumerar DAGs **não** é medir a saúde do scheduler: o comando lê os metadados.
 # O que esta função afirma é "não há execução conhecida", não "o processo vive".
 _airflow_trabalho_ativo() {
-	local inicio bruto limpo dag estado
-	AIRFLOW_SCHEDULER=$(resolver airflow_scheduler | head -1)
-	[ -z "$AIRFLOW_SCHEDULER" ] && {
+	local inicio bruto dags dag estado run
+	airflow_scheduler >/dev/null || {
 		echo "indeterminado — não resolvi o contêiner do scheduler pelos rótulos do Compose"
 		return
 	}
 	inicio=$SECONDS
 
-	bruto=$(_airflow_consulta airflow dags list -o json) \
+	bruto=$(airflow_cli dags list -o json) \
 		|| { echo "indeterminado — enumeração de DAGs não respondeu no prazo de ${PRAZO_CONSULTA}s"; return; }
-	limpo=$(printf '%s\n' "$bruto" | _limpar_log | tr -d '[:space:]')
-	case "$limpo" in
-	"[]") return ;;   # nenhuma DAG registrada — ocioso
-	\[*)  ;;
+	case "$(airflow_forma_da_lista "$bruto")" in
+	vazia) return ;;   # nenhuma DAG registrada — ocioso
+	lista) ;;
 	*) echo "indeterminado — enumeração de DAGs ilegível"; return ;;
 	esac
 
-	local dags
-	dags=$(printf '%s\n' "$bruto" | _limpar_log | _dag_ids)
+	dags=$(printf '%s\n' "$bruto" | airflow_limpar_log | airflow_dag_ids)
 	[ -z "$dags" ] && { echo "indeterminado — enumeração sem dag_id legível"; return; }
 
 	for dag in $dags; do
@@ -198,12 +177,14 @@ _airflow_trabalho_ativo() {
 				echo "indeterminado — prazo total de ${PRAZO_TOTAL}s esgotado na verificação"
 				return
 			fi
-			bruto=$(_airflow_consulta airflow dags list-runs "$dag" --state "$estado" -o json) \
+			bruto=$(airflow_cli dags list-runs "$dag" --state "$estado" -o json) \
 				|| { echo "indeterminado — consulta de execuções '$estado' da DAG $dag não respondeu"; return; }
-			limpo=$(printf '%s\n' "$bruto" | _limpar_log | tr -d '[:space:]')
-			case "$limpo" in
-			"[]") ;;
-			\[*) echo "DAG $dag com execução $estado$(_run_id "$bruto")"; return ;;
+			case "$(airflow_forma_da_lista "$bruto")" in
+			vazia) ;;
+			lista)
+				run=$(airflow_campo "$bruto" run_id)
+				echo "DAG $dag com execução $estado${run:+ ($run)}"
+				return ;;
 			*) echo "indeterminado — resposta ilegível para a DAG $dag no estado $estado"; return ;;
 			esac
 		done

@@ -425,6 +425,55 @@ do bloco**, em B5: a duração de `make medir ALVO=dbt-build` é **maior** que a
 registrada, não tolerada por um ±5 s fixo; a duração de invólucro de `dag-run` + `dag-wait` é
 maior que a da DAG, e as duas ficam na tabela.
 
+**Entregue em 20/09/2026 [medido em parte].** `docker/medir.sh` (o medidor), `docker/airflow_cli.sh`
+(as três armadilhas da CLI do Airflow num lugar só, que o preflight passou a consumir em vez de ter
+a cópia dele) e `src/mvp_ed1/streaming/espera.py` (o fim declarado do caminho quente). Alvos novos:
+`medir`, `dag-wait`, `stream-corte`, `stream-wait`, `docs-generate`; `dag-run` passou a capturar o
+`run_id`, imprimi-lo e gravá-lo em `data/medicoes/ultimo_run_id`.
+
+Medição real de ponta a ponta, num alvo barato:
+
+```text
+$ make medir ALVO=size-report
+[medir] size-report — início 2026-09-20T20:20:08Z; estação: 2,8 GB livres, de pé: Airbyte,Airflow,bancos
+[medir] registro: data/medicoes/2026-09-20_size_report.json
+| size-report | Airbyte,Airflow,bancos | 0m 14s | 2,7 GB | 3,9 GB | 3 amostras a cada 2s |
+```
+
+**Três decisões que a implementação obrigou a tomar, e que o plano não previa:**
+
+- **O encerramento é por grupo de processo, não por PID.** O `make` que sobe o `stream-run` é um
+  invólucro, e o Beam é filho dele: sinalizar só o invólucro o mata e **deixa o Beam órfão**,
+  segurando tópico e memória no instante em que o medidor anuncia que encerrou. Cada processo sob
+  guarda nasce com `setsid`, e é o grupo que recebe o sinal — o que também garante que nada de fora
+  seja tocado. A contraprova está no teste: um processo alheio, iniciado fora do medidor, precisa
+  sobreviver.
+- **O `make` achata o código de saída da receita em 2.** Qualquer `exit N` de dentro de uma receita
+  chega ao medidor como 2, e "o código propaga" só pode significar "a falha propaga". O que
+  distingue *a DAG falhou* de *a espera venceu* fica na mensagem do alvo de espera, por extenso, e
+  está escrito assim no medidor — fingir que o número sobrevive seria pior que perdê-lo.
+- **O oráculo da espera é de chaves, não de contagem.** Contar os dois lados aceita uma chave
+  faltando e outra sobrando — a mesma insuficiência que o RV12-4-02 achou na quarentena. A
+  diferença de conjuntos é barata aqui, porque o corte limita o volume, e `intrusas` entra no
+  registro: um livro restaurado de outro ciclo é exatamente onde isso apareceria.
+
+**Prova.** `tests/test_medicao.py`, 16 casos, sem banco e sem Docker real (suíte inteira: **322 passed, 8 skipped**): a agregação acha os
+extremos numa série sintética e diz intervalo e contagem; série vazia não inventa extremo; alvo
+inexistente falha **antes** de amostrar; `ATE` inexistente falha **antes** de o alvo rodar; a linha
+da tabela sai como a da Capacidade; falha da espera propaga; o corte do cenário é lido **depois**
+do produtor (o `Makefile` de mentira muda o corte durante a produção, e ler antes esperaria o
+número velho); o *snapshot* sem produtor fecha no corte inicial; o encerramento mata o que iniciou
+e **só** isso; pipeline que não sobe não vira medição de zero. Da espera: produtor terminado com
+evento ainda em trânsito **continua esperando**; prazo vencido não é sucesso; pipeline morto encerra
+na hora em vez de gastar meia hora; e a troca de uma chave por outra é detectada com as contagens
+iguais.
+
+**O que esta entrega não mediu:** nenhuma DAG real foi medida com `dag-run ATE=dag-wait`, e o modo
+de cenário do *streaming* não rodou contra Redpanda, Connect e Beam de verdade — os dois exigem
+subir ambiente pesado e são medidos em B5, onde o resultado vale. `docs-generate` não foi
+cronometrado. Os oráculos do bloco citados acima (duração do invólucro maior que a do
+`run_results.json`, e a de `dag-run` + `dag-wait` maior que a da DAG) são de B5, por construção.
+
 ---
 
 ## 4. B2 — segredos no histórico
