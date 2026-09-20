@@ -56,6 +56,15 @@
 > consulta de trabalho do Airflow passa a cobrir `queued` além de `running`, a não descartar DAG
 > pausada e a ter **prazo** por consulta e no todo (RV12-4-04); e as formulações erradas da §0, da
 > §6 e de D51 foram corrigidas (RV12-4-05). §17.2 ganhou a coluna *Situação* preenchida.
+>
+> **Revisão 7 — 20/09/2026, mesma data.** Aplica a quinta rodada do parecer (§18: **nenhum
+> bloqueante, nenhum ajuste, uma observação**). Os quatro ajustes funcionais da rodada 4 foram
+> dados por incorporados ao desenho, e o que restou foi a incoerência que a própria incorporação
+> de RV12-4-05 deixou para trás: a §7.2 ainda dizia "exatamente três" testes tocando ambiente e
+> "os outros 166", enquanto a §0 e a §16.6 já diziam outra coisa (RV12-5-01). A §7.2 passa a
+> distinguir **três acessos** de **quatro testes**, com a fixture de módulo de `test_consumo.py`
+> apresentada como o grupo de dois que ela é, e o resto da seleção offline é **165**. §18.2 ganhou
+> a coluna *Situação* preenchida.
 
 ---
 
@@ -706,20 +715,24 @@ Com os processos parados (preflight sem trabalho):
    na linha 4 da §7.3, depois das duas ingestões. O que `check-offline` pular é listado com
    motivo.
 
-   **A seleção offline foi varrida inteira, não só o arquivo do parecer (RV12-3-06).** Com uma
-   sonda que substitui `Engine.connect` e a chamada do `dbt` por falha, e com variáveis de conexão
-   **presentes** — sem elas os guardas de `skip` escondem o acesso —, dos **169** testes
-   selecionados exatamente **três** tocam ambiente (§16):
+   **A seleção offline foi varrida inteira, não só o arquivo do parecer (RV12-3-06; a contagem
+   corrigida pelo RV12-5-01).** Com uma sonda que substitui `Engine.connect` e a chamada do `dbt`
+   por falha, e com variáveis de conexão **presentes** — sem elas os guardas de `skip` escondem o
+   acesso —, dos **169** testes selecionados a sonda interceptou **três acessos**, e deles
+   dependem **quatro** testes (§16.6):
 
    | Teste | O que tenta | Hoje |
    |---|---|---|
    | `test_legacy_classification.py::test_configuracao_divergente_da_impressao_recusa_a_compilacao` | `dbt compile` | **falha** |
    | `test_legacy_classification.py::test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai` | SQL no armazém | **falha** |
-   | `test_consumo.py::test_toda_view_de_consumo_responde` | SQL no armazém | pula limpo |
+   | `test_consumo.py::test_toda_view_de_consumo_responde` | SQL no armazém, pela fixture `engine` | pula limpo |
+   | `test_consumo.py::test_as_dezesseis_perguntas_estao_publicadas` | a **mesma** fixture, já resolvida | pula limpo, sem abrir uma segunda conexão |
 
-   Os três ganham a marca `integracao` — o `test_consumo.py` inteiro, que já estava previsto, e
-   os dois de `test_legacy_classification.py`, que não estavam. Os outros 166 não abrem conexão
-   nem chamam dbt. **Limite da sonda [declarado]:** ela intercepta `Engine.connect` e o `dbt` por
+   **Três acessos não são três testes:** `engine` é fixture de **escopo de módulo**
+   (`tests/test_consumo.py`), resolve uma vez e serve os dois testes de consumo — a sonda vê um
+   acesso, e dele dependem dois. Os quatro ganham a marca `integracao` — o `test_consumo.py`
+   inteiro, que já estava previsto, e os dois de `test_legacy_classification.py`, que não estavam.
+   Os outros **165** não abrem conexão nem chamam dbt. **Limite da sonda [declarado]:** ela intercepta `Engine.connect` e o `dbt` por
    subprocesso; acesso por outro caminho (psycopg cru, HTTP) não seria visto — a prova que fecha é
    a execução do `check-offline` num clone sem bancos nem caches, com as variáveis de conexão
    presentes, e é ela que roda aqui.
@@ -919,15 +932,14 @@ só a sequência de *jobs* (D50) não alcança isso. Nenhum certificado guarda a
 
 ## 12. O que pedir ao outro agente
 
-1. **Deste plano, revisão 6** — antes do código: os cinco achados da rodada 4 estão fechados na
-   letra e no espírito? Em particular: (a) o contrato do re-base (§6, passo 4b) exclui **todas** as
-   implementações que fundem classes de geração, e a conferência de intrusas continua inteira
-   depois dele, inclusive num terceiro ciclo? (b) o oráculo de continência da quarentena — chave,
-   contagem e resumo canônico das linhas completas — detecta troca de payload, troca de motivo e
-   perda compensada por duplicação? (c) a guarda da identidade alcança **todo** ponto de entrada
-   do projeto que chega ao `POST /jobs` da conexão legada, incluindo `reset` e a tarefa da DAG
-   reexecutada sozinha? (d) a consulta de trabalho, com `queued`, DAG pausada e prazo, decide
-   certo com *scheduler* lento e DAG recém-registrada?
+1. **Deste plano — item cumprido até onde a revisão do desenho alcança.** A quinta rodada (§18)
+   deu os quatro ajustes funcionais por incorporados, não achou bloqueante nem ajuste novo e
+   declarou não haver impedimento para implementar B0–B4; a única observação, a contagem da §7.2,
+   está corrigida na revisão 7. Se o Owner der o plano por revisado, o próximo pedido ao outro
+   agente é o item (2), sobre a **entrega**. Se preferir mais uma rodada do desenho, a pergunta
+   que sobra é estreita: a correção da §7.2 fechou a última divergência interna entre §0, §7.2 e
+   §16.6? **Nada disso é aceite de código nem autorização do ciclo destrutivo de B5** — os dois
+   continuam sendo decisão do Owner.
 2. **Da entrega, com o dossiê** (`REVISAO.md`): o declarativo novo — `medir.sh`, `recovery.py`,
    `docs_check.py`, os detectores de `secrets_review`, a lista de tratados —, a Capacidade §2.12
    e §3, a Execução Local corrigida; o derivado é o diário de B5.
@@ -1284,7 +1296,7 @@ modelo de quarentena retém, não uma preferência por guardar todo o armazém.
 | RV12-3-03 | **bloqueante** | **§2.1, consulta de trabalho após resolver o contêiner (linhas 145–160): corrigir o nome não basta.** A chamada vigente é `airflow dags list-runs --state running -o plain`, sem `dag_id`. Executada no scheduler real por Compose, saiu **2**, exigindo esse argumento; com `fluxo_batch`, saiu **0** e retornou `[]`. Mantida a chamada em B0, o preflight passa a enxergar o Airflow, mas sempre o considera indeterminado e recusa a troca mesmo ocioso. | Incluir em B0 a correção da consulta e a interpretação de sua saída, cobrindo o conjunto de DAGs do projeto. Provar ocioso, execução ativa e falha de consulta. A contraprova de trabalho precisa alcançar o caminho `--trocar`: `make preflight ALVO=streaming` sozinho já recusa pelo conflito de ambientes, antes de consultar DAGs. | **Fechado na revisão 5 — B0 cresce:** confirmado na máquina que `airflow dags list-runs --state running` **exige `dag_id`** (código 2, Airflow 3.2.2) e que corrigir só o nome faria o preflight recusar toda troca. B0 passa a especificar a consulta inteira — por DAG, com o conjunto lido de `airflow dags list -o json` **sem repetidos** (a versão instalada devolve a mesma DAG seis vezes) e o JSON separado do ruído do Alembic, que sai no **stdout** —, os três desfechos, e a contraprova pelo caminho `--trocar` (`make stream-up`), nunca por `make preflight ALVO=streaming`, que recusa antes pelo conflito. Dois defeitos vizinhos entraram junto: a pausa que anuncia o que não fez e o nome fixo em `test-carga` (§2.1, com o inventário completo dos consumidores por nome). |
 | RV12-3-04 | **ajuste** | **§6, ponto da guarda e teste de identidade reutilizada (linhas 367–384): recusar o certificado pode acontecer depois da mistura.** O ponto sugerido, `captura.decidir`, roda depois de o Airbyte terminar o append. Negar a tentativa nova não remove as linhas já escritas sob um `sync_id` antigo nem invalida o certificado antigo: a contraprova conservou a captura 43 elegível, agora lendo duas linhas onde havia uma. Avançar a sequência depois dessa recusa não desfaz a contaminação. | Tornar explícito que a verificação operacional bloqueia a escrita antes de disparar o job, para CLI e DAG. Executar a contraprova intencional de colisão em destino isolado, preservando o único pacote e seu bruto; exigir que o hash das capturas anteriores permaneça igual. Preservar também o reenvio de tentativa já concluída, que hoje devolve o certificado gravado sem remedição. | **Fechado na revisão 5:** a guarda deixa de morar só em `captura.decidir` — que roda depois do *append* — e passa a ser **pré-condição de disparar o *job***, nos dois chamadores (CLI e DAG), junto da fase 1. A guarda em `decidir` fica como rede, porque é a regra pura sem banco. A contraprova de colisão intencional roda em **destino isolado**, exigindo que o bruto e o hash da captura 43 fiquem idênticos depois da recusa; o reenvio de tentativa concluída continua devolvendo o certificado gravado (§6). |
 | RV12-3-05 | **ajuste** | **§6, manifesto e passo 9 (linhas 308 e 359–361): o oráculo SCD pode aceitar conteúdo diferente.** O hash proposto contém apenas ID e datas, sem atributos. Além disso, a concatenação com `dbt_valid_to = NULL` resulta em nulo, que `string_agg` ignora. Na sonda SQL, mudar um atributo histórico ou o início de uma versão vigente manteve contagem, IDs e hash do plano iguais. No banco atual, **1.574 de 1.575** linhas de `scd_customer` estão com `dbt_valid_to` nulo. | Usar serialização canônica de todas as colunas de cada versão, incluindo nulos de forma explícita, ordenação estável e multiplicidade. Acrescentar contraprovas que alterem atributo de versão fechada e validade de versão vigente sem mudar ID ou contagem. | **Fechado na revisão 5:** a sonda própria reproduziu o defeito — o hash proposto saiu **igual** para o original, para um atributo histórico alterado e para o início de uma versão vigente alterado, porque `x ‖ NULL` é nulo e `string_agg` o descarta, com 1.574 das 1.575 linhas vigentes (§0, §16). O oráculo passa a ser o `md5` de uma **serialização canônica de todas as colunas** de cada versão, com nulo explícito, ordenação estável e multiplicidade; as três contraprovas entram em `tests/test_recovery.py` (§6). |
-| RV12-3-06 | **ajuste** | **§7.2, `check-offline` (linhas 428–432): marcar só `test_consumo.py` não separa todos os acessos a banco.** `pytest -m "not integracao"` ainda seleciona `test_configuracao_divergente_da_impressao_recusa_a_compilacao` e `test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai`, em `test_legacy_classification.py`. Com variáveis de conexão presentes e indisponibilidade simulada, ambos falharam: um tentou `dbt compile`, outro SQL. Sem essas variáveis eles pulam; esse sucesso dependeria do ambiente do shell. | Marcar também esses testes e conferir a seleção offline inteira. Provar `check-offline` num clone sem bancos/caches, inclusive com variáveis de conexão presentes, mantendo o `check` completo e os motivos de skips. | **Fechado na revisão 5, e a varredura foi inteira:** sonda sobre os **169** testes da seleção offline, com variáveis de conexão presentes — exatamente **três** tocam ambiente: os dois de `test_legacy_classification.py` (falham) e `test_consumo.py::test_toda_view_de_consumo_responde` (pula limpo). Os três ganham a marca; os outros 166 não abrem conexão nem chamam dbt. O limite da sonda está declarado, e a prova que fecha é o `check-offline` no clone sem bancos nem caches (§7.2, §16). |
+| RV12-3-06 | **ajuste** | **§7.2, `check-offline` (linhas 428–432): marcar só `test_consumo.py` não separa todos os acessos a banco.** `pytest -m "not integracao"` ainda seleciona `test_configuracao_divergente_da_impressao_recusa_a_compilacao` e `test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai`, em `test_legacy_classification.py`. Com variáveis de conexão presentes e indisponibilidade simulada, ambos falharam: um tentou `dbt compile`, outro SQL. Sem essas variáveis eles pulam; esse sucesso dependeria do ambiente do shell. | Marcar também esses testes e conferir a seleção offline inteira. Provar `check-offline` num clone sem bancos/caches, inclusive com variáveis de conexão presentes, mantendo o `check` completo e os motivos de skips. | **Fechado na revisão 5, e a varredura foi inteira:** sonda sobre os **169** testes da seleção offline, com variáveis de conexão presentes — exatamente **três** tocam ambiente: os dois de `test_legacy_classification.py` (falham) e `test_consumo.py::test_toda_view_de_consumo_responde` (pula limpo). Os três ganham a marca; os outros 166 não abrem conexão nem chamam dbt. O limite da sonda está declarado, e a prova que fecha é o `check-offline` no clone sem bancos nem caches (§7.2, §16). **Retificado na revisão 7 (RV12-5-01):** são três **acessos** e **quatro** testes — a fixture `engine` de `test_consumo.py` é de escopo de módulo e serve dois —, e o resto da seleção é **165**. A marca vale para o módulo inteiro, como esta linha já mandava. |
 
 ### 15.3 Evidências
 
@@ -2051,3 +2063,45 @@ atualizado e informar os achados atendidos e as validações ainda pendentes.
 **Incorporado em 20/09/2026 — revisão 6.** Os cinco achados estão atendidos; onde cada um foi
 parar está na coluna *Situação* da §17.2. O ciclo destrutivo de B5 **não** foi executado, e nada
 de B0–B6 foi implementado: as ressalvas da §17.4 continuam valendo inteiras.
+
+## 18. Parecer da revisão 6 — quinta rodada, 20/09/2026
+
+**Escopo:** diff `a5f838b..f4991ae`, confrontado com as seções prescritivas do plano,
+`src/mvp_ed1/airbyte.py`, `src/mvp_ed1/legacy/captura.py`,
+`airflow/dags/fluxo_batch.py`, `docker/preflight.sh`, o modelo
+`dbt/models/quarantine/rejected_legacy_records.sql`, `tests/test_consumo.py` e o ADR-0044.
+Revisão documental e leitura de código; nenhuma execução do plano.
+
+**Veredito:** os quatro ajustes funcionais da quarta rodada estão incorporados ao desenho.
+Não identifiquei novo impedimento para implementar B0–B4. Resta uma observação de coerência
+documental na incorporação de RV12-4-05; ela não muda o conjunto de testes que o plano manda
+marcar. Este parecer não valida código futuro, não autoriza B5 nem encerra M5.
+
+### 18.1 Conferência dos achados
+
+| Achado | Resultado |
+|---|---|
+| RV12-4-01 | **Atendido no plano.** §6 exige preservar a partição de gerações por tabela, usar faixa livre negativa, conferir nulos e idempotência; inclui contraprovas do segundo ciclo e de intrusa retida. A regra permanece compatível com a detecção de intrusas de `captura.py`. |
+| RV12-4-02 | **Atendido no plano.** Manifesto, passo 9 e §7.3 exigem contagem e conteúdo completo com multiplicidade por chave, além de conferir a captura nova separadamente. As contraprovas cobrem payload, motivo e perda compensada. |
+| RV12-4-03 | **Atendido no plano.** A pré-condição alcança CLI sem flag, reset e tarefa de disparo da DAG reexecutada sozinha. A recusa exige zero POSTs; `decidir` deixa de receber a promessa de proteção retroativa. |
+| RV12-4-04 | **Atendido no plano.** §2.1 inclui fila, DAG pausada, enumeração dinâmica e limites por consulta e total, com expiração bloqueante. Os valores dos prazos e seu comportamento efetivo serão conferidos na implementação. |
+| RV12-4-05 | **Atendido parcialmente na redação.** §0, §6, D51 e retificações da §16 foram corrigidas; §7.2 ainda repete a contagem antiga, conforme RV12-5-01. |
+
+### 18.2 Observação remanescente
+
+| ID | Veredito | Onde / consequência | Ajuste proposto | Situação |
+|---|---|---|---|---|
+| RV12-5-01 | **observação** | **§7.2, seleção offline:** ainda afirma que exatamente três testes tocam ambiente e que os outros 166 não o fazem. `tests/test_consumo.py` contém dois testes dependentes da mesma fixture de módulo (`engine`), como a §0 e a retificação da §16.6 já reconhecem. A orientação de marcar o módulo inteiro está correta, mas a explicação e a contagem divergem dentro do roteiro vigente. | Distinguir os três acessos interceptados dos quatro testes dependentes, incluir o segundo teste de consumo na tabela ou apresentar a fixture como grupo de dois testes. Se mantida a base histórica de 169 selecionados, o restante é 165; preservar o limite de cobertura da sonda. | **Atendido — revisão 7.** A §7.2 passa a separar **três acessos** de **quatro testes**: a tabela ganhou `test_consumo.py::test_as_dezesseis_perguntas_estao_publicadas`, a fixture `engine` está apresentada como de escopo de módulo servindo os dois, e o resto da seleção é **165**, não 166. A base histórica dos 169 e o limite declarado de cobertura da sonda ficaram como estavam. Conferido na fonte antes de aplicar: `tests/test_consumo.py:25` (`scope="module"`), `:59` e `:94`. |
+
+### 18.3 Validação e limites
+
+`git diff a5f838b f4991ae --check` terminou com código **0**, sem saída. O diff da entrega
+altera somente este plano e `docs/pendencias.md`; nenhum ADR foi alterado. A conferência dos
+dois testes de consumo e da fixture foi por leitura do código, sem executar pytest.
+
+Não foram refeitas as sondas nem as medições da §17.3. Não foram executados `make check`,
+sincronizações, DAGs, consultas aos serviços, dumps, restaurações, trocas de ambientes ou
+operações destrutivas. Os resultados históricos continuam atribuídos às rodadas que os
+produziram. Continuam pendentes as provas de implementação e de recuperação da §17.4,
+incluindo a continuidade real do Airbyte, o restore em destino povoado e a preservação
+efetiva dos dados após o rebuild.
