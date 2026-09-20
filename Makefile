@@ -41,6 +41,14 @@ CREDENCIAIS = eval "$$($(ABCTL) local credentials 2>/dev/null \
 	| sed 's/^/export /')" 
 BASE := source_db legacy_db warehouse_db
 
+# Resolução de contêineres por rótulo do Compose. A regra vive em
+# docker/conteineres.sh — dono único —, e daqui só se consome: a composição do
+# Airflow não declara `container_name`, e procurar por prefixo de nome nunca
+# achou nada (RV12-2-03). Os grupos de serviço (`@airflow`, `@streaming`,
+# `@bancos`) também são declarados lá, e citados aqui por nome: repetir a lista
+# neste arquivo seria a mesma divergência, um serviço novo depois.
+CONTEINERES := docker/conteineres.sh
+
 # Verificação de recursos antes de subir um subconjunto pesado do ambiente (R11).
 # A lógica vive em docker/preflight.sh. O contrato daqui: `--trocar` autoriza o
 # script a **pausar** o ambiente conflitante — nunca a desmontá-lo —, de modo que
@@ -238,22 +246,19 @@ airbyte-resume: ## Religa o cluster do Airbyte pausado e espera os pods
 		echo " tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'."
 
 stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
-	@docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda >/dev/null 2>&1 && \
-		echo "Streaming pausado. Retomar: make stream-resume" || \
-		echo "Streaming já não estava de pé."
+	@RETOMAR_COM='make stream-resume' $(CONTEINERES) pausar streaming @streaming; \
+		s=$$?; [ $$s -eq 3 ] && exit 0 || exit $$s
 
 stream-resume: ## Religa Redpanda e Kafka Connect pausados
-	@docker start mvp_ed1_redpanda mvp_ed1_kafka_connect >/dev/null || { echo "ERRO: contêineres não existem. Use 'make stream-up'."; exit 1; }
-	@echo "Streaming retomado. O conector Debezium volta do ponto em que parou."
+	@$(CONTEINERES) retomar streaming @streaming || { echo "Use 'make stream-up' se os contêineres não existem."; exit 1; }
+	@echo "O conector Debezium volta do ponto em que parou."
 
 airflow-pause: ## Para os contêineres do Airflow liberando a memória
-	@docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop >/dev/null 2>&1 && \
-		echo "Airflow pausado. Retomar: make airflow-resume" || \
-		echo "Airflow já não estava de pé."
+	@RETOMAR_COM='make airflow-resume' $(CONTEINERES) pausar Airflow @airflow; \
+		s=$$?; [ $$s -eq 3 ] && exit 0 || exit $$s
 
 airflow-resume: ## Religa os contêineres do Airflow pausados
-	@docker ps -a --format '{{.Names}}' | grep '^airflow_' | xargs -r docker start >/dev/null && \
-		echo "Airflow retomado."
+	@$(CONTEINERES) retomar Airflow @airflow
 
 airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
 	$(call preflight,airbyte)
@@ -442,9 +447,14 @@ test-carga: require-env require-venv ## Teste de carga da origem num banco efêm
 	@# migrações e morre no fim — inclusive quando o teste falha (`trap`). O
 	@# teste recusa rodar se o banco a que se conectou não for o que este alvo
 	@# declarou em MVP_TESTE_CARGA_DB.
+	@# O contêiner da origem é resolvido pelos rótulos do Compose: com o nome
+	@# literal, num clone com outro COMPOSE_PROJECT_NAME o banco efêmero nasceria
+	@# no contêiner do projeto ANTIGO enquanto o Alembic migra o do clone.
 	@set -a; . ./.env; set +a; \
+		fonte=$$($(CONTEINERES) resolver source_db | head -1); \
+		[ -n "$$fonte" ] || { echo "ERRO: não resolvi o contêiner 'source_db' deste projeto. Rode 'make up'."; exit 1; }; \
 		efemero="$${SOURCE_DB_NAME}_carga_$$$$"; \
-		psql_src() { docker exec -e PGPASSWORD="$$SOURCE_DB_PASSWORD" mvp_ed1_source_db \
+		psql_src() { docker exec -e PGPASSWORD="$$SOURCE_DB_PASSWORD" "$$fonte" \
 			psql -v ON_ERROR_STOP=1 -q -U "$$SOURCE_DB_USER" -d postgres "$$@"; }; \
 		trap 'psql_src -c "drop database if exists \"$$efemero\"" && echo "banco efêmero $$efemero removido"' EXIT; \
 		psql_src -c "create database \"$$efemero\"" && echo "banco efêmero $$efemero criado"; \

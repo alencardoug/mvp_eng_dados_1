@@ -18,9 +18,21 @@
 # Os custos abaixo são MEDIDOS, e cada um cita onde o número vive (P5).
 set -uo pipefail
 
+# Resolução de contêineres por rótulo do Compose — dono único do assunto, e a
+# razão de o Airflow ter ficado invisível aqui até a Etapa 12 (RV12-2-03).
+# shellcheck source=conteineres.sh
+. "$(dirname "${BASH_SOURCE[0]}")/conteineres.sh"
+
 ALVO="${1:?uso: preflight.sh <airbyte|airflow|streaming> [--trocar]}"
 TROCAR=false
 [ "${2:-}" = "--trocar" ] && TROCAR=true
+
+# Prazos da verificação de trabalho em andamento (RV12-4-04). Sem eles,
+# "não responde" não chega sozinho a desfecho nenhum: uma consulta pendurada
+# pendura quem chamou. Expirar é **indeterminado**, e indeterminado é bloqueio.
+PRAZO_CONSULTA="${PREFLIGHT_PRAZO_CONSULTA:-20}"
+PRAZO_TOTAL="${PREFLIGHT_PRAZO_TOTAL:-90}"
+AIRFLOW_SCHEDULER=""
 
 # --- custos, em MB -----------------------------------------------------------
 # Airbyte: PICO medido em 07/09/2026 durante `make sync-airbyte`, amostrando o
@@ -55,14 +67,19 @@ custo_var="CUSTO_${ALVO}"
 CUSTO="${!custo_var}"
 
 # --- o que já está de pé -----------------------------------------------------
-_no_ar() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "$1"; }
+# O Airbyte continua sendo reconhecido pelo nome: o nó do cluster é criado pelo
+# `abctl`, não pelo Compose, e `airbyte-abctl-control-plane` é nome declarado
+# pela ferramenta. Airflow, streaming e bancos vêm de `resolver`, por rótulo.
+_airbyte_no_ar() {
+	docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'airbyte-abctl-control-plane'
+}
 
 # Um ambiente pelo nome, para reconsultar depois de agir sobre ele.
 _ainda_no_ar() {
 	case "$1" in
-	Airbyte)   _no_ar '^airbyte-abctl-control-plane$' ;;
-	Airflow)   _no_ar '^airflow_' ;;
-	streaming) _no_ar '_(redpanda|kafka_connect)$' ;;
+	Airbyte)   _airbyte_no_ar ;;
+	Airflow)   [ -n "$(resolver @airflow)" ] ;;
+	streaming) [ -n "$(resolver @streaming)" ] ;;
 	*) return 1 ;;
 	esac
 }
@@ -73,20 +90,26 @@ _ainda_no_ar() {
 # sem conferir é pior que não pausar — o preflight libera o alvo achando que
 # desfez o conflito, e os dois ambientes sobem juntos, que é o R11.
 _parar() {
+	local nomes=""
 	case "$1" in
-	streaming) docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda >/dev/null 2>&1 ;;
-	Airbyte)   docker stop airbyte-abctl-control-plane >/dev/null 2>&1 ;;
-	Airflow)   docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop >/dev/null 2>&1 ;;
+	streaming) nomes=$(resolver @streaming) ;;
+	Airflow)   nomes=$(resolver @airflow) ;;
+	Airbyte)   nomes=airbyte-abctl-control-plane ;;
 	esac
+	# shellcheck disable=SC2086
+	[ -n "$nomes" ] && docker stop $nomes >/dev/null 2>&1
 	! _ainda_no_ar "$1"
 }
 
 _religar() {
+	local nomes=""
 	case "$1" in
-	streaming) docker start mvp_ed1_redpanda mvp_ed1_kafka_connect >/dev/null 2>&1 ;;
-	Airbyte)   docker start airbyte-abctl-control-plane >/dev/null 2>&1 ;;
-	Airflow)   docker ps -a --format '{{.Names}}' | grep '^airflow_' | xargs -r docker start >/dev/null 2>&1 ;;
+	streaming) nomes=$(resolver --todos @streaming) ;;
+	Airflow)   nomes=$(resolver --todos @airflow) ;;
+	Airbyte)   nomes=airbyte-abctl-control-plane ;;
 	esac
+	# shellcheck disable=SC2086
+	[ -n "$nomes" ] && docker start $nomes >/dev/null 2>&1
 	_ainda_no_ar "$1"
 }
 
@@ -111,20 +134,94 @@ _restaurar() {
 # Falha de verificação NÃO é sinônimo de "não há trabalho": se o comando não
 # responde, o retorno é "indeterminado" e quem chama trata como bloqueio. Perder
 # uma sincronização silenciosamente é pior que uma recusa a mais.
+# O ruído de inicialização do Airflow (Alembic e plugins) sai no **stdout**,
+# não no stderr: `2>/dev/null` não limpa nada. O JSON é o que sobra depois de
+# descartar as linhas de log, que todas começam por carimbo de tempo.
+_limpar_log() { sed -E '/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z?[[:space:]]+\[/d; /^[[:space:]]*$/d'; }
+
+# Uma consulta ao Airflow, com prazo próprio. Sai 124 quando expira (`timeout`).
+_airflow_consulta() {
+	timeout "$PRAZO_CONSULTA" docker exec "$AIRFLOW_SCHEDULER" "$@" 2>/dev/null
+}
+
+_dag_ids() {
+	grep -oE '"dag_id"[[:space:]]*:[[:space:]]*"[^"]+"' \
+		| sed -E 's/.*"([^"]+)"$/\1/' | sort -u
+}
+
+_run_id() {
+	local r
+	r=$(printf '%s' "$1" | grep -oE '"run_id"[[:space:]]*:[[:space:]]*"[^"]+"' \
+		| head -1 | sed -E 's/.*"([^"]+)"$/\1/')
+	[ -n "$r" ] && printf ' (%s)' "$r"
+}
+
+# A consulta de trabalho do Airflow, escrita por inteiro (RV12-3-03, RV12-4-04):
+#
+# - **por DAG, porque o Airflow 3.2.2 exige `dag_id`** — sem ele a CLI sai com
+#   código 2, e o "corrigido só o nome" do preflight recusaria toda troca;
+# - **o conjunto de DAGs é lido, não fixado**, com os repetidos descartados: a
+#   versão instalada devolve a mesma DAG seis vezes, e a segunda DAG do projeto
+#   não pode depender de alguém lembrar de editar este arquivo;
+# - **DAG pausada não é DAG ociosa** — `is_paused` não é filtro aqui;
+# - **`queued` conta como trabalho**: a CLI filtra o estado exato, e uma
+#   execução enfileirada pode começar entre esta consulta e o `docker stop`;
+# - **prazo por consulta e prazo total**: expirar é indeterminado, que bloqueia.
+#
+# Enumerar DAGs **não** é medir a saúde do scheduler: o comando lê os metadados.
+# O que esta função afirma é "não há execução conhecida", não "o processo vive".
+_airflow_trabalho_ativo() {
+	local inicio bruto limpo dag estado
+	AIRFLOW_SCHEDULER=$(resolver airflow_scheduler | head -1)
+	[ -z "$AIRFLOW_SCHEDULER" ] && {
+		echo "indeterminado — não resolvi o contêiner do scheduler pelos rótulos do Compose"
+		return
+	}
+	inicio=$SECONDS
+
+	bruto=$(_airflow_consulta airflow dags list -o json) \
+		|| { echo "indeterminado — enumeração de DAGs não respondeu no prazo de ${PRAZO_CONSULTA}s"; return; }
+	limpo=$(printf '%s\n' "$bruto" | _limpar_log | tr -d '[:space:]')
+	case "$limpo" in
+	"[]") return ;;   # nenhuma DAG registrada — ocioso
+	\[*)  ;;
+	*) echo "indeterminado — enumeração de DAGs ilegível"; return ;;
+	esac
+
+	local dags
+	dags=$(printf '%s\n' "$bruto" | _limpar_log | _dag_ids)
+	[ -z "$dags" ] && { echo "indeterminado — enumeração sem dag_id legível"; return; }
+
+	for dag in $dags; do
+		for estado in queued running; do
+			if [ $((SECONDS - inicio)) -ge "$PRAZO_TOTAL" ]; then
+				echo "indeterminado — prazo total de ${PRAZO_TOTAL}s esgotado na verificação"
+				return
+			fi
+			bruto=$(_airflow_consulta airflow dags list-runs "$dag" --state "$estado" -o json) \
+				|| { echo "indeterminado — consulta de execuções '$estado' da DAG $dag não respondeu"; return; }
+			limpo=$(printf '%s\n' "$bruto" | _limpar_log | tr -d '[:space:]')
+			case "$limpo" in
+			"[]") ;;
+			\[*) echo "DAG $dag com execução $estado$(_run_id "$bruto")"; return ;;
+			*) echo "indeterminado — resposta ilegível para a DAG $dag no estado $estado"; return ;;
+			esac
+		done
+	done
+}
+
 _trabalho_ativo() {
 	case "$1" in
 	Airbyte)
 		local pods
-		pods=$(docker exec airbyte-abctl-control-plane crictl pods --state Ready 2>/dev/null) \
-			|| { echo "indeterminado — cluster não respondeu"; return; }
+		pods=$(timeout "$PRAZO_CONSULTA" docker exec airbyte-abctl-control-plane \
+			crictl pods --state Ready 2>/dev/null) \
+			|| { echo "indeterminado — cluster não respondeu no prazo de ${PRAZO_CONSULTA}s"; return; }
 		echo "$pods" | grep -qE "replication-job|orchestrator-repl" \
 			&& echo "sincronização em andamento"
 		;;
 	Airflow)
-		local runs
-		runs=$(docker exec airflow_scheduler airflow dags list-runs --state running -o plain 2>/dev/null) \
-			|| { echo "indeterminado — scheduler não respondeu"; return; }
-		echo "$runs" | grep -qE "^[a-z_]+[[:space:]]+" && echo "DAG em execução"
+		_airflow_trabalho_ativo
 		;;
 	streaming)
 		# O pipeline Beam roda fora dos contêineres, no processo Python do host
@@ -135,9 +232,9 @@ _trabalho_ativo() {
 	esac
 }
 
-AIRBYTE_NO_AR=false;   _no_ar '^airbyte-abctl-control-plane$' && AIRBYTE_NO_AR=true
-AIRFLOW_NO_AR=false;   _no_ar '^airflow_'                     && AIRFLOW_NO_AR=true
-STREAMING_NO_AR=false; _no_ar '_(redpanda|kafka_connect)$'    && STREAMING_NO_AR=true
+AIRBYTE_NO_AR=false;   _ainda_no_ar Airbyte   && AIRBYTE_NO_AR=true
+AIRFLOW_NO_AR=false;   _ainda_no_ar Airflow   && AIRFLOW_NO_AR=true
+STREAMING_NO_AR=false; _ainda_no_ar streaming && STREAMING_NO_AR=true
 
 DE_PE=(); CONFLITO=()
 $AIRBYTE_NO_AR   && DE_PE+=("Airbyte (cluster kind)")
@@ -224,9 +321,9 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
     echo ""
     echo "  Veja o que houve e pause você mesmo:"
     case "$FALHOU" in
-      streaming) echo "    docker stop mvp_ed1_kafka_connect mvp_ed1_redpanda" ;;
+      streaming) echo "    docker stop \$(docker/conteineres.sh resolver @streaming)" ;;
       Airbyte)   echo "    docker stop airbyte-abctl-control-plane" ;;
-      Airflow)   echo "    docker ps --format '{{.Names}}' | grep '^airflow_' | xargs -r docker stop" ;;
+      Airflow)   echo "    docker stop \$(docker/conteineres.sh resolver @airflow)" ;;
     esac
     exit 1
   fi

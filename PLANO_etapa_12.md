@@ -314,6 +314,57 @@ pelo conflito de famílias, e nunca chega a consultar DAG: com Airflow de pé e 
 **`make stream-up` recusa**; com Airflow de pé e ocioso, `make stream-up` **pausa** o Airflow e o
 `make airflow-resume` o retoma. As três saídas no dossiê.
 
+**Entregue em 20/09/2026 [medido].** A regra de resolução vive em `docker/conteineres.sh` — dono
+único, com os grupos `@airflow`, `@streaming` e `@bancos` declarados uma vez e citados pelo
+preflight e pelo Makefile. `tests/test_preflight.py` passou de 6 para 21 casos; a suíte inteira
+ficou em **306 passed, 8 skipped** (eram 291 e 8).
+
+O preflight passou a ver o Airflow — antes esta linha dizia só "Airbyte":
+
+```text
+$ make preflight ALVO=streaming
+[preflight] Já de pé: Airbyte (cluster kind);Airflow
+```
+
+**Troca com o Airflow ocioso** (`make stream-up`, caminho `--trocar`), a contraprova que faltava:
+
+```text
+[preflight] RAM disponível agora: 4,2 GB
+[preflight] Airbyte está de pé e ocioso — pausando.
+[preflight] Airbyte pausado — retomar com make airbyte-resume
+[preflight] Airflow está de pé e ocioso — pausando.
+[preflight] Airflow pausado — retomar com make airflow-resume
+[preflight] RAM disponível agora: 6,9 GB — sobraria 6,4 GB
+[preflight] OK
+```
+
+**Recusa com trabalho na fila, em DAG pausada** — os dois casos do RV12-4-04 numa medição só. A
+execução foi enfileirada com a DAG pausada, de propósito: nenhuma tarefa rodou, e nenhum dado foi
+tocado.
+
+```text
+[preflight] Já de pé: Airflow
+RECUSADO — Airflow tem trabalho em andamento: DAG fluxo_batch com execução queued (manual__2026-09-20T19:59:58.032670+00:00).
+```
+
+Antes de B0 esta troca teria passado duas vezes: o Airflow nem era visto e, corrigido só o nome,
+`--state running` devolveria `[]` com a execução enfileirada.
+
+**Pausa e retomada, conferindo o efeito** — a mensagem descreve o que aconteceu:
+
+```text
+$ make stream-pause
+streaming pausado — 2 contêineres parados. Retomar: make stream-resume
+$ make airflow-resume
+Airflow retomado — 4 contêineres de pé.
+```
+
+**O que esta entrega não mediu:** `--trocar` com falha real de `docker stop` (só simulada),
+*scheduler* que responde devagar de verdade (o prazo foi exercitado com relógio falso), DAG nova
+registrada em ambiente real, e o clone com outro `COMPOSE_PROJECT_NAME` (provado por simulação, não
+por clone). A Execução Local §5 e §4 ainda descrevem o comportamento antigo em parte: a atualização
+é de **B6**, como o plano prevê.
+
 ---
 
 ## 3. B1 — o instrumento de medição
