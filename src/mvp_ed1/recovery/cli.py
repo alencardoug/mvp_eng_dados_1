@@ -197,11 +197,18 @@ def comando_verify(args: argparse.Namespace) -> int:
         if not dump.exists():
             problemas.append(f"{nome}: ausente do pacote")
             continue
-        listado = subprocess.run(
-            ["pg_restore", "--list", str(dump)], capture_output=True, text=True
-        )
+        # `pg_restore` vive **nos contêineres**, não no host: o projeto fixa a
+        # imagem do PostgreSQL por digest e não exige cliente instalado na
+        # máquina de quem clona. Medido ao conferir o primeiro pacote.
+        with dump.open("rb") as arquivo:
+            listado = subprocess.run(
+                ["docker", "exec", "-i", _conteineres("warehouse_db"), "pg_restore", "--list"],
+                stdin=arquivo, capture_output=True, text=True,
+            )
         if listado.returncode != 0:
             problemas.append(f"{nome}: `pg_restore --list` recusou — {listado.stderr.strip()[:200]}")
+        elif not listado.stdout.strip():
+            problemas.append(f"{nome}: `pg_restore --list` não devolveu entrada nenhuma")
 
     if args.contra_o_banco:
         problemas += _conferir_contra_o_banco(manifesto)
@@ -230,8 +237,11 @@ def _conferir_contra_o_banco(manifesto: pacote.Manifesto) -> list[str]:
             f"quarentena: {p}" for p in oraculos.contido(manifesto.dados["oraculo_quarentena"], atual)
         ]
         novas = oraculos.acrescimo(manifesto.dados["oraculo_quarentena"], atual)
-        if novas:
-            print(f"[recovery] quarentena: {len(novas)} fatia(s) acrescentada(s) desde o corte")
+        print(
+            f"[recovery] quarentena: {len(manifesto.dados['oraculo_quarentena'])} fatia(s) do "
+            f"manifesto conferidas por contagem e conteúdo, "
+            f"{len(novas)} acrescentada(s) desde o corte"
+        )
 
         scd_atual = leitura.oraculo_scd(armazem)
         for tabela, esperado in manifesto.dados["oraculo_scd"].items():
@@ -242,6 +252,10 @@ def _conferir_contra_o_banco(manifesto: pacote.Manifesto) -> list[str]:
                 problemas.append(
                     f"snapshot {tabela} mudou: manifesto {esperado} × agora {encontrado}"
                 )
+        print(
+            f"[recovery] SCD: {len(manifesto.dados['oraculo_scd'])} snapshot(s) conferidos pelo "
+            "digest canônico de todas as colunas"
+        )
     finally:
         armazem.dispose()
     return problemas

@@ -861,6 +861,69 @@ exercitado por simulação: dependências entre objetos, permissões dos cinco p
 efetiva e propagação de erro do `pg_restore` são medidos na execução, com a saída colada.
 `pg_restore --list` confere o pacote, não a restauração.
 
+**Entregue em 20/09/2026 [medido em parte].** `src/mvp_ed1/recovery/` —
+`rebase.py` (o contrato), `oraculos.py` (a serialização canônica), `pacote.py`
+(destino, manifesto, *checksums*), `leitura.py` (o SQL) e `cli.py` (os verbos) —,
+`src/mvp_ed1/legacy/identidade.py` (a guarda) e os alvos `recovery-pack`,
+`recovery-verify`, `recovery-rebase`, `recovery-restore`, `recovery-promote` e
+`dbt-rebuild`.
+
+**Um pacote foi montado de verdade**, e os oráculos dele reproduzem, sem nenhum
+número copiado do plano, o que as rodadas de revisão mediram por conta própria:
+
+```text
+$ make recovery-pack
+[preflight] nenhum trabalho em andamento — janela parada.
+[recovery] corte em 2026-09-20T21:32:22+00:00 — janela parada
+candidato pronto em /home/doug/Projetos/mvp_ed1/data/recovery/candidato    (31 MB)
+```
+
+| O manifesto diz | O parecer media | |
+|---|---|---|
+| capturas certificadas `[28,29,30,31,32,33,35,36,38,39,43]` | **11** capturas completas (§0) | ✓ |
+| quarentena: **21** fatias, **63.802** linhas | 63.802 em 21 capturas (§16.1) | ✓ |
+| `customers`: 28 classes de geração, mínima 1, máxima 28, **0 nulas** | gerações 1–28, sem nulo (§16.2, §17.3) | ✓ |
+| `scd_customer`: 1.575 linhas, 1.575 `dbt_scd_id` | 1.575 linhas (§0) | ✓ |
+| `max(event_sequence)` = 13.700 | 13.700 movimentos (§0) | ✓ |
+
+```text
+$ make recovery-verify CONTRA_O_BANCO=1
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s)
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+recovery-verify: checksums conferem, manifesto legível, os três dumps se listam.
+
+$ printf 'x' >> data/recovery/candidato/legacy_db.dump && make recovery-verify
+recovery-verify: 1 problema(s)
+
+$ make recovery-rebase DRY_RUN=1
+  brands: 27 classe(s) → -27..-1
+  … (40 tabelas)
+[recovery] --dry-run: nada foi escrito
+```
+
+**Três defeitos que só a execução achou**, todos corrigidos aqui:
+
+- **`recovery-pack` perguntava a coisa errada.** Usava `preflight.sh airbyte`
+  como "há janela parada?", e o preflight responde outra coisa: quanto custa
+  **subir** mais um ambiente. Com o Airbyte já de pé ele somava 4,9 GB que
+  ninguém ia usar e recusava o pacote por falta de memória. `preflight.sh
+  trabalho` passa a ser a pergunta isolada.
+- **`pg_restore` não existe no *host*.** Vive nos contêineres — o projeto fixa a
+  imagem do PostgreSQL por *digest* e não exige cliente instalado em quem
+  clona. O `verify` passou a listar os *dumps* por dentro do contêiner.
+- **A lista de artefatos citava um arquivo que não existe** (`diario.json`) e
+  deixava para trás dois que existem (`manifesto-<hash>.json`). Passou a ser
+  padrão (`data/legacy/*.json`), com os copiados listados no manifesto — e é
+  dessa lista que a devolução sai, em vez de refazer a adivinhação do outro lado.
+
+**O que esta entrega não mediu, e continua sendo de B5:** **nenhuma restauração
+foi feita.** O `pg_restore` em destino povoado — dependências entre objetos,
+permissões dos cinco papéis, substituição efetiva e propagação de erro — não foi
+exercitado; o re-base foi planejado e **não aplicado** (o `--dry-run` é leitura);
+a sequência de nove passos nunca rodou de ponta a ponta; e a guarda de
+identidade nunca enfrentou um Airbyte recém-instalado. `pg_restore --list`
+confere o pacote, não a restauração — e continua sendo isso.
+
 ---
 
 ## 7. B5 — o ciclo do zero, medido
