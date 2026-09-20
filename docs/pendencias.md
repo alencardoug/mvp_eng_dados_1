@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**; a quinta rodada do parecer ([§18](../PLANO_etapa_12.md#18-parecer-da-revisão-6--quinta-rodada-20092026)) não achou bloqueante nem ajuste — só a contagem da §7.2 (RV12-5-01), corrigida em 20/09/2026 — e declarou o desenho sem impedimento para B0–B4; D45–D52 decididas; **nada de B0–B6 implementado** |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, com a revisão **encerrada** em 20/09/2026 — a sexta rodada ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)) voltou sem achados e o desenho está declarado sem impedimento para B0–B4; D45–D52 decididas; **nada de B0–B6 implementado — esperando o aceite do Owner para começar** |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 20/09/2026 |

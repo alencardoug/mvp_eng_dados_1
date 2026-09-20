@@ -65,6 +65,13 @@
 > distinguir **três acessos** de **quatro testes**, com a fixture de módulo de `test_consumo.py`
 > apresentada como o grupo de dois que ela é, e o resto da seleção offline é **165**. §18.2 ganhou
 > a coluna *Situação* preenchida.
+>
+> **Revisão do plano encerrada — 20/09/2026.** A sexta rodada (§19) conferiu a revisão 7 e voltou
+> **sem novos achados**: nada resta a incorporar no escopo conferido, e a conclusão da §18 fica de
+> pé — o desenho permite avançar à implementação de B0–B4. Seis rodadas, **27 achados** (9 + 6 + 6
+> + 5 + 1 + 0), todos fechados com a coluna *Situação* preenchida na rodada que os recebeu. O que
+> falta para o código começar é o **aceite do Owner**; o ciclo destrutivo de B5 continua exigindo
+> autorização própria, separada desse aceite.
 
 ---
 
@@ -932,14 +939,11 @@ só a sequência de *jobs* (D50) não alcança isso. Nenhum certificado guarda a
 
 ## 12. O que pedir ao outro agente
 
-1. **Deste plano — item cumprido até onde a revisão do desenho alcança.** A quinta rodada (§18)
-   deu os quatro ajustes funcionais por incorporados, não achou bloqueante nem ajuste novo e
-   declarou não haver impedimento para implementar B0–B4; a única observação, a contagem da §7.2,
-   está corrigida na revisão 7. Se o Owner der o plano por revisado, o próximo pedido ao outro
-   agente é o item (2), sobre a **entrega**. Se preferir mais uma rodada do desenho, a pergunta
-   que sobra é estreita: a correção da §7.2 fechou a última divergência interna entre §0, §7.2 e
-   §16.6? **Nada disso é aceite de código nem autorização do ciclo destrutivo de B5** — os dois
-   continuam sendo decisão do Owner.
+1. **Deste plano — cumprido e encerrado em 20/09/2026.** Seis rodadas (§13 a §19): a quinta deu
+   os quatro ajustes funcionais por incorporados e declarou não haver impedimento para B0–B4, e a
+   sexta voltou **sem achado nenhum**. Não há mais o que pedir sobre o desenho. **Isso não é
+   aceite de código nem autorização do ciclo destrutivo de B5** — os dois continuam sendo decisão
+   do Owner, e são decisões distintas entre si.
 2. **Da entrega, com o dossiê** (`REVISAO.md`): o declarativo novo — `medir.sh`, `recovery.py`,
    `docs_check.py`, os detectores de `secrets_review`, a lista de tratados —, a Capacidade §2.12
    e §3, a Execução Local corrigida; o derivado é o diário de B5.
@@ -2105,3 +2109,25 @@ operações destrutivas. Os resultados históricos continuam atribuídos às rod
 produziram. Continuam pendentes as provas de implementação e de recuperação da §17.4,
 incluindo a continuidade real do Airbyte, o restore em destino povoado e a preservação
 efetiva dos dados após o rebuild.
+
+## 19. Parecer da revisão 7 — sexta rodada, 20/09/2026
+
+**Escopo:** diff `f4991ae..0de1cc9`, com foco na resposta a RV12-5-01, na coerência entre
+§0, §7.2 e a retificação da §16.6, e nas atualizações da §12 e de `docs/pendencias.md`.
+Conferidos também os dois testes e a fixture de módulo de `tests/test_consumo.py` e os dois
+testes indicados em `tests/test_legacy_classification.py`, por leitura do código.
+
+**Veredito: sem novos achados. RV12-5-01 atendido no plano.** A §7.2 agora distingue os três
+acessos interceptados dos quatro testes dependentes, inclui o segundo teste de consumo e
+identifica a fixture compartilhada. O restante da base histórica de 169 selecionados é 165;
+o limite de cobertura da sonda foi preservado. A retificação da §15.2 mantém o histórico
+identificável, e a §12 e as pendências representam corretamente o alcance do parecer anterior.
+
+Permanece a conclusão da §18: o desenho permite avançar à implementação de B0–B4. Não restam
+achados de revisão do plano a incorporar no escopo conferido. O aceite do Owner, as provas
+da implementação e a validação da recuperação são etapas distintas desta conferência.
+
+**Validação:** `git diff f4991ae 0de1cc9 --check` terminou com código **0**, sem saída.
+O diff altera somente o plano e `docs/pendencias.md`. Não foram executados testes, sondas,
+pipelines ou restaurações nesta rodada; os números citados continuam sendo os registros
+históricos das rodadas anteriores. Permanecem os limites da §17.4 e da §18.3.
