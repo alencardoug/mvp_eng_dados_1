@@ -13,6 +13,7 @@ casaria.
 from __future__ import annotations
 
 import pathlib
+import re
 import subprocess
 import textwrap
 
@@ -308,3 +309,41 @@ def test_env_no_historico_e_aviso_mesmo_sem_achado(repositorio):
 
     _achados, _pulados, avisos = secrets_review.historico(repositorio)
     assert any(".env já foi adicionado ao histórico" in a for a in avisos), avisos
+
+
+# ── As composições tiram credencial do ambiente, não do próprio arquivo ─────
+
+
+def test_nenhuma_composicao_embute_credencial():
+    """A regra inviolável nº 1 vale também para o que é "só interno".
+
+    Até 20/09/2026 `docker-compose.airflow.yml` trazia `airflow`/`airflow` na
+    URL de conexão e no `POSTGRES_PASSWORD` do banco de metadados. Era interno
+    à rede do Compose e nunca exposto — e ainda assim uma credencial fora do
+    `.env`, que é uma exceção não declarada à regra.
+
+    A varredura por forma **não** pega esse caso: `airflow` é palavra única sem
+    dígito, e a regra que excusa `var.password` e `$SENHA` excusa essa também.
+    Este teste existe justamente por isso — o detector genérico não cobre, e
+    uma regressão voltaria calada.
+    """
+    raiz = pathlib.Path(__file__).resolve().parent.parent
+    composicoes = sorted((raiz / "docker").glob("docker-compose*.yml"))
+    assert composicoes, "nenhuma composição encontrada"
+
+    atribuicoes = re.compile(r"(?i)^\s*(POSTGRES_PASSWORD|POSTGRES_USER)\s*:\s*(?P<valor>\S+)")
+    em_url = re.compile(r"://(?P<credencial>[^/:@\s]+:[^@\s]+)@")
+
+    culpados: list[str] = []
+    for composicao in composicoes:
+        for numero, linha in enumerate(
+            composicao.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            atribuicao = atribuicoes.match(linha)
+            if atribuicao and "${" not in atribuicao.group("valor"):
+                culpados.append(f"{composicao.name}:{numero}: valor literal em {linha.strip()}")
+            url = em_url.search(linha)
+            if url and "${" not in url.group("credencial"):
+                culpados.append(f"{composicao.name}:{numero}: credencial literal na URL")
+
+    assert culpados == [], "\n".join(culpados)

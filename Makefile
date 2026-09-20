@@ -129,6 +129,9 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "AIRFLOW_PORT=8081"; \
 		echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
 		echo "AIRFLOW_FERNET_KEY=$$(pw)"; \
+		echo "AIRFLOW_DB_NAME=airflow"; \
+		echo "AIRFLOW_DB_USER=airflow"; \
+		echo "AIRFLOW_DB_PASSWORD=$$(pw)"; \
 		echo ""; \
 		echo "# Caminho quente (Etapa 7) — portas do transporte e do Connect."; \
 		echo "REDPANDA_PORT=19092"; \

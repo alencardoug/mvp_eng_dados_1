@@ -18,7 +18,10 @@ x-airflow-comum: &airflow-comum
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_FOLDER: /opt/mvp_ed1/airflow/dags
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db:5432/airflow
+    # A credencial vem do `.env`, como a dos outros três bancos (regra
+    # inviolável nº 1). `make env` sorteia a senha em `A-Za-z0-9`, que é segura
+    # de embutir numa URL sem escapar.
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:?defina AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD:?defina AIRFLOW_DB_PASSWORD}@airflow_db:5432/${AIRFLOW_DB_NAME:?defina AIRFLOW_DB_NAME}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?defina AIRFLOW_JWT_SECRET}
 
     # No Airflow 3 a tarefa **não** fala com o banco de metadados: ela fala com
@@ -74,13 +77,13 @@ services:
   airflow_db:
     image: postgres:16.15-alpine
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_USER: ${AIRFLOW_DB_USER:?defina AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:?defina AIRFLOW_DB_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME:?defina AIRFLOW_DB_NAME}
     volumes:
       - airflow_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       retries: 12
     restart: unless-stopped
