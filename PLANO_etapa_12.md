@@ -39,8 +39,23 @@
 > do Airflow, que é inválida na versão instalada, e dois defeitos vizinhos medidos aqui
 > (RV12-3-03); a guarda da identidade passa a bloquear **antes** de o *job* escrever (RV12-3-04);
 > o oráculo SCD passa a serializar todas as colunas, porque o proposto não distinguia conteúdo
-> diferente (RV12-3-05); a seleção offline foi varrida inteira e são três testes, não um
-> (RV12-3-06). §15.1 e §15.2 ganharam a coluna *Situação* preenchida.
+> diferente (RV12-3-05); a seleção offline foi varrida inteira e são três acessos ao ambiente, não um
+> (RV12-3-06 — a leitura "três testes" foi corrigida na revisão 6). §15.1 e §15.2 ganharam a
+> coluna *Situação* preenchida.
+>
+> **Revisão 6 — 20/09/2026.** Aplica a quarta rodada do parecer (§17: quatro ajustes, uma
+> observação; **nenhum bloqueante**, e nenhuma decisão reaberta — D45–D52 continuam como estão).
+> O que mudou de forma: o re-base das gerações passa a exigir **preservação da equivalência de
+> geração por tabela**, e não só sinal negativo e idempotência — um re-base por simples negação
+> funde em `-1` a geração retida e a da restauração anterior, e o contraexemplo da §17.3 devolve
+> `inconsistent` sem mudar o hash (RV12-4-01); o oráculo da quarentena passa a comparar **as
+> linhas completas**, com multiplicidade, porque contagem por `(captura, versão, impressão)`
+> aceita troca de payload e perda compensada por duplicação (RV12-4-02); a guarda da identidade
+> passa a valer em **todo disparo da conexão legada** pelos pontos de entrada do projeto — a CLI
+> sem `--certificar-legado` e o `reset` chegam ao `/jobs` por fora da fase 1 (RV12-4-03); a
+> consulta de trabalho do Airflow passa a cobrir `queued` além de `running`, a não descartar DAG
+> pausada e a ter **prazo** por consulta e no todo (RV12-4-04); e as formulações erradas da §0, da
+> §6 e de D51 foram corrigidas (RV12-4-05). §17.2 ganhou a coluna *Situação* preenchida.
 
 ---
 
@@ -60,12 +75,16 @@
   [ADR-0045](docs/adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md), derivada das
   capturas retidas; os *snapshots* SCD (`dbt_project.yml` os declara não reconstruíveis). Versões
   do armazém: `governance._versions` = `0001_legacy_captures`, `0002_snapshot_id_e_o_job`.
-- **A quarentena também é memória, e maior que todas as outras [medido em 19/09, §16]:**
-  `quarantine.rejected_legacy_records` tem **63.802** linhas em **7** versões de catálogo e **8**
-  pares (versão, impressão do tratamento), de **11** capturas. `trusted.legacy_classifications`
+- **A quarentena também é memória, e maior que todas as outras [medido em 19/09, §16; números
+  corrigidos em 20/09, RV12-4-05]:** `quarantine.rejected_legacy_records` tem **63.802** linhas em
+  **7** versões de catálogo e **8** pares (versão, impressão do tratamento), de **15** capturas
+  distintas — 15 é o universo da quarentena; as **11** capturas completas do item anterior são
+  outro conjunto, e a revisão 5 trocava um pelo outro. `trusted.legacy_classifications`
   cobre **uma** captura — a 43, sob a versão 9 e a impressão vigente, **3.207** rejeições. Um
-  armazém reconstruído do zero reproduz essas 3.207 e **não** as outras **60.595**: elas são a
-  auditoria de tratamentos que já não existem, e o modelo só as conserva porque lê a própria
+  armazém reconstruído do zero reproduz essas 3.207 e **não** as outras **60.595**: são as
+  auditorias que **o rebuild da captura corrente não recalcula** — o que não quer dizer que sejam
+  todas de tratamento extinto, porque **9.586** delas ainda usam a versão 9 vigente, de capturas
+  que a classificação corrente já não enxerga (§17.3). O modelo só as conserva porque lê a própria
   tabela anterior. `dbt_project.yml` e [Governança §8](docs/governanca_de_dados.md#8-retenção) a
   declaram `permanent`, "nunca descartada sem decisão registrada" — e a revisão 4 a listava como
   reconstruível pelo dbt. `quarantine.rejected_shipment_deliveries` está **vazia** e é derivada:
@@ -126,13 +145,16 @@
   *restore* cai em cima das 75 linhas do *job* 9 e é recusada — **avançar só `jobs_id_seq` não
   resolve**. Nenhum certificado guarda a geração (`governance.legacy_captures` não tem a coluna) e
   só `captura.py` a lê: nos `.yml` de fonte ela é coluna declarada, sem teste.
-- **A seleção offline, varrida inteira [medido em 19/09, §16]:** `pytest -m "not integracao"`
-  seleciona **169** de 299 testes, e exatamente **três** tocam ambiente —
+- **A seleção offline, varrida inteira [medido em 19/09, §16; leitura corrigida em 20/09,
+  RV12-4-05]:** `pytest -m "not integracao"` seleciona **169** de 299 testes, e a sonda
+  interceptou **três acessos** ao ambiente —
   `test_legacy_classification.py::test_configuracao_divergente_da_impressao_recusa_a_compilacao`
-  (chama `dbt compile`), `…::test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai` (SQL) e
-  `test_consumo.py::test_toda_view_de_consumo_responde` (SQL). Os dois primeiros **falham** com
-  variáveis de conexão presentes e banco indisponível; o terceiro pula limpo. Só o
-  `test_consumo.py` estava previsto.
+  (chama `dbt compile`), `…::test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai` (SQL) e o
+  *setup* da fixture de `test_consumo.py` (SQL). **Três acessos não são três testes:** a fixture é
+  de módulo, e os **dois** testes de `test_consumo.py` dependem dela — são **quatro** testes
+  dependentes de ambiente, e os dois de consumo pulam limpos, sem abrir uma segunda conexão. Os
+  dois de `test_legacy_classification.py` **falham** com variáveis de conexão presentes e banco
+  indisponível. Só o `test_consumo.py` estava previsto.
 - O contrato do evento tem **17** campos: `movement_id` (chave) + 16 (`COLUNAS_DO_EVENTO`).
 - `kind` não está no PATH nem é instalado por `make tools`; o nó do cluster do Airbyte é o
   contêiner `airbyte-abctl-control-plane`, cujo nome não contém `mvp_ed1`.
@@ -224,16 +246,28 @@ contando como bloqueio (regra da Execução Local §5).
 que a ferramenta responda:
 
 - **por DAG, porque o Airflow exige**: o conjunto vem de `airflow dags list -o json`, **com os
-  repetidos descartados** — a versão instalada devolve a mesma DAG seis vezes —, e para cada uma
-  `airflow dags list-runs <dag_id> --state running -o json`. Hoje o projeto tem uma
-  (`fluxo_batch`); a consulta não a fixa, porque a segunda DAG não pode depender de alguém
-  lembrar deste arquivo;
+  repetidos descartados** — a versão instalada devolve a mesma DAG seis vezes — e **sem filtrar
+  por `is_paused`**: DAG pausada pode ter execução em andamento, e pausa não é ociosidade
+  (RV12-4-04). A enumeração padrão lê o `SerializedDagModel` e não exclui pausadas, então uma DAG
+  recém-registrada entra sozinha (§17.3). Hoje o projeto tem uma (`fluxo_batch`); a consulta não a
+  fixa, porque a segunda DAG não pode depender de alguém lembrar deste arquivo;
+- **`queued` conta como trabalho, não só `running` (RV12-4-04)**: a CLI filtra o **estado exato**
+  pedido, e um `DagRun` `queued` fica de fora de `--state running` — e pode começar entre a
+  consulta e a pausa, que é a corrida que o preflight existe para evitar. São os dois estados por
+  DAG (`airflow dags list-runs <dag_id> --state queued|running -o json`), e **qualquer resposta
+  não vazia recusa**;
 - **a saída é lida do `stdout` sujo**: o ruído de inicialização do Alembic sai no **stdout**, não
   no stderr — `2>/dev/null` não limpa nada. O JSON é o que resta depois de descartar as linhas de
   *log*, como `dag-status` já faz; `[]` é ocioso, lista não vazia é trabalho;
 - **três desfechos, não dois**: ocioso → libera; execução ativa → recusa com o `run_id` na
   mensagem; **falha de consulta, JSON ilegível ou DAG que não responde → indeterminado**, que
-  continua sendo bloqueio. É a regra que já existe, agora alcançável.
+  continua sendo bloqueio. É a regra que já existe, agora alcançável;
+- **e um prazo, porque "não responde" precisa de relógio (RV12-4-04)**: cada consulta roda sob
+  limite de tempo próprio, e a verificação inteira sob um limite total; **expirar é
+  indeterminado**, portanto bloqueio. Sem prazo, uma consulta pendurada não chega sozinha a
+  desfecho nenhum — fica pendurada, e quem chamou fica junto. E enumerar DAGs **não** é medir a
+  saúde do *scheduler*: o comando lê os metadados do banco. O que o preflight afirma é "não há
+  execução conhecida", não "o processo está vivo" — a diferença é escrita na mensagem.
 
 **O inventário dos consumidores por nome, levantado [medido em 19/09, §16]** — é a pergunta
 que a §15.4 deixou aberta, e a resposta é que falta um:
@@ -255,7 +289,10 @@ aconteceu. Nenhum `&&` depois de `xargs -r` decide texto de sucesso.
 inventário. Da consulta: DAG em execução → recusa; **nenhuma execução → libera** (a contraprova
 que faltava); saída com o ruído do Alembic à frente do JSON → interpretada; `dag_id` ausente,
 código 2 ou JSON ilegível → indeterminado → bloqueio; duas DAGs, uma ociosa e outra rodando →
-recusa. Da pausa: nenhum contêiner resolvido → **não** diz "pausado". Contraprova na máquina, e
+recusa. E os casos que a quarta rodada acrescentou (RV12-4-04): execução **`queued`** → recusa;
+DAG **pausada com execução em andamento** → recusa; DAG recém-registrada, ausente de qualquer
+lista fixa → entra na consulta; consulta **lenta ou pendurada** → expira → indeterminado →
+bloqueio. Da pausa: nenhum contêiner resolvido → **não** diz "pausado". Contraprova na máquina, e
 ela precisa alcançar o caminho `--trocar` — `make preflight ALVO=streaming` sozinho recusa antes
 pelo conflito de famílias, e nunca chega a consultar DAG: com Airflow de pé e uma DAG rodando,
 **`make stream-up` recusa**; com Airflow de pé e ocioso, `make stream-up` **pausa** o Airflow e o
@@ -407,10 +444,10 @@ reconstruível pelo dbt (D51, sobre o RV12-3-01):
 | Conteúdo | Por quê | Como |
 |---|---|---|
 | `source_db.dump`, `legacy_db.dump` | as fontes, como antes | `pg_dump -Fc` pelos contêineres |
-| `warehouse_memoria.dump` = schemas **`raw_legacy`**, **`governance`**, **`snapshots`**, **`quarantine`** | capturas retidas com certificados (ADR-0037/0044), de onde a memória de exclusões (ADR-0045, `trusted.legacy_removed_records` é `table`, rebuildable a partir delas) renasce; histórico SCD (não reconstruível); e a **auditoria da quarentena** — 60.595 das 63.802 linhas são de tratamentos que já não existem, e só sobrevivem porque o modelo lê a própria tabela anterior (§0) | `pg_dump -Fc -n raw_legacy -n governance -n snapshots -n quarantine` |
+| `warehouse_memoria.dump` = schemas **`raw_legacy`**, **`governance`**, **`snapshots`**, **`quarantine`** | capturas retidas com certificados (ADR-0037/0044), de onde a memória de exclusões (ADR-0045, `trusted.legacy_removed_records` é `table`, rebuildable a partir delas) renasce; histórico SCD (não reconstruível); e a **auditoria da quarentena** — 60.595 das 63.802 linhas nenhum rebuild da captura corrente recalcula (nem todas de tratamento extinto: 9.586 ainda estão sob a versão vigente, RV12-4-05), e só sobrevivem porque o modelo lê a própria tabela anterior (§0) | `pg_dump -Fc -n raw_legacy -n governance -n snapshots -n quarantine` |
 | `data/legacy/manifesto.json` e o diário | os oráculos do dump do legado — sem eles os testes pulam ou usam o manifesto de outra geração (RV12-09) | copiados, com *checksum* |
 | `.stream/producer_state.json` | o cursor do produtor que corresponde ao livro | copiado; a regra: restaurar o livro restaura o cursor |
-| `manifesto.json` | `seed`, `as_of_date`, `alembic current` dos **dois bancos de origem**, `governance._versions` do armazém (é o oráculo de versão dele — não há Alembic lá, e não haverá), `max(event_sequence)`, `git rev-parse HEAD`, contagens e tamanhos por tabela dos três *dumps*, hora do corte; **o oráculo SCD** (RV12-2-01, corrigido pelo RV12-3-05, abaixo); **o oráculo das capturas**: `max(snapshot_id)` retido, a lista de `snapshot_id` certificados e a **maior geração retida por tabela** (D52); **o oráculo da quarentena** (D51): linhas por `(source_system, snapshot_id, catalog_version, treatment_fingerprint)` — que é de **continência**, porque uma captura nova acrescenta uma fatia (passo 9) | gerado |
+| `manifesto.json` | `seed`, `as_of_date`, `alembic current` dos **dois bancos de origem**, `governance._versions` do armazém (é o oráculo de versão dele — não há Alembic lá, e não haverá), `max(event_sequence)`, `git rev-parse HEAD`, contagens e tamanhos por tabela dos três *dumps*, hora do corte; **o oráculo SCD** (RV12-2-01, corrigido pelo RV12-3-05, abaixo); **o oráculo das capturas**: `max(snapshot_id)` retido, a lista de `snapshot_id` certificados e a **maior geração retida por tabela** (D52); **o oráculo da quarentena** (D51, corrigido pelo RV12-4-02): por chave `(source_system, snapshot_id, catalog_version, treatment_fingerprint)`, a contagem **e um resumo canônico das linhas completas, com multiplicidade** — a contagem sozinha aceita troca de payload, troca de motivo e perda de uma linha compensada por outra do mesmo grupo, e a sonda da §17.3 mediu exatamente isso: contagens iguais, uma linha perdida. É oráculo de **continência**, porque uma captura nova acrescenta uma fatia (passo 9) | gerado |
 | *checksums* de tudo; `RESTAURAR.md` com os comandos exatos | | gerado |
 
 **Fora do pacote, por construção (o limite, escrito):** `raw` (o Airbyte refaz do `source_db`
@@ -430,8 +467,10 @@ alterado. O oráculo passa a ser, por *snapshot*: linhas, `count(distinct dbt_sc
 de uma **serialização canônica de todas as colunas de cada versão** — nulo escrito como marcador
 explícito (nunca concatenação nua), ordenação estável por `(dbt_scd_id, dbt_valid_from)` e
 multiplicidade preservada. Contraprovas no `tests/test_recovery.py`: alterar atributo de versão
-fechada, alterar a validade de versão vigente e duplicar uma linha **mudam o hash** sem mudar
-contagem nem `dbt_scd_id`.
+fechada e alterar a validade de versão vigente **mudam o hash** sem mudar contagem nem
+`dbt_scd_id` — são as duas que o oráculo antigo não via. Duplicar uma linha muda o hash **e** a
+contagem; a redação anterior dizia que a contagem não mudava, e era falsa (RV12-4-05). As três
+continuam valendo como contraprova.
 
 **O corte estável (RV12-02).** `recovery-pack` só roda em **janela parada**: confere, como o
 preflight, que não há sincronização, DAG, Beam nem produtor; os três `pg_dump` e as contagens
@@ -463,14 +502,41 @@ execução; em B5 é passado explicitamente ao clone — RV12-09):
    voltar em `raw_legacy` vai para uma faixa própria, **negativa** — a leitura é imediata,
    "geração anterior à restauração". É o passo que impede um Airbyte novo, que recomeça a geração
    em 1, de escrever por cima das gerações 1–28 retidas e ser recusado como `inconsistent` (§0).
-   Idempotente: o que já é negativo fica. Nenhum certificado referencia a geração e só
-   `captura.py` a lê (medido, §16), e por isso este é o único metadado do bruto que a
-   restauração reescreve — o conteúdo e o `sync_id` não são tocados, e os hashes das capturas
-   retidas continuam valendo.
+   Nenhum certificado referencia a geração e só `captura.py` a lê (medido, §16), e por isso este é
+   o único metadado do bruto que a restauração reescreve — o conteúdo e o `sync_id` não são
+   tocados, e os hashes das capturas retidas continuam valendo.
+
+   **O contrato do re-base, escrito por inteiro (RV12-4-01).** "Negativo e idempotente" não basta,
+   e o contraexemplo é do **segundo** ciclo: depois de uma restauração o bruto já tem geração `-1`
+   antiga e `1` nova, e um re-base que apenas negue as positivas e deixe as negativas como estão
+   satisfaz os dois critérios escritos — **fundindo as duas em `-1`**. A sonda da §17.3 fez isso: o
+   veredito real passou de `complete` a `inconsistent` **sem que o hash mudasse**, ou seja, a
+   captura fica recusada com o conteúdo correto. Separar por *job* também não serve: daria
+   gerações distintas a linhas que originalmente **compartilhavam** uma geração, e é nessa
+   coincidência que uma intrusa se esconde. O contrato passa a ser, **por tabela**:
+
+   - **preservação da equivalência de geração** — linhas com a mesma geração continuam com a
+     mesma; linhas com gerações diferentes continuam diferentes, **inclusive perante os negativos
+     já presentes** de uma restauração anterior. É injetividade sobre as classes de geração
+     retidas, não um sinal;
+   - **faixa livre** — os valores novos ocupam faixa estritamente negativa ainda não usada, sem
+     encostar nos negativos existentes;
+   - **domínio conferido** — toda linha retida fica com geração **estritamente negativa e não
+     nula**; a conferência é essa, e não "ausência de positivas", que um nulo atravessa;
+   - **idempotência**, como antes: aplicar duas vezes é aplicar uma.
+
+   As cargas novas escrevem em gerações não negativas — é a premissa, declarada, e o
+   [ADR-0044](docs/adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) não muda com ela —,
+   e por isso as faixas não se encontram. **Uma implementação que não consiga preservar essas
+   propriedades recua** e devolve a consequência ao Owner, em vez de re-basear do jeito que der:
+   este passo escreve no único dado que o pacote traz de volta.
 5. **Conferir conteúdo**: contagens × manifesto nos quatro schemas restaurados;
    `governance._versions`; `alembic current` nas fontes; a quarentena por
-   `(captura, versão, impressão)` = manifesto; e **nenhuma geração positiva em `raw_legacy`**,
-   que é o oráculo do passo 4b.
+   `(captura, versão, impressão)` = manifesto, por contagem **e** pelo resumo canônico das linhas
+   (RV12-4-02); e o **oráculo do passo 4b** (RV12-4-01): por tabela, geração estritamente negativa
+   e não nula em toda linha retida, **a mesma quantidade de classes de geração** de antes do
+   re-base e **a mesma partição** das linhas entre elas — não apenas "nenhuma geração positiva",
+   que é satisfeito por um re-base que funde faixas.
 6. Restaurar `manifesto.json`/diário e `producer_state.json` nos caminhos do *checkout*.
 7. **Novo *snapshot***: `stream-up` (preflight ativo) → `stream-run` até `stream-wait` (o
    corte é o `max(event_sequence)` do manifesto) → encerrar.
@@ -494,13 +560,17 @@ execução; em B5 é passado explicitamente ao clone — RV12-09):
    `1`,`2`,`3`); a captura selecionada é certificada; `governance._versions` intacto; **as versões
    SCD são as do manifesto** — linhas, `dbt_scd_id` distintos e o `md5` da serialização canônica
    de todas as colunas, por *snapshot*, iguais antes e depois da reconstrução; **a auditoria da
-   quarentena contém a do manifesto, linha por linha** (D51): cada par
-   `(captura, versão, impressão)` do manifesto reaparece com a **mesma contagem** — nenhum some,
-   nenhum muda. O total **não** é igual, e não deve ser: a sincronização do passo 8 traz a
-   captura 44, que vira a selecionada, e a classificação corrente passa a ser dela — a fatia da
-   43 é **retida**, não recalculada, e a da 44 entra ao lado. O oráculo é a continência exata mais
-   o acréscimo declarado, nunca a igualdade do total; **a captura nova é certificada acima da 43**
-   com o Airbyte novo (D50 + D52).
+   quarentena contém a do manifesto, linha por linha e não só por contagem** (D51, corrigido pelo
+   RV12-4-02): cada chave `(source_system, captura, versão, impressão)` do manifesto reaparece com
+   a **mesma contagem e o mesmo resumo canônico das linhas completas**, multiplicidade preservada
+   — nenhuma some, nenhuma muda de conteúdo, nenhuma é trocada por outra do mesmo grupo. O
+   acréscimo da captura nova é conferido **à parte**, pela identidade que o Airbyte devolveu de
+   fato (o `jobId` do *job* disparado), não por um número escrito neste plano. O total **não** é
+   igual, e não deve ser: a sincronização do passo 8 traz uma captura nova, que vira a
+   selecionada, e a classificação corrente passa a ser dela — a fatia da 43 é **retida**, não
+   recalculada, e a da nova entra ao lado. O oráculo é a continência exata mais o acréscimo
+   declarado, nunca a igualdade do total; **a captura nova é certificada acima da 43** com o
+   Airbyte novo (D50 + D52).
 
 **A identidade da captura num Airbyte novo — D50 e D52 [decididos].** `snapshot_id` é o `job_id`
 do Airbyte; uma instalação nova recomeça em 1 e colide com o que o pacote retém (*jobs* 9–43).
@@ -511,13 +581,32 @@ identidade do [ADR-0044](docs/adr/0044-certificar-cada-captura-do-legado-por-con
    `captura.decidir`, que roda na **fase 2** — depois de o Airbyte ter terminado o *append*.
    Recusar ali não desfaz nada: as linhas do *job* reutilizado já estão no bruto, o certificado
    antigo continua elegível, e a captura 43 passa a ler duas linhas onde havia uma. A verificação
-   operacional passa a ser **pré-condição de disparar o *job***, nos dois chamadores — o
-   `make sync-legacy` e a tarefa da DAG —, junto da fase 1: se o próximo `job_id` do Airbyte for
-   `≤ max(snapshot_id)` certificado, **o *job* não é disparado** e o motivo é
-   `identidade reutilizada ou retrocedida`. A guarda em `decidir` **continua existindo** como
-   rede: ela é a regra pura, sem banco, e é o que protege o caminho que não passou pela
-   pré-condição. O ADR-0044 ganha as duas nas *Consequências*, sem ADR novo. Reenvio de tentativa
-   já concluída continua devolvendo o certificado gravado, sem remedição (o contrato da §fase 2).
+   operacional passa a ser **pré-condição de todo disparo da conexão legada**, em todos os pontos
+   de entrada do projeto: se o próximo `job_id` do Airbyte for `≤ max(snapshot_id)` certificado,
+   **o *job* não é disparado** e o motivo é `identidade reutilizada ou retrocedida`.
+
+   **"Junto da fase 1" não cobre as entradas que existem (RV12-4-03).** A revisão 5 punha a guarda
+   no fluxo certificado e na fase 1 da DAG, e a sonda da §17.3 — sem enviar requisição nenhuma —
+   mostrou duas entradas que passam ao largo das duas:
+   `python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy`, **sem**
+   `--certificar-legado`, chega ao `POST /jobs` pelo ramo direto do `main` da CLI, e a mesma CLI
+   aceita `reset` para essa conexão. Nesses caminhos `decidir` nem é chamado — e, se fosse, não
+   desfaria um *append* já ocorrido. Então:
+
+   - **na CLI**: o `sync` da conexão legada sem *flag* ou é **encaminhado** ao fluxo protegido, ou
+     é **recusado antes do POST**; não segue pelo ramo direto;
+   - **o `reset` da conexão legada** é tratado explicitamente — é incompatível com a retenção do
+     bruto, e ou exige autorização própria e declarada, ou é recusado no mesmo ponto;
+   - **na DAG**: a verificação fica na tarefa que **efetivamente dispara**
+     (`sincronizar_legado_para_raw_legacy`), não só na fase 1 — `iniciar_captura_do_legado` e a
+     sincronização são tarefas distintas, e reexecutar a segunda sozinha não repete a primeira
+     (medido na §17.3).
+
+   A guarda em `decidir` **continua existindo** como rede, e o que ela faz é **recusar o
+   certificado**: ela roda depois da escrita e **não protege retroativamente o bruto**. A redação
+   anterior atribuía a ela uma proteção que ela não tem. O ADR-0044 ganha as duas nas
+   *Consequências*, sem ADR novo. Reenvio de tentativa já concluída continua devolvendo o
+   certificado gravado, sem remedição (o contrato da §fase 2).
 2. **Regra operacional na restauração — o contador de *jobs***: a sequência de restauração **não
    toca no Airbyte** — numa recuperação real ele continua o mesmo e os `job_id` seguem. Só quando
    o Airbyte é uma instalação nova (B5, ou um desastre que o levou junto) entra o passo
@@ -539,12 +628,19 @@ identidade do [ADR-0044](docs/adr/0044-certificar-cada-captura-do-legado-por-con
    As alternativas descartadas — avançar também a geração (dois internos), marca-d'água na
    certificação (muda o contrato do ADR-0044) e limite declarado (C4 com lacuna) — estão na §10.
 
-**Prova (rodada 2, completada pela rodada 3):** teste sem banco com captura retida 43 e (a)
-*job* novo 3 → recusado **antes do disparo**; (b) *job* 43 reutilizado → recusado antes do
-disparo, e o bruto e o hash da captura 43 ficam **idênticos** depois da recusa; (c) *job* 44 →
-certificado e selecionado; (d) *job* 44 numa geração reutilizada de um *job* antigo → hoje
-`inconsistent`, e **depois do re-base** → `complete` (é a contraprova que fecha o RV12-3-02);
-(e) reenvio de tentativa concluída → devolve o certificado gravado. A contraprova de colisão
+**Prova (rodada 2, completada pelas rodadas 3 e 4):** teste sem banco com captura retida 43 e
+(a) *job* novo de identidade abaixo da retida → recusado **antes do disparo**, com **zero
+`POST /jobs`**; (b) *job* 43 reutilizado → recusado antes do disparo, **zero POSTs**, e o bruto e
+o hash da captura 43 **idênticos** depois da recusa; (c) *job* acima do retido → certificado e
+selecionado; (d) *job* novo numa geração reutilizada de um *job* antigo → hoje `inconsistent`, e
+**depois do re-base** → `complete` (é a contraprova que fecha o RV12-3-02); (e) reenvio de
+tentativa concluída → devolve o certificado gravado; (f) **`sync` da CLI sem `--certificar-legado`
+e `reset` da conexão legada** → encaminhados ao fluxo protegido ou recusados, com **zero POSTs**
+nos caminhos recusados (RV12-4-03); (g) a tarefa de sincronização da DAG **reexecutada sozinha**,
+sem repetir a fase 1 → a pré-condição roda mesmo assim. Os números de *job* citados neste plano
+(1, 2, 3, 43, 44) são **exemplos de redação**: os oráculos executáveis leem o `jobId` devolvido
+pelo Airbyte, porque o contador é o mesmo da conexão principal e dos *resets* e não avança de um
+em um para a conexão legada (RV12-4-05). A contraprova de colisão
 intencional roda em **destino isolado**, nunca sobre o único pacote e o seu bruto. Em B5, linha
 9: com o Airbyte novo, o re-base do passo 4b, a sequência avançada e a sincronização seguinte
 certificada como 44+ e selecionada sobre a 43 restaurada — as saídas coladas.
@@ -554,9 +650,15 @@ sequência acima aplica, na ordem que ela já tinha.
 
 **Prova sem banco.** `tests/test_recovery.py`: manifesto gerado e lido, **inclusive os oráculos
 SCD, das capturas e da quarentena**; o oráculo SCD **muda** quando muda atributo de versão
-fechada, validade de versão vigente ou multiplicidade (RV12-3-05); *checksum* alterado acusado;
-árvore suja recusada; `restore` sem `RESTAURAR=1` recusado antes de tocar em banco; o re-base das
-gerações é **idempotente** e não altera `sync_id`, conteúdo nem hash (D52); a sequência de
+fechada, validade de versão vigente ou multiplicidade (RV12-3-05); o **oráculo da quarentena
+acusa** troca de payload, troca de motivo e perda de uma linha compensada por duplicação dentro do
+mesmo grupo — os três casos que a contagem sozinha deixava passar (RV12-4-02); *checksum* alterado
+acusado; árvore suja recusada; `restore` sem `RESTAURAR=1` recusado antes de tocar em banco; o
+re-base das gerações é **idempotente**, não altera `sync_id`, conteúdo nem hash (D52) e
+**preserva a equivalência de geração por tabela** (RV12-4-01) — com contraprova de **segundo
+pacote**, em que já há negativos antes do re-base, e de **intrusa já presente no conjunto
+retido**, que precisa continuar detectada depois dele; um re-base por simples negação das
+positivas é **recusado** pelo teste; a sequência de
 restauração, simulada com o Makefile real e registradores no lugar dos executáveis (a técnica da
 §14.3), **nunca** chama `dbt-drop-snapshots` e **nunca** derruba `quarantine`, e o re-base vem
 **antes** da primeira sincronização; **composição** `recovery-restore RESTAURAR=1` num Makefile de
@@ -630,14 +732,14 @@ A ordem **não** é a da Execução Local §3 de hoje: o *streaming* vem antes d
 | # | Cenário | Alvos | De pé | `ATE` | O que a linha prova |
 |---|---|---|---|---|---|
 | 1 | Base | `up` → `migrate` → `seed-data` → `migrate-legacy` → `seed-legacy` | bancos | — | migrações do zero; cobertura (`test_cobertura`, manifesto do legado novo) |
-| 2 | Carga | `airbyte-up` → `airbyte-config` → `sync-airbyte` → `sync-legacy` | + Airbyte | — | `raw`, `raw_legacy`, captura 1 certificada; o pico da etapa |
+| 2 | Carga | `airbyte-up` → `airbyte-config` → `sync-airbyte` → `sync-legacy` | + Airbyte | — | `raw`, `raw_legacy`, a primeira captura certificada — a identidade é o `jobId` devolvido, não `1` por definição (RV12-4-05); o pico da etapa |
 | 3 | Streaming — o *snapshot* | `make medir CENARIO=streaming` (sem `LIMITE`: sobe, `stream-run` sob guarda, corte = origem, `stream-wait`, encerra) | + streaming (pausa o Airbyte) | interno ao cenário | o livro quente igual à origem (comparação da §3.2: chave + as 16 colunas de `COLUNAS_DO_EVENTO`, lidas da tupla, e o saldo por armazém/SKU — os quatro zeros); Beam encerrado ao fim |
 | 4 | Transformação | `airbyte-up` (pausa o streaming) → `dbt-build` → `check` | + Airbyte | — | o primeiro `build` completo: `PASS=`, `caminhos_de_ingestao_reconciliam`, as oito fronteiras |
-| 5 | Orquestração | `airflow-up` → `dag-run` | + Airflow (Airbyte de pé: o par permitido) | `dag-wait` | 13 tarefas `success`, tempo da DAG, captura 2 certificada |
+| 5 | Orquestração | `airflow-up` → `dag-run` | + Airflow (Airbyte de pé: o par permitido) | `dag-wait` | 13 tarefas `success`, tempo da DAG, a captura seguinte certificada (identidade lida do `jobId` devolvido) |
 | 6 | Streaming — eventos novos | `make medir CENARIO=streaming LIMITE=n` (sobe, `stream-run` sob guarda, produz, **corte lido depois do produtor**, `stream-wait`, encerra) → `stream-alerts` | + streaming (Airbyte e Airflow pausados **pelo preflight de B0**) | interno ao cenário | os `n` eventos novos chegam (não só o *snapshot*); alerta emitido; Beam encerrado ao fim |
 | 7 | Reconciliação dos caminhos | `airbyte-up` → `sync-airbyte` → `dbt-build` | + Airbyte | — | os dois caminhos iguais com os eventos novos |
 | 8 | Catálogo | `docs-generate` → `catalog` | bancos | — | tempo; `sensitivity --check`, `lineage --check` sem diferença; `curl` na porta do `dbt-docs` no diário |
-| 9 | Recuperação | `recovery-restore RESTAURAR=1` (a sequência da §6, passo a passo, cada um medido) → `recovery-promote` | conforme o passo | — | C4 inteira: as fontes **e a memória** de volta — capturas, certificados, SCD e a **quarentena** (D51); o `pg_restore` em destino **povoado**, com dependências, permissões e erros propagados; o livro igual; a memória de exclusões renascida; **as versões SCD iguais ao manifesto** pelo oráculo canônico; **a auditoria da quarentena igual ao manifesto**; o **re-base das gerações** conferido (D52); a guarda D50 dispara **antes do disparo do job** com o Airbyte novo, a sequência é avançada, a captura seguinte é certificada acima da 43 |
+| 9 | Recuperação | `recovery-restore RESTAURAR=1` (a sequência da §6, passo a passo, cada um medido) → `recovery-promote` | conforme o passo | — | C4 inteira: as fontes **e a memória** de volta — capturas, certificados, SCD e a **quarentena** (D51); o `pg_restore` em destino **povoado**, com dependências, permissões e erros propagados; o livro igual; a memória de exclusões renascida; **as versões SCD iguais ao manifesto** pelo oráculo canônico; **a auditoria da quarentena contendo a do manifesto — contagem e conteúdo por chave, com multiplicidade** (RV12-4-02), mais o acréscimo da captura nova conferido à parte; o **re-base das gerações** conferido (D52), inclusive a preservação da equivalência de geração por tabela (RV12-4-01); a guarda D50 dispara **antes do disparo do job** com o Airbyte novo, a sequência é avançada, a captura seguinte é certificada acima da 43 |
 
 Cada linha vira uma linha da **Capacidade §2.12**, com estado da estação, intervalo e número de
 amostras. **R11** vale o tempo todo; recusa do preflight é registrada, não contornada.
@@ -668,7 +770,9 @@ amostras. **R11** vale o tempo todo; recusa do preflight é registrada, não con
    restauração; §4 com os alvos novos; §5 com a detecção por rótulos **e a consulta de trabalho
    por DAG**; §6 com a armadilha do `PG_VERSION` conferida e a regra da sequência do Airbyte.
 2b. **ADR-0044**: nas *Consequências*, a guarda de identidade da captura — **antes do disparo do
-   *job*** e como rede em `decidir` (D50) — e o re-base das gerações na restauração (D52), cada
+   *job*, em todo ponto de entrada da conexão legada** (RV12-4-03), e como rede em `decidir`, que
+   recusa o certificado e não protege o bruto retroativamente (D50) — e o re-base das gerações na
+   restauração, com a preservação da equivalência de geração por tabela (D52 + RV12-4-01), cada
    uma com data e referência à decisão, preservando o texto aceito.
 3. **Governança**: a lista de segredos tratados, se houver (ou o dono que B6 fixar); e na §8, o
    ponteiro de que a retenção `permanent` passa a ter respaldo no pacote de recuperação — uma
@@ -756,7 +860,9 @@ Owner. Hoje **[medido]** não há chave de nuvem em lugar nenhum.
 O que está em jogo, medido: `quarantine.rejected_legacy_records` tem **63.802** linhas de
 auditoria em 8 pares (versão de catálogo, impressão do tratamento); uma reconstrução do zero
 reproduz **3.207** — a fatia da captura corrente sob o tratamento vigente — e **não** as outras
-**60.595**, que são a auditoria de tratamentos que já não existem. `dbt_project.yml` e a
+**60.595**, que são as auditorias que o rebuild da captura corrente não recalcula. (Nem todas de
+tratamento extinto: **9.586** ainda usam a versão 9 vigente, de capturas que a classificação
+corrente já não enxerga — correção da quarta rodada, RV12-4-05, que não altera a decisão.) `dbt_project.yml` e a
 [Governança §8](docs/governanca_de_dados.md#8-retenção) declaram a quarentena `permanent`,
 "nunca descartada sem decisão registrada", e a revisão 4 a listava como reconstruível pelo dbt.
 
@@ -804,19 +910,24 @@ só a sequência de *jobs* (D50) não alcança isso. Nenhum certificado guarda a
   depende dele. D52 tirou o segundo — a geração — dessa dependência de propósito.
 - **O re-base das gerações escreve no bruto retido** (D52): é a única escrita da restauração
   sobre dado que veio do pacote. Idempotente, sem tocar em `sync_id`, conteúdo ou hash, e provada
-  assim antes de B5 — mas é escrita, e é por isso que está declarada aqui e não só na §6.
+  assim antes de B5 — mas é escrita, e é por isso que está declarada aqui e não só na §6. **A
+  quarta rodada mostrou que a idempotência não basta:** sem preservar a equivalência de geração, o
+  segundo ciclo funde as faixas e recusa uma captura correta (RV12-4-01). O contrato inteiro está
+  na §6, passo 4b, e a implementação que não o alcançar **para** em vez de improvisar.
 
 ---
 
 ## 12. O que pedir ao outro agente
 
-1. **Deste plano, revisão 5** — antes do código: os seis achados da rodada 3 estão fechados na
-   letra e no espírito? Em particular: (a) o re-base das gerações (D52) resolve o RV12-3-02 sem
-   abrir buraco na conferência de intrusas — há caminho em que a geração negativa volte a
-   encontrar a faixa nova? (b) a quarentena no pacote (D51) sobrevive mesmo ao `dbt-rebuild`, ou
-   há caminho do dbt que recrie `rejected_legacy_records` sem ler a anterior? (c) a consulta de
-   trabalho por DAG cobre o que o preflight precisa saber, inclusive DAG nova e *scheduler* que
-   responde devagar? (d) o inventário de consumidores por nome da §2.1 está completo?
+1. **Deste plano, revisão 6** — antes do código: os cinco achados da rodada 4 estão fechados na
+   letra e no espírito? Em particular: (a) o contrato do re-base (§6, passo 4b) exclui **todas** as
+   implementações que fundem classes de geração, e a conferência de intrusas continua inteira
+   depois dele, inclusive num terceiro ciclo? (b) o oráculo de continência da quarentena — chave,
+   contagem e resumo canônico das linhas completas — detecta troca de payload, troca de motivo e
+   perda compensada por duplicação? (c) a guarda da identidade alcança **todo** ponto de entrada
+   do projeto que chega ao `POST /jobs` da conexão legada, incluindo `reset` e a tarefa da DAG
+   reexecutada sozinha? (d) a consulta de trabalho, com `queued`, DAG pausada e prazo, decide
+   certo com *scheduler* lento e DAG recém-registrada?
 2. **Da entrega, com o dossiê** (`REVISAO.md`): o declarativo novo — `medir.sh`, `recovery.py`,
    `docs_check.py`, os detectores de `secrets_review`, a lista de tratados —, a Capacidade §2.12
    e §3, a Execução Local corrigida; o derivado é o diário de B5.
@@ -1367,6 +1478,11 @@ As outras três capturas sob a versão 9 (36, 38, 39 — 3.470, 2.909 e 3.207 li
 recalculadas: a classificação corrente só enxerga a selecionada. É o que torna a quarentena
 memória, e não derivado.
 
+**Retificação (RV12-4-05, 20/09).** A quarentena tem **15** `snapshot_id` distintos, não 11 — o 11
+citado na §0 era o das capturas completas, outro universo. E das 60.595, **9.586** ainda estão sob
+a versão 9 vigente: o que as define é que o rebuild da captura corrente **não as recalcula**, não
+que o tratamento esteja extinto. A §0 e D51 foram corrigidas na revisão 6.
+
 ### 16.2 As gerações retidas no bruto do legado
 
 ```text
@@ -1469,6 +1585,11 @@ FAILED tests/test_legacy_classification.py::test_a_identidade_do_vinculo_atraves
 169 selecionados (`169/299 tests collected` no `--collect-only`), três tocam ambiente, dois
 falham. As duas falhas são contraprovas da sonda, não regressões: a suíte real não roda assim.
 
+**Retificação (RV12-4-05, 20/09).** São **três acessos** interceptados, não três testes: a fixture
+de `test_consumo.py` é de módulo e serve **dois** testes, ambos dependentes de ambiente e ambos
+pulando sem abrir uma segunda conexão. Os testes dependentes de ambiente são **quatro**, e é o
+módulo inteiro que se marca — como a §15.2 já pedia em RV12-3-06.
+
 ### 16.7 O que **não** foi verificado nesta conferência
 
 Nada de B0–B6 foi implementado: não há `medir.sh`, `recovery.py`, `docs_check.py`, `dbt-rebuild`,
@@ -1513,11 +1634,11 @@ destrutivo de B5. **Não são apenas achados de forma.**
 
 | ID | Veredito | Onde / consequência | Ajuste proposto | Situação |
 |---|---|---|---|---|
-| RV12-4-01 | **ajuste** | **§6, passo 4b e seu oráculo: sinal negativo e idempotência não garantem preservação da conferência de gerações.** Depois de uma recuperação pode haver geração antiga `-1` e nova `1`. Um rebase por simples negação das positivas, mantendo negativas, satisfaz os dois critérios escritos, mas reúne ambas em `-1`. A sonda mudou o veredito real de `complete` para `inconsistent` sem mudar o hash. O plano não manda usar essa fórmula: o contraexemplo demonstra que o contrato ainda admite uma implementação errada. Separar por job, por sua vez, poderia esconder intrusas que originalmente compartilhavam uma geração. | Exigir, **por tabela**, preservação da equivalência de geração entre todas as linhas retidas: gerações iguais continuam iguais; diferentes continuam diferentes, inclusive perante os negativos já existentes. Os novos valores negativos precisam ocupar faixa livre. Conferir domínio estritamente negativo e não nulo, não apenas ausência de positivos. Acrescentar contraprovas de segundo pacote/restauração e de intrusa já presente no conjunto retido. Isso completa D52 sem alterar `sync_id`, conteúdo ou a regra de intrusas; uma implementação que não consiga preservar essas propriedades deve recuar e devolver a consequência ao Owner. | |
-| RV12-4-02 | **ajuste** | **§6, manifesto e passo 9: contagem por captura/versão/impressão não prova continência “linha por linha”.** Trocar o payload, os motivos ou uma linha por outra do mesmo grupo mantém esse oráculo verde. A projeção de retenção confirmou o mecanismo de D51, mas não torna suficiente a conferência descrita. É a mesma classe de insuficiência corrigida no oráculo SCD. | Guardar também um resumo canônico das **linhas completas**, com multiplicidade, por chave do manifesto incluindo `source_system`; comparar conteúdo e contagem de cada fatia histórica após o rebuild. Conferir separadamente o acréscimo da captura nova, usando a identidade efetivamente devolvida pelo Airbyte. Testar alteração de payload/motivo e perda compensada por duplicação. A continência é o critério certo; a contagem isolada é que não a implementa. Alinhar também a linha 9 da §7.3, que ainda diz “igual ao manifesto”, com essa regra. | |
-| RV12-4-03 | **ajuste** | **§6, guarda D50: há entrada existente que não passa pela fase 1 nem pela fase 2.** `python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy`, sem `--certificar-legado`, chama `/jobs` pelo ramo direto de `main`. A CLI também aceita `reset` para essa conexão. Acrescentar a guarda apenas ao fluxo certificado e à fase 1 da DAG deixa essas entradas fora. `decidir` não desfaz um append já ocorrido, e nesse ramo nem é chamado. | Declarar a pré-condição em **todo disparo da conexão legada** pelos pontos de entrada do projeto: encaminhar a CLI sem flag pelo fluxo protegido ou recusá-la antes do POST; tratar explicitamente o reset incompatível com a retenção. Na DAG, verificar na tarefa que efetivamente dispara, inclusive quando reexecutada sem repetir a fase 1. As contraprovas devem exigir **zero POSTs** nos caminhos recusados, além do hash antigo intacto. Descrever a guarda em `decidir` como recusa do certificado, sem atribuir a ela proteção retroativa do bruto. | |
-| RV12-4-04 | **ajuste** | **§2.1, consulta de trabalho usada também pelo corte de B4: só `running` não cobre a fila, e “não responde” não tem prazo.** A CLI filtra o estado exato solicitado; um DagRun `queued` fica fora e pode começar entre a consulta e a pausa. Uma consulta pendurada não chega por si ao desfecho “indeterminado”. Enumerar DAGs não é uma consulta à saúde do processo scheduler: o comando lê os metadados. | Cobrir `queued` e `running`, inclusive em DAG pausada, e definir prazo limitado por consulta e para a verificação completa; expiração deve recusar como indeterminada. Acrescentar casos de DAG recém-registrada, pausada com trabalho, fila e resposta lenta/pendurada, além dos casos já previstos. Não filtrar `is_paused=true` como sinônimo de ociosidade. O inventário de nomes não precisa de outra reformulação. | |
-| RV12-4-05 | **observação** | **§0, §6 e texto sobre as medições.** A quarentena tem **15**, não 11, valores distintos de `snapshot_id`; 11 é outro universo, o das capturas completas citado antes. Das **60.595** auditorias fora da captura corrente, **9.586** ainda usam a v9, portanto não são todas de tratamentos extintos. A frase sobre duplicar linha sem mudar contagem também é falsa. E os três acessos interceptados da sonda não equivalem a apenas três testes dependentes de ambiente: há dois testes na fixture de consumo. | Corrigir essas formulações sem alterar D51: são auditorias que **o rebuild da captura corrente não recalcula**. Distinguir chamadas observadas de testes dependentes da fixture. Manter a contraprova de duplicação, dizendo que ela muda hash **e** contagem. Os IDs 1/2/44 do roteiro devem ser exemplos; os oráculos executáveis usam o `jobId` retornado, pois o contador também atende a conexão principal e a resets. | |
+| RV12-4-01 | **ajuste** | **§6, passo 4b e seu oráculo: sinal negativo e idempotência não garantem preservação da conferência de gerações.** Depois de uma recuperação pode haver geração antiga `-1` e nova `1`. Um rebase por simples negação das positivas, mantendo negativas, satisfaz os dois critérios escritos, mas reúne ambas em `-1`. A sonda mudou o veredito real de `complete` para `inconsistent` sem mudar o hash. O plano não manda usar essa fórmula: o contraexemplo demonstra que o contrato ainda admite uma implementação errada. Separar por job, por sua vez, poderia esconder intrusas que originalmente compartilhavam uma geração. | Exigir, **por tabela**, preservação da equivalência de geração entre todas as linhas retidas: gerações iguais continuam iguais; diferentes continuam diferentes, inclusive perante os negativos já existentes. Os novos valores negativos precisam ocupar faixa livre. Conferir domínio estritamente negativo e não nulo, não apenas ausência de positivos. Acrescentar contraprovas de segundo pacote/restauração e de intrusa já presente no conjunto retido. Isso completa D52 sem alterar `sync_id`, conteúdo ou a regra de intrusas; uma implementação que não consiga preservar essas propriedades deve recuar e devolver a consequência ao Owner. | **Atendido — revisão 6.** §6, passo 4b, ganhou *O contrato do re-base, escrito por inteiro*: preservação da equivalência de geração **por tabela** (inclusive perante os negativos já presentes), faixa estritamente negativa livre, domínio conferido como negativo **e não nulo**, idempotência — e o recuo obrigatório com devolução ao Owner se a implementação não alcançar. O oráculo do passo 5 deixou de ser "nenhuma geração positiva" e passou a exigir a mesma quantidade de classes e a mesma partição. Contraprovas de segundo pacote e de intrusa já retida na *Prova sem banco*, e um re-base por simples negação é recusado pelo teste. Risco atualizado na §11. |
+| RV12-4-02 | **ajuste** | **§6, manifesto e passo 9: contagem por captura/versão/impressão não prova continência “linha por linha”.** Trocar o payload, os motivos ou uma linha por outra do mesmo grupo mantém esse oráculo verde. A projeção de retenção confirmou o mecanismo de D51, mas não torna suficiente a conferência descrita. É a mesma classe de insuficiência corrigida no oráculo SCD. | Guardar também um resumo canônico das **linhas completas**, com multiplicidade, por chave do manifesto incluindo `source_system`; comparar conteúdo e contagem de cada fatia histórica após o rebuild. Conferir separadamente o acréscimo da captura nova, usando a identidade efetivamente devolvida pelo Airbyte. Testar alteração de payload/motivo e perda compensada por duplicação. A continência é o critério certo; a contagem isolada é que não a implementa. Alinhar também a linha 9 da §7.3, que ainda diz “igual ao manifesto”, com essa regra. | **Atendido — revisão 6.** O manifesto (§6) passa a guardar, por chave `(source_system, snapshot_id, catalog_version, treatment_fingerprint)`, a contagem **e** um resumo canônico das linhas completas com multiplicidade; o passo 9 confere conteúdo por fatia histórica e o acréscimo da captura nova **à parte**, pela identidade devolvida pelo Airbyte; a linha 9 da §7.3 foi alinhada. Contraprovas de troca de payload, troca de motivo e perda compensada por duplicação na *Prova sem banco*. |
+| RV12-4-03 | **ajuste** | **§6, guarda D50: há entrada existente que não passa pela fase 1 nem pela fase 2.** `python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy`, sem `--certificar-legado`, chama `/jobs` pelo ramo direto de `main`. A CLI também aceita `reset` para essa conexão. Acrescentar a guarda apenas ao fluxo certificado e à fase 1 da DAG deixa essas entradas fora. `decidir` não desfaz um append já ocorrido, e nesse ramo nem é chamado. | Declarar a pré-condição em **todo disparo da conexão legada** pelos pontos de entrada do projeto: encaminhar a CLI sem flag pelo fluxo protegido ou recusá-la antes do POST; tratar explicitamente o reset incompatível com a retenção. Na DAG, verificar na tarefa que efetivamente dispara, inclusive quando reexecutada sem repetir a fase 1. As contraprovas devem exigir **zero POSTs** nos caminhos recusados, além do hash antigo intacto. Descrever a guarda em `decidir` como recusa do certificado, sem atribuir a ela proteção retroativa do bruto. | **Atendido — revisão 6.** §6, D50 item 1, ganhou *"Junto da fase 1" não cobre as entradas que existem*: o `sync` da CLI sem `--certificar-legado` é encaminhado ao fluxo protegido ou recusado **antes do POST**; o `reset` da conexão legada é tratado explicitamente; na DAG a verificação fica na tarefa que efetivamente dispara, valendo também quando ela é reexecutada sozinha. As contraprovas (f) e (g) exigem **zero `POST /jobs`** nos caminhos recusados. A guarda em `decidir` passou a ser descrita como recusa do certificado, sem proteção retroativa. |
+| RV12-4-04 | **ajuste** | **§2.1, consulta de trabalho usada também pelo corte de B4: só `running` não cobre a fila, e “não responde” não tem prazo.** A CLI filtra o estado exato solicitado; um DagRun `queued` fica fora e pode começar entre a consulta e a pausa. Uma consulta pendurada não chega por si ao desfecho “indeterminado”. Enumerar DAGs não é uma consulta à saúde do processo scheduler: o comando lê os metadados. | Cobrir `queued` e `running`, inclusive em DAG pausada, e definir prazo limitado por consulta e para a verificação completa; expiração deve recusar como indeterminada. Acrescentar casos de DAG recém-registrada, pausada com trabalho, fila e resposta lenta/pendurada, além dos casos já previstos. Não filtrar `is_paused=true` como sinônimo de ociosidade. O inventário de nomes não precisa de outra reformulação. | **Atendido — revisão 6.** §2.1: `queued` passa a contar como trabalho ao lado de `running`, a enumeração não filtra `is_paused`, cada consulta tem prazo próprio e a verificação inteira um prazo total — expirar é indeterminado, portanto bloqueio —, e ficou escrito que enumerar DAGs lê metadados, não a saúde do *scheduler*. Casos novos na *Prova*: `queued`, DAG pausada com execução, DAG recém-registrada e consulta lenta ou pendurada. Inventário mantido como estava. |
+| RV12-4-05 | **observação** | **§0, §6 e texto sobre as medições.** A quarentena tem **15**, não 11, valores distintos de `snapshot_id`; 11 é outro universo, o das capturas completas citado antes. Das **60.595** auditorias fora da captura corrente, **9.586** ainda usam a v9, portanto não são todas de tratamentos extintos. A frase sobre duplicar linha sem mudar contagem também é falsa. E os três acessos interceptados da sonda não equivalem a apenas três testes dependentes de ambiente: há dois testes na fixture de consumo. | Corrigir essas formulações sem alterar D51: são auditorias que **o rebuild da captura corrente não recalcula**. Distinguir chamadas observadas de testes dependentes da fixture. Manter a contraprova de duplicação, dizendo que ela muda hash **e** contagem. Os IDs 1/2/44 do roteiro devem ser exemplos; os oráculos executáveis usam o `jobId` retornado, pois o contador também atende a conexão principal e a resets. | **Atendido — revisão 6.** §0: quarentena com **15** capturas distintas, com a nota de que as 11 completas são outro universo; as 60.595 redescritas como "o rebuild da captura corrente não recalcula", com as **9.586** sob a v9; a seleção offline passa a distinguir **três acessos** de **quatro** testes dependentes de ambiente. §6: a contraprova de duplicação muda hash **e** contagem; a tabela do pacote e D51 (§10) corrigidas na mesma frase, sem alterar a decisão. Números de *job* declarados exemplos de redação, com os oráculos lendo o `jobId` devolvido (§6 e §7.3). Retificações também na §16.1 e §16.6, junto das medições que as originaram. |
 
 ### 17.3 Evidências e respostas às quatro perguntas
 
@@ -1926,3 +2047,7 @@ Esta passagem prepara a revisão do plano. Não constitui autorização adiciona
 destrutivo de B5, aceite da implementação ou encerramento da etapa. D45–D52 permanecem
 decididas; ADR aceito não deve ser reescrito. Ao concluir a incorporação, commitar o plano
 atualizado e informar os achados atendidos e as validações ainda pendentes.
+
+**Incorporado em 20/09/2026 — revisão 6.** Os cinco achados estão atendidos; onde cada um foi
+parar está na coluna *Situação* da §17.2. O ciclo destrutivo de B5 **não** foi executado, e nada
+de B0–B6 foi implementado: as ressalvas da §17.4 continuam valendo inteiras.

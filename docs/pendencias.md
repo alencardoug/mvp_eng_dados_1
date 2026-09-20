@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na revisão 5; quarta rodada do parecer registrada em [§17](../PLANO_etapa_12.md#17-parecer-da-revisão-5--quarta-rodada-20092026), aguardando incorporação pelo autor; D45–D52 decididas |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 6**; a quarta rodada do parecer ([§17](../PLANO_etapa_12.md#17-parecer-da-revisão-5--quarta-rodada-20092026)) foi incorporada em 20/09/2026 — RV12-4-01 a RV12-4-05 atendidos, sem bloqueante e sem decisão reaberta; D45–D52 decididas; **nada de B0–B6 implementado** |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 20/09/2026 |
@@ -117,10 +117,16 @@ camada ou modelagem; nenhum ADR.
   **Completada em 19/09/2026 (terceira rodada, RV12-3-04):** a guarda passa a ser pré-condição de
   **disparar** o *job*, nos dois chamadores, porque recusar depois do *append* não desfaz a
   mistura; a guarda na regra pura de `decidir` fica como rede.
+  **Ampliada em 20/09/2026 (quarta rodada, RV12-4-03):** a pré-condição vale em **todo** disparo da
+  conexão legada pelos pontos de entrada do projeto — o `sync` da CLI sem `--certificar-legado` e o
+  `reset` chegavam ao `POST /jobs` por fora da fase 1 —, e a guarda em `decidir` é recusa do
+  certificado, sem proteção retroativa do bruto.
 - **D51 — o pacote de recuperação guarda também a `quarantine`** (19/09/2026, sobre o achado
   RV12-3-01 da terceira rodada): `quarantine.rejected_legacy_records` tem 63.802 linhas de
   auditoria e uma reconstrução do zero reproduz 3.207 — a fatia da captura corrente sob o
-  tratamento vigente —, perdendo **60.595** de tratamentos que já não existem. `dbt_project.yml` e
+  tratamento vigente —, perdendo **60.595** que o rebuild da captura corrente não recalcula (nem
+  todas de tratamento extinto: 9.586 ainda estão sob a versão vigente — correção da quarta rodada,
+  RV12-4-05, que não altera a decisão). `dbt_project.yml` e
   a [Governança §8](governanca_de_dados.md#8-retenção) já a declaravam `permanent`; a revisão 4 do
   plano a listava como reconstruível pelo dbt, e era premissa falsa. As alternativas — perda
   explicitamente decidida e evidência só em arquivo — foram descartadas.
@@ -133,6 +139,10 @@ camada ou modelagem; nenhum ADR.
   identidade nem o contrato do ADR-0044 — que ganha a consequência. As alternativas — avançar
   também o contador de gerações (segundo interno não documentado), marca-d'água na certificação
   (mudaria o contrato) e limite declarado (C4 com lacuna) — foram descartadas.
+  **Completada em 20/09/2026 (quarta rodada, RV12-4-01):** o re-base precisa **preservar a
+  equivalência de geração por tabela** — negar as positivas e manter as negativas funde as faixas
+  no segundo ciclo e faz a certificação recusar uma captura correta, sem que o hash mude. A
+  implementação que não alcançar essas propriedades para e devolve a consequência ao Owner.
 
 
 ### D44 — decidida em 16/09/2026, implementada e medida em 17/09/2026
