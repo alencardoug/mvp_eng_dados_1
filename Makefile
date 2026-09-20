@@ -244,7 +244,7 @@ require-abctl:
 require-terraform:
 	@test -x .tools/terraform || { echo "ERRO: Terraform ausente. Rode 'make tools'."; exit 1; }
 
-preflight: ## Diz se cabe subir um subconjunto do ambiente; ALVO=airbyte|airflow|streaming
+preflight: ## Diz se cabe subir um subconjunto; ALVO=airbyte|airflow|streaming|trabalho
 	@docker/preflight.sh $(ALVO)
 
 medir: ## Mede um alvo: ALVO= [ATE=<alvo de espera>], ou CENARIO=streaming [LIMITE=n]
@@ -434,8 +434,9 @@ recovery-pack: require-env require-venv ## Monta o candidato a pacote; exige jan
 	@# Janela parada: a mesma pergunta do preflight, e pelas mesmas razões. Um
 	@# dump tirado no meio de uma sincronização descreve um estado que nunca
 	@# existiu inteiro.
-	@docker/preflight.sh airbyte >/dev/null || { \
-		echo "RECUSADO — há trabalho em andamento ou o ambiente não cabe; veja 'make preflight ALVO=airbyte'."; \
+	@docker/preflight.sh trabalho || { \
+		echo "RECUSADO — o corte precisa de janela parada: um dump tirado no meio de uma"; \
+		echo "  sincronização descreve um estado que nunca existiu inteiro."; \
 		exit 1; }
 	@$(RECOVERY) --dir "$(RECOVERY_DIR)" pack
 
@@ -464,7 +465,7 @@ recovery-restore: require-env require-venv ## A sequência de restauração, pas
 	@echo "── 1/9 conferindo o pacote ──"
 	@$(MAKE) --no-print-directory recovery-verify DIR="$(RECOVERY_DIR)"
 	@echo "── 2/9 manutenção: janela parada, DAG pausada ──"
-	@docker/preflight.sh airbyte >/dev/null || { echo "RECUSADO — há trabalho em andamento."; exit 1; }
+	@docker/preflight.sh trabalho || { echo "RECUSADO — há trabalho em andamento."; exit 1; }
 	@$(AIRFLOW_CLI) pausar $(DAG) || true
 	@echo "── 3/9 descartando o CDC enquanto a origem antiga ainda existe ──"
 	@$(MAKE) --no-print-directory stream-down FORCE=1

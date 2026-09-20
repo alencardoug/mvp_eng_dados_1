@@ -64,11 +64,14 @@ FOLGA_MINIMA=1500
 case "$ALVO" in
   airbyte|airflow) FAMILIA="batch" ;;
   streaming)       FAMILIA="streaming" ;;
-  *) echo "preflight: alvo desconhecido '$ALVO' (use airbyte, airflow ou streaming)" >&2; exit 2 ;;
+  trabalho)        FAMILIA="" ;;   # pergunta só sobre trabalho em andamento
+  *) echo "preflight: alvo desconhecido '$ALVO' (use airbyte, airflow, streaming ou trabalho)" >&2; exit 2 ;;
 esac
 
-custo_var="CUSTO_${ALVO}"
-CUSTO="${!custo_var}"
+if [ "$ALVO" != trabalho ]; then
+  custo_var="CUSTO_${ALVO}"
+  CUSTO="${!custo_var}"
+fi
 
 # --- o que já está de pé -----------------------------------------------------
 # O Airbyte continua sendo reconhecido pelo nome: o nó do cluster é criado pelo
@@ -212,6 +215,27 @@ _trabalho_ativo() {
 		;;
 	esac
 }
+
+# --- só a pergunta do trabalho em andamento ----------------------------------
+# `recovery-pack` e a manutenção da restauração precisam saber se há trabalho
+# no ar — **não** se cabe subir mais um ambiente. Perguntar pelo alvo errado é
+# o que fazia o pacote recusar com o Airbyte já de pé: o preflight somava os
+# 4,9 GB de subir de novo o que já estava rodando.
+if [ "$ALVO" = trabalho ]; then
+  ATIVO=""
+  for nome in Airbyte Airflow streaming; do
+    _ainda_no_ar "$nome" || continue
+    ocupado=$(_trabalho_ativo "$nome")
+    [ -n "$ocupado" ] && ATIVO="$ATIVO\n  $nome: $ocupado"
+  done
+  if [ -n "$ATIVO" ]; then
+    echo "[preflight] há trabalho em andamento:"
+    printf "%b\n" "$ATIVO"
+    exit 1
+  fi
+  echo "[preflight] nenhum trabalho em andamento — janela parada."
+  exit 0
+fi
 
 AIRBYTE_NO_AR=false;   _ainda_no_ar Airbyte   && AIRBYTE_NO_AR=true
 AIRFLOW_NO_AR=false;   _ainda_no_ar Airflow   && AIRFLOW_NO_AR=true
