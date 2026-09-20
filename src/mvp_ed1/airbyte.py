@@ -86,6 +86,51 @@ def sincronizar(connection_id: str, jwt: str, tipo: str = "sync") -> dict:
     return _chamar("/jobs", jwt, {"connectionId": connection_id, "jobType": tipo})
 
 
+def jobs(jwt: str, limite: int = 100) -> Any:
+    """Os *jobs* que o Airbyte conhece, de qualquer conexão.
+
+    Serve à guarda de identidade: o `jobId` é o contador compartilhado de que
+    sai o `snapshot_id` da captura (ADR-0044).
+    """
+    return _chamar(f"/jobs?limit={limite}&orderBy=createdAt|DESC", jwt)
+
+
+def guardar_identidade(conexao_nome: str, jwt: str) -> None:
+    """Pré-condição de disparar a conexão legada (D50, RV12-4-03).
+
+    Fica aqui, e não no chamador, porque **este** é o ponto por onde todos os
+    disparos passam: a CLI com e sem `--certificar-legado`, o fluxo
+    certificado e a tarefa da DAG. Pôr a guarda em cada chamador foi o que a
+    revisão 5 fez, e a quarta rodada mostrou duas entradas que escapavam.
+    """
+    from sqlalchemy import create_engine
+
+    from mvp_ed1.db import WAREHOUSE, database_url
+    from mvp_ed1.legacy import identidade
+
+    if conexao_nome != identidade.CONEXAO_LEGADA:
+        return
+    armazem = create_engine(database_url(WAREHOUSE))
+    try:
+        identidade.exigir(armazem, lambda: jobs(jwt))
+    finally:
+        armazem.dispose()
+
+
+def disparar(conexao_nome: str, connection_id: str, jwt: str, tipo: str = "sync") -> dict:
+    """Dispara um *job* **depois** das pré-condições. É por aqui que se dispara.
+
+    `sincronizar` continua existindo como a chamada crua — é o que os testes
+    interceptam para provar que os caminhos recusados fazem **zero** POSTs.
+    """
+    from mvp_ed1.legacy import identidade
+
+    if tipo == "reset":
+        identidade.recusar_reset(conexao_nome)
+    guardar_identidade(conexao_nome, jwt)
+    return sincronizar(connection_id, jwt, tipo)
+
+
 def observador(jwt: str) -> Callable[[int], dict]:
     """Uma função `job_id -> job`, que renova o token quando ele expira.
 
@@ -149,7 +194,7 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
     armazem = create_engine(database_url(WAREHOUSE))
     try:
         tentativa = captura.iniciar(legado, armazem, nome, estado_do_job=estado_do_job(jwt))
-        job = sincronizar(connection_id, jwt)
+        job = disparar(nome, connection_id, jwt)
         captura.registrar_job(armazem, tentativa, job["jobId"])
         job = acompanhar(job["jobId"], jwt)
         certificado = captura.concluir(legado, armazem, tentativa)
@@ -170,6 +215,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from mvp_ed1.legacy import identidade as _identidade
+
     try:
         jwt = token()
         if args.comando == "workspace":
@@ -186,13 +233,22 @@ def main(argv: list[str] | None = None) -> int:
         tipo = "reset" if args.comando == "reset" else "sync"
         print(f"{args.comando} de {args.connection} ({connection_id})")
         certificado = None
-        if args.certificar_legado and tipo == "sync":
+        # O `sync` da conexão legada **sempre** passa pelo fluxo certificado,
+        # com ou sem a flag: o ramo direto era a entrada que escapava da guarda
+        # (RV12-4-03), e deixá-lo aberto com um aviso só adiaria o problema. A
+        # flag deixa de ser o que decide e passa a ser redundante para essa
+        # conexão — o que ela pede é o que ela já recebe.
+        legada = args.connection == _identidade.CONEXAO_LEGADA
+        if tipo == "sync" and (args.certificar_legado or legada):
             job, certificado = sincronizar_certificando(connection_id, args.connection, jwt)
         else:
-            job = acompanhar(sincronizar(connection_id, jwt, tipo)["jobId"], jwt)
+            job = acompanhar(disparar(args.connection, connection_id, jwt, tipo)["jobId"], jwt)
     except AirbyteIndisponivel as erro:
         print(f"ERRO: {erro}", file=sys.stderr)
         return 2
+    except (_identidade.IdentidadeReutilizada, _identidade.ResetDoLegadoRecusado) as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return 3
 
     if job.get("status") != "succeeded":
         print(f"ERRO: sincronização terminou como {job.get('status')}", file=sys.stderr)

@@ -127,6 +127,16 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 	acao="${1:?uso: airflow_cli.sh <disparar|aguardar> ...}"; shift
 	case "$acao" in
 	disparar) airflow_disparar "$@" ;;
+	pausar)
+		# Pausar a DAG é manutenção, não desligamento: execução enfileirada em
+		# DAG pausada fica `queued` e não começa — que é exatamente o que a
+		# restauração precisa enquanto troca os três bancos por baixo.
+		airflow_cli dags pause "${1:?uso: airflow_cli.sh pausar <dag_id>}" >/dev/null \
+			&& echo "DAG ${1} pausada." \
+			|| { echo "não consegui pausar a DAG ${1} — o Airflow respondeu?" >&2; exit 1; } ;;
+	despausar)
+		airflow_cli dags unpause "${1:?uso: airflow_cli.sh despausar <dag_id>}" >/dev/null \
+			&& echo "DAG ${1} despausada." ;;
 	aguardar)
 		dag="${1:?uso: airflow_cli.sh aguardar <dag_id> [run_id] [prazo]}"
 		run="${2:-}"

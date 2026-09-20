@@ -91,7 +91,11 @@ def fluxo_batch():
 
         jwt = airbyte.token()
         connection_id = airbyte.conexao(conexao, jwt)
-        criado = airbyte.sincronizar(connection_id, jwt)
+        # `disparar`, não `sincronizar`: a pré-condição de identidade roda na
+        # tarefa que **efetivamente dispara** (RV12-4-03). Pô-la só na fase 1
+        # deixava de fora a reexecução desta tarefa sozinha — são tarefas
+        # distintas, e reexecutar a segunda não repete a primeira.
+        criado = airbyte.disparar(conexao, connection_id, jwt)
         if tentativa is not None:
             from sqlalchemy import create_engine
 

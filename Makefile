@@ -50,6 +50,15 @@ BASE := source_db legacy_db warehouse_db
 CONTEINERES := docker/conteineres.sh
 AIRFLOW_CLI := docker/airflow_cli.sh
 
+# Ponto único de recuperação (Etapa 12, B4). A lógica vive em
+# `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,
+# stream-*, airbyte-* e dbt-rebuild — e a interface de operação é o Makefile
+# (ADR-0012). `RECOVERY_DIR` é **absoluto**, sempre (RV12-09), e impresso em
+# toda execução: num alvo composto o relativo resolveria contra quem chama, e
+# em B5 quem chama é o clone.
+RECOVERY := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery
+RECOVERY_DIR ?= $(abspath data/recovery)
+
 # Medição (Etapa 12, B1). A lógica vive em docker/medir.sh; daqui só se passa
 # o alvo. `ATE=` é o que separa "disparei" de "rodou".
 MEDIR := docker/medir.sh
@@ -77,7 +86,8 @@ endef
         stream-duplicate stream-alerts stream-reset-sink \
         preflight airbyte-pause airbyte-resume stream-pause stream-resume \
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
-        docs-check secrets-history \
+        docs-check secrets-history dbt-rebuild \
+        recovery-pack recovery-verify recovery-restore recovery-promote \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -417,6 +427,84 @@ stream-down: require-env $(if $(filter 1,$(FORCE)),require-venv) ## Derruba Conn
 stream-reset-sink: require-env require-venv ## Esvazia SÓ o destino do streaming; exige FORCE=1 e consumidores parados
 	@set -a; . ./.env; set +a; \
 		.venv/bin/python -m mvp_ed1.streaming.maintenance reset-sink $(if $(filter 1,$(FORCE)),--force)
+
+# ── Ponto único de recuperação (Etapa 12, B4) ───────────────────────────────
+recovery-pack: require-env require-venv ## Monta o candidato a pacote; exige janela parada e árvore limpa
+	@echo "[recovery] RECOVERY_DIR = $(RECOVERY_DIR)"
+	@# Janela parada: a mesma pergunta do preflight, e pelas mesmas razões. Um
+	@# dump tirado no meio de uma sincronização descreve um estado que nunca
+	@# existiu inteiro.
+	@docker/preflight.sh airbyte >/dev/null || { \
+		echo "RECUSADO — há trabalho em andamento ou o ambiente não cabe; veja 'make preflight ALVO=airbyte'."; \
+		exit 1; }
+	@$(RECOVERY) --dir "$(RECOVERY_DIR)" pack
+
+recovery-verify: require-env require-venv ## Confere o pacote sem restaurar nada; DIR=, CONTRA_O_BANCO=1
+	@echo "[recovery] RECOVERY_DIR = $(or $(DIR),$(RECOVERY_DIR))"
+	@$(RECOVERY) --dir "$(or $(DIR),$(RECOVERY_DIR))" verify $(if $(filter 1,$(CONTRA_O_BANCO)),--contra-o-banco)
+
+recovery-rebase: require-env require-venv ## Re-basa as gerações retidas do bruto (passo 4b); DRY_RUN=1 só mostra
+	@$(RECOVERY) rebase $(if $(filter 1,$(DRY_RUN)),--dry-run)
+
+recovery-promote: require-env require-venv ## candidato/ -> aprovado/, depois de verify e de uma restauração validada
+	@echo "[recovery] RECOVERY_DIR = $(RECOVERY_DIR)"
+	@$(RECOVERY) --dir "$(RECOVERY_DIR)" promote
+
+recovery-restore: require-env require-venv ## A sequência de restauração, passo a passo; exige RESTAURAR=1
+	@# A autorização é RESTAURAR=1, **não** FORCE — e é consumida aqui, na
+	@# entrada (RV12-06). Os submakes de descarte recebem FORCE=1 um a um; os
+	@# de subida recebem FORCE= vazio, com o preflight obrigatório. FORCE não
+	@# atravessa o restore: herdá-lo faria a subida do streaming e do Airbyte
+	@# ignorar o R11 justamente quando a máquina está mais carregada.
+	@test "$(RESTAURAR)" = "1" || { \
+		echo "RECUSADO — 'recovery-restore' destrói o estado atual dos três bancos."; \
+		echo "  Confira o pacote primeiro (make recovery-verify) e autorize com RESTAURAR=1."; \
+		exit 1; }
+	@echo "[recovery] RECOVERY_DIR = $(RECOVERY_DIR)"
+	@echo "── 1/9 conferindo o pacote ──"
+	@$(MAKE) --no-print-directory recovery-verify DIR="$(RECOVERY_DIR)"
+	@echo "── 2/9 manutenção: janela parada, DAG pausada ──"
+	@docker/preflight.sh airbyte >/dev/null || { echo "RECUSADO — há trabalho em andamento."; exit 1; }
+	@$(AIRFLOW_CLI) pausar $(DAG) || true
+	@echo "── 3/9 descartando o CDC enquanto a origem antiga ainda existe ──"
+	@$(MAKE) --no-print-directory stream-down FORCE=1
+	@$(MAKE) --no-print-directory stream-reset-sink FORCE=1
+	@echo "── 4/9 pg_restore das duas fontes e da memória do armazém ──"
+	@$(RECOVERY) --dir "$(RECOVERY_DIR)" restore-dumps
+	@echo "── 4b/9 re-base das gerações retidas (D52) ──"
+	@$(MAKE) --no-print-directory recovery-rebase
+	@echo "── 5/9 conferindo o conteúdo restaurado contra o manifesto ──"
+	@$(MAKE) --no-print-directory recovery-verify DIR="$(RECOVERY_DIR)" CONTRA_O_BANCO=1
+	@echo "── 6/9 devolvendo os artefatos de trabalho ──"
+	@$(RECOVERY) --dir "$(RECOVERY_DIR)" restore-artefatos
+	@echo "── 7/9 novo snapshot do caminho quente ──"
+	@$(MAKE) --no-print-directory medir CENARIO=streaming FORCE=
+	@echo "── 8/9 reconstruindo sem apagar o que acabou de voltar ──"
+	@$(MAKE) --no-print-directory airbyte-up FORCE=
+	@$(MAKE) --no-print-directory sync-airbyte RESET=1
+	@$(MAKE) --no-print-directory sync-legacy
+	@$(MAKE) --no-print-directory dbt-rebuild
+	@$(MAKE) --no-print-directory check
+	@echo "── 9/9 oráculos explícitos ──"
+	@$(RECOVERY) --dir "$(RECOVERY_DIR)" conferir-restauracao
+	@echo "recovery-restore: a sequência inteira passou. 'make recovery-promote' aprova o pacote."
+
+dbt-rebuild: require-env require-venv ## Reconstrói TUDO sem derrubar os snapshots — o alvo de uma restauração
+	@# A diferença para `dbt-build RESET=1` é uma linha e é o bloco inteiro:
+	@# aquele chama `dbt-drop-snapshots` antes do `--full-refresh`. Derrubar o
+	@# schema `snapshots` é certo depois de **regerar a origem** — as chaves
+	@# substitutas mudam todas e a fato incremental precisa acompanhar — e
+	@# **errado depois de um restore**, porque o histórico SCD que acabou de
+	@# voltar do pacote não se reconstrói de lugar nenhum.
+	@#
+	@# O `--full-refresh` sozinho refaz a fato incremental sobre as chaves
+	@# substitutas restauradas, e o `dbt snapshot` só acrescenta versão se
+	@# `trusted` mudou — o que não muda. A quarentena restaurada sobrevive:
+	@# `rejected_legacy_records` lê a própria tabela anterior por
+	@# `adapter.get_relation` e retém tudo que não seja da captura corrente sob
+	@# a impressão vigente. É o mecanismo que acumulou as 63.802 linhas.
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.governance garantir
+	@$(DBT) build --full-refresh $(DBT_ARGS)
 
 dbt-drop-snapshots: require-env require-venv ## DESTRÓI o histórico SCD; use depois de regerar a origem
 	@echo "descartando o schema 'snapshots' — o histórico SCD será refeito do zero"
