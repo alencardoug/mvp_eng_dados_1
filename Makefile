@@ -77,6 +77,7 @@ endef
         stream-duplicate stream-alerts stream-reset-sink \
         preflight airbyte-pause airbyte-resume stream-pause stream-resume \
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
+        docs-check secrets-history \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -427,6 +428,12 @@ print('  schema snapshots descartado')"
 dbt-test: require-env require-venv ## Somente os testes de dados
 	@$(DBT) test $(DBT_ARGS)
 
+docs-check: require-venv ## Confere links, âncoras e citações de ADR nos documentos rastreados
+	@.venv/bin/python -m mvp_ed1.docs_check
+
+secrets-history: require-venv ## Varre TODO o histórico por forma de credencial, sem depender do .env
+	@.venv/bin/python -m mvp_ed1.secrets_review --historico
+
 docs-generate: require-env require-venv ## Só gera o catálogo — tem fim, e por isso é o que se mede
 	@$(DBT) docs generate
 
@@ -450,8 +457,12 @@ check: require-env require-venv ## Verificação completa, parando na primeira f
 	@# construir (captura selecionada, intervalo, memória); a classificação e a
 	@# linhagem derivadas depois do build porque leem o manifest dele. `RESET=1` e `FATO=1`
 	@# passam adiante com o mesmo significado que têm nos alvos de origem.
-	@echo "── 1/4 revisão de segredos e .gitignore ──"
+	@# A varredura do HISTÓRICO (`make secrets-history`) fica fora: o histórico
+	@# só cresce, e conferi-lo a cada `check` cobraria 25 s por nada. Ela entra
+	@# na definição de pronto e no dossiê.
+	@echo "── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──"
 	@.venv/bin/python -m mvp_ed1.secrets_review
+	@.venv/bin/python -m mvp_ed1.docs_check
 	@echo "── 2/4 dbt build: modelos, testes de dados e reconciliações ──"
 	@$(MAKE) --no-print-directory dbt-build RESET=$(RESET)
 	@echo "── 3/4 classificação derivada e linhagem em dia com os modelos ──"

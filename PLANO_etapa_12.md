@@ -521,6 +521,49 @@ achado listado como tratado sai como tratado e o código é 0; (5) *blob* grande
 de pulados; (6) a mesma senha fictícia em ENV, YAML e **JSON**, removida e rotacionada, é achada
 nas três formas; (7) segredo real num `config.example.yml` de um *commit* antigo é achado.
 
+**Entregue em 20/09/2026 [medido].** `python -m mvp_ed1.secrets_review --historico`, também como
+`make secrets-history`. Fora do `make check` de propósito — o histórico só cresce, e conferi-lo a
+cada `check` cobraria os 25 s medidos por nada; entra na definição de pronto e no dossiê. Os
+detectores novos valem **também** no modo rastreado, que roda no `check`.
+
+**A regra que a implementação obrigou a escrever, e que o plano não tinha: credencial é literal;
+referência não é.** O detector de atribuição, exatamente como o plano o declarava, devolveu **24
+achados no repositório e nenhum era segredo** — `password = quote_plus(...)` em `db.py`,
+`var.source_db_password` no Terraform, `$$AIRBYTE_CLIENT_SECRET` no Makefile, a própria declaração
+de regex deste módulo. Os moldes (`PLACEHOLDER_RULES`) passaram a cobrir as formas de **referência**
+que este repositório usa: `$VAR`, `{var}`, `var.x`, expressão com `(` ou `[`, e palavra única sem
+dígito. Com elas, o modo rastreado devolve **zero**.
+
+**Um limite declarado no módulo, porque é escolha e não cobertura:** a última regra — palavra única
+sem dígito — excusa uma senha escrita à mão só com letras. Vale aqui porque `make env` sorteia
+valores com dígitos, e porque as formas conhecidas e a comparação com os valores do `.env` cobrem o
+resto. Está escrito no código para ser revisto quando deixar de valer.
+
+Primeira varredura do histórico, **160 commits**:
+
+```text
+$ make secrets-history
+revisão do histórico: nada não tratado (7 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Os sete achados são as **fixtures do próprio teste da varredura**, em dois *commits* antigos de
+`tests/test_secrets_review.py` — valores fictícios escritos inteiros para provar os detectores.
+Nenhum corresponde a credencial de serviço nenhum. Tratamento registrado em
+`docs/segredos_tratados.yml` conforme D48; o arquivo de teste passou a montar esses valores em
+partes, que é a convenção que ele já usava para o cabeçalho PEM. **Nenhum segredo real foi
+encontrado no histórico deste repositório.**
+
+**Pendência documental:** `docs/segredos_tratados.yml` ainda não está no mapa do README — o dono
+documental definitivo é de B6, como o plano previa.
+
+**Prova.** `tests/test_secrets_review.py`, de 6 para 15 casos (suíte inteira, com B3: **347 passed, 8 skipped**): senha rotacionada some do modo
+rastreado e o histórico a acha **sem conhecer o valor**; a mesma senha achada em ENV, YAML e JSON;
+credencial em URL; forma conhecida em blob antigo; molde em `.env.example` não acusa; **segredo
+real num `config.example.yml` é achado** — molde é propriedade do valor, não do arquivo; blob
+grande aparece **nomeado** na lista de pulados; achado registrado sai como tratado e o código é 0;
+`.env` que já esteve rastreado vira aviso mesmo sem achado. O valor nunca é impresso: dois
+caracteres e o tamanho, conferido em teste.
+
 ---
 
 ## 5. B3 — coerência dos documentos, por ferramenta
@@ -543,6 +586,37 @@ executando a Execução Local linha a linha — e a lista de desvios já começa
 repetido, título em bloco de código, link por referência, fragmento codificado. A primeira
 execução sobre o repositório real é medição: número de links, e o que achar se corrige antes de
 B5.
+
+**Entregue em 20/09/2026 [medido].** `python -m mvp_ed1.docs_check`, como `make docs-check` e
+dentro da etapa 1 do `make check`, ao lado da revisão de segredos.
+
+**A primeira execução achou três âncoras quebradas — todas reais, e todas invisíveis a olho:**
+
+| Onde | Apontava para | O que existe |
+|---|---|---|
+| `docs/adr/0035-…md:13` | `modelo_de_dados.md#3-modelo-dimensional` | o título tem sufixo: `…--25-tabelas-em-analytics` |
+| `docs/glossario_de_negocio/perguntas_de_negocio.md:8` | `…#3-modelo-dimensional--26-tabelas-em-analytics` | são **25** tabelas, não 26 — a âncora envelheceu junto com o número |
+| `docs/origem_legada.md:361` | `adr/README.md#2-decisões-já-fechadas` | esse título está em `pendencias.md`; o `adr/README.md` tem "Decisões registradas" |
+
+As três foram corrigidas na mesma entrega. Estado depois:
+
+```text
+$ make docs-check
+docs-check: 106 documentos, 976 links de arquivo, 128 âncoras, 588 citações de ADR — nada quebrado
+```
+
+**Uma regra de *slug* que a implementação obrigou a separar:** o sublinhado. `_ênfase_` some porque
+é marcação, mas o de `snake_case` **fica** — e este repositório tem títulos com `snake_case` e nomes
+de coluna. Removê-lo geraria uma âncora que o GitHub não gera, e a ferramenta diria "existe" sobre
+um link que quebra no navegador. O travessão é o outro caso que engana: `— 25 tabelas` vira
+`--25-tabelas`, com dois hífens, porque o espaço de cada lado vira hífen e o travessão some.
+
+**Prova.** `tests/test_docs_check.py`, 16 casos: seis do *slug* (acento, travessão, `snake_case`,
+negrito, link dentro do título, data com barras); link bom; arquivo inexistente; âncora
+inexistente; fragmento codificado (`%C3%A7`); título repetido com `-1` e `-2`; título **dentro de
+bloco de código** que não conta; link dentro de bloco de código que não é conferido; link por
+referência resolvido e referência sem definição; ADR citada que não existe; link externo ignorado.
+O último caso roda contra a documentação real do projeto.
 
 ---
 

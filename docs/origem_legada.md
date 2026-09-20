@@ -358,7 +358,7 @@ faria camadas vizinhas lerem capturas diferentes. `make sync-legacy` passa pelas
 ## 5. Limpeza e classificação
 
 **Estado em 07/09/2026:** limpeza por coluna, classificação com falhas de contexto, quarentena,
-DAG e empilhamento estão entregues. A [D32](adr/README.md#2-decisões-já-fechadas) foi decidida e
+DAG e empilhamento estão entregues. A [D32](pendencias.md#2-decisões-já-fechadas) foi decidida e
 `NULL_REQUIRED` faz parte do catálogo. A [D35](pendencias.md#d35--decidida-em-07092026) foi
 decidida: o pai sobrevive à rejeição de um filho, e a divergência que isso cria é tolerada **apenas**
 onde a quarentena a explica. A [D33](pendencias.md#d33--decidida-em-07092026) manteve a classificação

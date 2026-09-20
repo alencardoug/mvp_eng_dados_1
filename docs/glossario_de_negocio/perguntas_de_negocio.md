@@ -5,7 +5,7 @@
 >
 > **O que não vive aqui:** a definição dos conceitos que as perguntas usam (ver os arquivos de
 > conceito neste mesmo diretório); o grão e a contagem de cada fato (ver
-> [Modelo de Dados](../modelo_de_dados.md#3-modelo-dimensional--26-tabelas-em-analytics)); a
+> [Modelo de Dados](../modelo_de_dados.md#3-modelo-dimensional--25-tabelas-em-analytics)); a
 > materialização das views (ver [ADR-0016](../adr/0016-materializacao-por-camada.md)).
 
 | Campo | Informação |

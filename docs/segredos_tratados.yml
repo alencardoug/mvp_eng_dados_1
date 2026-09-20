@@ -1,0 +1,53 @@
+# Achados históricos já resolvidos — o registro que D48 exige.
+#
+# O que vive aqui: cada ocorrência de forma de credencial que a varredura
+# histórica (`python -m mvp_ed1.secrets_review --historico`) encontra e que já
+# foi tratada, com o tratamento e o motivo. O veredito da varredura é "nada
+# **não tratado**", nunca "nada encontrado": segredo que já entrou no histórico
+# continua lá para sempre, e reescrever o histórico é decisão do Owner.
+#
+# O que não vive aqui: a política de tratamento, que é D48 — senha de
+# contêiner local se regenera e se registra, sem reescrever histórico; chave de
+# nuvem ou token externo se revoga **e** se reescreve, e só pela mão do Owner.
+# Ver docs/pendencias.md §2 e, a partir de B6, o dono documental definitivo.
+#
+# Cada entrada é identificada por (commit, caminho, chave) — é o que a
+# varredura compara. Linhas diferentes da mesma chave no mesmo blob são a
+# mesma entrada.
+
+tratados:
+  - commit: 310c9781df0ed936c49225a87f23baec6d384acf
+    caminho: tests/test_secrets_review.py
+    chave: nWAREHOUSE_DB_PASSWORD
+    tratamento: nenhum — valor fictício, nunca usado em lugar nenhum
+    motivo: >-
+      Fixture do próprio teste da revisão de segredos, escrita para ser achada.
+      Não corresponde a credencial de nenhum serviço, passado ou presente. Em
+      20/09/2026 o arquivo passou a montar esses valores em partes, para que o
+      modo rastreado deixe de acusá-lo; os blobs antigos permanecem.
+  - commit: 310c9781df0ed936c49225a87f23baec6d384acf
+    caminho: tests/test_secrets_review.py
+    chave: password
+    tratamento: nenhum — valor fictício, nunca usado em lugar nenhum
+    motivo: >-
+      A mesma fixture, na forma YAML que o teste usa para provar o detector.
+  - commit: 310c9781df0ed936c49225a87f23baec6d384acf
+    caminho: tests/test_secrets_review.py
+    chave: forma genérica
+    tratamento: nenhum — cabeçalho sem material de chave
+    motivo: >-
+      Cabeçalho `-----BEGIN … PRIVATE KEY-----` escrito inteiro para provar o
+      detector de formas conhecidas. Não acompanha chave alguma. O teste já o
+      monta em partes hoje; o blob antigo permanece.
+  - commit: a0a076702859229b353d3d15ed2e3a59787304d1
+    caminho: tests/test_secrets_review.py
+    chave: nWAREHOUSE_DB_PASSWORD
+    tratamento: nenhum — valor fictício, nunca usado em lugar nenhum
+    motivo: >-
+      A mesma fixture, num commit anterior do mesmo arquivo.
+  - commit: a0a076702859229b353d3d15ed2e3a59787304d1
+    caminho: tests/test_secrets_review.py
+    chave: password
+    tratamento: nenhum — valor fictício, nunca usado em lugar nenhum
+    motivo: >-
+      A mesma fixture, na forma YAML, no commit anterior.

@@ -10,7 +10,7 @@
 
 ## Contexto
 
-O inventário dimensional do [Modelo de Dados](../modelo_de_dados.md#3-modelo-dimensional) foi
+O inventário dimensional do [Modelo de Dados](../modelo_de_dados.md#3-modelo-dimensional--25-tabelas-em-analytics) foi
 escrito na Etapa 0, antes de existir uma linha de SQL, e lista **17 dimensões**. Duas delas
 atravessaram cinco etapas sem que nada as tocasse:
 
