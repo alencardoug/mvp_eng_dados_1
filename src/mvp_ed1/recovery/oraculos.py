@@ -25,39 +25,92 @@ escolha, e o custo está declarado: a quarentena tem 63.802 linhas, que se lê e
 fatias. O que se ganha é que o oráculo fica exercitável sem banco — e um
 oráculo que ninguém consegue testar é o que produziu as duas insuficiências
 acima.
+
+**A codificação é tipada e não ambígua (RVE-07).** A primeira versão escrevia
+`coluna=str(valor)` com um marcador de nulo e separadores de controle, e a
+revisão da entrega mediu o que isso confunde: o nulo com o texto `\\N`, um
+separador dentro de um texto com a fronteira entre campos, e — no sentido
+contrário — dois instantes iguais em fusos diferentes, `Decimal('1.00')` com
+`Decimal('1.0')`, e `bytes` com `memoryview` (cujo `str` é o endereço de
+memória, diferente a cada leitura). O que vale agora, por regra:
+
+* **cada linha é um documento JSON** com as colunas em ordem, e cada valor vai
+  **com o seu tipo**: nulo é `null` de JSON, texto é string de JSON (todo
+  caractere de controle escapado — nenhum separador do nosso vale dentro de um
+  valor), inteiro e booleano são os do JSON. Uma string `"\\N"` e um nulo não
+  se parecem mais;
+* **os tipos que o JSON não tem vão com etiqueta e forma canônica**: instante
+  com fuso → UTC em ISO; `numeric` → sem zeros à direita (a escala do
+  PostgreSQL é apresentação, não valor); binário → hexadecimal do conteúdo;
+  `jsonb` → JSON com chaves ordenadas; data, hora, intervalo e UUID → ISO ou
+  texto, cada um sob a sua etiqueta, para que `"1"` e `1` e `Decimal('1')`
+  nunca colidam;
+* **o formato é versionado** (`FORMATO`): o manifesto grava a versão com que
+  foi escrito, e uma conferência com outra versão recusa em vez de comparar
+  hashes que nasceram de codificações diferentes.
 """
 
 from __future__ import annotations
 
+import datetime as dt
+import decimal
 import hashlib
 import json
+import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-#: O que se escreve no lugar de um nulo. Nunca vazio: `""` e `NULL` são
-#: valores diferentes, e um oráculo que os confunde aceita a troca de um pelo
-#: outro.
-NULO = "\\N"
+#: A versão da codificação canônica. Sobe quando a forma de qualquer valor
+#: muda — e o manifesto que a gravou deixa de ser comparável com a nova.
+FORMATO = 2
 
-#: Separadores que não aparecem em valor de coluna deste armazém.
-ENTRE_CAMPOS = "\x1f"
-ENTRE_LINHAS = "\x1e"
+#: Separa as linhas canônicas dentro do digest. Nunca aparece dentro de uma
+#: linha: o JSON escapa todo caractere de controle.
+ENTRE_LINHAS = "\n"
 
 
-def _valor(v: Any) -> str:
-    if v is None:
-        return NULO
+def _numero(v: decimal.Decimal) -> str:
+    if not v.is_finite():
+        return str(v)
+    if v == 0:
+        return "0"
+    return format(v.normalize(), "f")
+
+
+def _codificar(v: Any) -> Any:
+    """Um valor de coluna → algo que o JSON escreve sem ambiguidade de tipo."""
+    if v is None or isinstance(v, (bool, int, str)):
+        return v
+    if isinstance(v, decimal.Decimal):
+        return ["numeric", _numero(v)]
+    if isinstance(v, float):
+        return ["float", repr(v)]
+    if isinstance(v, dt.datetime):
+        if v.tzinfo is not None:
+            return ["timestamptz", v.astimezone(dt.timezone.utc).isoformat()]
+        return ["timestamp", v.isoformat()]
+    if isinstance(v, dt.date):
+        return ["date", v.isoformat()]
+    if isinstance(v, dt.time):
+        return ["time", v.isoformat()]
+    if isinstance(v, dt.timedelta):
+        return ["interval", [v.days, v.seconds, v.microseconds]]
+    if isinstance(v, (bytes, bytearray, memoryview)):
+        return ["bytea", bytes(v).hex()]
+    if isinstance(v, uuid.UUID):
+        return ["uuid", str(v)]
     if isinstance(v, (dict, list)):
         # `to_jsonb` de duas linhas iguais pode devolver as chaves em ordens
         # diferentes; ordenar aqui é o que torna o hash comparável.
-        return json.dumps(v, sort_keys=True, ensure_ascii=False, default=str)
-    return str(v)
+        return ["json", json.dumps(v, sort_keys=True, ensure_ascii=True, default=str)]
+    return [type(v).__name__, str(v)]
 
 
 def linha_canonica(linha: Mapping[str, Any]) -> str:
-    """Uma linha, com **todas** as colunas e o nulo explícito, em ordem estável."""
-    return ENTRE_CAMPOS.join(
-        f"{coluna}={_valor(linha[coluna])}" for coluna in sorted(linha)
+    """Uma linha, com **todas** as colunas, tipada e em ordem estável."""
+    return json.dumps(
+        {coluna: _codificar(linha[coluna]) for coluna in sorted(linha)},
+        sort_keys=True, ensure_ascii=True, separators=(",", ":"),
     )
 
 
@@ -84,12 +137,13 @@ def por_chave(
     É a forma dos dois oráculos de continência do manifesto. A chave vira
     texto para que o manifesto seja JSON legível e comparável entre execuções.
     """
-    grupos: dict[tuple, list[Mapping[str, Any]]] = {}
+    grupos: dict[str, list[Mapping[str, Any]]] = {}
     for linha in linhas:
-        grupos.setdefault(tuple(_valor(linha[c]) for c in chave), []).append(linha)
+        nome = json.dumps([_codificar(linha[c]) for c in chave], ensure_ascii=True, separators=(",", ":"))
+        grupos.setdefault(nome, []).append(linha)
     return {
-        ENTRE_CAMPOS.join(valores): {"linhas": len(fatia), "digest": digest(fatia)}
-        for valores, fatia in sorted(grupos.items())
+        nome: {"linhas": len(fatia), "digest": digest(fatia)}
+        for nome, fatia in sorted(grupos.items())
     }
 
 
