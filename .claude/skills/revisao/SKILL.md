@@ -27,12 +27,14 @@ encontrável lendo diff.
 **Não precisa** que você redescreva o diff. O `git` já o dá, e uma segunda
 descrição diverge do código na primeira alteração.
 
-**Precisa** de quatro coisas que o `git` não dá:
+**Precisa** de cinco coisas que o `git` não dá:
 
 1. onde gastar esforço — o que é declaração e o que é derivado;
 2. o que foi de fato executado, com a saída literal;
 3. **o que não foi verificado**;
-4. que premissas sobre o ambiente você assumiu sem confirmar.
+4. que premissas sobre o ambiente você assumiu sem confirmar;
+5. o que precisa estar de pé para as sondas dele, e como pôr de pé — senão o
+   revisor encontra os bancos fora do ar e não sabe se pode subi-los.
 
 A terceira é a mais valiosa e a que você tem menos vontade de escrever. Se ela
 sair vazia, o dossiê está errado — nenhuma entrega verifica tudo.
@@ -52,13 +54,14 @@ python3 .claude/skills/revisao/dossie.py --desde <base> --ate <sha da entrega>
 
 Ele coleta o que é mecânico — commits, arquivos, e a saída dos comandos
 declarados em `comandos.txt` — e deixa marcado com `<<PREENCHER>>` o que só
-você sabe. Preencha as quatro marcas:
+você sabe. Preencha as cinco marcas:
 
 | Seção | O que entra |
 |---|---|
 | Mapa de revisão | Quais arquivos são a **declaração** de que os demais nascem |
 | Não verificado | Todo caminho que você não exercitou, e todo número que você não mediu |
 | Premissas | O que assumiu sobre ferramenta, banco ou serviço sem confirmar nesta entrega |
+| Ambiente | O que esta revisão precisa encontrar de pé além dos três bancos, e em que estado |
 | Onde hesitei | Decisões que poderiam ter ido para o outro lado, e por que foram para esta |
 
 Depois:

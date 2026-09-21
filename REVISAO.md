@@ -204,6 +204,42 @@ confirmada nesta entrega. É a classe de erro que atravessa revisão de código.
   `--full-refresh`**, por ler a própria tabela anterior via `adapter.get_relation`. Leitura
   de código, herdada das rodadas anteriores; nenhum rebuild foi medido.
 
+### 5.1 Ambiente que a revisão precisa
+
+> Acrescentado em 21/09/2026, depois da rodada do Codex: o revisor encontrou os três bancos
+> fora do ar (E1) e não sabia se podia subi-los. O dossiê não dizia — passa a dizer, e o
+> gerador (`dossie.py`) passa a emitir esta seção em toda revisão. Numerada como 5.1 para
+> não deslocar as seções 6–9 que o parecer já referencia.
+
+O que precisa estar de pé para as sondas, e como pôr de pé. **Subir é permitido; alterar dado
+não.** A regra "deixar o ambiente como o encontrou" vale para o conteúdo dos bancos e dos
+volumes — não para contêiner parado ou ausente, que o revisor sobe.
+
+| Precisa de | Como subir | Como conferir |
+|---|---|---|
+| Os três bancos (`source_db`, `legacy_db`, `warehouse_db`) | `make up` — recria os contêineres sobre os volumes existentes; nada é regerado | `make ps`; portas no `.env` |
+| Airbyte, Airflow ou streaming | `make airbyte-up` · `make airflow-up` · `make stream-up` — a troca é automática: pausa o conflitante, retoma depois | `make preflight ALVO=…` responde sem efeito |
+
+Contêiner que não aparece em `docker ps -a` não está em outro contexto Docker: foi derrubado
+por `make down`, que preserva os volumes. `make up` o traz de volta. Conferido em 21/09/2026:
+`docker context ls` mostra só `default`, e `docker volume ls` mostra `mvp_ed1_source_db_data`,
+`mvp_ed1_legacy_db_data` e `mvp_ed1_warehouse_db_data` presentes.
+
+**Nunca** na revisão: `make reset`, `seed-*` ou `*-down` com `FORCE=1`, ou qualquer alvo que
+reescreva dado — isso é execução, não revisão. Se o ambiente não puder ser preparado, a
+indisponibilidade entra nos achados e o que dependia dela fica **não medido** — nunca inferido.
+
+**O que esta revisão precisa encontrar de pé, além do mínimo acima:**
+
+- os três bancos com os dados da carga atual e a captura do legado certificada (o
+  `snapshot_id` 44 citado em RVE-05 vem de `governance.legacy_captures`) — vêm do volume, não
+  precisam ser regerados;
+- o Airbyte no ar para a contraprova real da listagem de jobs (RVE-01, E2) — já estava;
+- o Airflow no ar só para as sondas de `dag-wait`/pausa (RVE-14, RVE-17); `make airflow-up`
+  pausa o Airbyte sozinho e `make airbyte-up` o devolve;
+- streaming **não** é necessário para esta rodada: as sondas do medidor e do preflight usaram
+  dublês por desenho (E6, E7).
+
 ## 6. Onde hesitei
 
 Decisões que poderiam ter ido para o outro lado, com o motivo de terem ido para este.

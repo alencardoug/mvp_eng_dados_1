@@ -13,12 +13,13 @@ O projeto é trabalhado por **dois** agentes com orçamentos de esforço
 diferentes: um gera o código, outro revisa. A skill faz a passagem entre eles
 deixar de depender da memória de qualquer um dos dois.
 
-Ela produz um `REVISAO.md` na raiz com quatro coisas que o `git` **não** dá:
+Ela produz um `REVISAO.md` na raiz com cinco coisas que o `git` **não** dá:
 
 - onde o revisor deve gastar esforço — o que é declaração e o que é derivado;
 - o que foi executado, com a saída **literal** dos comandos;
 - o que **não** foi verificado;
-- que premissas sobre o ambiente o autor assumiu sem confirmar.
+- que premissas sobre o ambiente o autor assumiu sem confirmar;
+- o que precisa estar de pé para a revisão, e como subir sem tocar em dado.
 
 O diff não é repetido: quem revisa lê o `git`.
 
