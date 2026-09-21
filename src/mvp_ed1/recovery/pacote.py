@@ -47,11 +47,20 @@ SCHEMAS_DE_MEMORIA = ("raw_legacy", "governance", "snapshots", "quarantine")
 #: gerações anteriores (`manifesto-<hash>.json`), e nomear só um deixaria os
 #: outros para trás. Medido ao montar o primeiro pacote: a lista fixa citava um
 #: `diario.json` que não existe e ignorava dois manifestos que existem.
-ARTEFATOS = ("data/legacy/*.json", ".stream/producer_state.json")
+ARTEFATOS = ("data/legacy/*.json", "data/source/geracao.json", ".stream/producer_state.json")
 
 NOME_DO_MANIFESTO = "manifesto.json"
 NOME_DOS_CHECKSUMS = "checksums.sha256"
 NOME_DO_ROTEIRO = "RESTAURAR.md"
+
+#: O que um manifesto precisa afirmar para o pacote ser dado como apto
+#: (RVE-15). Campo ausente é pacote incompleto — não "campo opcional".
+CAMPOS_OBRIGATORIOS = (
+    "corte", "commit", "oraculo_formato", "alembic", "governance_versions",
+    "max_event_sequence", "contagens", "tamanhos", "geracao",
+    "oraculo_scd", "oraculo_capturas", "oraculo_quarentena", "oraculo_particao",
+    "oraculo_exclusoes", "artefatos_copiados", "artefatos_ausentes", "limite",
+)
 
 
 class PacoteRecusado(Exception):
@@ -84,6 +93,15 @@ class Destino:
     @property
     def aprovado(self) -> pathlib.Path:
         return self.raiz / "aprovado"
+
+    @property
+    def em_montagem(self) -> pathlib.Path:
+        """Onde o candidato **novo** nasce — nunca por cima do anterior (RVE-10)."""
+        return self.raiz / "candidato.em-montagem"
+
+    @property
+    def descartado(self) -> pathlib.Path:
+        return self.raiz / "candidato.anterior"
 
 
 def sha256(caminho: pathlib.Path) -> str:
@@ -160,6 +178,20 @@ class Manifesto:
             raise PacoteRecusado(f"{caminho} não existe — isto não é um pacote de recuperação")
         return cls(json.loads(caminho.read_text(encoding="utf-8")))
 
+    def campos_ausentes(self) -> list[str]:
+        return [campo for campo in CAMPOS_OBRIGATORIOS if campo not in self.dados]
+
+    def problemas_de_forma(self, formato_atual: int) -> list[str]:
+        """O que impede de comparar este manifesto com o que o código lê hoje."""
+        problemas = [f"manifesto sem o campo obrigatório `{c}`" for c in self.campos_ausentes()]
+        formato = self.dados.get("oraculo_formato")
+        if formato is not None and formato != formato_atual:
+            problemas.append(
+                f"manifesto escrito com o formato de oráculo {formato}; este código lê o "
+                f"{formato_atual} — os hashes não são comparáveis. Refaça o pack."
+            )
+        return problemas
+
 
 def arvore_suja(raiz: pathlib.Path) -> str:
     """O que `git status --porcelain` acusa. Vazio é árvore limpa.
@@ -200,6 +232,39 @@ def copiar_artefatos(raiz: pathlib.Path, destino: pathlib.Path) -> tuple[list[st
             shutil.copy2(origem, alvo)
             copiados.append(str(relativo))
     return copiados, vazios
+
+
+def comecar_montagem(destino: Destino) -> pathlib.Path:
+    """Um diretório limpo para o candidato novo, ao lado do anterior.
+
+    O anterior fica intocado até o novo estar inteiro: um `rmtree` antes do
+    primeiro `pg_dump` deixava a única volta perdida se o dump falhasse
+    (RVE-10). Resto de uma montagem interrompida é descartado aqui — ele nunca
+    foi conferido.
+    """
+    if destino.em_montagem.exists():
+        shutil.rmtree(destino.em_montagem)
+    destino.em_montagem.mkdir(parents=True)
+    return destino.em_montagem
+
+
+def concluir_montagem(destino: Destino) -> pathlib.Path:
+    """O novo vira `candidato/`; o anterior sai só depois — e por último."""
+    if not destino.em_montagem.exists():
+        raise PacoteRecusado(f"não há montagem em {destino.em_montagem}")
+    if destino.descartado.exists():
+        shutil.rmtree(destino.descartado)
+    if destino.candidato.exists():
+        destino.candidato.rename(destino.descartado)
+    destino.em_montagem.rename(destino.candidato)
+    if destino.descartado.exists():
+        shutil.rmtree(destino.descartado)
+    return destino.candidato
+
+
+def abandonar_montagem(destino: Destino) -> None:
+    if destino.em_montagem.exists():
+        shutil.rmtree(destino.em_montagem)
 
 
 def promover(destino: Destino) -> pathlib.Path:

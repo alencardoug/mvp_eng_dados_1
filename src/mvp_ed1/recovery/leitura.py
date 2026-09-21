@@ -18,7 +18,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
-from mvp_ed1.recovery import oraculos
+from mvp_ed1.recovery import oraculos, rebase
 
 #: A chave das fatias da quarentena. `source_system` entra porque a mesma
 #: captura pode vir de mais de uma origem (RV12-4-02).
@@ -29,6 +29,27 @@ CHAVE_DA_QUARENTENA = (
 TABELA_DA_QUARENTENA = "quarantine.rejected_legacy_records"
 SCHEMA_DOS_SNAPSHOTS = "snapshots"
 SCHEMA_DO_BRUTO = "raw_legacy"
+
+#: A memória de exclusões (ADR-0045) é `table` reconstruída pelo dbt a partir
+#: das capturas retidas — e por isso é oráculo do passo 9, não conteúdo do
+#: pacote. `observed_in_snapshot_id` é a captura **selecionada** no momento do
+#: build: muda de propósito quando a captura nova entra, e fica fora do digest.
+TABELA_DAS_EXCLUSOES = "trusted.legacy_removed_records"
+COLUNAS_VOLATEIS_DAS_EXCLUSOES = ("observed_in_snapshot_id",)
+
+#: Os dois caminhos do livro de estoque (ADR-0031): a carga completa do
+#: Airbyte e os deltas do CDC. As 16 colunas de negócio são as do contrato do
+#: evento (`streaming/sink.py`, `COLUNAS_DO_EVENTO`); `metadata` é texto nos
+#: dois e se compara como `jsonb`, porque a forma textual de um JSON igual pode
+#: diferir entre quem o escreveu.
+CAMINHO_LOTE = "raw.inventory_movements"
+CAMINHO_FLUXO = "raw.inventory_movements_stream"
+
+#: Onde o gerador da origem principal registra os parâmetros efetivos da
+#: última carga (`make seed-data`). O do legado registra os seus em
+#: `data/legacy/manifesto.json` (`lote.parametros`).
+REGISTRO_DA_GERACAO = "data/source/geracao.json"
+MANIFESTO_DO_LEGADO = "data/legacy/manifesto.json"
 
 #: Lido em fatias: a quarentena tem 63.802 linhas, e trazer tudo de uma vez
 #: para a memória seria desnecessário.
@@ -42,8 +63,12 @@ def _somente_leitura(engine: Engine):
 
 
 def _linhas(conexao, sql: str, parametros: dict | None = None) -> Iterator[dict[str, Any]]:
-    resultado = conexao.execution_options(stream_results=True, yield_per=FATIA).execute(
-        sa.text(sql), parametros or {}
+    # As opções vão na **instrução**, não na conexão: `Connection.execution_options`
+    # altera a conexão em definitivo, e um `update` executado depois na mesma
+    # transação saía embrulhado em `DECLARE … CURSOR FOR update` — medido em
+    # 21/09/2026, no re-base aplicado a um banco isolado.
+    resultado = conexao.execute(
+        sa.text(sql).execution_options(stream_results=True, yield_per=FATIA), parametros or {}
     )
     for linha in resultado.mappings():
         yield dict(linha)
@@ -75,6 +100,21 @@ def contagens(engine: Engine, schemas: list[str]) -> dict[str, int]:
         return resultado
 
 
+def tamanhos(engine: Engine, schemas: list[str]) -> dict[str, int]:
+    """Bytes por `schema.tabela` (`pg_total_relation_size`), medidos, não inferidos."""
+    with _somente_leitura(engine) as conexao:
+        resultado: dict[str, int] = {}
+        for schema in schemas:
+            for tabela in tabelas_do_schema(conexao, schema):
+                resultado[f"{schema}.{tabela}"] = int(
+                    conexao.execute(
+                        sa.text("select pg_total_relation_size(:relacao)"),
+                        {"relacao": f'{schema}."{tabela}"'},
+                    ).scalar_one()
+                )
+        return resultado
+
+
 def oraculo_scd(engine: Engine) -> dict[str, dict[str, Any]]:
     """Por *snapshot*: linhas, `dbt_scd_id` distintos e o digest canônico.
 
@@ -94,6 +134,14 @@ def oraculo_scd(engine: Engine) -> dict[str, dict[str, Any]]:
                 "digest": oraculos.digest(linhas),
             }
         return resultado
+
+
+def snapshot_da_fatia(chave: str) -> int | None:
+    """O `snapshot_id` de uma fatia da quarentena, lido da chave do manifesto."""
+    import json
+
+    valor = json.loads(chave)[CHAVE_DA_QUARENTENA.index("snapshot_id")]
+    return None if valor is None else int(valor)
 
 
 def oraculo_da_quarentena(engine: Engine) -> dict[str, dict[str, Any]]:
@@ -140,6 +188,156 @@ def oraculo_das_capturas(engine: Engine) -> dict[str, Any]:
         "maior_snapshot": max(certificadas) if certificadas else None,
         "geracoes_por_tabela": geracoes,
     }
+
+
+def chaves_e_geracoes(conexao, tabela: str, apenas_retidas: bool = False) -> Iterator[tuple[str, int | None]]:
+    """`(_airbyte_raw_id, _airbyte_generation_id)` de uma tabela do bruto, em fatias.
+
+    `apenas_retidas` restringe à faixa negativa — o que voltou do pacote e foi
+    re-baseado —, para que a assinatura continue comparável depois de a carga
+    nova ter escrito nas gerações não negativas.
+    """
+    filtro = " where _airbyte_generation_id < 0" if apenas_retidas else ""
+    for linha in _linhas(
+        conexao,
+        f'select _airbyte_raw_id as chave, _airbyte_generation_id as geracao '
+        f'from {SCHEMA_DO_BRUTO}."{tabela}"{filtro}',
+    ):
+        yield linha["chave"], (None if linha["geracao"] is None else int(linha["geracao"]))
+
+
+def oraculo_da_particao(engine: Engine, apenas_retidas: bool = False) -> dict[str, dict[str, Any]]:
+    """Por tabela do bruto: a assinatura da partição das linhas por geração.
+
+    É o oráculo do passo 4b guardado no manifesto (RVE-04): invariante ao
+    re-base, e restrita às retidas quando a carga nova já entrou.
+    """
+    with _somente_leitura(engine) as conexao:
+        return {
+            tabela: rebase.assinatura(chaves_e_geracoes(conexao, tabela, apenas_retidas))
+            for tabela in tabelas_do_schema(conexao, SCHEMA_DO_BRUTO)
+        }
+
+
+def oraculo_das_exclusoes(engine: Engine) -> dict[str, Any] | None:
+    """A memória de exclusões, sem a coluna que muda com a captura selecionada.
+
+    `None` quando a tabela não existe — armazém que ainda não teve `dbt build`
+    —, e o manifesto diz isso em vez de gravar um digest do vazio.
+    """
+    schema, tabela = TABELA_DAS_EXCLUSOES.split(".")
+    with _somente_leitura(engine) as conexao:
+        if tabela not in tabelas_do_schema(conexao, schema):
+            return None
+        linhas = [
+            {c: v for c, v in linha.items() if c not in COLUNAS_VOLATEIS_DAS_EXCLUSOES}
+            for linha in _linhas(conexao, f"select * from {TABELA_DAS_EXCLUSOES}")
+        ]
+        return {"linhas": len(linhas), "digest": oraculos.digest(linhas)}
+
+
+def comparar_caminhos(engine: Engine, corte: int) -> dict[str, Any]:
+    """Os dois caminhos do livro até o corte: os quatro zeros e as duas somas.
+
+    O que se compara é o **payload** — chave e as 16 colunas de negócio — e o
+    saldo por armazém/SKU, não flags de chegada; é a comparação da Execução
+    Local §3.2 que prova o livro restaurado (passo 9).
+    """
+    colunas = (
+        "movement_id", "event_sequence", "idempotency_key", "warehouse_id",
+        "product_variant_id", "movement_type", "quantity_delta", "unit_cost",
+        "source_type", "source_id", "correlation_id", "causation_id",
+        "aggregate_version", "occurred_at", "recorded_at", "schema_version",
+    )
+    lista = ", ".join(colunas)
+    tupla_l = ", ".join(f"l.{c}" for c in colunas)
+    tupla_f = ", ".join(f"f.{c}" for c in colunas)
+    sql = f"""
+        with lote as (
+            select {lista}, metadata::jsonb as metadata from {CAMINHO_LOTE}
+            where event_sequence <= :corte
+        ), fluxo as (
+            select {lista}, metadata::jsonb as metadata from {CAMINHO_FLUXO}
+            where event_sequence <= :corte
+        ), juntos as (
+            select l.movement_id as lote_id, f.movement_id as fluxo_id,
+                   (({tupla_l}, l.metadata) is distinct from ({tupla_f}, f.metadata)) as diferentes
+            from lote l full outer join fluxo f on l.movement_id = f.movement_id
+        ), saldos as (
+            select coalesce(l.warehouse_id, f.warehouse_id) as warehouse_id,
+                   coalesce(l.product_variant_id, f.product_variant_id) as product_variant_id,
+                   coalesce(l.saldo, 0) as saldo_lote, coalesce(f.saldo, 0) as saldo_fluxo
+            from (select warehouse_id, product_variant_id, sum(quantity_delta) as saldo
+                  from lote group by 1, 2) l
+            full outer join (select warehouse_id, product_variant_id, sum(quantity_delta) as saldo
+                  from fluxo group by 1, 2) f
+              on l.warehouse_id = f.warehouse_id and l.product_variant_id = f.product_variant_id
+        )
+        select
+            (select count(*) from juntos where fluxo_id is null) as so_no_lote,
+            (select count(*) from juntos where lote_id is null) as so_no_fluxo,
+            (select count(*) from juntos where lote_id is not null and fluxo_id is not null and diferentes) as payloads_diferentes,
+            (select count(*) from saldos where saldo_lote <> saldo_fluxo) as saldos_diferentes,
+            (select coalesce(sum(quantity_delta), 0) from lote) as soma_lote,
+            (select coalesce(sum(quantity_delta), 0) from fluxo) as soma_fluxo,
+            (select count(*) from lote) as linhas_lote,
+            (select count(*) from fluxo) as linhas_fluxo
+    """
+    with _somente_leitura(engine) as conexao:
+        linha = conexao.execute(sa.text(sql), {"corte": corte}).mappings().one()
+    return {"corte": corte, **{k: int(v) for k, v in linha.items()}}
+
+
+def capturas_certificadas_desde(engine: Engine, corte: str) -> list[int]:
+    """`snapshot_id` certificados cuja captura começou depois do corte do pacote.
+
+    É a identidade que o Airbyte devolveu de fato — `job_id` gravado por
+    `registrar_job` ao nascer o job —, e não um número escrito num plano.
+    """
+    from mvp_ed1.legacy import captura
+
+    with _somente_leitura(engine) as conexao:
+        depois = {
+            int(g)
+            for (g,) in conexao.execute(
+                sa.text(
+                    f"select snapshot_id from {captura.TABELA} "
+                    "where snapshot_id is not null group by snapshot_id "
+                    "having min(started_at) >= cast(:corte as timestamptz)"
+                ),
+                {"corte": corte},
+            )
+        }
+    return sorted(depois & set(captura.certificadas(engine)))
+
+
+def geracao_registrada(raiz) -> dict[str, Any]:
+    """Os parâmetros efetivos de geração das duas origens — os registrados, e só eles.
+
+    Sem registro, o valor é `None` **com o motivo**: um manifesto que gravasse
+    o padrão do YAML afirmaria uma semente que ninguém mediu (RVE-15).
+    """
+    import json
+    import pathlib
+
+    resultado: dict[str, Any] = {}
+    origem = pathlib.Path(raiz) / REGISTRO_DA_GERACAO
+    if origem.exists():
+        resultado["source_db"] = json.loads(origem.read_text(encoding="utf-8"))
+    else:
+        resultado["source_db"] = None
+        resultado["source_db_motivo"] = (
+            f"{REGISTRO_DA_GERACAO} não existe — a origem foi carregada antes de o gerador "
+            "registrar os parâmetros efetivos, ou por outro caminho; nada foi inferido"
+        )
+    legado = pathlib.Path(raiz) / MANIFESTO_DO_LEGADO
+    if legado.exists():
+        lote = json.loads(legado.read_text(encoding="utf-8")).get("lote", {})
+        resultado["legacy_db"] = {"parametros": lote.get("parametros"), "hash": lote.get("hash")}
+    else:
+        resultado["legacy_db"] = None
+        resultado["legacy_db_motivo"] = f"{MANIFESTO_DO_LEGADO} não existe; nada foi inferido"
+    return resultado
 
 
 def geracoes_da_tabela(engine: Engine, tabela: str) -> list[int | None]:

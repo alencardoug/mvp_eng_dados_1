@@ -77,6 +77,13 @@ def test_geracao_nula_recua_em_vez_de_inventar_faixa():
     assert "não foi aplicado" in str(erro.value)
 
 
+def test_o_dominio_aceita_um_iterador_sem_perder_a_segunda_passagem():
+    """RVE-16: a contagem de nulos esgotava o iterador antes da busca por positivas."""
+    assert rebase.dominio_valido(iter([0, 1])) != []
+    assert rebase.dominio_valido(iter([None, -1])) != []
+    assert rebase.dominio_valido(iter([-2, -1])) == []
+
+
 def test_o_dominio_confere_nulo_e_nao_so_ausencia_de_positiva():
     """"Nenhuma geração positiva" é satisfeito por um nulo — e era o oráculo antigo."""
     assert rebase.dominio_valido([-3, -2, -1]) == []
@@ -161,7 +168,55 @@ def test_o_nulo_entra_como_marcador_e_nao_some():
     assert oraculos.digest([vigente]) != oraculos.digest([fechada]), (
         "`NULL` e string vazia são valores diferentes"
     )
-    assert oraculos.NULO in oraculos.linha_canonica(vigente)
+    assert '"dbt_valid_to":null' in oraculos.linha_canonica(vigente)
+
+
+# ── A codificação tipada (RVE-07) ───────────────────────────────────────────
+#
+# Os seis pares que a revisão da entrega mediu na serialização anterior: dois
+# conteúdos diferentes com o mesmo hash (colisão), quatro conteúdos iguais com
+# hashes diferentes (falso diferente). Cada um é uma regra da codificação.
+
+import datetime as _dt  # noqa: E402
+import decimal as _decimal  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "nome, a, b",
+    [
+        ("nulo × o texto \\N", {"v": None}, {"v": "\\N"}),
+        ("separador dentro do texto", {"a": "x\x1fb=y", "b": "z"}, {"a": "x", "b": "y\x1fb=z"}),
+        ('o texto "1" × o inteiro 1', {"v": "1"}, {"v": 1}),
+        ("o inteiro 1 × numeric 1", {"v": 1}, {"v": _decimal.Decimal("1")}),
+        ("verdadeiro × o inteiro 1", {"v": True}, {"v": 1}),
+    ],
+)
+def test_conteudos_diferentes_tem_hashes_diferentes(nome, a, b):
+    assert oraculos.digest([a]) != oraculos.digest([b]), nome
+
+
+@pytest.mark.parametrize(
+    "nome, a, b",
+    [
+        (
+            "o mesmo instante em dois fusos",
+            {"v": _dt.datetime(2026, 9, 21, 12, tzinfo=_dt.timezone.utc)},
+            {"v": _dt.datetime(2026, 9, 21, 9, tzinfo=_dt.timezone(_dt.timedelta(hours=-3)))},
+        ),
+        ("numeric com escalas diferentes", {"v": _decimal.Decimal("1.00")}, {"v": _decimal.Decimal("1.0")}),
+        ("numeric 100 × 1E+2", {"v": _decimal.Decimal("100")}, {"v": _decimal.Decimal("1E+2")}),
+        ("bytes × memoryview", {"v": b"abc"}, {"v": memoryview(b"abc")}),
+        ("duas memoryviews do mesmo conteúdo", {"v": memoryview(b"abc")}, {"v": memoryview(b"abc")}),
+    ],
+)
+def test_representacoes_equivalentes_tem_o_mesmo_hash(nome, a, b):
+    assert oraculos.digest([a]) == oraculos.digest([b]), nome
+
+
+def test_o_formato_do_oraculo_e_versionado():
+    """Um manifesto escrito com outra codificação não é comparável — e diz isso."""
+    assert oraculos.FORMATO == 2
+    assert oraculos.linha_canonica({"v": None}) == '{"v":null}'
 
 
 def test_duplicar_uma_linha_muda_o_hash_e_a_contagem():
@@ -503,3 +558,414 @@ def test_o_pack_recusa_arvore_suja():
     assert pacote.arvore_suja(RAIZ) is not None  # a função existe e responde
     receita = _receita("recovery-pack")
     assert "preflight" in receita, "janela parada é pré-condição do corte"
+
+
+# ── A revisão da entrega (RVE-03/04/05/06/10/15): o que cada passo confere ──
+#
+# Motores, leituras e o `pg_restore` são dublês; as funções de decisão da CLI
+# são reais. O que se prova é que os estados que a revisão viu passar agora
+# são recusados — e que o estado certo continua passando.
+
+import argparse  # noqa: E402
+import contextlib  # noqa: E402
+import copy  # noqa: E402
+import io  # noqa: E402
+from unittest.mock import Mock, patch  # noqa: E402
+
+from mvp_ed1.recovery import cli, leitura  # noqa: E402
+
+
+def test_a_assinatura_da_particao_e_invariante_ao_rebase_e_ve_a_fusao():
+    """RVE-04: o oráculo do passo 4b que o manifesto guarda."""
+    linhas = [("a", 1), ("b", 1), ("c", 5), ("d", 28), ("e", 28)]
+    mapa = rebase.plano(g for _, g in linhas)
+    rebaseadas = [(k, mapa[g]) for k, g in linhas]
+    fundidas = [("a", -1), ("b", -1), ("c", -1), ("d", -2), ("e", -2)]
+    trocadas = [("a", -3), ("b", -3), ("c", -1), ("d", -2), ("e", -2)]
+
+    antes = rebase.assinatura(linhas)
+    assert antes["classes"] == 3 and antes["linhas"] == 5 and antes["nulas"] == 0
+    assert rebase.assinatura(rebaseadas) == antes
+    assert rebase.particao_preservada_por_assinatura(antes, rebase.assinatura(rebaseadas)) == []
+    assert any("classes" in p for p in rebase.particao_preservada_por_assinatura(antes, rebase.assinatura(fundidas)))
+    assert any("agrupamento" in p for p in rebase.particao_preservada_por_assinatura(antes, rebase.assinatura(trocadas)))
+
+
+def test_o_manifesto_incompleto_ou_de_outro_formato_e_dito(tmp_path):
+    """RVE-15 e RVE-07: campo obrigatório ausente e formato diferente são problemas nomeados."""
+    antigo = pacote.Manifesto({"corte": "x", "commit": "y", "contagens": {}})
+    problemas = antigo.problemas_de_forma(oraculos.FORMATO)
+    assert any("`oraculo_particao`" in p for p in problemas)
+    assert any("`geracao`" in p for p in problemas)
+
+    outro_formato = pacote.Manifesto({c: {} for c in pacote.CAMPOS_OBRIGATORIOS} | {"oraculo_formato": 1})
+    assert any("não são comparáveis" in p for p in outro_formato.problemas_de_forma(oraculos.FORMATO))
+    assert pacote.Manifesto({c: {} for c in pacote.CAMPOS_OBRIGATORIOS} | {"oraculo_formato": oraculos.FORMATO}).problemas_de_forma(oraculos.FORMATO) == []
+
+
+def test_refazer_o_pacote_preserva_o_candidato_anterior_ate_o_novo_existir(tmp_path):
+    """RVE-10: `rmtree(candidato)` antes do primeiro dump perdia a única volta."""
+    destino = pacote.Destino(tmp_path)
+    destino.candidato.mkdir(parents=True)
+    (destino.candidato / "volta.dump").write_bytes(b"pacote anterior")
+    args = argparse.Namespace(dir=str(tmp_path), permitir_arvore_suja=False)
+
+    def falha(pasta):
+        (pasta / "source_db.dump").write_bytes(b"parcial")
+        raise pacote.PacoteRecusado("falha simulada no primeiro dump")
+
+    with patch.object(pacote, "arvore_suja", return_value=""), patch.object(cli, "_montar", side_effect=falha), \
+            contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with pytest.raises(pacote.PacoteRecusado):
+            cli.comando_pack(args)
+
+    assert (destino.candidato / "volta.dump").read_bytes() == b"pacote anterior"
+    assert not destino.em_montagem.exists(), "a montagem abandonada não fica para trás"
+
+    def sucesso(pasta):
+        (pasta / "novo.dump").write_bytes(b"pacote novo")
+
+    with patch.object(pacote, "arvore_suja", return_value=""), patch.object(cli, "_montar", side_effect=sucesso), \
+            contextlib.redirect_stdout(io.StringIO()):
+        assert cli.comando_pack(args) == 0
+
+    assert (destino.candidato / "novo.dump").exists()
+    assert not (destino.candidato / "volta.dump").exists()
+    assert not destino.descartado.exists() and not destino.em_montagem.exists()
+
+
+def test_pg_restore_com_erro_acumulado_e_recusado_numa_transacao_so(tmp_path):
+    """RVE-03: o código 1 do `pg_restore` é `n_errors > 0`, não aviso benigno."""
+    dump = tmp_path / "falso.dump"
+    dump.write_bytes(b"nenhum dump real")
+    erro = b"pg_restore: error: COPY failed: duplicate key\npg_restore: warning: errors ignored on restore: 1\n"
+    chamadas: list[list[str]] = []
+
+    def run(comando, **kw):
+        chamadas.append(comando)
+        return subprocess.CompletedProcess(comando, 1, b"", erro)
+
+    with patch.object(cli, "_conteineres", return_value="docker-falso"), patch.object(cli.subprocess, "run", side_effect=run):
+        with pytest.raises(pacote.PacoteRecusado) as recusa:
+            cli._pg_restore("source_db", "usuario", "banco", dump)
+
+    assert "COPY failed" in str(recusa.value), "o diagnóstico inteiro, não só a última linha"
+    assert "--single-transaction" in chamadas[0] and "--clean" in chamadas[0] and "--if-exists" in chamadas[0]
+
+
+MANIFESTO = {
+    "corte": "2026-09-21T12:00:00+00:00",
+    "commit": "0" * 40,
+    "oraculo_formato": oraculos.FORMATO,
+    "alembic": {"source_db": "head-source", "legacy_db": "head-legacy"},
+    "geracao": {"source_db": None, "legacy_db": None},
+    "governance_versions": ["v1"],
+    "max_event_sequence": 100,
+    "contagens": {
+        "source_db": {"oltp.customers": 10},
+        "legacy_db": {"legacy.customers": 10},
+        "warehouse_db": {"raw_legacy.customers": 20},
+    },
+    "tamanhos": {"source_db": {}, "legacy_db": {}, "warehouse_db": {}},
+    "oraculo_scd": {"scd_customer": {"linhas": 2, "versoes": 2, "digest": "igual"}},
+    "oraculo_quarentena": {'["legacy",43,9,"hash"]': {"linhas": 1, "digest": "igual"}},
+    "oraculo_capturas": {
+        "maior_snapshot": 43,
+        "certificadas": [9, 43],
+        "geracoes_por_tabela": {"customers": {"minima": 1, "maxima": 2, "classes": 2, "nulas": 0}},
+    },
+    "oraculo_particao": {"customers": {"linhas": 20, "classes": 2, "nulas": 0, "digest": "particao"}},
+    "oraculo_exclusoes": {"linhas": 4, "digest": "exclusoes"},
+    "artefatos_copiados": [],
+    "artefatos_ausentes": [],
+    "limite": "…",
+}
+
+#: O estado que a revisão viu passar no passo 5 com `problemas=[]`: contagens
+#: divergentes, Alembic errado, versões erradas, nenhuma captura certificada.
+ESTADO_INVALIDO = {
+    "contagens": lambda engine, schemas: {f"{schemas[0]}.customers": 0},
+    "alembic_current": lambda raiz, secao=None: "versao-errada",
+    "versoes_do_armazem": lambda engine: ["versao-errada"],
+    "maior_event_sequence": lambda engine: 100,
+    "oraculo_scd": lambda engine: copy.deepcopy(MANIFESTO["oraculo_scd"]),
+    "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+    "oraculo_das_capturas": lambda engine: {"certificadas": [], "maior_snapshot": None, "geracoes_por_tabela": {}},
+    "oraculo_da_particao": lambda engine, apenas_retidas=False: {},
+    "oraculo_das_exclusoes": lambda engine: None,
+}
+
+#: O mesmo estado do pacote, logo depois do `pack`.
+ESTADO_DO_PACOTE = {
+    "contagens": lambda engine, schemas: copy.deepcopy(
+        {"oltp": MANIFESTO["contagens"]["source_db"], "legacy": MANIFESTO["contagens"]["legacy_db"]}.get(
+            schemas[0], MANIFESTO["contagens"]["warehouse_db"]
+        )
+    ),
+    "alembic_current": lambda raiz, secao=None: "head-legacy" if secao else "head-source",
+    "versoes_do_armazem": lambda engine: ["v1"],
+    "maior_event_sequence": lambda engine: 100,
+    "oraculo_scd": lambda engine: copy.deepcopy(MANIFESTO["oraculo_scd"]),
+    "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+    "oraculo_das_capturas": lambda engine: copy.deepcopy(MANIFESTO["oraculo_capturas"]),
+    "oraculo_da_particao": lambda engine, apenas_retidas=False: copy.deepcopy(MANIFESTO["oraculo_particao"]),
+    "oraculo_das_exclusoes": lambda engine: copy.deepcopy(MANIFESTO["oraculo_exclusoes"]),
+}
+
+
+@contextlib.contextmanager
+def _leituras(estado: dict):
+    with contextlib.ExitStack() as pilha:
+        pilha.enter_context(patch.object(cli, "_motor", return_value=Mock()))
+        for nome, funcao in estado.items():
+            pilha.enter_context(patch.object(leitura, nome, side_effect=funcao))
+        pilha.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        yield
+
+
+def test_o_passo_5_recusa_o_estado_que_a_revisao_viu_passar():
+    """RVE-04: contagens, Alembic, versões e capturas divergentes passavam com `problemas=[]`."""
+    with _leituras(ESTADO_INVALIDO):
+        problemas = cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO)))
+
+    assert any("contagens em source_db" in p for p in problemas), problemas
+    assert any("alembic" in p for p in problemas)
+    assert any("governance._versions" in p for p in problemas)
+    assert any("capturas certificadas" in p for p in problemas)
+    assert any("partição" in p for p in problemas)
+    assert not any("exclusões" in p for p in problemas), (
+        "a memória de exclusões é `trusted`, que renasce no rebuild do passo 8 — é oráculo do passo 9"
+    )
+
+
+def test_o_passo_5_aceita_o_mesmo_estado_do_pacote_antes_e_depois_do_rebase():
+    with _leituras(ESTADO_DO_PACOTE):
+        assert cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO))) == []
+
+    rebaseado = dict(ESTADO_DO_PACOTE)
+    rebaseado["oraculo_das_capturas"] = lambda engine: {
+        "certificadas": [9, 43], "maior_snapshot": 43,
+        "geracoes_por_tabela": {"customers": {"minima": -2, "maxima": -1, "classes": 2, "nulas": 0}},
+    }
+    with _leituras(rebaseado):
+        assert cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO))) == []
+
+    fundido = dict(rebaseado)
+    fundido["oraculo_da_particao"] = lambda engine, apenas_retidas=False: {
+        "customers": {"linhas": 20, "classes": 1, "nulas": 0, "digest": "outra"}
+    }
+    with _leituras(fundido):
+        problemas = cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO)))
+    assert any("partição" in p for p in problemas), problemas
+
+
+def _passo_9(estado: dict, job: int | None = None) -> tuple[int, str]:
+    erro = io.StringIO()
+    with _leituras(estado), patch.object(cli, "_pasta_do_pacote", return_value=pathlib.Path("/nao-usado")), \
+            patch.object(pacote.Manifesto, "ler", return_value=pacote.Manifesto(copy.deepcopy(MANIFESTO))), \
+            contextlib.redirect_stderr(erro):
+        codigo = cli.comando_conferir_restauracao(argparse.Namespace(dir=None, job=job))
+    return codigo, erro.getvalue()
+
+
+#: O estado que a revisão viu o passo 9 aceitar com exit 0: só o certificado
+#: 44, sem os retidos, gerações só positivas, quarentena sem fatia nova.
+ESTADO_RESTAURADO_INVALIDO = dict(ESTADO_INVALIDO) | {
+    "versoes_do_armazem": lambda engine: ["v1"],
+    "oraculo_das_capturas": lambda engine: {
+        "certificadas": [44], "maior_snapshot": 44,
+        "geracoes_por_tabela": {"customers": {"minima": 1, "maxima": 1, "classes": 1, "nulas": 0}},
+    },
+    "capturas_certificadas_desde": lambda engine, corte: [44],
+    "comparar_caminhos": lambda engine, corte: {
+        "corte": corte, "so_no_lote": 3, "so_no_fluxo": 0, "payloads_diferentes": 1,
+        "saldos_diferentes": 0, "soma_lote": 10, "soma_fluxo": 9, "linhas_lote": 1, "linhas_fluxo": 1,
+    },
+}
+
+#: Uma restauração de verdade bem-sucedida: tudo do manifesto de volta, a
+#: captura 44 certificada acima da 43, a fatia dela na quarentena, o livro igual.
+ESTADO_RESTAURADO = dict(ESTADO_DO_PACOTE) | {
+    "oraculo_das_capturas": lambda engine: {
+        "certificadas": [9, 43, 44], "maior_snapshot": 44,
+        "geracoes_por_tabela": {"customers": {"minima": -2, "maxima": 1, "classes": 3, "nulas": 0}},
+    },
+    "capturas_certificadas_desde": lambda engine, corte: [44],
+    "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"])
+    | {'["legacy",44,9,"hash"]': {"linhas": 1, "digest": "nova"}},
+    "comparar_caminhos": lambda engine, corte: {
+        "corte": corte, "so_no_lote": 0, "so_no_fluxo": 0, "payloads_diferentes": 0,
+        "saldos_diferentes": 0, "soma_lote": 10, "soma_fluxo": 10, "linhas_lote": 100, "linhas_fluxo": 100,
+    },
+}
+
+
+def test_o_passo_9_recusa_a_restauracao_que_a_revisao_viu_ser_anunciada():
+    """RVE-05: certificados retidos ausentes, livro diferente, contagens erradas — e saía 0."""
+    codigo, erro = _passo_9(ESTADO_RESTAURADO_INVALIDO)
+
+    assert codigo == 1
+    assert "capturas certificadas do manifesto que sumiram: [9, 43]" in erro
+    assert "so_no_lote = 3" in erro and "payloads_diferentes = 1" in erro and "soma dos deltas" in erro
+    assert "contagens em source_db" in erro
+    assert "exclusões" in erro
+
+
+def test_o_passo_9_aceita_a_restauracao_inteira_e_relaciona_a_captura_ao_job_real():
+    codigo, erro = _passo_9(ESTADO_RESTAURADO)
+    assert codigo == 0, erro
+
+    codigo, erro = _passo_9(ESTADO_RESTAURADO, job=44)
+    assert codigo == 0, erro
+
+    codigo, erro = _passo_9(ESTADO_RESTAURADO, job=45)
+    assert codigo == 1 and "o job disparado foi 45" in erro
+
+
+def test_o_passo_9_recusa_acrescimo_que_nao_e_da_captura_nova():
+    estranha = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"])
+        | {'["legacy",44,9,"hash"]': {"linhas": 1, "digest": "nova"}, '["legacy",41,9,"hash"]': {"linhas": 1, "digest": "x"}},
+    }
+    codigo, erro = _passo_9(estranha)
+    assert codigo == 1 and "não são da captura nova" in erro
+
+    sem_nova = dict(ESTADO_RESTAURADO) | {
+        "oraculo_das_capturas": lambda engine: copy.deepcopy(MANIFESTO["oraculo_capturas"]),
+        "capturas_certificadas_desde": lambda engine, corte: [],
+    }
+    codigo, erro = _passo_9(sem_nova)
+    assert codigo == 1 and "não produziu identidade nova" in erro
+
+
+# ── D50: o contador de jobs de um Airbyte novo (RVE-06) ─────────────────────
+
+
+def _avancar(retido: list[int], ler: dict, depois: dict | None = None) -> tuple[int, list[tuple[str, ...]], str]:
+    chamadas: list[tuple[str, ...]] = []
+
+    def jobs(*acao):
+        chamadas.append(acao)
+        return dict(ler if acao[0] == "ler" else depois)
+
+    saida = io.StringIO()
+    with patch.object(cli, "_motor", return_value=Mock()), patch("mvp_ed1.legacy.captura.certificadas", return_value=retido), \
+            patch.object(cli, "_airbyte_jobs", side_effect=jobs), contextlib.redirect_stdout(saida):
+        try:
+            codigo = cli.comando_avancar_jobs(argparse.Namespace(dir=None))
+        except pacote.PacoteRecusado as erro:
+            return 2, chamadas, str(erro)
+    return codigo, chamadas, saida.getvalue()
+
+
+def test_com_o_mesmo_airbyte_o_passo_le_e_nao_escreve():
+    codigo, chamadas, saida = _avancar([28, 43], {"maior_job": 43, "ultimo_valor": 43, "chamado": True, "sequencia": "public.jobs_id_seq"})
+
+    assert codigo == 0
+    assert chamadas == [("ler",)]
+    assert "nada a avançar" in saida
+
+
+def test_num_airbyte_novo_a_sequencia_vai_para_o_retido_e_o_proximo_nasce_acima():
+    """A instalação nova: três jobs, captura 43 retida — avança para 43, o próximo é 44."""
+    codigo, chamadas, saida = _avancar(
+        [28, 43],
+        {"maior_job": 3, "ultimo_valor": 3, "chamado": True, "sequencia": "public.jobs_id_seq"},
+        {"maior_job": 3, "ultimo_valor": 43, "chamado": True, "sequencia": "public.jobs_id_seq"},
+    )
+
+    assert codigo == 0, saida
+    assert chamadas == [("ler",), ("avancar", "43")]
+    assert "próximo job nasce como 44 > 43" in saida
+
+
+def test_sequencia_nunca_usada_nao_e_confundida_com_o_maior_job():
+    """`is_called = false`: o próximo valor é o próprio `last_value`, não `+ 1`."""
+    codigo, chamadas, _ = _avancar(
+        [43],
+        {"maior_job": 0, "ultimo_valor": 43, "chamado": False, "sequencia": "s"},
+        {"maior_job": 0, "ultimo_valor": 43, "chamado": True, "sequencia": "s"},
+    )
+    assert codigo == 0 and chamadas == [("ler",), ("avancar", "43")]
+
+
+def test_pos_condicao_de_d50_nao_satisfeita_recusa():
+    codigo, chamadas, erro = _avancar(
+        [43],
+        {"maior_job": 3, "ultimo_valor": 3, "chamado": True, "sequencia": "s"},
+        {"maior_job": 3, "ultimo_valor": 3, "chamado": True, "sequencia": "s"},
+    )
+    assert codigo == 2 and "pós-condição" in erro
+
+
+def test_o_script_do_contador_para_na_premissa_que_falhar(tmp_path):
+    """`docker/airbyte_jobs.sh` com um `docker` que registra o SQL e responde o que o teste manda."""
+    binario = tmp_path / "bin"
+    binario.mkdir()
+    log = tmp_path / "sql"
+    log.write_text("", encoding="utf-8")
+    (binario / "docker").write_text(
+        "#!/usr/bin/env bash\n"
+        'sql="${@: -1}"; echo "$sql" >> "$SIM_SQL"\n'
+        'case "$sql" in\n'
+        '  *to_regclass*) printf "%s\\n" "$SIM_TABELA" ;;\n'
+        '  *pg_get_serial_sequence*) printf "%s\\n" "$SIM_SEQ" ;;\n'
+        '  *setval*) printf "%s\\n" "${sql##*, }" | tr -d ")" ;;\n'
+        '  *max\\(id\\)*) printf "%s\\n" "$SIM_LINHA" ;;\n'
+        "esac\n",
+        encoding="utf-8",
+    )
+    (binario / "docker").chmod(0o755)
+    ambiente = os.environ | {"PATH": f"{binario}:{os.environ['PATH']}", "SIM_SQL": str(log)}
+    script = str(RAIZ / "docker" / "airbyte_jobs.sh")
+
+    ok = subprocess.run([script, "ler"], capture_output=True, text=True, timeout=30,
+                        env=ambiente | {"SIM_TABELA": "jobs", "SIM_SEQ": "public.jobs_id_seq", "SIM_LINHA": "3|3|t"})
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert ok.stdout.split() == ["maior_job=3", "ultimo_valor=3", "chamado=t", "sequencia=public.jobs_id_seq"]
+
+    log.write_text("", encoding="utf-8")
+    avancado = subprocess.run([script, "avancar", "43"], capture_output=True, text=True, timeout=30,
+                              env=ambiente | {"SIM_TABELA": "jobs", "SIM_SEQ": "public.jobs_id_seq", "SIM_LINHA": "3|43|t"})
+    assert avancado.returncode == 0, avancado.stdout + avancado.stderr
+    assert "select setval('public.jobs_id_seq', 43)" in log.read_text(encoding="utf-8")
+    assert "ultimo_valor=43" in avancado.stdout
+
+    sem_tabela = subprocess.run([script, "ler"], capture_output=True, text=True, timeout=30,
+                                env=ambiente | {"SIM_TABELA": "", "SIM_SEQ": "", "SIM_LINHA": ""})
+    assert sem_tabela.returncode == 3 and "premissa falhou" in sem_tabela.stderr
+
+    sem_sequencia = subprocess.run([script, "avancar", "43"], capture_output=True, text=True, timeout=30,
+                                   env=ambiente | {"SIM_TABELA": "jobs", "SIM_SEQ": "", "SIM_LINHA": ""})
+    assert sem_sequencia.returncode == 3 and "não tem sequência" in sem_sequencia.stderr
+    assert "setval" not in log.read_text(encoding="utf-8").split("43)")[-1]
+
+
+def test_o_passo_d50_vem_depois_do_airbyte_e_antes_de_qualquer_sincronizacao():
+    receita = _receita("recovery-restore")
+
+    assert receita.index("airbyte-up") < receita.index("recovery-airbyte-jobs") < receita.index("sync-airbyte")
+    assert receita.index("sync-airbyte") < receita.index("sync-legacy")
+
+
+def test_a_manutencao_nao_ignora_a_pausa_que_falhou():
+    """RVE-17: `pausar … || true` seguia com um scheduler capaz de disparar a DAG."""
+    receita = _receita("recovery-restore")
+
+    assert "pausar $(DAG) || true" not in receita
+    assert "-eq 3" in receita, "Airflow ausente é o único caso em que se segue"
+
+
+def test_a_geracao_registrada_nunca_e_inferida(tmp_path):
+    """RVE-15: sem registro, `None` com o motivo — nunca o padrão do YAML."""
+    sem_nada = leitura.geracao_registrada(tmp_path)
+    assert sem_nada["source_db"] is None and "nada foi inferido" in sem_nada["source_db_motivo"]
+    assert sem_nada["legacy_db"] is None
+
+    (tmp_path / "data" / "source").mkdir(parents=True)
+    (tmp_path / "data" / "source" / "geracao.json").write_text('{"semente": 7, "as_of": "2026-09-01", "fator": "dev"}', encoding="utf-8")
+    (tmp_path / "data" / "legacy").mkdir()
+    (tmp_path / "data" / "legacy" / "manifesto.json").write_text('{"lote": {"hash": "abc", "parametros": {"semente": 20260906}}}', encoding="utf-8")
+    com_registro = leitura.geracao_registrada(tmp_path)
+    assert com_registro["source_db"]["semente"] == 7
+    assert com_registro["legacy_db"] == {"parametros": {"semente": 20260906}, "hash": "abc"}

@@ -87,7 +87,7 @@ endef
         preflight airbyte-pause airbyte-resume stream-pause stream-resume \
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
         docs-check secrets-history dbt-rebuild \
-        recovery-pack recovery-verify recovery-restore recovery-promote \
+        recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -447,6 +447,12 @@ recovery-verify: require-env require-venv ## Confere o pacote sem restaurar nada
 recovery-rebase: require-env require-venv ## Re-basa as gerações retidas do bruto (passo 4b); DRY_RUN=1 só mostra
 	@$(RECOVERY) rebase $(if $(filter 1,$(DRY_RUN)),--dry-run)
 
+recovery-airbyte-jobs: require-env require-venv ## Num Airbyte novo, avança o contador de jobs para além da captura retida (D50)
+	@# Só a sequência interna é tocada — nenhum job nasce. A listagem da API,
+	@# que a guarda lê, só muda quando o job seguinte existir: por isso, na
+	@# sequência de restauração, `sync-airbyte` vem antes de `sync-legacy`.
+	@$(RECOVERY) avancar-jobs
+
 recovery-promote: require-env require-venv ## candidato/ -> aprovado/, depois de verify e de uma restauração validada
 	@echo "[recovery] RECOVERY_DIR = $(RECOVERY_DIR)"
 	@$(RECOVERY) --dir "$(RECOVERY_DIR)" promote
@@ -488,6 +494,10 @@ recovery-restore: require-env require-venv ## A sequência de restauração, pas
 	@$(MAKE) --no-print-directory medir CENARIO=streaming FORCE=
 	@echo "── 8/9 reconstruindo sem apagar o que acabou de voltar ──"
 	@$(MAKE) --no-print-directory airbyte-up FORCE=
+	@# D50: num Airbyte novo o contador de jobs recomeça em 1, abaixo das
+	@# capturas retidas; avança antes de qualquer sincronização. Com o mesmo
+	@# Airbyte de sempre, o alvo lê, constata e não escreve nada (RVE-06).
+	@$(MAKE) --no-print-directory recovery-airbyte-jobs
 	@$(MAKE) --no-print-directory sync-airbyte RESET=1
 	@$(MAKE) --no-print-directory sync-legacy
 	@$(MAKE) --no-print-directory dbt-rebuild

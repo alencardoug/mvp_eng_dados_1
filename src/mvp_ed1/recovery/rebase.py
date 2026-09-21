@@ -46,6 +46,7 @@ A premissa, declarada: **as cargas novas escrevem em gerações não negativas.*
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from typing import Any
 
 
 class RebaseImpossivel(Exception):
@@ -118,12 +119,59 @@ def dominio_valido(geracoes: Iterable[int | None]) -> list[str]:
     a diferença é o nulo, que a segunda deixa passar.
     """
     problemas: list[str] = []
+    # Materializado uma vez: um iterador seria esgotado pela contagem de nulos
+    # e a busca por não negativas leria o vazio (RVE-16).
+    geracoes = list(geracoes)
     nulos = sum(1 for g in geracoes if g is None)
     if nulos:
         problemas.append(f"{nulos} linha(s) com geração nula")
     fora = sorted({int(g) for g in geracoes if g is not None and g >= 0})
     if fora:
         problemas.append(f"gerações não negativas ainda no bruto retido: {fora}")
+    return problemas
+
+
+def assinatura(linhas: Iterable[tuple[object, int | None]]) -> dict[str, Any]:
+    """A partição de uma tabela, **invariante ao re-base**: classes e digest.
+
+    Cada linha entra como `chave=posição da sua geração na ordem crescente das
+    gerações distintas`, e não com o valor da geração. O re-base é uma
+    renumeração que preserva a ordem, então a assinatura de antes e a de
+    depois são iguais **se e só se** as linhas continuam agrupadas do mesmo
+    jeito — é o oráculo do passo 4b que o manifesto guarda (RVE-04), e que
+    continua valendo depois da carga nova, restrito às linhas retidas.
+    """
+    import hashlib
+
+    pares = list(linhas)
+    ordem = {g: i for i, g in enumerate(sorted({g for _, g in pares if g is not None}))}
+    acumulador = hashlib.md5()  # noqa: S324 — oráculo de comparação, não de segurança
+    for chave, geracao in sorted(
+        (str(chave), "null" if geracao is None else str(ordem[geracao])) for chave, geracao in pares
+    ):
+        acumulador.update(f"{chave}={geracao}\n".encode("utf-8"))
+    return {
+        "linhas": len(pares),
+        "classes": len(ordem),
+        "nulas": sum(1 for _, g in pares if g is None),
+        "digest": acumulador.hexdigest(),
+    }
+
+
+def particao_preservada_por_assinatura(antes: Mapping[str, Any], depois: Mapping[str, Any]) -> list[str]:
+    """As violações entre a assinatura de antes e a de depois do re-base."""
+    problemas: list[str] = []
+    if antes["linhas"] != depois["linhas"]:
+        problemas.append(f"a quantidade de linhas mudou: {antes['linhas']} → {depois['linhas']}")
+    if antes["classes"] != depois["classes"]:
+        problemas.append(f"a quantidade de classes de geração mudou: {antes['classes']} → {depois['classes']}")
+    if depois["nulas"]:
+        problemas.append(f"{depois['nulas']} linha(s) com geração nula depois do re-base")
+    if antes["digest"] != depois["digest"]:
+        problemas.append(
+            "o agrupamento das linhas mudou: há linhas que estavam juntas e ficaram "
+            "separadas, ou o contrário"
+        )
     return problemas
 
 

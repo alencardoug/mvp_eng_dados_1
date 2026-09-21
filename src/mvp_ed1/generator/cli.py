@@ -4,14 +4,24 @@ Três verbos, e nenhum deles aceita credencial por argumento: a conexão vem do
 ambiente, carregado pelo `Makefile` a partir do `.env` (regra inviolável 1).
 
     plan          mostra o plano de volume sem tocar no banco
-    seed          gera e carrega em `source_db`
+    seed          gera e carrega em `source_db`, e registra os parâmetros efetivos
     size-report   mede o que existe no banco, sem gerar nada
+
+**O `seed` deixa um registro** (`data/source/geracao.json`): semente, `as_of`
+e fator **efetivos** — os que a carga usou, resolvidos os padrões —, com o
+*commit* e o instante. É o que o pacote de recuperação leva como oráculo de
+geração da origem principal; sem ele o manifesto diria `None` com o motivo,
+nunca o padrão do YAML (RVE-15). O legado faz o mesmo em
+`data/legacy/manifesto.json`, com o seu próprio gravador.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
+import pathlib
+import subprocess
 import sys
 import time
 
@@ -22,6 +32,11 @@ from mvp_ed1.generator import pipeline, report
 from mvp_ed1.generator.config import Config, carregar
 from mvp_ed1.generator.engine import Motor
 from mvp_ed1.generator.writer import DestinoNaoVazio, escrever
+
+RAIZ = pathlib.Path(__file__).resolve().parents[3]
+#: Onde a última carga registra o que usou. Fora do Git (`data/`), como o
+#: manifesto do legado.
+REGISTRO_DA_GERACAO = RAIZ / "data" / "source" / "geracao.json"
 
 
 def _argumentos() -> argparse.ArgumentParser:
@@ -98,7 +113,36 @@ def seed(args, config: Config) -> int:
         f"({resultado['total'] / max(resultado['segundos'], 1e-9):,.0f} linhas/s)"
     )
     print(f"tempo total: {geracao + resultado['segundos']:.1f}s")
+    registro = registrar_geracao(motor, args.scale or config.fator_padrao, resultado["total"], args.force)
+    print(f"registro da geração: {registro}")
     return 0
+
+
+def registrar_geracao(motor: Motor, fator, linhas: int, forcado: bool) -> pathlib.Path:
+    """Os parâmetros **efetivos** da carga, gravados ao lado do dado — nunca inferidos depois."""
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=RAIZ, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        commit = None
+    REGISTRO_DA_GERACAO.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRO_DA_GERACAO.write_text(
+        json.dumps(
+            {
+                "semente": motor.seed,
+                "as_of": motor.as_of_date.isoformat(),
+                "fator": fator,
+                "linhas": linhas,
+                "forcado": forcado,
+                "commit": commit,
+                "carregado_em": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+            },
+            indent=2, ensure_ascii=False, sort_keys=True,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    return REGISTRO_DA_GERACAO
 
 
 def size_report(args, config: Config) -> int:
