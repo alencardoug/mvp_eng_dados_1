@@ -72,6 +72,11 @@
 > + 5 + 1 + 0), todos fechados com a coluna *Situação* preenchida na rodada que os recebeu. O que
 > falta para o código começar é o **aceite do Owner**; o ciclo destrutivo de B5 continua exigindo
 > autorização própria, separada desse aceite.
+>
+> **Revisão da entrega B0–B4 — 21/09/2026.** A primeira rodada sobre o **código** (`REVISAO.md`,
+> 17 achados RVE-01–17, 12 bloqueantes) foi aplicada na mesma data, cada achado reproduzido
+> antes de corrigido; o que mudou está nos blocos "Revisão da entrega" das §2.1, §3 e §6, e as
+> saídas na §10 do dossiê. B5 continua sem autorização.
 
 ---
 
@@ -365,6 +370,20 @@ registrada em ambiente real, e o clone com outro `COMPOSE_PROJECT_NAME` (provado
 por clone). A Execução Local §5 e §4 ainda descrevem o comportamento antigo em parte: a atualização
 é de **B6**, como o plano prevê.
 
+**Revisão da entrega — 21/09/2026 (RVE-08, 09, 11, 14, 17; `REVISAO.md`).** O revisor achou,
+com Docker e `pgrep` simulados, quatro estados em que o preflight afirmava o que não tinha lido:
+`docker ps` falhando virava "janela parada" e liberava o pacote; o produtor no *host* ficava
+invisível quando o transporte estava parado (o `pgrep` nem era chamado); uma pausa parcial do
+Airflow deixava três contêineres parados sem religá-los; e `dag-wait` aceitava `rve-100` como
+resposta para `rve-10`. Mais um no Makefile: `pausar … || true` seguia com a sequência destrutiva
+mesmo com um *scheduler* de pé. O que mudou de forma: **enumeração que falha é "não sei", e não
+sei bloqueia** — `conteineres.sh resolver` sai 4, `pausar`/`retomar` recusam-se a anunciar estado
+não lido, e o preflight distingue de pé / parado / indeterminado em toda consulta, inclusive depois
+de parar; o *host* é consultado **sempre** em `preflight.sh trabalho`; o grupo cuja pausa falhou é
+**recomposto** e a retomada confere que todos voltaram; a espera interpreta o JSON e compara
+`run_id` **e** estado exatos; `airflow_cli.sh pausar` sai 0/3/1 (pausou / Airflow ausente /
+falhou) e a manutenção só segue com 0 ou 3. Suíte do preflight: 21 → 31 casos.
+
 ---
 
 ## 3. B1 — o instrumento de medição
@@ -473,6 +492,18 @@ de cenário do *streaming* não rodou contra Redpanda, Connect e Beam de verdade
 subir ambiente pesado e são medidos em B5, onde o resultado vale. `docs-generate` não foi
 cronometrado. Os oráculos do bloco citados acima (duração do invólucro maior que a do
 `run_results.json`, e a de `dag-run` + `dag-wait` maior que a da DAG) são de B5, por construção.
+
+**Revisão da entrega — 21/09/2026 (RVE-02, 12, 13; `REVISAO.md`).** Três defeitos, dois deles
+medidos com o Makefile real copiado e executáveis simulados: **a validação do alvo executava a
+receita** — o `make -n` roda de verdade toda linha com `$(MAKE)`, e `medir airbyte-up` chamava
+`abctl local install` antes do preflight (a armadilha que `tests/test_recovery.py` já tinha
+registrado ao ler a sequência, e o medidor não aplicava a si mesmo); a interrupção saía com 130
+**sem registro**; e duas medições do mesmo alvo no mesmo dia deixavam um JSON só — snapshot,
+eventos novos e recuperação de B5 são três `cenario:streaming`. O que mudou: a existência do alvo
+é lida da base de dados do `make` (`make -pn` com objetivo inexistente), sem executar receita;
+`_finalizar` é comum aos dois desfechos e o trap grava `interrompido: true`, código 130; o nome do
+registro leva o instante e os parâmetros (`_limite_n`, `_ate_x`), e o JSON leva
+`parametros: {limite, corte}`. Suíte do medidor: 16 → 19 casos.
 
 ---
 
@@ -923,6 +954,52 @@ exercitado; o re-base foi planejado e **não aplicado** (o `--dry-run` é leitur
 a sequência de nove passos nunca rodou de ponta a ponta; e a guarda de
 identidade nunca enfrentou um Airbyte recém-instalado. `pg_restore --list`
 confere o pacote, não a restauração — e continua sendo isso.
+
+**Revisão da entrega — 21/09/2026 (RVE-01, 03, 04, 05, 06, 07, 10, 15, 16; `REVISAO.md`).**
+A rodada do outro agente sobre B0–B4 trouxe 17 achados, 12 bloqueantes, e o parecer estava
+certo no essencial: **o verde dos testes não fechava as lacunas**. O que ela mediu e o que
+mudou, no que é declaração:
+
+- **a URL da guarda era recusada pela API real** (`createdAt|DESC` cru → `400 Malformed URI`):
+  a query passa por `urlencode`, e a contraprova real devolveu 43 jobs;
+- **o passo 5 conferia só SCD e quarentena**, e o passo 9 aceitou um estado sem os certificados
+  retidos, com gerações só positivas e sem fatia nova — ambos passam a executar o contrato inteiro
+  da §6: contagens das três fontes, Alembic, `governance._versions`, corte do livro, certificados,
+  classes/nulos e a **partição das linhas por geração** (`rebase.assinatura`, invariante ao
+  re-base e gravada no manifesto como `oraculo_particao`); o passo 9 ainda compara os **dois
+  caminhos** por chave + 16 colunas, saldo por armazém/SKU e soma dos deltas, a memória de
+  exclusões (`oraculo_exclusoes`, sem a coluna da captura selecionada) e relaciona o acréscimo
+  às capturas certificadas **depois do corte** — a identidade que o Airbyte devolveu;
+- **o re-base confere a partição dentro da transação** e recua em violação; **medido em banco
+  isolado**: 40 tabelas em 10,9 s, `customers` −28..−1, idempotente, partição igual ao manifesto;
+- **`pg_restore` com código 1 era aceito como aviso** — é `n_errors > 0`; passa a
+  `--single-transaction` (implica `--exit-on-error`) com o diagnóstico inteiro. **Medido em banco
+  isolado**: destino vazio 4,8 s e povoado 6,4 s, 48 tabelas/423.377 linhas = manifesto; com uma
+  view dependente fora do dump, recusa (`cannot drop table … other objects depend on it`) e o
+  banco intocado;
+- **faltava o passo operacional de D50**: `docker/airbyte_jobs.sh` + `make recovery-airbyte-jobs`,
+  entre `airbyte-up` e `sync-airbyte`, lê o próximo valor da **sequência** (com `is_called`), avança
+  ao retido só se preciso, e para na premissa que falhar. Premissa medida no Airbyte 2.2.0:
+  `jobs.id` identity, `public.jobs_id_seq` em 43 = `max(id)`;
+- **a serialização colidia** (nulo × `\N`, separador dentro do texto) **e separava equivalentes**
+  (fuso, escala de `numeric`, `memoryview`): linha = JSON tipado, `FORMATO = 2` no manifesto e
+  recusado quando diferente;
+- **refazer o pacote apagava o anterior antes do primeiro dump**: nasce em `candidato.em-montagem/`
+  e só substitui inteiro;
+- **o manifesto não tinha `seed`/`as_of_date`/tamanhos**: o gerador passa a registrar os
+  parâmetros efetivos (`data/source/geracao.json`), o manifesto ganha `geracao` (com `None` e
+  motivo quando não há registro — nunca o padrão do YAML), `tamanhos` e campos obrigatórios.
+
+**Um defeito que só a execução achou**, além dos 17: `_linhas` fixava `stream_results` na
+conexão, e o `update` do re-base saía embrulhado em `DECLARE … CURSOR FOR update`. A opção passou
+para a instrução. Suíte: 394 → **437 passed, 8 skipped**. O candidato de 20/09 é do formato 1 e
+**precisa ser refeito** antes de B5 (`make recovery-pack` com a árvore limpa); as saídas literais
+estão na §10 do `REVISAO.md`.
+
+**O que continua sendo de B5:** a sequência de ponta a ponta; o `pg_restore` nos bancos do
+projeto (o medido foi o dump da memória, em banco isolado; as fontes não foram restauradas em lugar
+nenhum); o passo 9 depois de uma captura nova real; o `setval` real de `avancar-jobs` (o instalado
+já estava em 43); e a guarda contra um Airbyte recém-instalado.
 
 ---
 

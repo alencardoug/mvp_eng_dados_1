@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, com a revisão **encerrada** em 20/09/2026 — a sexta rodada ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)) voltou sem achados e o desenho está declarado sem impedimento para B0–B4; D45–D52 decididas; **nada de B0–B6 implementado — esperando o aceite do Owner para começar** |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, com medição própria de cada achado; **B5 sem autorização** — exige a do Owner, e o candidato do pacote precisa ser refeito antes (`make recovery-pack`) |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
-| Última revisão | 20/09/2026 |
+| Última revisão | 21/09/2026 |
 
 ---
 
