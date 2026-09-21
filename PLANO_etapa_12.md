@@ -992,9 +992,9 @@ mudou, no que é declaração:
 
 **Um defeito que só a execução achou**, além dos 17: `_linhas` fixava `stream_results` na
 conexão, e o `update` do re-base saía embrulhado em `DECLARE … CURSOR FOR update`. A opção passou
-para a instrução. Suíte: 394 → **437 passed, 8 skipped**. O candidato de 20/09 é do formato 1 e
-**precisa ser refeito** antes de B5 (`make recovery-pack` com a árvore limpa); as saídas literais
-estão na §10 do `REVISAO.md`.
+para a instrução. Suíte: 394 → **437 passed, 8 skipped**. O candidato de 20/09 era do formato 1;
+**foi refeito** com a árvore limpa (corte `2026-09-21T19:27:54+00:00`, código `118416f`) e
+conferido contra os bancos vivos; as saídas literais estão na §10 do `REVISAO.md`.
 
 **O que continua sendo de B5:** a sequência de ponta a ponta; o `pg_restore` nos bancos do
 projeto (o medido foi o dump da memória, em banco isolado; as fontes não foram restauradas em lugar

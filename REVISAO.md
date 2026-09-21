@@ -1353,8 +1353,10 @@ da memória, em banco isolado — as duas fontes não foram restauradas em lugar
 nenhum); o passo 9 depois de uma captura nova real; `avancar-jobs` com uma
 sequência de fato atrás da retida (o `setval` real não rodou — o instalado já
 estava em 43); pausa e espera de uma DAG real; o medidor sob pipeline real. O
-candidato em `data/recovery/candidato` é do formato 1 e **precisa ser
-refeito** (`make recovery-pack`) antes de B5 — o `verify` o recusa por forma.
+candidato de 20/09 era do formato 1 e o `verify` o recusaria por forma: **foi
+refeito** depois do último *commit* (`make recovery-pack`, árvore limpa, corte
+`2026-09-21T19:27:54+00:00`, código `118416f`, 19,6 s) e conferido contra os
+bancos vivos (`make recovery-verify CONTRA_O_BANCO=1`, 12,2 s, sem problema).
 
 ## Achados da revisão
 
