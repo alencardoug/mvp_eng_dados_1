@@ -63,7 +63,7 @@ def test_contador_atras_do_certificado_recusa(armazem):
 
     assert "43" in str(erro.value) and "o maior job é 3" in str(erro.value)
     assert "NÃO foi disparado" in str(erro.value)
-    assert "44" in str(erro.value), "a mensagem diz para onde avançar a sequência"
+    assert "recovery-airbyte-jobs" in str(erro.value), "a mensagem diz como avançar a sequência (D50)"
 
 
 def test_airbyte_sem_job_nenhum_recusa(armazem):
@@ -94,6 +94,32 @@ def test_reset_do_legado_e_recusado_e_o_da_principal_nao():
     assert "memória" in str(erro.value) and "NÃO foi disparado" in str(erro.value)
 
     identidade.recusar_reset("oltp_para_raw")  # a recarga do gerador depende dele
+
+
+# ── A consulta que a guarda faz, como a API real a aceita ───────────────────
+
+
+def test_a_listagem_de_jobs_codifica_a_ordenacao(monkeypatch):
+    """RVE-01: `createdAt|DESC` cru é `400 Malformed URI` no Airbyte real.
+
+    Medido em 21/09/2026 (Airbyte 2.2.0): a mesma consulta com `%7C` devolve a
+    página esperada. Toda sincronização do legado passa por esta chamada, e a
+    guarda recusaria **tudo** — inclusive numa instalação normal — se a URL
+    continuasse montada à mão.
+    """
+    chamadas: list[str] = []
+    monkeypatch.setattr(
+        airbyte, "_chamar", lambda caminho, token=None, corpo=None: chamadas.append(caminho) or {"data": []}
+    )
+
+    airbyte.jobs("jwt")
+    airbyte.jobs("jwt", limite=2)
+
+    assert chamadas == [
+        "/jobs?limit=100&orderBy=createdAt%7CDESC",
+        "/jobs?limit=2&orderBy=createdAt%7CDESC",
+    ]
+    assert all("|" not in c for c in chamadas), "o `|` é reservado e vai codificado"
 
 
 # ── As entradas: nenhuma escapa, e recusa não faz POST ──────────────────────

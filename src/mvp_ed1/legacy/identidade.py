@@ -87,8 +87,10 @@ def exigir(armazem: Engine, listar: Callable[[], Any]) -> None:
         f"{maior_snapshot} certificada e, no Airbyte, {atual}. "
         f"O próximo job nasceria com identidade já usada, e o bruto retido "
         f"passaria a misturar duas capturas sob o mesmo `snapshot_id`.\n"
-        f"  Numa instalação nova do Airbyte, avance a sequência de jobs para "
-        f"{maior_snapshot + 1} antes de sincronizar (D50, plano da Etapa 12 §6).\n"
+        f"  Numa instalação nova do Airbyte, avance a sequência de jobs para além de "
+        f"{maior_snapshot} — `make recovery-airbyte-jobs` (D50) — e crie um job na conexão "
+        f"principal (`make sync-airbyte`) antes de sincronizar o legado: esta guarda lê a "
+        f"listagem de jobs, e ela só muda quando um job existe.\n"
         f"  O job NÃO foi disparado."
     )
 

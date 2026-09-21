@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
@@ -86,13 +87,25 @@ def sincronizar(connection_id: str, jwt: str, tipo: str = "sync") -> dict:
     return _chamar("/jobs", jwt, {"connectionId": connection_id, "jobType": tipo})
 
 
+#: A ordenação da listagem, como a API a escreve: `campo|sentido`. O `|` é
+#: caractere reservado numa URL e vai **codificado** (`%7C`): cru, a API real
+#: respondeu `400 Malformed URI` — e toda sincronização do legado passa por
+#: esta consulta (RVE-01, medido em 21/09/2026 no Airbyte 2.2.0).
+ORDENACAO_DOS_JOBS = "createdAt|DESC"
+
+
+def caminho_dos_jobs(limite: int = 100) -> str:
+    """O caminho da listagem, com a query montada por `urlencode`, nunca à mão."""
+    return "/jobs?" + urllib.parse.urlencode({"limit": limite, "orderBy": ORDENACAO_DOS_JOBS})
+
+
 def jobs(jwt: str, limite: int = 100) -> Any:
-    """Os *jobs* que o Airbyte conhece, de qualquer conexão.
+    """Os *jobs* que o Airbyte conhece, de qualquer conexão, os mais recentes primeiro.
 
     Serve à guarda de identidade: o `jobId` é o contador compartilhado de que
     sai o `snapshot_id` da captura (ADR-0044).
     """
-    return _chamar(f"/jobs?limit={limite}&orderBy=createdAt|DESC", jwt)
+    return _chamar(caminho_dos_jobs(limite), jwt)
 
 
 def guardar_identidade(conexao_nome: str, jwt: str) -> None:
