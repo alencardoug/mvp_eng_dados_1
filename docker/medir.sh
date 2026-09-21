@@ -82,12 +82,16 @@ agregar() {  # $1 = arquivo de amostras
 }
 
 # ── Estado da estação, no início ────────────────────────────────────────────
+# "indeterminado" quando o Docker não responde — o registro não afirma um
+# estado que não leu (RVE-08).
 _de_pe() {
-	local lista=()
-	docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'airbyte-abctl-control-plane' && lista+=("Airbyte")
-	[ -n "$(resolver @airflow)" ] && lista+=("Airflow")
-	[ -n "$(resolver @streaming)" ] && lista+=("streaming")
-	[ -n "$(resolver @bancos)" ] && lista+=("bancos")
+	local lista=() nomes par
+	nomes=$(docker ps --format '{{.Names}}' 2>/dev/null) || { printf 'indeterminado'; return; }
+	printf '%s\n' "$nomes" | grep -qx 'airbyte-abctl-control-plane' && lista+=("Airbyte")
+	for par in "@airflow:Airflow" "@streaming:streaming" "@bancos:bancos"; do
+		nomes=$(resolver "${par%%:*}") || { printf 'indeterminado'; return; }
+		[ -n "$nomes" ] && lista+=("${par#*:}")
+	done
 	[ ${#lista[@]} -eq 0 ] && { printf 'nada'; return; }
 	printf '%s' "$(IFS=,; echo "${lista[*]}")"
 }
@@ -108,6 +112,7 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 		printf '  "duracao_involucro_s": %d,\n' "$DURACAO"
 		printf '  "codigo_de_saida": %d,\n' "$CODIGO"
 		printf '  "interrompido": %s,\n' "$INTERROMPIDO"
+		printf '  "parametros": {"limite": %s, "corte": %s},\n' "${LIMITE:-null}" "${CORTE:-null}"
 		printf '  "estacao": {"disponivel_mb": %d, "de_pe": "%s", "loadavg": "%s"},\n' \
 			"$MEM_INICIAL" "$DE_PE" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
 		printf '  "amostragem": {"intervalo_s": %s' "$INTERVALO"
@@ -123,6 +128,21 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 		printf '  "limite": "a soma dos contêineres não inclui o Beam nem o produtor, que rodam no host; os extremos são amostrados"\n'
 		printf '}\n'
 	} > "$1"
+}
+
+# Um arquivo por execução, nunca por dia: snapshot, eventos novos e a
+# recuperação de B5 são três medições de `cenario:streaming`, e um nome por
+# dia deixava só a última (RVE-13). O instante vai no nome, e os parâmetros
+# que distinguem duas execuções do mesmo alvo — `LIMITE`, `ATE` — também.
+_nome_do_registro() {
+	local base sufixo="" nome
+	base="$DESTINO/$(date -u +%Y-%m-%dT%H%M%SZ)_$(printf '%s' "$ALVO" | tr -c 'a-zA-Z0-9' '_')"
+	[ -n "$LIMITE" ] && sufixo="${sufixo}_limite_${LIMITE}"
+	[ -n "$ATE" ] && sufixo="${sufixo}_ate_$(printf '%s' "$ATE" | tr -c 'a-zA-Z0-9' '_')"
+	nome="${base}${sufixo}.json"
+	# Duas execuções no mesmo segundo não se sobrescrevem.
+	[ -e "$nome" ] && nome="${base}${sufixo}_$$.json"
+	printf '%s' "$nome"
 }
 
 _linha_da_tabela() {
@@ -169,11 +189,29 @@ _encerrar_filhos() {
 	done
 }
 
+# O fim é um só, para os dois desfechos: o registro sai também quando a
+# medição é interrompida — antes, o trap saía com 130 e nenhum JSON, e uma
+# medição abortada não deixava rastro nem de ter começado (RVE-12).
+_finalizar() {
+	DURACAO=$(( $(_epoch) - INICIO_EPOCH ))
+	kill "$AMOSTRADOR" 2>/dev/null; wait "$AMOSTRADOR" 2>/dev/null
+	ARQUIVO="$(_nome_do_registro)"
+	_escrever "$ARQUIVO"
+	echo "[medir] registro: $ARQUIVO"
+	_linha_da_tabela
+}
+
+# O alvo em primeiro plano termina por conta própria — um Ctrl-C alcança o
+# grupo inteiro, e o bash só entrega o sinal a este script depois que o filho
+# em primeiro plano sai. O que o medidor iniciou por `setsid` é dele, e é ele
+# quem encerra.
 _interrompido() {
 	INTERROMPIDO=true
+	CODIGO=130
 	echo ""
 	echo "[medir] interrompido — encerrando o que iniciei antes de sair."
 	_encerrar_filhos
+	_finalizar
 	exit 130
 }
 
@@ -205,13 +243,29 @@ if [ -n "$CENARIO" ]; then ALVO="cenario:$CENARIO"; fi
 
 # Alvo inexistente falha ANTES de amostrar: medir o nada produz um registro
 # que parece uma medição e não é.
+#
+# **Não é `make -n`.** O `make` executa de verdade toda linha de receita que
+# contenha `$(MAKE)`, mesmo sob `-n` — é como ele traça a recursão —, e a
+# "validação" de `airbyte-up` chegava a chamar `abctl local install` antes de
+# o preflight rodar (RVE-02, medido em 21/09/2026 com executáveis simulados).
+# "O alvo existe?" se responde lendo a base de dados do `make`, sem executar
+# nada: com um objetivo que não existe, ele imprime a base e para.
+#
+# O `make` sai 2 pelo objetivo inexistente — é o esperado, e o `|| true` o
+# tira do `pipefail`. Sem `grep -q`: o `grep` que sai cedo mataria o `make`
+# com SIGPIPE, e a existência viraria "não existe".
+_alvo_existe() {
+	{ make -pn __medir_nenhum_alvo__ 2>/dev/null || true; } \
+		| sed -n 's/^\([^ #:=%][^ :=%]*\):.*/\1/p' | grep -Fx -- "$1" >/dev/null
+}
+
 if [ -z "$CENARIO" ]; then
-	make -n "$ALVO" >/dev/null 2>&1 || {
+	_alvo_existe "$ALVO" || {
 		echo "ERRO: '$ALVO' não é um alvo do Makefile — nada foi medido." >&2
 		exit 2
 	}
 	if [ -n "$ATE" ]; then
-		make -n "$ATE" >/dev/null 2>&1 || {
+		_alvo_existe "$ATE" || {
 			echo "ERRO: '$ATE' não é um alvo do Makefile — nada foi medido." >&2
 			exit 2
 		}
@@ -219,8 +273,8 @@ if [ -z "$CENARIO" ]; then
 fi
 
 INTERROMPIDO=false
-trap _interrompido INT TERM
-
+CODIGO=0
+CORTE=""
 INICIO_ISO="$(_agora)"
 INICIO_EPOCH="$(_epoch)"
 MEM_INICIAL="$(_mem_disponivel)"
@@ -234,7 +288,9 @@ echo "[medir] $ALVO — início $INICIO_ISO; estação: $(awk -v m="$MEM_INICIAL
 _amostrar_ate_morrer "$AMOSTRAS" $$ &
 AMOSTRADOR=$!
 
-CODIGO=0
+# Só depois de tudo que `_finalizar` precisa existir: um sinal antes disto
+# seria um registro escrito com variáveis vazias.
+trap _interrompido INT TERM
 if [ -n "$CENARIO" ]; then
 	case "$CENARIO" in
 	streaming)
@@ -278,11 +334,5 @@ else
 	fi
 fi
 
-DURACAO=$(( $(_epoch) - INICIO_EPOCH ))
-kill "$AMOSTRADOR" 2>/dev/null; wait "$AMOSTRADOR" 2>/dev/null
-
-ARQUIVO="$DESTINO/$(date -u +%Y-%m-%d)_$(printf '%s' "$ALVO" | tr -c 'a-zA-Z0-9' '_').json"
-_escrever "$ARQUIVO"
-echo "[medir] registro: $ARQUIVO"
-_linha_da_tabela
+_finalizar
 exit "$CODIGO"

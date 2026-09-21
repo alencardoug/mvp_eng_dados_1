@@ -158,6 +158,39 @@ def test_ate_inexistente_falha_antes_de_executar_o_alvo(tmp_path):
     assert not (trabalho / "rodou").exists(), "o alvo não podia ter rodado"
 
 
+def test_validar_o_alvo_nao_executa_receita_recursiva(tmp_path):
+    """RVE-02: `make -n` executa de verdade toda linha com `$(MAKE)`.
+
+    A "validação" de `airbyte-up` chamava `abctl local install` antes de o
+    preflight rodar. O `Makefile` de mentira registra o que executa: a
+    validação precisa reconhecer o alvo **sem** que o registrador rode antes
+    da medição — e um alvo inexistente continua recusado.
+    """
+    makefile = (
+        "instala:\n\t@echo instalou >> registro\n"
+        "sobe:\n\t@if true; then $(MAKE) --no-print-directory instala; fi\n"
+    )
+    ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
+
+    r = subprocess.run(
+        [str(MEDIR), "sobe"],
+        cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60,
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    registro = (trabalho / "registro").read_text(encoding="utf-8")
+    assert registro == "instalou\n", "a receita rodou uma vez — na medição, não na validação"
+
+    r = subprocess.run(
+        [str(MEDIR), "sobe", "--ate", "alvo_que_nao_existe"],
+        cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60,
+    )
+    assert r.returncode == 2, r.stdout
+    assert (trabalho / "registro").read_text(encoding="utf-8") == "instalou\n", (
+        "recusar o `ATE` não pode ter executado o alvo"
+    )
+
+
 # ── A medição em si ─────────────────────────────────────────────────────────
 
 
@@ -208,6 +241,62 @@ def test_falha_da_espera_propaga_a_falha(tmp_path):
     assert registro["codigo_de_saida"] != 0
 
 
+def test_duas_medicoes_do_mesmo_alvo_deixam_dois_registros(tmp_path):
+    """RVE-13: snapshot, eventos novos e recuperação são três `cenario:streaming`.
+
+    Um nome por dia deixava só a última — e a evidência de B5 se perdia entre
+    si. O nome leva o instante e os parâmetros que distinguem as execuções.
+    """
+    makefile = "alvo:\n\t@true\nespera:\n\t@true\n"
+    ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
+    for args in (["alvo"], ["alvo"], ["alvo", "--ate", "espera"]):
+        r = subprocess.run(
+            [str(MEDIR), *args],
+            cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    arquivos = sorted((tmp_path / "medicoes").glob("*.json"))
+    assert len(arquivos) == 3, arquivos
+    assert any(a.name.endswith("_ate_espera.json") for a in arquivos), [a.name for a in arquivos]
+    registros = [json.loads(a.read_text(encoding="utf-8")) for a in arquivos]
+    assert [r["parametros"] for r in registros] == [
+        {"limite": None, "corte": None},
+        {"limite": None, "corte": None},
+        {"limite": None, "corte": None},
+    ]
+
+
+def test_interrupcao_deixa_o_registro_com_a_marca(tmp_path):
+    """RVE-12: o trap saía com 130 e nenhum JSON — a medição abortada não
+    deixava rastro nem de ter começado."""
+    import signal
+    import time
+
+    makefile = "alvo:\n\t@touch pronto; sleep 2\n"
+    ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
+    processo = subprocess.Popen(
+        [str(MEDIR), "alvo"],
+        cwd=trabalho, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=ambiente, start_new_session=True,
+    )
+    try:
+        limite = time.monotonic() + 10
+        while not (trabalho / "pronto").exists() and time.monotonic() < limite:
+            time.sleep(0.05)
+        processo.send_signal(signal.SIGTERM)
+        saida, _ = processo.communicate(timeout=30)
+    finally:
+        if processo.poll() is None:
+            os.killpg(processo.pid, signal.SIGKILL)
+
+    assert processo.returncode == 130, saida
+    registro = _registro(tmp_path)
+    assert registro["interrompido"] is True
+    assert registro["codigo_de_saida"] == 130
+    assert "[medir] interrompido" in saida
+
+
 # ── O modo de cenário: processo concorrente sob guarda ──────────────────────
 
 CENARIO_OK = textwrap.dedent(
@@ -247,6 +336,10 @@ def test_cenario_le_o_corte_depois_do_produtor(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert (trabalho / "produziu").read_text(encoding="utf-8").strip() == "produzi 5"
     assert "esperei ate 99" in (trabalho / "esperou").read_text(encoding="utf-8")
+    # O que distingue esta execução das outras do mesmo cenário vai no registro (RVE-13).
+    registro = _registro(tmp_path)
+    assert registro["parametros"] == {"limite": 5, "corte": 99}
+    assert "_limite_5" in sorted((tmp_path / "medicoes").glob("*.json"))[0].name
 
 
 def test_cenario_sem_limite_fecha_no_corte_inicial(tmp_path):
