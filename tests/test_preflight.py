@@ -93,6 +93,8 @@ _marcar() {  # $1 = nome, $2 = novo estado
 
 case "$cmd" in
   ps)
+    # Docker que não responde (RVE-08): a enumeração falha, sem lista nenhuma.
+    [ "${SIM_PS_OK:-1}" = 1 ] || { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
     todos=false; proj=""; svc=""
     while [ $# -gt 0 ]; do
       case "$1" in
@@ -151,7 +153,9 @@ esac
 exit 0
 """
 
-PGREP_FALSO = "#!/usr/bin/env bash\nexit 1\n"  # nunca há pipeline Beam no host
+#: `pgrep` falso: 1 = nenhum processo (o padrão), 0 = há produtor ou Beam no
+#: host, outro = o próprio pgrep falhou.
+PGREP_FALSO = "#!/usr/bin/env bash\necho \"pgrep $*\" >> \"$SIM_LOG\"\nexit \"${SIM_PGREP_RC:-1}\"\n"
 
 DENTRO = r"""#!/usr/bin/env bash
 mount --bind "$SIM_MEMINFO" /proc/meminfo || exit 99
@@ -244,6 +248,9 @@ def executa(
     runs: dict[str, str] | None = None,
     prazo_consulta: str = "20",
     prazo_total: str = "90",
+    ps_ok: bool = True,
+    pgrep_rc: int = 1,
+    stop_ignorar: str = "",
 ) -> Resultado:
     binario = _bin_falso(tmp_path)
 
@@ -274,6 +281,9 @@ def executa(
         "COMPOSE_PROJECT_NAME": projeto,
         "PREFLIGHT_PRAZO_CONSULTA": prazo_consulta,
         "PREFLIGHT_PRAZO_TOTAL": prazo_total,
+        "SIM_PS_OK": "1" if ps_ok else "0",
+        "SIM_PGREP_RC": str(pgrep_rc),
+        "SIM_STOP_IGNORAR": stop_ignorar,
     }
     for chave, valor in (runs or {}).items():
         ambiente[f"SIM_RUNS_{chave}"] = valor
@@ -380,6 +390,104 @@ def test_sem_trocar_o_preflight_nao_tem_efeito(tmp_path):
     assert "RECUSADO" in saida.stdout
     assert log.read_text(encoding="utf-8").count("docker stop") == 0
     assert AIRBYTE in estado.read_text(encoding="utf-8")
+
+
+# ── A pergunta isolada: `preflight.sh trabalho` ──────────────────────────────
+
+
+def _trabalho(tmp_path: pathlib.Path, no_ar: list[str], **kw) -> subprocess.CompletedProcess[str]:
+    """`preflight.sh trabalho` não mede memória: roda sem `unshare`."""
+    binario = _bin_falso(tmp_path)
+    estado = tmp_path / "de_pe"
+    estado.write_text(_linhas_de_estado(no_ar), encoding="utf-8")
+    log = tmp_path / "log"
+    log.write_text("", encoding="utf-8")
+    ambiente = os.environ | {
+        "PATH": f"{binario}:{os.environ['PATH']}",
+        "SIM_ESTADO": str(estado),
+        "SIM_LOG": str(log),
+        "SIM_PODS": "POD ID              NAME",
+        "SIM_MEM_APOS": "12000",
+        "SIM_MEMINFO": str(tmp_path / "nao_usado"),
+        "COMPOSE_PROJECT_NAME": PROJETO,
+        "SIM_PS_OK": "1" if kw.get("ps_ok", True) else "0",
+        "SIM_PGREP_RC": str(kw.get("pgrep_rc", 1)),
+    }
+    r = subprocess.run(
+        [str(PREFLIGHT), "trabalho"], capture_output=True, text=True, env=ambiente, timeout=60
+    )
+    r.log = log.read_text(encoding="utf-8").splitlines()  # type: ignore[attr-defined]
+    return r
+
+
+def test_docker_que_nao_responde_e_indeterminado_e_nao_janela_parada(tmp_path):
+    """RVE-08: `docker ps` falhando virava "nenhum trabalho em andamento".
+
+    Indisponibilidade da consulta liberava o pacote sem conhecer o estado — e um
+    dump tirado no meio de uma sincronização descreve um estado que nunca
+    existiu inteiro.
+    """
+    r = _trabalho(tmp_path, ["Airbyte"], ps_ok=False)
+
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "indeterminado" in r.stdout
+    assert "janela parada" not in r.stdout
+
+
+def test_produtor_no_host_e_visto_mesmo_sem_transporte_de_pe(tmp_path):
+    """RVE-09: `_ainda_no_ar streaming` impedia até chamar `pgrep`.
+
+    O produtor escreve na origem com ou sem Redpanda: invisível, ele quebra o
+    corte entre os dumps e o manifesto.
+    """
+    r = _trabalho(tmp_path, [], pgrep_rc=0)
+
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "host: pipeline Beam ou produtor no host" in r.stdout
+    assert any(l.startswith("pgrep") for l in r.log), "o host precisa ter sido consultado"  # type: ignore[attr-defined]
+
+
+def test_pgrep_que_falha_tambem_e_indeterminado(tmp_path):
+    r = _trabalho(tmp_path, [], pgrep_rc=2)
+
+    assert r.returncode == 1, r.stdout
+    assert "indeterminado" in r.stdout
+
+
+def test_sem_nada_de_pe_e_sem_processo_a_janela_esta_parada(tmp_path):
+    r = _trabalho(tmp_path, [])
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "janela parada" in r.stdout
+
+
+@exige_unshare
+def test_enumeracao_que_falha_recusa_a_troca_antes_de_pausar(tmp_path):
+    """RVE-08, na troca: sem saber o que está de pé, nada é pausado."""
+    r = executa(tmp_path, "streaming", ["Airbyte"], ps_ok=False)
+
+    assert r.codigo == 1, r.saida
+    assert "RECUSADO" in r.saida and "enumerar" in r.saida
+    assert not r.parou()
+    assert AIRBYTE in r.de_pe
+
+
+@exige_unshare
+def test_pausa_parcial_recompoe_o_grupo_que_falhou(tmp_path):
+    """RVE-11: `docker stop` parou três dos quatro e falhou no scheduler.
+
+    Recusar a troca estava certo; deixar os outros três parados, não — o
+    Airflow ficava "de pé" só pelo scheduler, sem apiserver, processador de
+    DAGs e banco.
+    """
+    teimoso = "mvp_ed1-airflow_scheduler-1"
+    r = executa(tmp_path, "streaming", ["Airflow"], stop_ignorar=teimoso)
+
+    assert r.codigo == 1, r.saida
+    assert "falhei em pausar Airflow" in r.saida
+    assert "Airflow recomposto" in r.saida
+    assert sorted(r.de_pe) == sorted(nomes("Airflow")), "os quatro precisam estar de pé de novo"
+    assert r.religou()
 
 
 # ── B0, defeito 1: o Airflow existe para o preflight ─────────────────────────
@@ -654,6 +762,31 @@ def test_pausa_parcial_e_denunciada_com_o_que_sobrou(tmp_path):
     assert "Airflow pausado" not in r.stdout
 
 
+def test_pausa_com_docker_mudo_nao_anuncia_nada(tmp_path):
+    """RVE-08: sem enumeração não há "já não estava de pé" nem "pausado"."""
+    binario = _bin_falso(tmp_path)
+    arquivo = tmp_path / "de_pe"
+    arquivo.write_text(_linhas_de_estado(["Airflow"]), encoding="utf-8")
+    log = tmp_path / "log"
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(
+        [str(CONTEINERES_SH), "pausar", "Airflow", *GRUPO_AIRFLOW],
+        capture_output=True, text=True,
+        env=os.environ | {
+            "PATH": f"{binario}:{os.environ['PATH']}",
+            "SIM_ESTADO": str(arquivo), "SIM_LOG": str(log), "SIM_PS_OK": "0",
+            "SIM_MEM_APOS": "12000", "SIM_MEMINFO": str(tmp_path / "nao_usado"),
+            "COMPOSE_PROJECT_NAME": PROJETO,
+        },
+        timeout=60,
+    )
+
+    assert r.returncode == 4, r.stdout
+    assert "Docker não respondeu" in r.stdout
+    assert "pausado" not in r.stdout and "já não estava" not in r.stdout
+    assert "docker stop" not in log.read_text(encoding="utf-8")
+
+
 def test_retomada_confere_o_estado_resultante(tmp_path):
     parados = _linhas_de_estado(["Airflow"]).replace("|up", "|exited")
     r = _conteineres(tmp_path, "retomar", "Airflow", *GRUPO_AIRFLOW, estado=parados)
@@ -674,3 +807,100 @@ def test_resolucao_separa_projetos(tmp_path):
     )
 
     assert r.stdout.split() == ["clone_etapa12-airflow_scheduler-1"], r.stdout
+
+
+# ── airflow_cli.sh: esperar a execução certa, pausar com três desfechos ──────
+
+AIRFLOW_CLI_SH = RAIZ / "docker" / "airflow_cli.sh"
+
+
+def _aguardar(run_pedido: str, resposta_success: str) -> subprocess.CompletedProcess[str]:
+    """`airflow_aguardar_run` com o transporte substituído por uma função."""
+    comando = f"""
+. {AIRFLOW_CLI_SH}
+airflow_cli() {{
+    case "$*" in
+        *'--state success'*) printf '%s\\n' '{resposta_success}' ;;
+        *) echo '[]' ;;
+    esac
+}}
+airflow_aguardar_run fluxo_batch {run_pedido} 0
+"""
+    return subprocess.run(["bash", "-c", comando], capture_output=True, text=True, timeout=30)
+
+
+def test_dag_wait_nao_aceita_run_id_que_so_contem_o_pedido():
+    """RVE-14: a resposta de sucesso de `rve-100` encerrava a espera de `rve-10`."""
+    r = _aguardar("rve-10", '[{"dag_id": "fluxo_batch", "run_id": "rve-100", "state": "success"}]')
+
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "terminou" not in r.stdout
+    assert "vencer não é sucesso" in r.stderr
+
+
+def test_dag_wait_reconhece_o_run_id_exato_no_estado_pedido():
+    resposta = (
+        RUIDO_ALEMBIC.replace("\n", "\\n")
+        + '\\n[{"dag_id": "fluxo_batch", "run_id": "rve-100", "state": "success"},'
+        ' {"dag_id": "fluxo_batch", "run_id": "rve-10", "state": "success", "conf": {"a": 1}}]'
+    )
+    comando = f"""
+. {AIRFLOW_CLI_SH}
+airflow_cli() {{
+    case "$*" in
+        *'--state success'*) printf '%b\\n' '{resposta}' ;;
+        *) echo '[]' ;;
+    esac
+}}
+airflow_aguardar_run fluxo_batch rve-10 0
+"""
+    r = subprocess.run(["bash", "-c", comando], capture_output=True, text=True, timeout=30)
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "rve-10 terminou: success" in r.stdout
+
+
+def _pausar(tmp_path: pathlib.Path, no_ar: list[str], **kw) -> subprocess.CompletedProcess[str]:
+    binario = _bin_falso(tmp_path) if not (tmp_path / "bin").exists() else tmp_path / "bin"
+    estado = tmp_path / "de_pe"
+    estado.write_text(_linhas_de_estado(no_ar), encoding="utf-8")
+    log = tmp_path / "log"
+    log.write_text("", encoding="utf-8")
+    ambiente = os.environ | {
+        "PATH": f"{binario}:{os.environ['PATH']}",
+        "SIM_ESTADO": str(estado),
+        "SIM_LOG": str(log),
+        "SIM_MEM_APOS": "12000",
+        "SIM_MEMINFO": str(tmp_path / "nao_usado"),
+        "COMPOSE_PROJECT_NAME": PROJETO,
+        "SIM_PS_OK": "1" if kw.get("ps_ok", True) else "0",
+        "SIM_EXEC_OK": "1" if kw.get("exec_ok", True) else "0",
+        "AIRFLOW_PRAZO_CONSULTA": "5",
+    }
+    return subprocess.run(
+        [str(AIRFLOW_CLI_SH), "pausar", "fluxo_batch"],
+        capture_output=True, text=True, env=ambiente, timeout=60,
+    )
+
+
+def test_pausar_distingue_airflow_ausente_de_pausa_que_falhou(tmp_path):
+    """RVE-17: `pausar || true` deixava a sequência destrutiva seguir nos dois casos.
+
+    Airflow ausente (3) é seguro — nada pode disparar a DAG. Airflow de pé e
+    pausa que falhou (1) não é — e a manutenção precisa recusar.
+    """
+    ausente = _pausar(tmp_path, [])
+    assert ausente.returncode == 3, ausente.stdout + ausente.stderr
+    assert "não está de pé" in ausente.stdout
+
+    pausada = _pausar(tmp_path, ["Airflow"])
+    assert pausada.returncode == 0, pausada.stdout + pausada.stderr
+    assert "pausada" in pausada.stdout
+
+    falhou = _pausar(tmp_path, ["Airflow"], exec_ok=False)
+    assert falhou.returncode == 1, falhou.stdout + falhou.stderr
+    assert "não consegui pausar" in falhou.stderr
+
+    mudo = _pausar(tmp_path, ["Airflow"], ps_ok=False)
+    assert mudo.returncode == 1, mudo.stdout + mudo.stderr
+    assert "Docker não respondeu" in mudo.stderr

@@ -25,7 +25,14 @@
 # `pausar` e `retomar` respondem pelo **estado resultante**, não pelo código de
 # saída do `docker`: `xargs` sobre lista vazia sai 0 sem parar nada, e foi assim
 # que `airflow-pause` passou a imprimir "Airflow pausado." com o Airflow inteiro
-# de pé. Códigos: 0 fez, 3 não havia o que fazer, 1 tentou e não conseguiu.
+# de pé. Códigos: 0 fez, 3 não havia o que fazer, 1 tentou e não conseguiu,
+# 4 não sei — o Docker não respondeu.
+#
+# **Lista vazia e falha de enumeração são respostas diferentes (RVE-08).**
+# `resolver` sai 4 quando o `docker ps` falha, e quem consome trata isso como
+# indeterminado — nunca como "não há contêiner": foi assim que uma consulta
+# indisponível chegou a liberar o pacote e a troca de ambiente sem conhecer o
+# estado. `pausar` e `retomar` recusam-se a anunciar um estado que não leram.
 #
 # `RETOMAR_COM` é a dica impressa depois de uma pausa bem-sucedida.
 set -uo pipefail
@@ -70,22 +77,25 @@ projeto_compose() {
 }
 
 # Nomes dos contêineres de um ou mais serviços. Sem `--todos`, só os de pé.
+# Sai 4, sem imprimir nada, se o `docker ps` falhar em qualquer consulta.
 resolver() {
 	local todos=false
 	if [ "${1:-}" = "--todos" ]; then todos=true; shift; fi
-	local projeto servico
+	local projeto servico nomes
 	projeto=$(projeto_compose)
 	for servico in $(_expandir "$@"); do
 		if $todos; then
-			docker ps -a --filter "label=com.docker.compose.project=$projeto" \
+			nomes=$(docker ps -a --filter "label=com.docker.compose.project=$projeto" \
 				--filter "label=com.docker.compose.service=$servico" \
-				--format '{{.Names}}' 2>/dev/null
+				--format '{{.Names}}' 2>/dev/null) || return 4
 		else
-			docker ps --filter "label=com.docker.compose.project=$projeto" \
+			nomes=$(docker ps --filter "label=com.docker.compose.project=$projeto" \
 				--filter "label=com.docker.compose.service=$servico" \
-				--format '{{.Names}}' 2>/dev/null
+				--format '{{.Names}}' 2>/dev/null) || return 4
 		fi
+		[ -n "$nomes" ] && printf '%s\n' "$nomes"
 	done
+	return 0
 }
 
 _quantos() { [ -z "$1" ] && echo 0 || printf '%s\n' "$1" | wc -l; }
@@ -93,14 +103,20 @@ _quantos() { [ -z "$1" ] && echo 0 || printf '%s\n' "$1" | wc -l; }
 pausar() {
 	local rotulo="$1"; shift
 	local antes restantes
-	antes=$(resolver "$@")
+	antes=$(resolver "$@") || {
+		echo "ATENÇÃO: não sei se $rotulo está de pé — o Docker não respondeu. Nada foi parado."
+		return 4
+	}
 	if [ -z "$antes" ]; then
 		echo "$rotulo já não estava de pé."
 		return 3
 	fi
 	# shellcheck disable=SC2086
 	docker stop $antes >/dev/null 2>&1
-	restantes=$(resolver "$@")
+	restantes=$(resolver "$@") || {
+		echo "ATENÇÃO: mandei parar $rotulo e não consegui conferir o resultado — o Docker não respondeu."
+		return 1
+	}
 	if [ -n "$restantes" ]; then
 		echo "ATENÇÃO: $rotulo NÃO foi pausado — $(_quantos "$restantes") de $(_quantos "$antes") continuam de pé:"
 		printf '  %s\n' $restantes
@@ -112,15 +128,22 @@ pausar() {
 
 retomar() {
 	local rotulo="$1"; shift
-	local alvos ausentes
-	alvos=$(resolver --todos "$@")
+	local alvos de_pe ausentes
+	alvos=$(resolver --todos "$@") || {
+		echo "ATENÇÃO: não sei quais contêineres $rotulo tem — o Docker não respondeu. Nada foi religado."
+		return 4
+	}
 	if [ -z "$alvos" ]; then
 		echo "$rotulo não tem contêineres neste projeto — nada a retomar."
 		return 3
 	fi
 	# shellcheck disable=SC2086
 	docker start $alvos >/dev/null 2>&1
-	ausentes=$(comm -23 <(printf '%s\n' $alvos | sort) <(resolver "$@" | sort))
+	de_pe=$(resolver "$@") || {
+		echo "ATENÇÃO: mandei religar $rotulo e não consegui conferir o resultado — o Docker não respondeu."
+		return 1
+	}
+	ausentes=$(comm -23 <(printf '%s\n' $alvos | sort) <(printf '%s\n' $de_pe | sort))
 	if [ -n "$ausentes" ]; then
 		echo "ATENÇÃO: $rotulo NÃO voltou por inteiro — $(_quantos "$ausentes") de $(_quantos "$alvos") continuam parados:"
 		printf '  %s\n' $ausentes

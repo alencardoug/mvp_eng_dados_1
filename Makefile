@@ -466,7 +466,13 @@ recovery-restore: require-env require-venv ## A sequência de restauração, pas
 	@$(MAKE) --no-print-directory recovery-verify DIR="$(RECOVERY_DIR)"
 	@echo "── 2/9 manutenção: janela parada, DAG pausada ──"
 	@docker/preflight.sh trabalho || { echo "RECUSADO — há trabalho em andamento."; exit 1; }
-	@$(AIRFLOW_CLI) pausar $(DAG) || true
+	@# Airflow ausente (3) é seguro: nada pode disparar a DAG. Pausa que falhou ou
+	@# não se sabe (1) não é — um scheduler de pé dispararia a DAG no meio da
+	@# troca dos bancos, e `|| true` era exatamente isso (RVE-17).
+	@$(AIRFLOW_CLI) pausar $(DAG); s=$$?; [ $$s -eq 0 ] || [ $$s -eq 3 ] || { \
+		echo "RECUSADO — há Airflow de pé e a DAG '$(DAG)' não foi pausada: uma execução"; \
+		echo "  poderia começar no meio da troca dos bancos. Pause você mesmo (make airflow-pause"; \
+		echo "  ou 'docker/airflow_cli.sh pausar $(DAG)') e rode de novo."; exit 1; }
 	@echo "── 3/9 descartando o CDC enquanto a origem antiga ainda existe ──"
 	@$(MAKE) --no-print-directory stream-down FORCE=1
 	@$(MAKE) --no-print-directory stream-reset-sink FORCE=1

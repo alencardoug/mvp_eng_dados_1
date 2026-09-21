@@ -6,7 +6,8 @@
 # bastam a cada cenário vive em docs/execucao_local.md §5 — não é repetida aqui.
 #
 # Uso:  docker/preflight.sh <airbyte|airflow|streaming> [--trocar]
-# Sai 0 se cabe, 1 se não cabe.
+#       docker/preflight.sh trabalho        só "há trabalho em andamento?"
+# Sai 0 se cabe (ou se a janela está parada), 1 se não — e "não sei" é 1.
 #
 # Sem `--trocar` ele só observa e informa — é o modo de `make preflight`, que
 # precisa poder ser rodado sem efeito nenhum. Com `--trocar`, que é como os
@@ -77,16 +78,26 @@ fi
 # O Airbyte continua sendo reconhecido pelo nome: o nó do cluster é criado pelo
 # `abctl`, não pelo Compose, e `airbyte-abctl-control-plane` é nome declarado
 # pela ferramenta. Airflow, streaming e bancos vêm de `resolver`, por rótulo.
+#
+# **Enumerar é pré-condição de decidir (RVE-08).** Se o `docker ps` falha, o
+# estado é indeterminado — e indeterminado bloqueia. Tratar a falha como "não
+# há nada de pé" liberava o pacote e a troca de ambiente sem conhecer o estado,
+# e fazia uma parada não conferida passar por parada feita. Por isso as
+# consultas abaixo têm **três** respostas: 0 de pé, 1 parado ou ausente, 4 não
+# sei — e cada chamador trata a terceira por extenso.
 _airbyte_no_ar() {
-	docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'airbyte-abctl-control-plane'
+	local nomes
+	nomes=$(docker ps --format '{{.Names}}' 2>/dev/null) || return 4
+	printf '%s\n' "$nomes" | grep -qx 'airbyte-abctl-control-plane'
 }
 
 # Um ambiente pelo nome, para reconsultar depois de agir sobre ele.
 _ainda_no_ar() {
+	local nomes
 	case "$1" in
 	Airbyte)   _airbyte_no_ar ;;
-	Airflow)   [ -n "$(resolver @airflow)" ] ;;
-	streaming) [ -n "$(resolver @streaming)" ] ;;
+	Airflow)   nomes=$(resolver @airflow) || return 4; [ -n "$nomes" ] ;;
+	streaming) nomes=$(resolver @streaming) || return 4; [ -n "$nomes" ] ;;
 	*) return 1 ;;
 	esac
 }
@@ -95,29 +106,42 @@ _ainda_no_ar() {
 # do `docker`. O código não basta: `xargs` sobre lista vazia sai 0 sem parar
 # nada, e uma parada parcial deixa metade do ambiente de pé. Anunciar "pausado"
 # sem conferir é pior que não pausar — o preflight libera o alvo achando que
-# desfez o conflito, e os dois ambientes sobem juntos, que é o R11.
+# desfez o conflito, e os dois ambientes sobem juntos, que é o R11. E "não
+# consegui conferir" **não** é "parou": só o estado lido conta.
 _parar() {
 	local nomes=""
 	case "$1" in
-	streaming) nomes=$(resolver @streaming) ;;
-	Airflow)   nomes=$(resolver @airflow) ;;
+	streaming) nomes=$(resolver @streaming) || return 1 ;;
+	Airflow)   nomes=$(resolver @airflow) || return 1 ;;
 	Airbyte)   nomes=airbyte-abctl-control-plane ;;
 	esac
 	# shellcheck disable=SC2086
 	[ -n "$nomes" ] && docker stop $nomes >/dev/null 2>&1
-	! _ainda_no_ar "$1"
+	_ainda_no_ar "$1"
+	[ $? -eq 1 ]
 }
 
+# Religa **todos** os contêineres do ambiente e confere que todos voltaram —
+# não que "algum" está de pé (RVE-11): um grupo recomposto pela metade é o
+# mesmo defeito da pausa parcial, visto do outro lado.
 _religar() {
-	local nomes=""
+	local todos de_pe
 	case "$1" in
-	streaming) nomes=$(resolver --todos @streaming) ;;
-	Airflow)   nomes=$(resolver --todos @airflow) ;;
-	Airbyte)   nomes=airbyte-abctl-control-plane ;;
+	Airbyte)
+		docker start airbyte-abctl-control-plane >/dev/null 2>&1
+		_ainda_no_ar Airbyte
+		return ;;
+	streaming) todos=$(resolver --todos @streaming) || return 1 ;;
+	Airflow)   todos=$(resolver --todos @airflow) || return 1 ;;
 	esac
+	[ -z "$todos" ] && return 1
 	# shellcheck disable=SC2086
-	[ -n "$nomes" ] && docker start $nomes >/dev/null 2>&1
-	_ainda_no_ar "$1"
+	docker start $todos >/dev/null 2>&1
+	case "$1" in
+	streaming) de_pe=$(resolver @streaming) || return 1 ;;
+	Airflow)   de_pe=$(resolver @airflow) || return 1 ;;
+	esac
+	[ "$(printf '%s\n' $todos | sort)" = "$(printf '%s\n' $de_pe | sort)" ]
 }
 
 # Desfaz as pausas já feitas. Restauração que falha é dita em voz alta e por
@@ -128,9 +152,23 @@ _restaurar() {
 		if _religar "$nome"; then
 			echo "[preflight] $nome restaurado."
 		else
-			echo "[preflight] ATENÇÃO: falhei em restaurar $nome — ele ficou parado."
+			echo "[preflight] ATENÇÃO: falhei em restaurar $nome — ele ficou parado, ao menos em parte."
 		fi
 	done
+}
+
+# Processos do projeto no *host*: o pipeline Beam e o produtor rodam fora dos
+# contêineres (Capacidade §2.4), e o produtor escreve na origem **com ou sem**
+# Redpanda de pé. Conferir só quando o transporte está no ar deixava o produtor
+# invisível justamente na janela do pacote (RVE-09). Ecoa a descrição ou nada;
+# `pgrep` que não responde é indeterminado, não ausência.
+_processos_no_host() {
+	pgrep -f "mvp_ed1[.]streaming" >/dev/null 2>&1
+	case $? in
+	0) echo "pipeline Beam ou produtor no host" ;;
+	1) ;;
+	*) echo "indeterminado — pgrep não respondeu" ;;
+	esac
 }
 
 # Trabalho em andamento no ambiente que seria pausado. Pausar é barato para um
@@ -210,8 +248,7 @@ _trabalho_ativo() {
 	streaming)
 		# O pipeline Beam roda fora dos contêineres, no processo Python do host
 		# (Capacidade §2.4) — parar o transporte sob ele o quebra.
-		pgrep -f "mvp_ed1[.]streaming" >/dev/null 2>&1 \
-			&& echo "pipeline Beam ou produtor em primeiro plano"
+		_processos_no_host
 		;;
 	esac
 }
@@ -224,10 +261,17 @@ _trabalho_ativo() {
 if [ "$ALVO" = trabalho ]; then
   ATIVO=""
   for nome in Airbyte Airflow streaming; do
-    _ainda_no_ar "$nome" || continue
-    ocupado=$(_trabalho_ativo "$nome")
+    _ainda_no_ar "$nome"
+    case $? in
+    0) ocupado=$(_trabalho_ativo "$nome") ;;
+    1) continue ;;
+    *) ocupado="indeterminado — não consegui enumerar os contêineres (o Docker respondeu?)" ;;
+    esac
     [ -n "$ocupado" ] && ATIVO="$ATIVO\n  $nome: $ocupado"
   done
+  # O host é consultado sempre, e não só com o transporte de pé (RVE-09).
+  ocupado=$(_processos_no_host)
+  [ -n "$ocupado" ] && ATIVO="$ATIVO\n  host: $ocupado"
   if [ -n "$ATIVO" ]; then
     echo "[preflight] há trabalho em andamento:"
     printf "%b\n" "$ATIVO"
@@ -237,9 +281,21 @@ if [ "$ALVO" = trabalho ]; then
   exit 0
 fi
 
-AIRBYTE_NO_AR=false;   _ainda_no_ar Airbyte   && AIRBYTE_NO_AR=true
-AIRFLOW_NO_AR=false;   _ainda_no_ar Airflow   && AIRFLOW_NO_AR=true
-STREAMING_NO_AR=false; _ainda_no_ar streaming && STREAMING_NO_AR=true
+# Sem enumeração não há decisão: recusa antes de projetar memória ou pausar.
+_estado() {  # $1 = ambiente; ecoa true, false ou indeterminado
+  _ainda_no_ar "$1"
+  case $? in 0) echo true ;; 1) echo false ;; *) echo indeterminado ;; esac
+}
+AIRBYTE_NO_AR=$(_estado Airbyte)
+AIRFLOW_NO_AR=$(_estado Airflow)
+STREAMING_NO_AR=$(_estado streaming)
+for par in "Airbyte:$AIRBYTE_NO_AR" "Airflow:$AIRFLOW_NO_AR" "streaming:$STREAMING_NO_AR"; do
+  [ "${par#*:}" = indeterminado ] || continue
+  echo ""
+  echo "RECUSADO — não consegui enumerar os contêineres de '${par%%:*}' (o Docker respondeu?)."
+  echo "  Sem saber o que está de pé, subir '$ALVO' é subir às cegas — que é o R11."
+  exit 1
+done
 
 DE_PE=(); CONFLITO=()
 $AIRBYTE_NO_AR   && DE_PE+=("Airbyte (cluster kind)")
@@ -317,9 +373,17 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
   done
 
   # Pausa que não aconteceu não elimina conflito. Recua tudo e recusa: liberar o
-  # alvo aqui subiria o segundo ambiente por cima do primeiro.
+  # alvo aqui subiria o segundo ambiente por cima do primeiro. O grupo que
+  # falhou também é recomposto (RVE-11): `docker stop` pode ter parado três dos
+  # quatro contêineres do Airflow antes de falhar no quarto, e "continua de pé"
+  # não pode significar "de pé pela metade".
   if [ -n "$FALHOU" ]; then
     [ ${#PAUSADOS[@]} -gt 0 ] && _restaurar "${PAUSADOS[@]}"
+    if _religar "$FALHOU"; then
+      echo "[preflight] $FALHOU recomposto — o que a pausa parcial tinha parado voltou."
+    else
+      echo "[preflight] ATENÇÃO: $FALHOU ficou parcialmente parado — confira com 'make ps' e 'docker ps -a'."
+    fi
     echo ""
     echo "RECUSADO — não consegui pausar $FALHOU, e ele continua de pé."
     echo "  Subir '$ALVO' em cima dele é o que o R11 diz não caber."

@@ -23,10 +23,13 @@ set -uo pipefail
 AIRFLOW_PRAZO_CONSULTA="${AIRFLOW_PRAZO_CONSULTA:-20}"
 AIRFLOW_SCHEDULER="${AIRFLOW_SCHEDULER:-}"
 
-# Resolve o scheduler uma vez por processo. Falha se não achar.
+# Resolve o scheduler uma vez por processo. 1 se não há scheduler de pé; 4 se
+# o Docker não respondeu — e os dois não se confundem (RVE-08, RVE-17).
 airflow_scheduler() {
 	[ -n "$AIRFLOW_SCHEDULER" ] && { printf '%s' "$AIRFLOW_SCHEDULER"; return 0; }
-	AIRFLOW_SCHEDULER=$(resolver airflow_scheduler | head -1)
+	local nomes
+	nomes=$(resolver airflow_scheduler) || return 4
+	AIRFLOW_SCHEDULER=$(printf '%s\n' "$nomes" | head -1)
 	[ -z "$AIRFLOW_SCHEDULER" ] && return 1
 	printf '%s' "$AIRFLOW_SCHEDULER"
 }
@@ -94,6 +97,32 @@ airflow_disparar() {  # $1 = dag_id
 	printf '%s\n' "$run"
 }
 
+# A execução está na lista, com este `run_id` **exato** e neste estado?
+# 0 sim, 1 não, 2 lista ilegível. Interpreta o JSON de verdade (RVE-14): a
+# busca por substring aceitava `rve-100` como resposta para `rve-10`, e a
+# espera anunciava um sucesso que era de outra execução. O ruído de log é
+# descartado antes; o Python é o do projeto, que toda operação já exige.
+airflow_run_na_lista() {  # $1 = resposta bruta, $2 = run_id, $3 = estado
+	local python
+	python="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.venv/bin/python"
+	[ -x "$python" ] || python=python3
+	printf '%s\n' "$1" | airflow_limpar_log | "$python" -c '
+import json, sys
+run, estado = sys.argv[1], sys.argv[2]
+try:
+    itens = json.load(sys.stdin)
+except ValueError:
+    sys.exit(2)
+if not isinstance(itens, list):
+    sys.exit(2)
+achou = any(
+    isinstance(item, dict) and item.get("run_id") == run and item.get("state") == estado
+    for item in itens
+)
+sys.exit(0 if achou else 1)
+' "$2" "$3"
+}
+
 # Espera uma execução chegar a estado terminal. 0 = success, 1 = failed,
 # 2 = prazo ou indeterminado — porque não saber não é sucesso.
 airflow_aguardar_run() {  # $1 = dag_id, $2 = run_id, $3 = prazo em segundos
@@ -110,10 +139,15 @@ airflow_aguardar_run() {  # $1 = dag_id, $2 = run_id, $3 = prazo em segundos
 				echo "[dag-wait] resposta ilegível para '$estado' — tentando de novo" >&2
 				continue
 			}
-			if printf '%s' "$bruto" | grep -qF "$run"; then
+			[ "$forma" = vazia ] && continue
+			airflow_run_na_lista "$bruto" "$run" "$estado"
+			case $? in
+			0)
 				echo "[dag-wait] $run terminou: $estado ($((SECONDS - inicio))s de espera)"
-				[ "$estado" = success ] && return 0 || return 1
-			fi
+				[ "$estado" = success ] && return 0 || return 1 ;;
+			1) ;;
+			*) echo "[dag-wait] resposta ilegível para '$estado' — tentando de novo" >&2 ;;
+			esac
 		done
 		if [ $((SECONDS - inicio)) -ge "$prazo" ]; then
 			echo "ERRO: $run não chegou a estado terminal em ${prazo}s — a espera venceu, e vencer não é sucesso." >&2
@@ -131,9 +165,23 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 		# Pausar a DAG é manutenção, não desligamento: execução enfileirada em
 		# DAG pausada fica `queued` e não começa — que é exatamente o que a
 		# restauração precisa enquanto troca os três bancos por baixo.
-		airflow_cli dags pause "${1:?uso: airflow_cli.sh pausar <dag_id>}" >/dev/null \
-			&& echo "DAG ${1} pausada." \
-			|| { echo "não consegui pausar a DAG ${1} — o Airflow respondeu?" >&2; exit 1; } ;;
+		#
+		# Três desfechos, e quem chama precisa distingui-los (RVE-17): 0 pausou;
+		# 3 não há Airflow de pé — nada pode executar a DAG, e é seguro seguir;
+		# 1 há Airflow (ou não se sabe) e a pausa não aconteceu — seguir seria
+		# descartar os bancos com um scheduler capaz de disparar a DAG no meio.
+		dag="${1:?uso: airflow_cli.sh pausar <dag_id>}"
+		airflow_scheduler >/dev/null; s=$?
+		if [ $s -eq 1 ]; then
+			echo "Airflow não está de pé — não há DAG a pausar, e nenhuma execução pode começar."
+			exit 3
+		elif [ $s -ne 0 ]; then
+			echo "não sei se o Airflow está de pé — o Docker não respondeu." >&2
+			exit 1
+		fi
+		airflow_cli dags pause "$dag" >/dev/null \
+			&& echo "DAG ${dag} pausada." \
+			|| { echo "não consegui pausar a DAG ${dag} — o Airflow respondeu?" >&2; exit 1; } ;;
 	despausar)
 		airflow_cli dags unpause "${1:?uso: airflow_cli.sh despausar <dag_id>}" >/dev/null \
 			&& echo "DAG ${1} despausada." ;;
