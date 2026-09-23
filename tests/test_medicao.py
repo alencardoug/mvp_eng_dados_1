@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import re
 import subprocess
 import textwrap
 
@@ -303,7 +304,7 @@ def test_docker_stats_que_nao_mede_vira_nao_medido_e_nao_zero(tmp_path, stats):
     assert "conteineres_maximo_em" not in amostragem
     assert amostragem["disponivel_minimo_mb"] > 0 and amostragem["disponivel_falhas"] == 0
     linha = next(l for l in r.stdout.splitlines() if l.startswith("| alvo |"))
-    assert "não medido" in linha and "0.0 GB" not in linha, linha
+    assert "não medido" in linha and "0,0 GB" not in linha, linha
     assert "leitura que falhou não é zero" in r.stdout
 
 
@@ -343,6 +344,51 @@ def test_nenhum_conteiner_de_pe_e_zero_lido(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     amostragem = _registro(tmp_path)["amostragem"]
     assert amostragem["conteineres_maximo_mb"] == 0 and amostragem["conteineres_falhas"] == 0
+
+
+def _locale_instalado(nome: str) -> bool:
+    """`locale -a` escreve `pt_BR.utf8` para o `pt_BR.UTF-8` que se pede."""
+    r = subprocess.run(["locale", "-a"], capture_output=True, text=True, timeout=10)
+    return nome.lower().replace("utf-8", "utf8") in {l.strip().lower() for l in r.stdout.splitlines()}
+
+
+def test_toda_conta_do_medidor_roda_sob_o_locale_c():
+    """A regra do RVE3-01, lida do texto: nenhum `awk` do medidor segue o locale da máquina.
+
+    O `mawk` lê e escreve números conforme o locale. O efeito está no teste
+    seguinte, e esta regra pega o `awk` novo que ninguém lembrou de proteger.
+    """
+    codigo = [l for l in MEDIR.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#")]
+    chamadas = [l.strip() for l in codigo if re.search(r"(?<![\w-])awk\b", l)]
+
+    assert chamadas, "o medidor não chama mais awk — a regra ficou sem objeto"
+    assert [l for l in chamadas if "LC_ALL=C awk" not in l] == []
+
+
+@pytest.mark.parametrize("locale", [pytest.param("C", id="C"), pytest.param("pt_BR.UTF-8", id="pt_BR")])
+def test_a_conversao_da_memoria_nao_depende_do_locale(tmp_path, locale):
+    """RVE3-01, a sonda do revisor: `1.5GiB` e `512.5MiB` somam 2.048 MB em qualquer locale.
+
+    Sob pt_BR o `mawk` lia "1.5" como 1 e "512.5" como 512: 1.536 MB, com código
+    0 e nenhuma falha. A linha da tabela também mudava de forma, "2.0 GB" sob C
+    e "2,0 GB" sob pt_BR. Agora ela sai igual nos dois locales.
+    """
+    if not _locale_instalado(locale):
+        pytest.skip(f"{locale} não está instalado — o medidor não roda sob ele nesta máquina")
+    ambiente, trabalho = _ambiente(tmp_path, makefile="alvo:\n\t@sleep 2\n")
+    ambiente["LC_ALL"] = locale
+    _docker_com_stats(tmp_path, 'printf "1.5GiB / 8GiB\\n512.5MiB / 1GiB\\n"')
+
+    r = subprocess.run(
+        [str(MEDIR), "alvo"], cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    amostragem = _registro(tmp_path)["amostragem"]
+    assert amostragem["conteineres_maximo_mb"] == 2048, amostragem
+    assert amostragem["conteineres_falhas"] == 0
+    linha = next(l for l in r.stdout.splitlines() if l.startswith("| alvo |"))
+    assert "| 2,0 GB |" in linha, linha
 
 
 def test_ate_roda_depois_do_alvo_e_entra_no_registro(tmp_path):

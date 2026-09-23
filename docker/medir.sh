@@ -27,6 +27,13 @@
 # `MemAvailable` inclui a estação inteira — navegador, editor, sessões de
 # agente. A soma dos contêineres **não inclui** o Beam nem o produtor, que
 # rodam no processo Python do *host*.
+#
+# **Toda conta daqui roda sob `LC_ALL=C` (RVE3-01).** O `mawk` segue o locale
+# nos dois sentidos. Em pt_BR ele lê "1.5" como 1: o `docker stats` escreve a
+# fração com ponto, e ela se perdia antes da soma, sem erro nenhum. Numa leitura
+# real de 23/09/2026 isso deu 3.271 MB contra 4.004 MB. E ele escreve `%.1f`
+# com vírgula, que no JSON é erro de sintaxe. A vírgula que o humano lê na
+# tabela é posta à mão, no fim — não depende da máquina.
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,7 +54,7 @@ _epoch() { date +%s; }
 # lido vai como não medido, e a amostra conta como falha.
 _mem_disponivel() {
 	local mb
-	mb=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null)
+	mb=$(LC_ALL=C awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null)
 	if [ -n "$mb" ]; then printf '%s' "$mb"; else printf 'NA'; fi
 }
 
@@ -58,7 +65,7 @@ _mem_disponivel() {
 _mem_conteineres() {
 	local uso
 	uso=$(docker stats --no-stream --format '{{.MemUsage}}' 2>/dev/null) || { printf 'NA'; return; }
-	printf '%s\n' "$uso" | awk -F' / ' '
+	printf '%s\n' "$uso" | LC_ALL=C awk -F' / ' '
 		NF == 0 { next }
 		{
 			v = $1
@@ -91,9 +98,6 @@ _amostrar_ate_morrer() {  # $1 = arquivo de amostras, $2 = PID a vigiar
 # válidas dela. Sem nenhuma válida o extremo é `null` — não medido —, e o
 # instante dele não existe. O período é a janela dividida pelos intervalos
 # entre amostras; com menos de duas, não há período, e ele vai `null`.
-#
-# `LC_ALL=C` porque o `mawk` segue o locale, e em pt_BR o `%.1f` sai com
-# vírgula — que no JSON do registro é erro de sintaxe.
 agregar() {  # $1 = arquivo de amostras
 	LC_ALL=C awk '
 		NF == 0 { next }
@@ -137,8 +141,14 @@ _de_pe() {
 _json_escapar() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 _numero_ou_null() { case "$1" in ''|NA|null) printf 'null' ;; *) printf '%d' "$1" ;; esac; }
 
-# MB em GB para o humano ler — ou "não medido", que é diferente de 0,0 GB.
-_gb() { case "$1" in ''|NA|null) printf 'não medido' ;; *) awk -v m="$1" 'BEGIN{printf "%.1f GB", m/1024}' ;; esac; }
+# MB em GB para o humano ler — ou "não medido", que é diferente de 0,0 GB. A
+# vírgula é a da tabela da Capacidade, em qualquer locale.
+_gb() {
+	case "$1" in ''|NA|null) printf 'não medido'; return ;; esac
+	local gb
+	gb=$(LC_ALL=C awk -v m="$1" 'BEGIN{printf "%.1f", m/1024}')
+	printf '%s GB' "${gb/./,}"
+}
 
 _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 	mkdir -p "$(dirname "$1")"
