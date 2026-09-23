@@ -49,6 +49,11 @@ SCHEMAS_DE_MEMORIA = ("raw_legacy", "governance", "snapshots", "quarantine")
 #: `diario.json` que não existe e ignorava dois manifestos que existem.
 ARTEFATOS = ("data/legacy/*.json", "data/source/geracao.json", ".stream/producer_state.json")
 
+#: O sufixo com que a restauração tira do caminho o estado de trabalho que o
+#: pacote não traz (RVE2-05). Fica fora de todo padrão de `ARTEFATOS`: o
+#: próximo pacote não o leva, e nada o lê como estado corrente.
+SUFIXO_AFASTADO = ".anterior-a-restauracao-"
+
 NOME_DO_MANIFESTO = "manifesto.json"
 NOME_DOS_CHECKSUMS = "checksums.sha256"
 NOME_DO_ROTEIRO = "RESTAURAR.md"
@@ -59,7 +64,7 @@ CAMPOS_OBRIGATORIOS = (
     "corte", "commit", "oraculo_formato", "alembic", "governance_versions",
     "max_event_sequence", "contagens", "tamanhos", "geracao",
     "oraculo_scd", "oraculo_capturas", "oraculo_quarentena", "oraculo_particao",
-    "oraculo_exclusoes", "artefatos_copiados", "artefatos_ausentes", "limite",
+    "oraculo_exclusoes", "artefatos_copiados", "artefatos_ausentes", "artefatos_links", "limite",
 )
 
 
@@ -211,15 +216,24 @@ def commit_atual(raiz: pathlib.Path) -> str:
     ).stdout.strip()
 
 
-def copiar_artefatos(raiz: pathlib.Path, destino: pathlib.Path) -> tuple[list[str], list[str]]:
+def copiar_artefatos(
+    raiz: pathlib.Path, destino: pathlib.Path
+) -> tuple[list[str], list[str], dict[str, str]]:
     """Os arquivos de trabalho que os oráculos usam.
 
-    Devolve `(copiados, padrões sem nenhum arquivo)`. Padrão vazio é **dito**,
-    não suposto: sem o manifesto do legado os testes pulam ou usam o de outra
-    geração, e um pacote que não avisa disso parece completo.
+    Devolve `(copiados, padrões sem nenhum arquivo, links)`. Padrão vazio é
+    **dito**, não suposto: sem o manifesto do legado os testes pulam ou usam o
+    de outra geração, e um pacote que não avisa disso parece completo.
+
+    **Link é registrado como link.** `data/legacy/manifesto.json` aponta para o
+    manifesto do lote corrente, e o diário de mutações grava no arquivo
+    apontado. A cópia segue o link — o pacote guarda o conteúdo, legível —, e o
+    destino dele vai em `links`, para a restauração refazer o link em vez de
+    deixar um arquivo avulso que o diário passaria a usar sozinho.
     """
     copiados: list[str] = []
     vazios: list[str] = []
+    links: dict[str, str] = {}
     for padrao in ARTEFATOS:
         encontrados = sorted(raiz.glob(padrao))
         if not encontrados:
@@ -231,7 +245,46 @@ def copiar_artefatos(raiz: pathlib.Path, destino: pathlib.Path) -> tuple[list[st
             alvo.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(origem, alvo)
             copiados.append(str(relativo))
-    return copiados, vazios
+            if origem.is_symlink():
+                links[str(relativo)] = os.readlink(origem)
+    return copiados, vazios, links
+
+
+def links_sem_destino(copiados: list[str], links: dict[str, str]) -> list[str]:
+    """Os links cujo destino o pacote não traz — um pacote assim não se restaura."""
+    trazidos = set(copiados)
+    return [
+        relativo for relativo, apontado in links.items()
+        if os.path.normpath(os.path.join(os.path.dirname(relativo), apontado)) not in trazidos
+    ]
+
+
+def afastar_o_que_o_pacote_nao_traz(raiz: pathlib.Path, trazidos: list[str], instante: str) -> list[str]:
+    """Tira do caminho — renomeando, nunca apagando — o estado que o pacote não traz.
+
+    **A ausência também é estado (RVE2-05).** Um arquivo de trabalho que existe
+    no *checkout* e não no pacote é de outra carga: em B5, o `seed-data` que
+    roda antes da restauração cria `data/source/geracao.json`, e o próximo
+    pacote atribuiria à origem restaurada os parâmetros de uma carga que a
+    restauração acabou de desfazer. Renomeado com `SUFIXO_AFASTADO`, ele sai de
+    todo padrão de `ARTEFATOS` e continua legível para quem quiser saber o que
+    dizia. Devolve os caminhos afastados, relativos à raiz.
+    """
+    manter = set(trazidos)
+    afastados: list[str] = []
+    for padrao in ARTEFATOS:
+        for caminho in sorted(raiz.glob(padrao)):
+            relativo = str(caminho.relative_to(raiz))
+            if relativo in manter:
+                continue
+            novo = caminho.with_name(f"{caminho.name}{SUFIXO_AFASTADO}{instante}")
+            sequencia = 1
+            while novo.exists() or novo.is_symlink():
+                sequencia += 1
+                novo = caminho.with_name(f"{caminho.name}{SUFIXO_AFASTADO}{instante}-{sequencia}")
+            caminho.rename(novo)
+            afastados.append(relativo)
+    return afastados
 
 
 def comecar_montagem(destino: Destino) -> pathlib.Path:

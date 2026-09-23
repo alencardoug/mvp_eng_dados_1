@@ -135,7 +135,7 @@ def _montar(pasta: pathlib.Path) -> None:
     )
     print(f"[recovery] três dumps em {pasta}")
 
-    copiados, ausentes = pacote.copiar_artefatos(RAIZ, pasta)
+    copiados, ausentes, links = pacote.copiar_artefatos(RAIZ, pasta)
 
     origem, legado, armazem = _motor(db.SOURCE), _motor(db.LEGACY), _motor(db.WAREHOUSE)
     try:
@@ -146,6 +146,7 @@ def _montar(pasta: pathlib.Path) -> None:
                 "oraculo_formato": oraculos.FORMATO,
                 "artefatos_copiados": copiados,
                 "artefatos_ausentes": ausentes,
+                "artefatos_links": links,
                 "alembic": {
                     "source_db": leitura.alembic_current(RAIZ),
                     "legacy_db": leitura.alembic_current(RAIZ, "legacy"),
@@ -548,29 +549,64 @@ def comando_restore_dumps(args: argparse.Namespace) -> int:
 
 
 def comando_restore_artefatos(args: argparse.Namespace) -> int:
-    """Devolve manifesto do legado, diário e cursor do produtor ao *checkout*.
+    """Devolve ao *checkout* o estado de trabalho do pacote — o que ele traz, e o que ele não traz.
 
     A regra, escrita: **restaurar o livro restaura o cursor.** Um cursor do
     produtor à frente do livro faria os eventos seguintes nascerem depois de um
     buraco, e a reconciliação dos dois caminhos acusaria o que a restauração
     causou.
+
+    **A ausência também volta (RVE2-05).** O que o pacote não traz e o
+    *checkout* tem é de outra carga, e sai do caminho renomeado
+    (`pacote.afastar_o_que_o_pacote_nao_traz`): sem isso, o registro de geração
+    de uma carga posterior sobrevivia, e o próximo pacote o atribuía à origem
+    restaurada — onde o candidato diz `None` com motivo.
+
+    **Link volta como link, e nunca se escreve através dele.** `copy2` sobre
+    `data/legacy/manifesto.json` seguia o link do *checkout* e sobrescrevia o
+    manifesto do lote que ele apontasse — outro, depois de uma recarga.
+
+    Tudo é conferido antes de qualquer arquivo mudar: pacote sem um arquivo
+    declarado, ou com link para um arquivo que ele não traz, recusa inteiro.
     """
     import shutil
 
     pasta = _pasta_do_pacote(args)
     manifesto = pacote.Manifesto.ler(pasta)
     relativos = manifesto.dados.get("artefatos_copiados", [])
+    links = manifesto.dados.get("artefatos_links")
+    if links is None:
+        print(
+            "[recovery] manifesto sem `artefatos_links` — é de antes do registro de links; "
+            "refaça o pacote (make recovery-pack)",
+            file=sys.stderr,
+        )
+        return 1
+    faltando = [relativo for relativo in relativos if not (pasta / relativo).exists()]
+    for relativo in faltando:
+        print(f"[recovery] {relativo}: declarado no manifesto e ausente do pacote", file=sys.stderr)
+    for relativo in pacote.links_sem_destino(relativos, links):
+        print(f"[recovery] {relativo}: link para {links[relativo]}, que o pacote não traz", file=sys.stderr)
+        faltando.append(relativo)
+    if faltando:
+        return 1
+
+    instante = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for relativo in pacote.afastar_o_que_o_pacote_nao_traz(RAIZ, relativos, instante):
+        print(f"[recovery] afastado: {relativo} (o pacote não o traz) → *{pacote.SUFIXO_AFASTADO}{instante}")
     if not relativos:
         print("[recovery] o pacote não trouxe artefato nenhum — nada a devolver")
     for relativo in relativos:
-        origem = pasta / relativo
-        if not origem.exists():
-            print(f"[recovery] {relativo}: declarado no manifesto e ausente do pacote", file=sys.stderr)
-            return 1
         alvo = RAIZ / relativo
         alvo.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(origem, alvo)
-        print(f"[recovery] devolvido: {relativo}")
+        if alvo.is_symlink() or relativo in links:
+            alvo.unlink(missing_ok=True)
+        if relativo in links:
+            alvo.symlink_to(links[relativo])
+            print(f"[recovery] devolvido: {relativo} → {links[relativo]}")
+        else:
+            shutil.copy2(pasta / relativo, alvo)
+            print(f"[recovery] devolvido: {relativo}")
     return 0
 
 

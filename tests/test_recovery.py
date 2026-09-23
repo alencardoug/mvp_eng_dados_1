@@ -678,6 +678,7 @@ MANIFESTO = {
     "oraculo_exclusoes": {"linhas": 4, "digest": "exclusoes"},
     "artefatos_copiados": [],
     "artefatos_ausentes": [],
+    "artefatos_links": {},
     "limite": "…",
 }
 
@@ -1064,3 +1065,125 @@ def test_a_geracao_registrada_nunca_e_inferida(tmp_path):
     com_registro = leitura.geracao_registrada(tmp_path)
     assert com_registro["source_db"]["semente"] == 7
     assert com_registro["legacy_db"] == {"parametros": {"semente": 20260906}, "hash": "abc"}
+
+
+# ── Os artefatos de trabalho: o que o pacote traz, e o que ele não traz ─────
+
+
+LOTE_ABC = '{"lote": {"hash": "abc", "parametros": {"semente": 1}}}'
+
+
+def _pacote_com_artefatos(tmp_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
+    """Um *checkout* com um lote do legado e o cursor, empacotado — o manifesto é o que o pack grava."""
+    checkout, pasta = tmp_path / "checkout", tmp_path / "pacote"
+    legado = checkout / "data" / "legacy"
+    legado.mkdir(parents=True)
+    (legado / "manifesto-abc.json").write_text(LOTE_ABC, encoding="utf-8")
+    (legado / "manifesto.json").symlink_to("manifesto-abc.json")
+    (checkout / ".stream").mkdir()
+    (checkout / ".stream" / "producer_state.json").write_text('{"cursor": 7}', encoding="utf-8")
+    pasta.mkdir()
+    copiados, ausentes, links = pacote.copiar_artefatos(checkout, pasta)
+    pacote.Manifesto(
+        copy.deepcopy(MANIFESTO) | {"artefatos_copiados": copiados, "artefatos_ausentes": ausentes, "artefatos_links": links}
+    ).gravar(pasta)
+    return checkout, pasta
+
+
+def _restaurar_artefatos(checkout: pathlib.Path, pasta: pathlib.Path) -> tuple[int, str]:
+    saida = io.StringIO()
+    with patch.object(cli, "RAIZ", checkout), patch.object(cli, "_pasta_do_pacote", return_value=pasta), \
+            contextlib.redirect_stdout(saida), contextlib.redirect_stderr(saida):
+        codigo = cli.comando_restore_artefatos(argparse.Namespace(dir=None))
+    return codigo, saida.getvalue()
+
+
+def test_o_pack_registra_o_link_e_guarda_o_conteudo(tmp_path):
+    _checkout, pasta = _pacote_com_artefatos(tmp_path)
+    dados = pacote.Manifesto.ler(pasta).dados
+
+    assert dados["artefatos_links"] == {"data/legacy/manifesto.json": "manifesto-abc.json"}
+    assert dados["artefatos_ausentes"] == ["data/source/geracao.json"]
+    copia = pasta / "data" / "legacy" / "manifesto.json"
+    assert not copia.is_symlink() and copia.read_text(encoding="utf-8") == LOTE_ABC
+
+
+def test_restaurar_os_artefatos_restaura_a_ausencia(tmp_path):
+    """RVE2-05, a sonda do revisor: o registro de uma carga posterior sobrevivia.
+
+    Em B5 o `seed-data` roda antes da restauração e cria o registro; o pacote
+    declara a ausência dele. Sem afastá-lo, o próximo pacote atribuía à origem
+    restaurada os parâmetros da carga que a restauração desfez.
+    """
+    checkout, pasta = _pacote_com_artefatos(tmp_path)
+    posterior = checkout / leitura.REGISTRO_DA_GERACAO
+    posterior.parent.mkdir(parents=True)
+    posterior.write_text('{"semente": "carga-posterior-ao-pacote"}', encoding="utf-8")
+
+    codigo, saida = _restaurar_artefatos(checkout, pasta)
+
+    assert codigo == 0, saida
+    assert not posterior.exists()
+    assert leitura.geracao_registrada(checkout)["source_db"] is None
+    afastados = list(posterior.parent.glob(f"geracao.json{pacote.SUFIXO_AFASTADO}*"))
+    assert len(afastados) == 1, "afastado, não apagado — o que ele dizia continua legível"
+    assert "carga-posterior-ao-pacote" in afastados[0].read_text(encoding="utf-8")
+    assert "afastado: data/source/geracao.json" in saida
+
+
+def test_o_link_volta_como_link_e_nada_e_escrito_atraves_dele(tmp_path):
+    """Achado próprio: `copy2` sobre o link escrevia no lote que ele apontasse.
+
+    Depois de uma recarga do legado, `manifesto.json` aponta para o lote novo; a
+    restauração sobrescrevia o manifesto **dele** com o conteúdo do antigo, e o
+    diário de mutações — que grava no arquivo apontado — seguia no errado.
+    """
+    checkout, pasta = _pacote_com_artefatos(tmp_path)
+    legado = checkout / "data" / "legacy"
+    (legado / "manifesto-novo.json").write_text('{"lote": {"hash": "novo"}}', encoding="utf-8")
+    (legado / "manifesto.json").unlink()
+    (legado / "manifesto.json").symlink_to("manifesto-novo.json")
+
+    codigo, saida = _restaurar_artefatos(checkout, pasta)
+
+    assert codigo == 0, saida
+    assert (legado / "manifesto.json").is_symlink()
+    assert (legado / "manifesto.json").readlink() == pathlib.Path("manifesto-abc.json")
+    novo = list(legado.glob(f"manifesto-novo.json{pacote.SUFIXO_AFASTADO}*"))
+    assert len(novo) == 1 and novo[0].read_text(encoding="utf-8") == '{"lote": {"hash": "novo"}}', (
+        "o lote novo não pode ter recebido o conteúdo do antigo"
+    )
+    assert (checkout / ".stream" / "producer_state.json").read_text(encoding="utf-8") == '{"cursor": 7}'
+
+
+def test_pacote_incoerente_recusa_antes_de_mexer_em_qualquer_arquivo(tmp_path):
+    checkout, pasta = _pacote_com_artefatos(tmp_path)
+    posterior = checkout / leitura.REGISTRO_DA_GERACAO
+    posterior.parent.mkdir(parents=True)
+    posterior.write_text("{}", encoding="utf-8")
+    (pasta / "data" / "legacy" / "manifesto-abc.json").unlink()
+
+    codigo, saida = _restaurar_artefatos(checkout, pasta)
+
+    assert codigo == 1 and "manifesto-abc.json: declarado no manifesto e ausente do pacote" in saida
+    assert posterior.exists(), "recusar é não tocar em nada — nem afastar"
+
+    dados = pacote.Manifesto.ler(pasta).dados
+    dados["artefatos_copiados"].remove("data/legacy/manifesto-abc.json")
+    pacote.Manifesto(dados).gravar(pasta)
+
+    codigo, saida = _restaurar_artefatos(checkout, pasta)
+
+    assert codigo == 1 and "link para manifesto-abc.json, que o pacote não traz" in saida
+    assert posterior.exists() and (checkout / "data" / "legacy" / "manifesto.json").is_symlink()
+
+
+def test_pacote_sem_registro_de_links_e_refeito_e_nao_restaurado(tmp_path):
+    checkout, pasta = _pacote_com_artefatos(tmp_path)
+    dados = pacote.Manifesto.ler(pasta).dados
+    del dados["artefatos_links"]
+    pacote.Manifesto(dados).gravar(pasta)
+
+    codigo, saida = _restaurar_artefatos(checkout, pasta)
+
+    assert codigo == 1 and "make recovery-pack" in saida
