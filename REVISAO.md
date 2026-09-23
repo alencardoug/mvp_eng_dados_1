@@ -1985,9 +1985,41 @@ antes de mudar o cluster — o mesmo desfecho que o docstring descreve. Conferid
 em seguida, só leitura: a *release* do helm continua `airbyte-abctl.v1` (de
 05/09), nenhum *pod* recriado, o nó de pé desde 20:00:37Z, `GET /health` → 200,
 `airbyte_jobs.sh ler` → `maior_job=43 ultimo_valor=43 chamado=t`. A receita foi
-conferida lendo o texto. A linha de `airbyte-up` continua sendo uma armadilha
-para quem rodar `make -n` sobre qualquer alvo que a chame — fica registrada
-aqui, fora do escopo desta rodada.
+conferida lendo o texto.
+
+**A linha foi corrigida depois, a pedido do Owner (`0c03e7e`).** A medição
+achou uma segunda linha da mesma forma e mostrou que a detecção do `make` é
+**textual**: no GNU Make 4.3, o ramo falso de um `$(if)` com `$(MAKE)` rodou
+sob `-n`. Com o `Makefile` real copiado para um rascunho e executáveis
+simulados que registram cada chamada:
+
+```text
+Makefile antigo: make -n airbyte-up -> ['docker ps -aq -f name=^airbyte-abctl-control-plane$ -f status=exited', 'abctl local install --values airbyte/values.yaml']
+Makefile antigo: make -n dbt-build RESET=1 -> ['dbt build --full-refresh']
+```
+
+`make -n recovery-restore RESTAURAR=1`, no antigo — o `dbt build` sem
+`--full-refresh` vem do `check`, que chama `dbt-build` com o `RESET` vazio:
+
+```text
+['docker ps -aq -f name=^airbyte-abctl-control-plane$ -f status=exited', 'abctl local install --values airbyte/values.yaml', 'dbt build']
+```
+
+No novo, os três `make -n` não registram chamada nenhuma, e os testes de
+comportamento continuam passando:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_makefile.py
+.......                                                                  [100%]
+7 passed in 0.20s
+```
+
+A retomada virou a variável `RETOMAR_AIRBYTE`, chamada por `airbyte-resume` e
+pelo ramo "pausado" de `airbyte-up`, e `dbt-build` separou o descarte do build.
+`tests/test_makefile.py` guarda a regra e o efeito. Os três testes de
+comportamento — retoma sem reinstalar, instala sem cluster, `airbyte-resume`
+retoma — passam no `Makefile` antigo e no novo. `make check` depois da
+correção: `PASS=905`, `470 passed, 8 skipped`.
 
 **Depois da rodada, a pedido do Owner — `docker stats` falha de verdade?**
 Doze leituras seguidas enquanto um contêiner descartável (`postgres:16-alpine`,

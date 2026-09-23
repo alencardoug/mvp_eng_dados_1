@@ -536,6 +536,17 @@ cada 2s", mas 2 s era a **pausa**: cada amostra ainda espera o `docker stats`, q
 dois: `3 amostras, uma a cada 4,0 s (pausa de 2 s)`, medido contra o Docker real. Suíte do
 medidor: 26 → 28 casos.
 
+**A linha de `airbyte-up`, corrigida — 23/09/2026, a pedido do Owner.** O RVE-02 corrigiu o
+medidor e deixou a linha que mistura `$(MAKE)` com o `abctl local install`, e um
+`make -n recovery-restore` a disparou com o Airbyte de pé (`REVISAO.md` §12). A detecção do
+`make` é **textual** — medido no GNU Make 4.3, o ramo falso de um `$(if)` roda sob `-n` —, e a
+mesma forma estava em `dbt-build`, onde o `&&` levava junto o `dbt build`. A retomada virou a
+variável `RETOMAR_AIRBYTE`, com `airbyte-resume` e o ramo "pausado" de `airbyte-up` como
+chamadores, e `dbt-build` separou o descarte do build. `tests/test_makefile.py` guarda a regra —
+toda linha com `$(MAKE)` é só a recursão — e o efeito: `make -n` de `airbyte-up`,
+`dbt-build RESET=1` e `recovery-restore` sobre o `Makefile` real, com executáveis simulados, não
+chama nada.
+
 ---
 
 ## 4. B2 — segredos no histórico
