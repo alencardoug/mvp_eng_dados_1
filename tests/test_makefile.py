@@ -148,10 +148,11 @@ exit 0
 """
 
 #: A API do Airbyte, uma resposta por consulta, na ordem de `SIM_API`; a
-#: última se repete. As quatro formas são as da retomada real de 23/09/2026:
-#: `muda` é a conexão recusada (nada na saída, `curl` sai 7), `503` é o ingress
-#: de pé com o servidor ainda subindo, `falsa` é a API que responde sem estar
-#: disponível e `pronta` é a resposta medida, byte a byte.
+#: última se repete. `muda`, `503` e `pronta` são os três estados da retomada
+#: real de 23/09/2026: `muda` é a API sem resposta HTTP nenhuma (`http=000`;
+#: o dublê sai 7, e o código real não foi registrado), `503` é o ingress de pé
+#: com o servidor ainda subindo, e `pronta` é a resposta medida, byte a byte.
+#: `falsa` é a API que responde sem estar disponível.
 CURL_DA_API = """#!/usr/bin/env bash
 echo "curl $*" >> "$SIM_LOG"
 IFS=, read -ra respostas <<< "$SIM_API"
@@ -190,14 +191,14 @@ def _retomar(tmp_path: pathlib.Path, alvo: str, api: str) -> tuple[subprocess.Co
     "api, consultas",
     [
         pytest.param("pronta", 1, id="pronta-na-primeira"),
-        pytest.param("muda,muda,503,503,pronta", 5, id="espera-a-conexao-e-o-503-passarem"),
+        pytest.param("muda,muda,503,503,pronta", 5, id="espera-o-silencio-e-o-503-passarem"),
     ],
 )
 def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, api, consultas):
     """RVE3-02: pronto é a API responder `available:true`, e a espera espera por isso.
 
-    O caso de cinco consultas é o desenho da retomada real: primeiro a conexão
-    recusada, depois o 503 do ingress. A espera antiga dizia "pronto" antes de
+    O caso de cinco consultas é o desenho da retomada real: primeiro a API sem
+    resposta, depois o 503 do ingress. A espera antiga dizia "pronto" antes de
     tudo isso, porque o `grep -q Ready` casava nos sandboxes `NotReady`.
     """
     r, curls = _retomar(tmp_path, alvo, api)
