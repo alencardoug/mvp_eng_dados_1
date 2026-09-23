@@ -240,6 +240,7 @@ def test_medicao_registra_duracao_codigo_e_a_linha_da_tabela(tmp_path):
     assert registro["amostragem"]["intervalo_s"] == 1
     # O limite vai no registro, não num comentário que ninguém lê depois.
     assert "não inclui o Beam" in registro["limite"]
+    assert registro["encerramento"] is None, "o medidor não iniciou nada que precisasse encerrar"
     # A linha impressa é a da tabela da Capacidade.
     linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
     assert len(linha) == 1, r.stdout
@@ -472,6 +473,59 @@ def test_cenario_encerra_o_que_iniciou_e_so_isso(tmp_path):
     finally:
         alheio.kill()
         alheio.wait()
+
+
+#: Um processo Python comum no lugar do Beam: diz com que disposição de SIGINT
+#: nasceu e se recebeu o `KeyboardInterrupt` — que é como a CLI real encerra.
+PIPELINE_PYTHON = textwrap.dedent(
+    """\
+    import signal, time
+    from pathlib import Path
+    Path("disposicao").write_text(str(signal.getsignal(signal.SIGINT)))
+    try:
+        time.sleep(60)
+    except KeyboardInterrupt:
+        Path("interrompido").write_text("sim")
+    """
+)
+
+
+def test_o_pipeline_lancado_encerra_pelo_sigint_e_nao_pelo_prazo(tmp_path):
+    """RVE2-04, a sonda do revisor: o filho nascia com SIGINT **ignorado**.
+
+    O bash lança comando assíncrono de script com SIGINT ignorado, e o Python
+    que nasce assim não instala o `KeyboardInterrupt`: o pipeline não saía no
+    SIGINT e só morria no SIGKILL do prazo — com o medidor dizendo 0.
+    """
+    makefile = CENARIO_OK.replace("\t@echo $$$$ > pipeline.pid; sleep 600", "\t@python3 pipeline.py")
+    ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
+    (trabalho / "pipeline.py").write_text(PIPELINE_PYTHON, encoding="utf-8")
+
+    r = subprocess.run(
+        [str(MEDIR), "--cenario", "streaming"],
+        cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=120,
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "default_int_handler" in (trabalho / "disposicao").read_text(encoding="utf-8")
+    assert (trabalho / "interrompido").exists(), "o KeyboardInterrupt precisa chegar ao pipeline"
+    assert "SIGKILL" not in r.stdout
+    assert _registro(tmp_path)["encerramento"] == "limpo"
+
+
+def test_encerramento_forcado_fica_no_registro(tmp_path):
+    """O que só sai por SIGKILL não fechou o que abriu — e o registro diz isso."""
+    makefile = CENARIO_OK.replace("\t@echo $$$$ > pipeline.pid; sleep 600", "\t@trap '' INT; sleep 600")
+    ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
+    ambiente["MEDIR_PRAZO_ENCERRAMENTO"] = "2"
+
+    r = subprocess.run(
+        [str(MEDIR), "--cenario", "streaming"],
+        cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=120,
+    )
+
+    assert "SIGKILL" in r.stdout, r.stdout
+    assert _registro(tmp_path)["encerramento"] == "forcado"
 
 
 def test_cenario_propaga_a_falha_de_quem_morre(tmp_path):

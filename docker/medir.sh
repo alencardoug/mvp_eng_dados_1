@@ -141,6 +141,7 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 		printf '  "duracao_involucro_s": %d,\n' "$DURACAO"
 		printf '  "codigo_de_saida": %d,\n' "$CODIGO"
 		printf '  "interrompido": %s,\n' "$INTERROMPIDO"
+		printf '  "encerramento": %s,\n' "$([ -n "$ENCERRAMENTO" ] && printf '"%s"' "$ENCERRAMENTO" || printf 'null')"
 		printf '  "parametros": {"limite": %s, "corte": %s},\n' "${LIMITE:-null}" "${CORTE:-null}"
 		printf '  "estacao": {"disponivel_mb": %s, "de_pe": "%s", "loadavg": "%s"},\n' \
 			"$(_numero_ou_null "$MEM_INICIAL")" "$DE_PE" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
@@ -202,6 +203,11 @@ _linha_da_tabela() {
 # encerrou. O `setsid` põe cada um num grupo próprio, e é o grupo que recebe o
 # sinal — o que também garante que nada de fora seja tocado.
 FILHOS=()
+# Como o que o medidor iniciou saiu: `limpo` pelo SIGINT, `forcado` quando só
+# o SIGKILL resolveu. Vazio — `null` no registro — quando não havia o que
+# encerrar. Forçar não muda o código de saída, mas fica escrito (RVE2-04): um
+# pipeline que só sai por SIGKILL não fechou o que tinha aberto.
+ENCERRAMENTO=""
 
 _encerrar_filhos() {
 	local pgid esperou
@@ -217,8 +223,10 @@ _encerrar_filhos() {
 		if kill -0 -- "-$pgid" 2>/dev/null; then
 			echo "[medir] grupo $pgid não saiu em ${PRAZO_ENCERRAMENTO}s — SIGKILL"
 			kill -KILL -- "-$pgid" 2>/dev/null
+			ENCERRAMENTO=forcado
 		else
 			echo "[medir] grupo $pgid encerrou limpo em ${esperou}s"
+			[ "$ENCERRAMENTO" = forcado ] || ENCERRAMENTO=limpo
 		fi
 	done
 }
@@ -334,7 +342,15 @@ if [ -n "$CENARIO" ]; then
 		if [ "$CODIGO" -eq 0 ]; then
 			# (2) o pipeline em segundo plano, sob guarda: o PID é anotado, e só
 			#     ele é encerrado no fim.
-			setsid make --no-print-directory stream-run &
+			#
+			#     **O SIGINT volta ao padrão antes do `exec` (RVE2-04).** O bash
+			#     lança todo comando assíncrono de um script com SIGINT e SIGQUIT
+			#     ignorados, e o Python que nasce com SIGINT ignorado não instala
+			#     o `KeyboardInterrupt` de que a CLI do pipeline depende para
+			#     encerrar: ele só saía pelo SIGKILL do prazo. `setsid` separa o
+			#     grupo, mas não restaura a disposição herdada. O `exec` mantém o
+			#     PID que `$!` anota — e que vira o grupo que se encerra.
+			( trap - INT QUIT; exec setsid make --no-print-directory stream-run ) &
 			BEAM=$!
 			FILHOS+=("$BEAM")
 			echo "[medir] pipeline Beam sob guarda: grupo $BEAM"
