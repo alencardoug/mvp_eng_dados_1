@@ -659,6 +659,360 @@ for state in ("NotReady", ""):
   cenários afetados. A sessão do revisor iniciou com `LC_ALL=C.UTF-8`; a contraprova fixou
   explicitamente `pt_BR.UTF-8`.
 
+## 10. A aplicação dos achados — o que foi medido, 23/09/2026
+
+Um *commit* por assunto: `9f19705` registra este parecer como chegou; `4921289` corrige o RVE3-01;
+`d3a20df` corrige o RVE3-02; `c58a3cd` e `9d856df` corrigem dois defeitos que a própria correção do
+RVE3-02 trazia; `6cf0118` tira do comentário do dublê da API um código de saída que não foi medido;
+o *commit* de documentação que traz esta seção registra a rodada no plano (§3,
+"Terceira rodada"), na Execução Local e nas pendências. Cada achado foi reproduzido **antes** de corrigido, e cada teste
+novo foi rodado contra o código anterior, onde precisa reprovar, e contra o novo.
+
+### 10.1 RVE3-01 — o medidor e o locale
+
+**A sonda E3-4, antes.** A mesma entrada, sobre os dublês versionados (`tests/test_medicao.py`),
+com o `medir.sh` de `9f19705`:
+
+```text
+C 0 maximo_mb 2048 falhas 0 | | alvo | Airbyte | 0m 03s | 2.2 GB | 2.0 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+C.UTF-8 0 maximo_mb 2048 falhas 0 | | alvo | Airbyte | 0m 04s | 2.2 GB | 2.0 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+pt_BR.UTF-8 0 maximo_mb 1536 falhas 0 | | alvo | Airbyte | 0m 03s | 2,2 GB | 1,5 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+```
+
+O 1.536 é o do revisor. **Achado próprio, na mesma saída:** a linha da tabela mudava de forma com o
+locale — `2.2 GB` sob C, `2,2 GB` sob pt_BR —, enquanto o período já saía com vírgula nos dois. E,
+por isso, o teste do RVE2-02 que recusava `"0.0 GB"` na linha era vazio sob pt_BR, onde o zero
+sairia `0,0 GB`.
+
+**O tamanho do defeito no ambiente real.** Uma leitura só do `docker stats`, somada pelo programa
+`awk` do medidor sob os dois locales:
+
+```text
+44.19MiB / 2GiB
+18.97MiB / 2GiB
+137.4MiB / 2GiB
+3.715GiB / 11.46GiB
+pt_BR: 3271 MB
+C:     4004 MB
+```
+
+São 733 MB a menos (18 %), quase tudo na fração do nó do Airbyte. O `awk` desta máquina é o
+`mawk 1.3.4 20200120`; sob pt_BR ele lê a *string* `"1.5"` como 1 e escreve `%.1f` com vírgula
+(`x="1.5"; x+0`, o literal `1.5`, o campo `1.5` e `printf "%.1f", 2.25`):
+
+```text
+string=1 literal=1,5 campo: 1 printf=2,2
+```
+
+**Depois (`4921289`).** Todo `awk` do medidor roda sob `LC_ALL=C`, e `_gb` põe a vírgula à mão. A
+sonda E3-4, repetida:
+
+```text
+C 0 maximo_mb 2048 falhas 0 | | alvo | Airbyte | 0m 03s | 2,6 GB | 2,0 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+C.UTF-8 0 maximo_mb 2048 falhas 0 | | alvo | Airbyte | 0m 03s | 2,6 GB | 2,0 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+pt_BR.UTF-8 0 maximo_mb 2048 falhas 0 | | alvo | Airbyte | 0m 03s | 2,6 GB | 2,0 GB | 3 amostras, uma a cada 1,0 s (pausa de 1 s) |
+```
+
+O medidor corrigido contra o Docker real, no locale desta sessão (`LANG=pt_BR.UTF-8`, `LC_ALL`
+vazio), com um `Makefile` de rascunho (`sleep 5`) e o registro fora de `data/medicoes/`, entre
+duas leituras diretas somadas sob C:
+
+```text
+| alvo | Airbyte,bancos | 0m 05s | 2,7 GB | 3,8 GB | 2 amostras, uma a cada 3,0 s (pausa de 1 s) |
+leitura direta sob C: antes=3878 MB depois=3882 MB
+{'amostras': 2, 'conteineres_maximo_mb': 3879, 'conteineres_falhas': 0, 'periodo_medio_s': 3.0}
+```
+
+**Os testes novos contra o `medir.sh` anterior.** Os três reprovam, cada um pelo seu motivo (os
+outros dois selecionados são os do RVE2-02):
+
+```text
+E       assert ["mb=$(awk '/...' ;; esac; }"] == []
+E       assert '| 2,0 GB |' in '| alvo | Airbyte | 0m 02s | 2.7 GB | 2.0 GB | 2 amostras, uma a cada 1,0 s (pausa de 1 s) |'
+E       assert 1536 == 2048
+FAILED tests/test_medicao.py::test_toda_conta_do_medidor_roda_sob_o_locale_c
+FAILED tests/test_medicao.py::test_a_conversao_da_memoria_nao_depende_do_locale[C]
+FAILED tests/test_medicao.py::test_a_conversao_da_memoria_nao_depende_do_locale[pt_BR]
+3 failed, 2 passed, 26 deselected in 8.96s
+```
+
+Contra o novo, a suíte do medidor inteira: `31 passed in 40.31s`.
+
+**Registros anteriores.** Há um só, `data/medicoes/2026-09-20_size_report.json`, citado no plano
+(§3), com `conteineres_maximo_mb: 3961`. A linha dele saiu `2,7 GB | 3,9 GB`, com vírgula: pt_BR,
+portanto subestimado. O arquivo de amostras é temporário, então a série bruta não existe, e corrigir
+o número seria estimá-lo. Ficou marcado no plano como subestimado. Ele não sustentava decisão
+nenhuma, e a tabela da Capacidade é medida em B5, com o medidor corrigido. As leituras reais das
+rodadas anteriores (3.222 e 3.317 MB, na §3 deste dossiê) também saíram sob pt_BR, e ficam no
+histórico, onde nada as consome.
+
+### 10.2 RVE3-02 — a retomada do Airbyte
+
+**O cluster vivo, antes de tudo, só leitura.** O nó guarda os sandboxes das partidas anteriores
+como `NotReady`, e alguns nunca saem, como o `bootloader` de duas semanas atrás. Recorte do
+`crictl pods`, as duas últimas das 34 linhas:
+
+```text
+3fe11853b9856       2 days ago          NotReady            etcd-airbyte-abctl-control-plane                      kube-system          21                  (default)
+fc5a1c2d717b4       2 weeks ago         NotReady            airbyte-abctl-bootloader                              airbyte-abctl        0                   (default)
+```
+
+O filtro exato do `crictl 1.32.0` existe, e é o que o preflight já usa na consulta de trabalho:
+
+```text
+--- --state Ready -q (contagem) ---
+18
+--- --state NotReady -q (contagem) ---
+16
+--- estado com letra minúscula ---
+18
+--- estado inválido ---
+2026/09/23 23:08:06 --state should be ready or notready
+rc=1
+```
+
+A API tem dois *health*, e só um diz se está disponível — `/api/public/v1/health`, depois
+`/api/v1/health`:
+
+```text
+Successful operation http=200
+{"available":true} http=200
+```
+
+**A decisão do Owner.** Consultado com três alternativas — a API responder; o sandbox pronto exato,
+que é a correção literal do achado; os dois em sequência —, o Owner escolheu **a API responder**, e
+autorizou pausar e retomar o Airbyte de verdade para medir.
+
+**Ciclo 1, a receita antiga, real.** `make preflight ALVO=trabalho` → `nenhum trabalho em
+andamento`; `docker/airbyte_jobs.sh ler` → `maior_job=43`; `make airbyte-pause`. No instante T0, a
+sonda abaixo em segundo plano e `make airbyte-resume`. Na sonda, `antigo` diz se o `grep -q Ready`
+da receita antiga casaria naquele instante. Recorte: cada sequência de estados iguais fica com a
+primeira e a última linha, e "…" no meio; o corpo HTML do 503, de sete linhas, vira `<html 503>`.
+
+```text
+make airbyte-resume (receita antiga) saiu 0 em +5.6s
+aguardando o cluster. pronto.
+t=+   0.0s antigo=sem_resposta sandbox_ready=0   notready=0   k8s_airbyte_prontos=0/0    api= http=000
+t=+   2.6s antigo=casa         sandbox_ready=0   notready=34  k8s_airbyte_prontos=0/0    api= http=000
+t=+   5.1s antigo=casa         sandbox_ready=4   notready=19  k8s_airbyte_prontos=0/0    api= http=000
+t=+  10.3s antigo=casa         sandbox_ready=14  notready=19  k8s_airbyte_prontos=0/8    api= http=000
+t=+  13.3s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+…
+t=+  44.4s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+t=+  47.2s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+…
+t=+  58.7s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+t=+  61.8s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=5/8    api=<html 503> http=503
+t=+  64.4s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  67.0s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+…
+t=+  98.0s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+ 100.8s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=7/8    api={"available":true} http=200
+…
+t=+ 107.1s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=7/8    api={"available":true} http=200
+fim: API disponível 3 vezes seguidas
+```
+
+A espera antiga disse "pronto" em 5,6 s. Em +2,6 s o `crictl` listava 34 sandboxes `NotReady` e
+nenhum pronto, e o `grep` já casava. O primeiro sandbox pronto de fato veio em +5,1 s. A API não deu
+resposta HTTP nenhuma até +44 s (`http=000`), o ingress devolveu 503 de +47 s a +98 s, e `available:true` chegou em
++100,8 s: a espera declarou pronto uns 95 s antes de o Airbyte servir.
+
+**Ciclo 2, a receita nova, real.** `make preflight ALVO=trabalho` e `make airbyte-pause` de novo.
+`make airbyte-up`, o chamador de B5, foi **recusado pelo preflight por memória**:
+
+```text
+make airbyte-up (receita nova) saiu 2 em +0.2s
+[preflight] RAM disponível agora: 6,0 GB
+[preflight] Já de pé: nada além dos bancos
+[preflight] 'airbyte' custa ~4,9 GB — sobraria 1,1 GB
+
+RECUSADO — sobraria menos que a folga mínima de 1,5 GB para o host.
+```
+
+Não forcei (`CLAUDE.md` §5). Devolvi o Airbyte ao estado em que o encontrei com
+`make airbyte-resume`, o outro chamador da mesma variável, que não passa pelo preflight:
+
+```text
+make airbyte-resume (receita nova) saiu 0 em +95.7s
+aguardando a API do Airbyte................... pronta.
+t=+   0.0s antigo=sem_resposta sandbox_ready=0   notready=0   k8s_airbyte_prontos=0/0    api= http=000
+t=+   2.6s antigo=casa         sandbox_ready=0   notready=21  k8s_airbyte_prontos=0/0    api= http=000
+t=+   5.4s antigo=casa         sandbox_ready=4   notready=19  k8s_airbyte_prontos=8/8    api= http=000
+t=+   9.2s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=1/8    api= http=000
+t=+  12.3s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+…
+t=+  40.3s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+t=+  43.1s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+…
+t=+  51.7s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+t=+  54.5s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=5/8    api=<html 503> http=503
+t=+  57.3s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+…
+t=+  62.4s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  64.9s antigo=casa         sandbox_ready=18  notready=16  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+…
+t=+  91.5s antigo=casa         sandbox_ready=18  notready=16  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  94.1s antigo=casa         sandbox_ready=18  notready=16  k8s_airbyte_prontos=7/8    api=<html 503> http=503
+t=+  96.6s antigo=casa         sandbox_ready=18  notready=16  k8s_airbyte_prontos=8/8    api={"available":true} http=200
+…
+t=+ 101.6s antigo=casa         sandbox_ready=18  notready=16  k8s_airbyte_prontos=8/8    api={"available":true} http=200
+fim: API disponível 3 vezes seguidas
+```
+
+A receita disse "pronta" em +95,7 s. A sonda viu 503 em +94,1 s e `available:true` em +96,6 s: a
+receita pegou a API no instante em que ela respondeu. **E o Kubernetes, em +5,4 s, dizia 8/8 pods
+do Airbyte prontos** — estado de antes da pausa, que caiu para 1/8 em +9,2 s. A prontidão do
+Kubernetes também não serviria de critério.
+
+Depois, o ambiente como estava:
+
+```text
+maior_job=43 ultimo_valor=43 chamado=t sequencia=public.jobs_id_seq
+{"available":true} http=200
+mvp_ed1_legacy_db	Up 3 hours (healthy)
+mvp_ed1_source_db	Up 3 hours (healthy)
+mvp_ed1_warehouse_db	Up 3 hours (healthy)
+airbyte-abctl-control-plane	Up About a minute
+```
+
+A sonda das duas retomadas (`LC_ALL=C` porque ela mesma faz conta com decimal):
+
+```bash
+#!/usr/bin/env bash
+# Sonda da retomada do Airbyte: a cada ~2 s, desde T0 (epoch em $1), registra
+#   - se o `grep -q Ready` da receita antiga casaria (antigo=casa|nao|sem_resposta);
+#   - quantos sandboxes o crictl diz Ready e NotReady (filtro exato);
+#   - quantos pods do namespace airbyte-abctl o Kubernetes diz prontos (READY n/n, sem Completed);
+#   - o código e o corpo de GET /api/v1/health.
+# Para depois de 3 respostas `available:true` seguidas, ou em $2 segundos.
+# Só leitura.
+export LC_ALL=C
+T0="$1"; PRAZO="${2:-300}"
+NO=airbyte-abctl-control-plane
+seguidas=0
+while :; do
+	agora=$(date +%s.%N)
+	t=$(awk -v a="$agora" -v b="$T0" 'BEGIN{printf "%.1f", a-b}')
+	todos=$(timeout 5 docker exec "$NO" crictl pods 2>/dev/null); rc=$?
+	if [ $rc -ne 0 ]; then antigo=sem_resposta; else
+		printf '%s\n' "$todos" | grep -q Ready && antigo=casa || antigo=nao; fi
+	prontos=$(timeout 5 docker exec "$NO" crictl pods --state Ready -q 2>/dev/null | grep -c . || true)
+	naoprontos=$(timeout 5 docker exec "$NO" crictl pods --state NotReady -q 2>/dev/null | grep -c . || true)
+	k8s=$(timeout 8 docker exec "$NO" kubectl get pods -n airbyte-abctl --no-headers 2>/dev/null \
+		| awk '$3 != "Completed" { split($2, r, "/"); n++; if (r[1] == r[2]) p++ } END { printf "%d/%d", p, n }')
+	corpo=$(curl -s --max-time 3 -w ' http=%{http_code}' http://localhost:8000/api/v1/health 2>/dev/null)
+	printf 't=+%6ss antigo=%-12s sandbox_ready=%-3s notready=%-3s k8s_airbyte_prontos=%-6s api=%s\n' \
+		"$t" "$antigo" "${prontos:-?}" "${naoprontos:-?}" "${k8s:-?}" "$corpo"
+	case "$corpo" in *'"available":true'*) seguidas=$((seguidas + 1)) ;; *) seguidas=0 ;; esac
+	[ "$seguidas" -ge 3 ] && { echo "fim: API disponível 3 vezes seguidas"; exit 0; }
+	if awk -v t="$t" -v p="$PRAZO" 'BEGIN{exit !(t+0 > p+0)}'; then echo "fim: prazo de ${PRAZO}s"; exit 1; fi
+	sleep 2
+done
+```
+
+**A sonda E3-5, repetida.** O trecho reprodutível do revisor, sem mudança, contra a receita nova. Ela
+não consulta mais o `docker exec`, e os rótulos `NotReady` e `vazio` deixam de importar: quem
+responde é o `curl` simulado padrão de `_make`, que nunca diz nada, e a espera esgota nos quatro
+casos. O 2 é o código com que o `make` sinaliza receita falhada, e o texto é a última linha da
+saída:
+
+```text
+airbyte-resume NotReady 2   Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+airbyte-up NotReady 2   Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+airbyte-resume vazio 2   Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+airbyte-up vazio 2   Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+```
+
+**Os testes novos contra o `Makefile` anterior.** `12 failed, 5 passed in 121.89s`: reprovam os dez
+da retomada e os dois de comportamento reescritos. Os dois de comportamento sem `sleep` simulado
+vencem pelo prazo de 60 s do teste, e daí os 121 s. O caso de prazo esgotado, literal: a receita
+anterior imprimia "tempo esgotado", anunciava a interface e saía 0:
+
+```text
+>       assert r.returncode != 0, r.stdout
+E       AssertionError: cluster pausado — retomando em vez de reinstalar
+E         aguardando o cluster.............................. tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'.
+E         
+E         Interface em http://localhost:8000 — credenciais em 'make airbyte-credentials'.
+```
+
+Contra o novo: `17 passed in 2.60s`, e `18 passed in 2.52s` com o teste do `curl` ausente.
+
+**Achado próprio, na correção (`c58a3cd`).** A espera nova consulta a API por `curl` com
+`2>/dev/null`. Numa máquina sem `curl`, o "command not found" sumiria ali, e as 60 consultas
+venceriam dizendo que a API não respondeu. A receita passa a conferir o `curl` antes de religar
+qualquer coisa. O teste roda com um `PATH` restrito ao que a receita usa além do `curl`. Contra
+`d3a20df`, o `make` travou até o prazo do teste; contra o novo, recusa sem chamar o `docker start`:
+
+```text
+E           subprocess.TimeoutExpired: Command '['make', '--no-print-directory', 'airbyte-resume']' timed out after 60 seconds
+```
+
+### 10.3 `make check`
+
+Sobre `9d856df`, recorte das linhas que resumem cada etapa. Os três `aviso:` são os mesmos de
+sempre, da linhagem de `legacy_classifications` (§3):
+
+```text
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 976 links de arquivo, 128 âncoras, 588 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+23:46:03  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `name` não encontrada; tratada como técnica
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `name` não encontrada; tratada como técnica
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+484 passed, 8 skipped in 254.17s (0:04:14)
+check: as quatro etapas passaram
+real	6m31,169s
+```
+
+São 470 testes antes, mais 3 do medidor e 11 do `Makefile`. Depois do `check`, `6cf0118` mudou só
+comentário, docstring e o id de um teste de `tests/test_makefile.py`: `18 passed in 2.60s`.
+
+### 10.4 O que esta aplicação não verificou
+
+- **`airbyte-up` retomando de verdade.** O preflight o recusou por memória. O ramo "pausado" só rodou
+  com dublês, e a variável que ele chama é a que `airbyte-resume` rodou de verdade.
+- **O prazo esgotando de verdade.** A API real respondeu em 96 e 101 s, e o caminho da falha só
+  rodou com dublês. Os 300 s são três vezes duas amostras, tiradas com ~6 GB livres depois da pausa;
+  sob mais pressão de memória, o tempo não foi medido.
+- **O Kubernetes com estado velho** foi visto uma vez (ciclo 2, +5,4 s). No ciclo 1 a primeira
+  leitura do Kubernetes, em +10,3 s, já dizia 0/8.
+- **Máquina sem pt_BR.** O caso pt_BR do teste de locale é pulado lá, com o motivo escrito. Com o
+  `gawk` no lugar do `mawk`, o defeito não existe, porque ele não segue o locale ao ler número;
+  isso não foi testado.
+- **O `_gb` do preflight** continua seguindo o locale na vírgula das mensagens. Nada lê número de
+  volta dali, e ficou como estava.
+- **O passo 8 de `recovery-restore` de ponta a ponta** continua de B5, com o resto da sequência.
+
+### 10.5 Onde hesitei
+
+- **Pronto é a API**, por decisão do Owner. `/api/v1/health`, e não `/api/public/v1/health`, porque
+  a pública responde só "Successful operation", sem dizer se está disponível.
+- **`grep -Eq '"available": *true'`** em vez de ler o JSON: o corpo medido é `{"available":true}`,
+  e tolerar o espaço não custa nada. Qualquer outra forma falha fechada, com erro no prazo, e nunca
+  aberta.
+- **O prazo contado em consultas, e não no relógio**, como já era na receita antiga: é o que deixa
+  os testes trocarem o `sleep` por um que não dorme. Cada consulta tem `--max-time 5`. Nos casos
+  medidos, sem resposta e 503, ela volta na hora, mas no pior caso o prazo dobra. Por isso a
+  mensagem de prazo esgotado dizia "5 min" na primeira versão, e agora diz "60 consultas, uma a cada
+  5 s" (`9d856df`), com o teste conferindo que ela e o dublê contaram o mesmo.
+- **O "~20 s" saiu do comentário geral da pausa, sem número novo no lugar:** a volta do *streaming*
+  e do Airflow não foi medida nesta aplicação. O número medido fica onde a retomada do Airbyte é
+  descrita.
+- **Devolver o Airbyte com `airbyte-resume` depois da recusa do preflight.** Não é contornar a
+  recusa: o preflight recusou subir o Airbyte pelo custo de pico de uma sincronização (5 GB), e
+  nenhuma rodaria. Retomar devolveu a máquina ao estado de dois minutos antes, que o Owner autorizou
+  pausar e retomar. Fica escrito para o Owner julgar.
+- **A vírgula da tabela posta à mão** vai além da letra do RVE3-01, e é a mesma regra que o período
+  já seguia.
+
 ## Achados da revisão
 
 Um achado por linha, com veredito. Os dois são remanescentes reproduzidos também na base;
@@ -666,5 +1020,5 @@ as cinco correções anteriores permanecem confirmadas conforme §9.1.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVE3-01 | `docker/medir.sh:61–72` | **A conversão da memória ainda depende do locale e subestima leituras válidas.** Com `LC_ALL=pt_BR.UTF-8`, as entradas `1.5GiB` e `512.5MiB` resultam em **1.536 MB**, contra **2.048 MB** sob `C`, com código 0 e nenhuma falha. O `awk` da coleta interpreta o ponto conforme a localidade; o `LC_ALL=C` acrescentado à agregação não recupera a fração perdida antes. Isso impede usar o medidor como evidência de capacidade de B5 nesse ambiente (P5). Fixar a localidade numérica da conversão e testar a mesma entrada decimal sob `C` e `pt_BR.UTF-8`; conferir a necessidade de remedir registros anteriores, sem estimar números. **E3-4.** | `bloqueante` | Aberto. Defeito anterior ao intervalo, ainda presente no instrumento revisado; nenhuma correção implementada nesta revisão. |
-| RVE3-02 | `Makefile:277–280` (`RETOMAR_AIRBYTE`) | **A espera da retomada anuncia sucesso sem observar prontidão.** `grep -q Ready` aceita uma linha `NotReady` e imprime `pronto`; se nenhuma linha casar nas 30 tentativas, o último `echo` também devolve 0. As duas formas afetam `airbyte-resume` e o ramo de retomada de `airbyte-up`, permitindo que chamadores prossigam mesmo sem a condição que o alvo promete esperar. Reconhecer o estado `Ready` de forma exata e sair com erro ao esgotar o prazo; cobrir `NotReady`, consulta sem resposta útil e timeout nos dois chamadores. Preservar a correção de `make -n`. **E3-5.** | `ajuste` | Aberto. O timeout já era ressalva da §7; o falso positivo de `NotReady` foi reproduzido nesta rodada. Ambos também ocorrem no Makefile da base. |
+| RVE3-01 | `docker/medir.sh:61–72` | **A conversão da memória ainda depende do locale e subestima leituras válidas.** Com `LC_ALL=pt_BR.UTF-8`, as entradas `1.5GiB` e `512.5MiB` resultam em **1.536 MB**, contra **2.048 MB** sob `C`, com código 0 e nenhuma falha. O `awk` da coleta interpreta o ponto conforme a localidade; o `LC_ALL=C` acrescentado à agregação não recupera a fração perdida antes. Isso impede usar o medidor como evidência de capacidade de B5 nesse ambiente (P5). Fixar a localidade numérica da conversão e testar a mesma entrada decimal sob `C` e `pt_BR.UTF-8`; conferir a necessidade de remedir registros anteriores, sem estimar números. **E3-4.** | `bloqueante` | **Corrigido** (`4921289`). Todo `awk` do medidor roda sob `LC_ALL=C` — leitura, soma e agregação —, e `_gb` põe a vírgula da tabela à mão, como o período já fazia. Sonda E3-4 repetida: 2.048 MB sob C, C.UTF-8 e pt_BR.UTF-8, com a mesma linha nos três. Contra o Docker real, sob pt_BR: 3.879 MB, entre leituras diretas de 3.878 e 3.882 MB somadas sob C. A mesma leitura real, somada sob pt_BR, perdia 733 MB (3.271 contra 4.004). **Achado próprio:** a linha da tabela também mudava de forma com o locale (`2.2 GB` sob C), e por isso o teste do RVE2-02 que recusava `0.0 GB` era vazio sob pt_BR; ele passa a recusar `0,0 GB`. Registros anteriores: há um só, o `size-report` de 20/09, com 3.961 MB, citado no plano §3. Ele saiu sob pt_BR e ficou marcado no plano como subestimado, sem estimativa de correção, porque a série bruta não existe. Nada o consome, e a Capacidade é medida em B5. Testes: `test_toda_conta_do_medidor_roda_sob_o_locale_c` (a regra, lida do texto) e `test_a_conversao_da_memoria_nao_depende_do_locale[C, pt_BR]` (o efeito, com a entrada do revisor). Os três reprovam o medidor anterior. §10.1. |
+| RVE3-02 | `Makefile:277–280` (`RETOMAR_AIRBYTE`) | **A espera da retomada anuncia sucesso sem observar prontidão.** `grep -q Ready` aceita uma linha `NotReady` e imprime `pronto`; se nenhuma linha casar nas 30 tentativas, o último `echo` também devolve 0. As duas formas afetam `airbyte-resume` e o ramo de retomada de `airbyte-up`, permitindo que chamadores prossigam mesmo sem a condição que o alvo promete esperar. Reconhecer o estado `Ready` de forma exata e sair com erro ao esgotar o prazo; cobrir `NotReady`, consulta sem resposta útil e timeout nos dois chamadores. Preservar a correção de `make -n`. **E3-5.** | `ajuste` | **Corrigido** (`d3a20df`, `c58a3cd`, `9d856df`). Por decisão do Owner, pronto é `GET /api/v1/health` responder `available:true`, que é o que os passos seguintes usam. Medido em duas pausas reais, autorizadas: a espera antiga disse "pronto" em 5,6 s, com 34 sandboxes `NotReady` e nenhum pronto, e a API respondeu em 101 s e em 96 s. Nem o sandbox exato (pronto em ~5 s) nem a prontidão do Kubernetes (8/8 aos 5 s, estado de antes da pausa) serviriam. O prazo é de 60 consultas a cada 5 s, três vezes o medido; esgotado, sai com erro nos dois chamadores, e `airbyte-up` não anuncia a interface. Numa retomada real, a receita nova disse "pronta" em 95,7 s, junto com a API. O `airbyte-up` real foi recusado pelo preflight por memória, e não foi forçado. Sonda E3-5 repetida: os quatro casos saem 2. **Achado próprio:** sem `curl`, o `2>/dev/null` engoliria o "command not found", e a espera venceria dizendo que a API não respondeu; a receita passa a conferir o `curl` antes de religar (`c58a3cd`). O "~20 s" que a Execução Local dava para a volta tinha saído da espera defeituosa, e foi trocado pelo medido. `make -n` continua sem executar nada, e agora vigia também o `curl`. Testes: dez da retomada (os dois chamadores × pronta na primeira; pronta depois de ficar sem resposta e de 503; sem resposta; 503; `available:false`) e o do `curl` ausente, todos reprovando a receita anterior. §10.2. |

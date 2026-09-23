@@ -30,6 +30,7 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 | **CPU** | **A restrição descoberta na Etapa 5.** Quatro núcleos é o mínimo documentado do Airbyte para a *plataforma* — o *pod* de replicação pede outros quatro. Ver seção 6 |
 | Python 3.11 | Fixado por paridade com o Cloud Composer. `make install` cria o `.venv` e instala o pacote ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |
+| `curl` | Baixa o `abctl` e o Terraform em `make tools`, e é por ele que a retomada do Airbyte espera a API responder |
 | Disco livre | **Pelo menos 8 GB** — o volume de dados é baixo por desenho ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)); o espaço é para imagem, log e WAL |
 | Memória | Airbyte, Airflow, Redpanda e Kafka Connect não precisam subir ao mesmo tempo; ver seção 5. Com o Airbyte e o Airflow juntos, contar com **cerca de 6 GB** |
 
@@ -248,11 +249,12 @@ $ make stream-up
 ```
 
 **Pausar, nunca desmontar.** Um `docker stop` devolve a memória inteira, preserva contêineres, dados
-e o conector Debezium, e a volta leva ~20 s — contra os minutos de um `airbyte-down`, que é
+e o conector Debezium, e a volta não reinstala nada — contra os minutos de um `airbyte-down`, que é
 `abctl local uninstall` e cai na armadilha do `PG_VERSION` da seção 6. Os pares são
 `airbyte-pause`/`airbyte-resume`, `stream-pause`/`stream-resume` e `airflow-pause`/`airflow-resume`,
 e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo. O ciclo
-completo de troca, medido: **18 s**.
+completo de troca, medido: **18 s**. A volta do Airbyte, medida em 23/09/2026 em duas retomadas: a
+API responde **96 s e 101 s** depois do `docker start`, e `airbyte-resume` espera por ela.
 
 **Duas salvaguardas, porque troca automática que erra custa trabalho perdido:**
 
@@ -458,15 +460,18 @@ quebrado. Parar o contêiner é a forma mais barata de devolver memória à máq
 nada — e é o que o [preflight](#5-executando-por-partes) recomenda quando o Airbyte está no caminho
 —, então o caminho de volta precisa ser conhecido.
 
-**Solução:** subir o contêiner antes, e esperar o kubelet responder.
+**Solução:** religar o contêiner e esperar a API do Airbyte responder, que é quando ele volta a
+servir — é o que `make airbyte-resume` faz (e `make airbyte-up`, quando encontra o cluster parado).
 
 ```bash
-docker start airbyte-abctl-control-plane
-# o cluster leva ~20 s para os pods voltarem a Ready
+make airbyte-resume
+# aguardando a API do Airbyte................... pronta.   ← ~100 s, medido em 23/09/2026
 ```
 
-Só depois disso um `make airbyte-up` faz sentido — e ele é necessário apenas quando o
-`airbyte/values.yaml` mudou, porque reiniciar o contêiner **não** reaplica o chart.
+Os pods não servem de sinal: o nó lista os sandboxes da partida anterior como `NotReady`, e o
+Kubernetes chega a dizer todos prontos nos primeiros segundos, com o estado de antes da pausa.
+Depois disso, `make airbyte-up` só é necessário quando o `airbyte/values.yaml` mudou, porque
+reiniciar o contêiner **não** reaplica o chart.
 
 ### `make airbyte-up` falha com `permission denied` no `PG_VERSION`
 

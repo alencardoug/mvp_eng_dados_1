@@ -82,6 +82,14 @@
 > dois bloqueantes, três ajustes) foi aplicado na mesma data, cada achado reproduzido pela sonda do
 > revisor antes de corrigido, e a aplicação achou mais dois; o que mudou está nos blocos "Segunda
 > rodada" das §2.1, §3 e §6, e as saídas na §12 do dossiê. B5 continua sem autorização.
+>
+> **Terceira rodada da revisão da entrega — 23/09/2026.** O parecer (`REVISAO.md` §9) confirmou
+> RVE2-01–05 e achou dois remanescentes anteriores ao intervalo, reproduzidos também na base:
+> RVE3-01 (bloqueante, o medidor dependia do locale) e RVE3-02 (ajuste, a retomada do Airbyte dizia
+> "pronto" sem observar prontidão). Aplicado na mesma data, cada um reproduzido antes de corrigido,
+> e a aplicação achou mais dois; a retomada foi medida em duas pausas reais do Airbyte, autorizadas pelo Owner, que decidiu que
+> pronto é a API responder. O que mudou está no bloco "Terceira rodada" da §3, e as saídas na §10
+> do dossiê. B5 continua sem autorização.
 
 ---
 
@@ -471,6 +479,10 @@ $ make medir ALVO=size-report
 | size-report | Airbyte,Airflow,bancos | 0m 14s | 2,7 GB | 3,9 GB | 3 amostras a cada 2s |
 ```
 
+O "3,9 GB" dos contêineres nesta linha está **subestimado**: saiu sob pt_BR, antes da correção do
+RVE3-01 (ver "Terceira rodada", no fim desta seção). Os dois números da memória disponível não são
+afetados.
+
 **Três decisões que a implementação obrigou a tomar, e que o plano não previa:**
 
 - **O encerramento é por grupo de processo, não por PID.** O `make` que sobe o `stream-run` é um
@@ -546,6 +558,30 @@ chamadores, e `dbt-build` separou o descarte do build. `tests/test_makefile.py` 
 toda linha com `$(MAKE)` é só a recursão — e o efeito: `make -n` de `airbyte-up`,
 `dbt-build RESET=1` e `recovery-restore` sobre o `Makefile` real, com executáveis simulados, não
 chama nada.
+
+**Terceira rodada — 23/09/2026 (RVE3-01, 02; `REVISAO.md` §9–10).** Dois defeitos anteriores ao
+intervalo revisado, que o revisor reproduziu também na base:
+
+- **a conversão da memória dependia do locale.** O `mawk` lê número conforme a localidade: sob
+  pt_BR, o `1.5GiB` do `docker stats` virava 1 GiB, com código 0 e nenhuma falha. A entrada do
+  revisor dava 1.536 MB em vez de 2.048, e uma leitura real, 3.271 MB em vez de 4.004. Todo `awk`
+  do medidor passa a rodar sob `LC_ALL=C`, e a vírgula da tabela é posta à mão. **Achado próprio:**
+  a linha da tabela também mudava de forma com o locale. O "3,9 GB" da medição de 20/09 acima está
+  subestimado e não tem como ser corrigido, porque a série bruta não é guardada. Ele não sustentava
+  decisão nenhuma, e a tabela da Capacidade é medida em B5, já com o medidor corrigido. Suíte do
+  medidor: 28 → 31 casos;
+- **a retomada do Airbyte dizia "pronto" sem observar prontidão.** O nó lista os sandboxes da
+  partida anterior como `NotReady`, o `grep -q Ready` casava neles, e as consultas esgotadas
+  terminavam num `echo` que saía 0. Medido em duas pausas reais: a espera antiga disse "pronto" em
+  5,6 s, e a API respondeu em 101 s e em 96 s. **Por decisão do Owner, pronto é a API responder**
+  (`GET /api/v1/health` → `available:true`). Nem pod serviria: o primeiro sandbox fica pronto em
+  ~5 s, e o Kubernetes chegou a dizer 8/8 prontos aos 5 s, estado de antes da pausa. O prazo é de
+  60 consultas a cada 5 s, três vezes o medido, e esgotá-lo é erro nos dois chamadores. A receita
+  nova, numa retomada real, disse "pronta" em 95,7 s. O "~20 s" que a Execução Local dava para a
+  volta tinha saído da espera defeituosa, e foi trocado pelo medido. **Achado próprio:** sem
+  `curl`, a espera seria cega — o `2>/dev/null` engoliria o "command not found", e o prazo venceria
+  dizendo que a API não respondeu —, e a receita passa a conferir o `curl` antes de religar.
+  `tests/test_makefile.py`: 7 → 18 casos.
 
 ---
 
