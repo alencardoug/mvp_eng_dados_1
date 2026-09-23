@@ -442,10 +442,12 @@ def _receita(alvo: str) -> str:
     **Por que estático, e não `make -n`.** O `make` executa de verdade toda
     linha de receita que contenha `$(MAKE)`, mesmo sob `-n`, para poder traçar
     a recursão. A sequência de restauração é feita de submakes, e expandi-la
-    com `-n` dispara `airbyte-up` — que tenta instalar o cluster. Medido aqui:
-    a primeira versão destes testes chamou `abctl local install`, e só não
-    reinstalou nada porque a armadilha do `PG_VERSION` (Execução Local §6)
-    abortou antes.
+    com `-n` disparava `airbyte-up` — que tentava instalar o cluster. Medido
+    aqui: a primeira versão destes testes chamou `abctl local install`, e só
+    não reinstalou nada porque a armadilha do `PG_VERSION` (Execução Local §6)
+    abortou antes. A linha foi corrigida em 23/09/2026, e
+    `tests/test_makefile.py` guarda a regra; a leitura aqui continua estática,
+    porque o que se confere é a composição, não o efeito.
 
     O que se confere é a **composição declarada**: quem chama quem, em que
     ordem e com que variáveis. O efeito de cada comando é de B5.

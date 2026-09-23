@@ -264,14 +264,23 @@ airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-
 		echo "Airbyte pausado. Retomar: make airbyte-resume" || \
 		echo "Airbyte já não estava de pé."
 
-airbyte-resume: ## Religa o cluster do Airbyte pausado e espera os pods
-	@docker start airbyte-abctl-control-plane >/dev/null || { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }
-	@printf "aguardando o cluster"
-	@for i in $$(seq 1 30); do \
+# Religar o cluster pausado e esperar um pod pronto: uma receita, dois
+# chamadores — `airbyte-resume` e o ramo "pausado" de `airbyte-up`. Variável, e
+# não `$(MAKE) airbyte-resume` dentro do `if` de `airbyte-up`: o `make` executa
+# de verdade, mesmo sob `-n`, toda linha em cujo texto aparece `$(MAKE)`, e
+# aquela linha tinha no outro ramo o `abctl local install` — um
+# `make -n recovery-restore` o chamou com o Airbyte de pé (23/09/2026).
+RETOMAR_AIRBYTE = docker start airbyte-abctl-control-plane >/dev/null \
+	|| { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
+	printf "aguardando o cluster"; \
+	for i in $$(seq 1 30); do \
 		if docker exec airbyte-abctl-control-plane crictl pods 2>/dev/null | grep -q Ready; then \
 			echo " pronto."; exit 0; fi; \
 		printf "."; sleep 5; done; \
-		echo " tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'."
+	echo " tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'."
+
+airbyte-resume: ## Religa o cluster do Airbyte pausado e espera os pods
+	@$(RETOMAR_AIRBYTE)
 
 stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
 	@RETOMAR_COM='make stream-resume' $(CONTEINERES) pausar streaming @streaming; \
@@ -296,7 +305,7 @@ airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
 	@# ~20 s; reinstalar leva minutos e esbarra no `PG_VERSION` (§6).
 	@if [ -n "$$(docker ps -aq -f 'name=^airbyte-abctl-control-plane$$' -f status=exited)" ]; then \
 		echo "cluster pausado — retomando em vez de reinstalar"; \
-		$(MAKE) --no-print-directory airbyte-resume; \
+		$(RETOMAR_AIRBYTE); \
 	else \
 		$(ABCTL) local install --values airbyte/values.yaml; \
 	fi
@@ -344,9 +353,12 @@ dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 
 	@# `governance.legacy_captures` é `source` dos modelos do legado (ADR-0044):
 	@# garantir o schema antes de compilar é o que evita "relation does not exist"
 	@# num armazém que ainda não teve sincronização certificada.
+	@# O descarte e o build em linhas separadas, e não ligados por `&&`: o `make`
+	@# executa sob `-n` toda linha em cujo texto aparece `$(MAKE)` — mesmo com o
+	@# `RESET` desligado —, e o `&&` levava junto o `dbt build` (23/09/2026).
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.governance garantir
-	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots &&) \
-		$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
+	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots)
+	@$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
 
 airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, três contêineres)
 	$(call preflight,airflow)
