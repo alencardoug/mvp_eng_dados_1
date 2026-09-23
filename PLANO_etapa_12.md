@@ -77,6 +77,11 @@
 > 17 achados RVE-01–17, 12 bloqueantes) foi aplicada na mesma data, cada achado reproduzido
 > antes de corrigido; o que mudou está nos blocos "Revisão da entrega" das §2.1, §3 e §6, e as
 > saídas na §10 do dossiê. B5 continua sem autorização.
+>
+> **Segunda rodada da revisão da entrega — 23/09/2026.** O parecer (`REVISAO.md` §11: RVE2-01–05,
+> dois bloqueantes, três ajustes) foi aplicado na mesma data, cada achado reproduzido pela sonda do
+> revisor antes de corrigido, e a aplicação achou mais dois; o que mudou está nos blocos "Segunda
+> rodada" das §2.1, §3 e §6, e as saídas na §12 do dossiê. B5 continua sem autorização.
 
 ---
 
@@ -384,6 +389,13 @@ de parar; o *host* é consultado **sempre** em `preflight.sh trabalho`; o grupo 
 `run_id` **e** estado exatos; `airflow_cli.sh pausar` sai 0/3/1 (pausou / Airflow ausente /
 falhou) e a manutenção só segue com 0 ou 3. Suíte do preflight: 21 → 31 casos.
 
+**Segunda rodada — 23/09/2026 (RVE2-03).** O recuo de uma troca recusada religava o grupo inteiro
+(`resolver --todos`) e terminava com **mais** contêineres de pé do que havia antes — o *apiserver*
+parado antes da troca voltava junto, justamente num recuo motivado pelo R11. `_parar` passa a
+anotar, por ambiente, o que estava de pé, e `_religar` recompõe **exatamente** esse conjunto,
+conferindo nome a nome, tanto na pausa parcial quanto na recusa por memória. Suíte do preflight:
+31 → 33 casos.
+
 ---
 
 ## 3. B1 — o instrumento de medição
@@ -504,6 +516,18 @@ eventos novos e recuperação de B5 são três `cenario:streaming`. O que mudou:
 `_finalizar` é comum aos dois desfechos e o trap grava `interrompido: true`, código 130; o nome do
 registro leva o instante e os parâmetros (`_limite_n`, `_ate_x`), e o JSON leva
 `parametros: {limite, corte}`. Suíte do medidor: 16 → 19 casos.
+
+**Segunda rodada — 23/09/2026 (RVE2-02, 04).** Dois defeitos que só dublês de processo mostram.
+**`docker stats` que falhava virava 0 MB medido**: o `awk` somava a entrada vazia, e o JSON gravava
+o máximo dos contêineres como 0 com código 0 — um zero inventado a caminho da tabela de B5 (P5).
+E **o pipeline nascia com SIGINT ignorado**: o bash lança todo comando assíncrono de script assim, o
+Python que nasce desse jeito não instala o `KeyboardInterrupt` de que `comando_pipeline` depende, e
+o pipeline só saía pelo SIGKILL do prazo — com os cenários da própria suíte passando pelo mesmo
+SIGKILL sem que ninguém visse. O que mudou: leitura que falha é `NA`, a agregação tira os extremos
+só das amostras válidas e conta as falhas de cada grandeza, e o que não foi lido vai `null`, com
+"não medido" na linha da tabela; o lançamento restaura a disposição (`trap - INT QUIT` antes do
+`exec setsid`, que preserva o PID anotado) e o registro ganha `encerramento`
+(`limpo`/`forcado`/`null`). Suíte do medidor: 19 → 26 casos.
 
 ---
 
@@ -1000,6 +1024,29 @@ conferido contra os bancos vivos; as saídas literais estão na §10 do `REVISAO
 projeto (o medido foi o dump da memória, em banco isolado; as fontes não foram restauradas em lugar
 nenhum); o passo 9 depois de uma captura nova real; o `setval` real de `avancar-jobs` (o instalado
 já estava em 43); e a guarda contra um Airbyte recém-instalado.
+
+**Segunda rodada — 23/09/2026 (RVE2-01, 05; `REVISAO.md` §11–12).** Duas ausências que passavam
+por presença, e mais duas que a aplicação achou:
+
+- **o passo 9 aceitava a falta da auditoria da captura nova** — o acréscimo da quarentena só era
+  filtrado pelo `snapshot_id`, e nada a mais não é nada faltando. O acréscimo passa a ser igual,
+  por contagem **e** digest, ao que a classificação da captura rejeitou
+  (`trusted.legacy_classifications`, de que a quarentena é `select *` — medido igual na 43:
+  3.207 linhas, mesmo digest); captura sem rejeição tem acréscimo vazio e passa. O `jobId` vem do
+  passo 8 (`sync-legacy JOB_EM=`) e `--job` é obrigatório. **Achado próprio na mesma sonda:** os
+  dois caminhos do livro vazios eram "iguais" — agora precisam ter o tamanho do livro na origem;
+- **restaurar os artefatos não restaurava a ausência** — o registro de geração de uma carga
+  posterior (o `seed-data` de B5 o cria antes da restauração) sobrevivia, e o próximo pacote o
+  atribuía à origem restaurada. O que o pacote não traz sai do caminho **renomeado**
+  (`.anterior-a-restauracao-<instante>`), nunca apagado. **Achado próprio:** o `copy2` sobre
+  `data/legacy/manifesto.json` escrevia **através do link**, no manifesto do lote apontado — onde o
+  diário de mutações grava. O pack passa a registrar `artefatos_links` (campo obrigatório) e a
+  restauração refaz o link.
+
+Suíte: 437 → **461 passed, 8 skipped**. O candidato de 21/09 não tinha `artefatos_links`:
+**refeito** com a árvore limpa (corte `2026-09-23T20:53:54+00:00`, código `8c04106`) e conferido contra os bancos
+vivos. Continua sendo de B5, além do que está acima: o passo 9 com uma captura nova de verdade, o
+Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 
 ---
 

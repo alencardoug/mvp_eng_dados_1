@@ -10,6 +10,14 @@
 
 Intervalo: `2b2b0f0..3e21a54` — leia o diff, ele não é repetido aqui.
 
+**Rechecagem de 23/09/2026:** as correções posteriores foram revisadas até
+`b1011e701beacf89d2f1b25346e4200dc920bcd9`, mantendo o escopo B0/B1/B4.
+O parecer atual está na **§11** e na **tabela da segunda rodada**, ao fim.
+O intervalo e os pareceres anteriores abaixo permanecem como histórico.
+
+**Aplicação de 23/09/2026:** os cinco achados foram corrigidos em
+`fba57cc..8c04106`, com a coluna *Situação* preenchida e as saídas na **§12**.
+
 Os dois extremos são SHA fixos de propósito: um dossiê que dissesse `..HEAD` passaria a
 descrever outro intervalo no primeiro *commit* seguinte, sem que a lista abaixo mudasse.
 
@@ -1358,7 +1366,637 @@ refeito** depois do último *commit* (`make recovery-pack`, árvore limpa, corte
 `2026-09-21T19:27:54+00:00`, código `118416f`, 19,6 s) e conferido contra os
 bancos vivos (`make recovery-verify CONTRA_O_BANCO=1`, 12,2 s, sem problema).
 
-## Achados da revisão
+## 11. Segunda rodada da revisão da entrega — 23/09/2026
+
+**Ainda há impedimentos para avançar a B5: dois bloqueantes e três ajustes.**
+A conferência final ainda aceita a falta da auditoria da captura nova, e o
+medidor transforma uma consulta de memória que falhou em uma medição de zero.
+As contraprovas também expuseram a recomposição de serviços que já estavam
+parados, `SIGINT` ignorado pelo processo lançado no cenário e a preservação de
+um registro de geração posterior ao pacote. Achados **RVE2-01 a RVE2-05** na
+tabela ao fim; RVE2-01 e RVE2-03 complementam RVE-05 e RVE-11.
+
+Checkout observado: `b1011e701beacf89d2f1b25346e4200dc920bcd9`, inicialmente
+limpo. Conferidos o diff `3e21a54..b1011e7`, o declarativo atual de B0/B1/B4,
+seus chamadores e os contratos da §6 do plano e dos ADRs 0037/0044/0045.
+Os testes existentes foram executados e serviram também de base a
+contraprovas independentes. B2/B3 continuam fora do escopo desta rodada.
+Só este dossiê foi alterado no repositório; não houve correção de implementação.
+
+### 11.1 Conferência dos achados anteriores
+
+| Achados | Resultado desta rodada |
+|---|---|
+| RVE-01 | **Confirmado no transporte real.** A função `jobs` devolveu 43 jobs, máximo 43, com a URL codificada. E2-2. |
+| RVE-02, 08, 09, 10, 12, 13, 14, 16, 17 | **Correções confirmadas por leitura e pelos testes executados.** Validação sem executar receita; indeterminação de Docker; consulta do host; preservação do candidato durante montagem; registro da interrupção; registros distintos; identidade exata do run; iterador; recusa da pausa que falhou. Isso não equivale a executar uma troca real ou interromper Beam real. E2-1. |
+| RVE-03, 04, 06, 07, 15 | **Correções incorporadas, com limites de validação.** Flags de restauração e recuo, partição, sequência D50, codificação tipada e metadados foram conferidos no código e nos testes. O passo 5 passou contra o candidato e os bancos vivos; D50 foi lido sem avanço. Não repeti a restauração nem o re-base em banco isolado relatados pelo autor na §10. A devolução do registro de geração tem o defeito adicional RVE2-05. E2-1/E2-2/E2-5. |
+| RVE-05 | **Parcial.** As conferências acrescentadas existem, mas o acréscimo da quarentena só é filtrado pelo pertencimento do `snapshot_id`: a falta da fatia esperada ainda passa. RVE2-01, E2-3. |
+| RVE-11 | **Parcial.** O grupo que falhou é religado; porém `resolver --todos` inclui serviços que já estavam parados antes da tentativa. O conjunto original continua sem ser guardado. RVE2-03, E2-4. |
+
+### 11.2 Evidências desta rodada
+
+As sondas foram executadas em `/tmp/rve2_xEBKdU/`. Seus códigos estão
+incluídos abaixo para que as evidências não dependam da permanência desse
+diretório. Os comandos partem da raiz do repositório. Dublês de Docker,
+Makefile e leituras do banco são identificados; nenhum resultado deles é
+apresentado como uma restauração ou uma execução de Beam real.
+
+#### E2-1 — testes existentes e candidato contra os bancos vivos
+
+```bash
+.venv/bin/python -m pytest -q tests/test_recovery.py tests/test_medicao.py tests/test_preflight.py tests/test_identidade_captura.py
+```
+
+Saída literal:
+
+```text
+........................................................................ [ 57%]
+......................................................                   [100%]
+126 passed in 51.34s
+```
+
+O comando de sintaxe `bash -n docker/conteineres.sh docker/preflight.sh
+docker/airflow_cli.sh docker/airbyte_jobs.sh docker/medir.sh` saiu 0, sem
+saída. A conferência abaixo usou o `.env` sem imprimir credenciais e conexões
+com `default_transaction_read_only=on`. O acesso local foi liberado fora do
+sandbox após a primeira conexão TCP ser recusada.
+
+```bash
+set -a
+. ./.env
+set +a
+PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=30000' .venv/bin/python -m mvp_ed1.recovery verify --contra-o-banco
+```
+
+```text
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações como no manifesto)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+```
+
+Leitura adicional, sob transações somente de leitura:
+
+```bash
+set -a
+. ./.env
+set +a
+.venv/bin/python /tmp/rve2_xEBKdU/leituras.py
+```
+
+```text
+SOURCE_DB ('source_db', 'on')
+LEGACY_DB ('legacy_db', 'on')
+WAREHOUSE_DB ('warehouse_db', 'on')
+dependencias_fora_do_dump 0
+exemplos_dependencias []
+snapshots_dependentes []
+candidato {'corte': '2026-09-21T19:27:54+00:00', 'commit': '118416f5c10bbe716f9c42927888d4c19bcff3c3', 'oraculo_formato': 2, 'max_event_sequence': 13700}
+checksums []
+capturas [28, 29, 30, 31, 32, 33, 35, 36, 38, 39, 43]
+quarentena_manifesto_fatias 21
+caminhos {'corte': 13700, 'so_no_lote': 0, 'so_no_fluxo': 0, 'payloads_diferentes': 0, 'saldos_diferentes': 0, 'soma_lote': 701841, 'soma_fluxo': 701841, 'linhas_lote': 13700, 'linhas_fluxo': 13700}
+```
+
+`dependencias_fora_do_dump` é a consulta a dependências de **views/regras**
+em `pg_depend`/`pg_rewrite`, não uma certificação de todas as dependências
+possíveis. Ela descartou a hipótese de que views externas aos quatro schemas
+já impediriam o restore no estado observado; não executei restore para testar
+outros impedimentos. Os 13.700 movimentos de cada caminho e a soma 701.841 são
+do estado atual, anterior a B5.
+
+#### E2-2 — API e contador do Airbyte reais, sem sincronizar ou avançar
+
+```bash
+.venv/bin/python /tmp/rve2_xEBKdU/api_airbyte.py
+docker/airbyte_jobs.sh ler
+```
+
+Saídas literais, respectivamente:
+
+```text
+{"GET": "/jobs?limit=100&orderBy=createdAt%7CDESC", "rows": 43, "maior_job_conhecido": 43, "primeiros": [43, 42, 41]}
+maior_job=43 ultimo_valor=43 chamado=t sequencia=public.jobs_id_seq
+```
+
+O acesso pelo sandbox foi recusado; a repetição autorizada leu Docker/API
+local. O único POST foi a autenticação do cliente; nenhum `POST /jobs`,
+`setval` ou mudança de configuração foi executado.
+
+#### E2-3 — passo 9 com a captura nova, mas sem a auditoria dela
+
+```bash
+.venv/bin/python /tmp/rve2_xEBKdU/sondas_oraculos.py
+```
+
+Recorte literal das duas saídas pertinentes ao achado:
+
+```text
+controle_valido codigo= 0 erros= ''
+sem_fatia_da_captura_nova codigo= 0 erros= ''
+```
+
+A sonda parte da fixture que os testes chamam de restauração válida, mantém
+as capturas 9/43/44, as partições e as outras leituras, passa **`job=44`** e
+troca somente a quarentena pela do manifesto, retirando a fatia da 44. A
+função real continua devolvendo 0. `estranhas` só procura fatias a mais de
+outro snapshot; não procura as que faltam nem compara conteúdo/contagem do
+acréscimo com o esperado para a captura tratada. A identificação exata do job
+também é opcional, e o Makefile não fornece `--job` ao passo 9.
+
+Isso demonstra uma lacuna no oráculo explícito exigido pela §6, passo 9, não
+uma restauração real incorreta que tenha passado por `make check`. Uma
+captura legitimamente sem rejeições deve continuar válida: o esperado precisa
+vir da classificação da captura efetivamente disparada, sem exigir um total
+positivo constante.
+
+#### E2-4 — pausa parcial, falha de medição e sinal do processo lançado
+
+```bash
+.venv/bin/python /tmp/rve2_xEBKdU/sondas_scripts.py
+```
+
+Saída literal da execução final da sonda:
+
+```text
+pausa_parcial_codigo 1
+estavam_de_pe ['mvp_ed1-airflow_dag_processor-1', 'mvp_ed1-airflow_db-1', 'mvp_ed1-airflow_scheduler-1']
+ficaram_de_pe ['mvp_ed1-airflow_apiserver-1', 'mvp_ed1-airflow_dag_processor-1', 'mvp_ed1-airflow_db-1', 'mvp_ed1-airflow_scheduler-1']
+ligados_sem_estarem_de_pe ['mvp_ed1-airflow_apiserver-1']
+stats_falhou_codigo_medidor 0
+stats_falhou_estacao Airbyte
+stats_falhou_amostragem {'intervalo_s': 1, 'amostras': 2, 'disponivel_minimo_mb': 2756, 'disponivel_minimo_em': '2026-09-23T20:14:08Z', 'conteineres_maximo_mb': 0, 'conteineres_maximo_em': '2026-09-23T20:14:07Z', 'janela_s': 1}
+pipeline_sigint_disposicao Handlers.SIG_IGN
+pipeline_recebeu_keyboardinterrupt False
+pipeline_exigiu_sigkill True
+pipeline_codigo_medidor 0
+```
+
+No primeiro caso, Docker e memória são dublês dos testes. O apiserver estava
+`exited` **antes** da troca recusada; passou a `up` porque `_religar` resolve
+todos os contêineres, em vez de recompor os que estavam de pé.
+
+No segundo, o Docker simulado informa Airbyte de pé em `ps` e falha em toda
+consulta `stats`. O `awk` imprime 0 para a entrada vazia, e o `printf` do
+amostrador perde o código de erro da substituição de comando. O JSON registra
+duas amostras e um máximo de 0 MB sem marcar a medição como indisponível.
+Os valores de `MemAvailable` são da estação, lidos de verdade; os 0 MB **não**
+são uma medição dos contêineres reais.
+
+No terceiro, o Makefile simulado usa um Python que informa sua disposição de
+`SIGINT` e captura `KeyboardInterrupt`; não inicia Beam. Lançado pelo cenário
+real de `medir.sh`, esse processo recebe `SIG_IGN`, não interrompe no SIGINT
+e só termina por SIGKILL após o prazo de teste de 2 s. `setsid` separa o grupo,
+mas não restaura a disposição herdada do lançamento assíncrono pelo shell.
+A CLI real depende de `KeyboardInterrupt` em `comando_pipeline`. Não medi o
+runner Beam real; a falha comprovada é a disposição de sinal entregue pelo
+lançador a um processo Python comum.
+
+#### E2-5 — ausência de artefato no candidato não restaura ausência no checkout
+
+```bash
+.venv/bin/python /tmp/rve2_xEBKdU/sonda_artefatos.py
+```
+
+```text
+artefatos_ausentes_no_candidato ['data/source/geracao.json']
+geracao_source_no_candidato None
+[recovery] devolvido: data/legacy/manifesto-3f9e5088c72234045351b251d406ce9e.json
+[recovery] devolvido: data/legacy/manifesto-anterior-20260907-sem-hash.json
+[recovery] devolvido: data/legacy/manifesto.json
+[recovery] devolvido: .stream/producer_state.json
+restore_artefatos_codigo 0
+registro_posterior_sobreviveu True
+proximo_pack_atribuiria_a_origem {'semente': 'carga-posterior-ao-pacote', 'as_of': '2026-09-23'}
+```
+
+Usados o manifesto e os artefatos do candidato real, **copiados para `/tmp`**;
+o checkout de destino também é temporário. Nenhum artefato de trabalho do
+projeto foi substituído. O registro posterior é um marcador sintético da
+sonda, não uma semente medida no banco. Ele sobrevive à função real porque
+ela só considera `artefatos_copiados`. No fluxo previsto de B5, `seed-data`
+cria esse registro antes da restauração; o candidato atual declara sua
+ausência. Deixá-lo no checkout faria o próximo pacote atribuir os parâmetros
+da carga de B5 à fonte restaurada do pacote anterior.
+
+#### Códigos das sondas
+
+<details>
+<summary>leituras.py</summary>
+
+```python
+import json
+from pathlib import Path
+import sqlalchemy as sa
+from mvp_ed1 import db
+from mvp_ed1.recovery import leitura, pacote
+
+engines = {}
+for prefix in db.BANCOS:
+    engine = sa.create_engine(db.database_url(prefix), connect_args={
+        'connect_timeout': 3,
+        'options': '-c default_transaction_read_only=on -c statement_timeout=15000',
+    })
+    engines[prefix] = engine
+    try:
+        with engine.connect() as conn:
+            print(prefix, conn.execute(sa.text('select current_database(), current_setting(\'transaction_read_only\')')).one())
+    except sa.exc.OperationalError as error:
+        print(prefix, type(error).__name__, str(error.orig).splitlines()[0])
+        raise SystemExit(1)
+
+warehouse = engines[db.WAREHOUSE]
+with warehouse.connect() as conn:
+    deps = conn.execute(sa.text('''
+        select distinct sn.nspname || '.' || s.relname as restored,
+                        vn.nspname || '.' || v.relname as dependent
+        from pg_depend d
+        join pg_rewrite r on r.oid = d.objid
+        join pg_class v on v.oid = r.ev_class
+        join pg_namespace vn on vn.oid = v.relnamespace
+        join pg_class s on s.oid = d.refobjid
+        join pg_namespace sn on sn.oid = s.relnamespace
+        where d.classid = 'pg_rewrite'::regclass
+          and d.refclassid = 'pg_class'::regclass
+          and sn.nspname in ('raw_legacy','governance','snapshots','quarantine')
+          and vn.nspname not in ('raw_legacy','governance','snapshots','quarantine')
+        order by 1,2
+    ''')).all()
+    print('dependencias_fora_do_dump', len(deps))
+    print('exemplos_dependencias', [tuple(row) for row in deps[:8]])
+    print('snapshots_dependentes', [tuple(row) for row in deps if row[0].startswith('snapshots.')])
+
+root = Path.cwd()
+manifest = pacote.Manifesto.ler(root / 'data/recovery/candidato')
+print('candidato', {key: manifest.dados[key] for key in ['corte', 'commit', 'oraculo_formato', 'max_event_sequence']})
+print('checksums', pacote.conferir_checksums(root / 'data/recovery/candidato'))
+print('capturas', leitura.oraculo_das_capturas(warehouse)['certificadas'])
+print('quarentena_manifesto_fatias', len(manifest.dados['oraculo_quarentena']))
+print('caminhos', leitura.comparar_caminhos(warehouse, manifest.dados['max_event_sequence']))
+for engine in engines.values():
+    engine.dispose()
+```
+
+</details>
+
+<details>
+<summary>api_airbyte.py</summary>
+
+```python
+import json
+import os
+import re
+import subprocess
+from mvp_ed1 import airbyte
+from mvp_ed1.legacy import identidade
+
+raw = subprocess.run(['.tools/abctl', 'local', 'credentials'], capture_output=True, text=True, timeout=30)
+clean = re.sub(r'\x1b\[[0-9;]*m', '', raw.stdout + raw.stderr)
+for label, key in [('Client-Id', 'AIRBYTE_CLIENT_ID'), ('Client-Secret', 'AIRBYTE_CLIENT_SECRET')]:
+    match = re.search(label + r':\s+(\S+)', clean)
+    if not match:
+        raise SystemExit(f'abctl: credencial {label} indisponivel; exit={raw.returncode}')
+    os.environ[key] = match[1]
+jwt = airbyte.token()
+response = airbyte.jobs(jwt)
+print(json.dumps({
+    'GET': airbyte.caminho_dos_jobs(),
+    'rows': len(response.get('data', [])),
+    'maior_job_conhecido': identidade.maior_job_conhecido(lambda: response),
+    'primeiros': [r['jobId'] for r in response.get('data', [])[:3]],
+}))
+```
+
+</details>
+
+<details>
+<summary>sondas_oraculos.py</summary>
+
+```python
+import copy
+import importlib.util
+from pathlib import Path
+
+root = Path.cwd()
+spec = importlib.util.spec_from_file_location('tests_recovery', root / 'tests/test_recovery.py')
+t = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(t)
+
+cases = {
+    'controle_valido': dict(t.ESTADO_RESTAURADO),
+    'sem_fatia_da_captura_nova': dict(t.ESTADO_RESTAURADO) | {
+        'oraculo_da_quarentena': lambda engine: copy.deepcopy(t.MANIFESTO['oraculo_quarentena']),
+    },
+    'livros_ambos_vazios': dict(t.ESTADO_RESTAURADO) | {
+        'comparar_caminhos': lambda engine, corte: {
+            'corte': corte, 'so_no_lote': 0, 'so_no_fluxo': 0, 'payloads_diferentes': 0,
+            'saldos_diferentes': 0, 'soma_lote': 0, 'soma_fluxo': 0, 'linhas_lote': 0, 'linhas_fluxo': 0,
+        },
+    },
+}
+for name, case in cases.items():
+    code, error = t._passo_9(case, job=44)
+    print(name, 'codigo=', code, 'erros=', repr(error))
+```
+
+</details>
+
+<details>
+<summary>sondas_scripts.py</summary>
+
+```python
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+root = Path.cwd()
+def module(name, file):
+    spec = importlib.util.spec_from_file_location(name, root / file)
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+p = module('test_preflight_rve2', 'tests/test_preflight.py')
+m = module('test_medicao_rve2', 'tests/test_medicao.py')
+
+with tempfile.TemporaryDirectory(prefix='preflight_', dir=Path(__file__).parent) as folder:
+    base = Path(folder)
+    originally_up = p._linhas_de_estado(['Airflow']).replace(
+        'mvp_ed1-airflow_apiserver-1|mvp_ed1|airflow_apiserver|up',
+        'mvp_ed1-airflow_apiserver-1|mvp_ed1|airflow_apiserver|exited',
+    )
+    result = p.executa(base, 'streaming', [], estado_extra=originally_up,
+                       stop_ignorar='mvp_ed1-airflow_scheduler-1')
+    before = [line.split('|')[0] for line in originally_up.splitlines() if line.endswith('|up')]
+    print('pausa_parcial_codigo', result.codigo)
+    print('estavam_de_pe', sorted(before))
+    print('ficaram_de_pe', sorted(result.de_pe))
+    print('ligados_sem_estarem_de_pe', sorted(set(result.de_pe) - set(before)))
+
+with tempfile.TemporaryDirectory(prefix='stats_', dir=Path(__file__).parent) as folder:
+    base = Path(folder)
+    env, cwd = m._ambiente(base, makefile='alvo:\n\t@sleep 2\n')
+    fake = base / 'bin/docker'
+    fake.write_text('#!/usr/bin/env bash\ncase "$1" in\nps) [[ "$*" == *--filter* ]] || echo airbyte-abctl-control-plane; exit 0 ;;\nstats) echo "daemon unavailable" >&2; exit 1 ;;\nesac\n')
+    result = subprocess.run([str(m.MEDIR), 'alvo'], env=env, cwd=cwd,
+                            capture_output=True, text=True, timeout=10)
+    record = m._registro(base)
+    print('stats_falhou_codigo_medidor', result.returncode)
+    print('stats_falhou_estacao', record['estacao']['de_pe'])
+    print('stats_falhou_amostragem', record['amostragem'])
+
+with tempfile.TemporaryDirectory(prefix='sigint_', dir=Path(__file__).parent) as folder:
+    base = Path(folder)
+    makefile = m.CENARIO_OK.replace('@echo $$$$ > pipeline.pid; sleep 600', '@python3 sinal.py')
+    env, cwd = m._ambiente(base, makefile=makefile)
+    env['MEDIR_PRAZO_ENCERRAMENTO'] = '2'
+    (cwd / 'sinal.py').write_text('''import signal, time
+from pathlib import Path
+Path('disposicao').write_text(str(signal.getsignal(signal.SIGINT)))
+try:
+    time.sleep(30)
+except KeyboardInterrupt:
+    Path('interrompido').write_text('sim')
+''')
+    result = subprocess.run([str(m.MEDIR), '--cenario', 'streaming'], env=env, cwd=cwd,
+                            capture_output=True, text=True, timeout=10)
+    print('pipeline_sigint_disposicao', (cwd / 'disposicao').read_text())
+    print('pipeline_recebeu_keyboardinterrupt', (cwd / 'interrompido').exists())
+    print('pipeline_exigiu_sigkill', 'SIGKILL' in result.stdout)
+    print('pipeline_codigo_medidor', result.returncode)
+```
+
+</details>
+
+<details>
+<summary>sonda_artefatos.py</summary>
+
+```python
+import argparse
+import json
+from pathlib import Path
+import tempfile
+from unittest.mock import patch
+from mvp_ed1.recovery import cli, leitura, pacote
+
+real = pacote.Manifesto.ler(Path('data/recovery/candidato'))
+print('artefatos_ausentes_no_candidato', real.dados['artefatos_ausentes'])
+print('geracao_source_no_candidato', real.dados['geracao']['source_db'])
+
+with tempfile.TemporaryDirectory(prefix='artefatos_', dir=Path(__file__).parent) as folder:
+    root = Path(folder) / 'checkout'
+    recovery = Path(folder) / 'pacote'
+    root.mkdir()
+    recovery.mkdir()
+    for name in real.dados['artefatos_copiados']:
+        target = recovery / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((Path('data/recovery/candidato') / name).read_bytes())
+    real.gravar(recovery)
+    marker = root / leitura.REGISTRO_DA_GERACAO
+    marker.parent.mkdir(parents=True)
+    marker.write_text(json.dumps({'semente': 'carga-posterior-ao-pacote', 'as_of': '2026-09-23'}))
+    with patch.object(cli, 'RAIZ', root), patch.object(cli, '_pasta_do_pacote', return_value=recovery):
+        code = cli.comando_restore_artefatos(argparse.Namespace(dir=None))
+    print('restore_artefatos_codigo', code)
+    print('registro_posterior_sobreviveu', marker.exists())
+    print('proximo_pack_atribuiria_a_origem', leitura.geracao_registrada(root)['source_db'])
+```
+
+</details>
+
+### 11.3 O que esta rodada não verificou
+
+- Não executei `recovery-restore`, `restore-dumps`, re-base aplicado, avanço
+  de sequência, sincronização, `dbt-rebuild`, DAG, promoção ou o ciclo B5.
+- Não executei `make check`: ele inclui reconstrução e escrita nos bancos.
+  Os 126 testes acima são a suíte selecionada, não a suíte inteira de 437.
+- Não subi, parei ou retomei ambiente pesado. Os três bancos e o Airbyte já
+  estavam de pé; Airflow estava parado. As falhas de pausa e os processos do
+  medidor foram exercitados com dublês em diretórios temporários.
+- Não há medição nesta rodada de restauração nos três bancos do projeto,
+  reconstrução com uma captura nova real, `setval` em Airbyte reinstalado ou
+  encerramento de Beam real. As medições isoladas da §10 continuam sendo o
+  relato do autor, com seus limites.
+- Não foram feitos aceite do declarativo pelo Owner, revisão de B2/B3 ou
+  encerramento formal da etapa. Corrigir os achados abaixo permite nova
+  conferência técnica; não substitui esses atos nem as medições de B5.
+
+## 12. A aplicação da segunda rodada — o que foi medido, 23/09/2026
+
+Saída literal, colada. Os cinco achados foram reproduzidos **antes** de
+corrigidos, com as sondas da §11.2 ainda em `/tmp/rve2_xEBKdU/` — as cinco
+saídas bateram com as da E2-3, E2-4 e E2-5 —, e as mesmas sondas foram
+repetidas depois de cada correção. Leituras dos bancos vivos em transação
+somente de leitura; nenhuma restauração, sincronização ou avanço de sequência.
+Um *commit* por achado: `fba57cc` (RVE2-01), `e12d39d` (RVE2-02), `e2a18c5`
+(RVE2-04), `ad19028` (RVE2-03), `8c04106` (RVE2-05).
+
+**RVE2-01 — a sonda E2-3, repetida (os três casos dela):**
+
+```text
+controle_valido codigo= 0 erros= ''
+sem_fatia_da_captura_nova codigo= 1 erros= '  quarentena, auditoria da captura nova: fatia sumiu: \'["legacy",44,9,"hash"]\' (1 linhas)\n\nconferir-restauracao: 1 problema(s)\n'
+livros_ambos_vazios codigo= 1 erros= '  caminhos do livro: 0 no lote e 0 no fluxo até o corte, e a origem tem 100 — iguais entre si não é o livro de volta\n\nconferir-restauracao: 1 problema(s)\n'
+```
+
+O terceiro caso não tinha virado achado e também saía 0 antes: é o achado
+próprio desta aplicação. A premissa de que depende a correção — a auditoria de
+uma captura é `select *` das rejeitadas da classificação dela — foi medida no
+armazém vivo, com a 43 no papel de captura nova e o manifesto do candidato sem
+a fatia dela:
+
+```text
+tratadas ['["legacy",43,9,"607e6288f4f57e39"]']
+rejeitadas {'["legacy",43,9,"607e6288f4f57e39"]': {'linhas': 3207, 'digest': '2f4d3211d2eb589828e9ec3a7117d68b'}}
+acrescimo_se_a_43_fosse_nova {'["legacy",43,9,"607e6288f4f57e39"]': {'linhas': 3207, 'digest': '2f4d3211d2eb589828e9ec3a7117d68b'}}
+problemas_com_a_auditoria []
+problemas_sem_a_fatia ['quarentena, auditoria da captura nova: fatia sumiu: \'["legacy",43,9,"607e6288f4f57e39"]\' (3207 linhas)']
+livro {'origem': 13700, 'lote': 13700, 'fluxo': 13700}
+```
+
+**RVE2-02, 03 e 04 — a sonda E2-4, repetida:**
+
+```text
+pausa_parcial_codigo 1
+estavam_de_pe ['mvp_ed1-airflow_dag_processor-1', 'mvp_ed1-airflow_db-1', 'mvp_ed1-airflow_scheduler-1']
+ficaram_de_pe ['mvp_ed1-airflow_dag_processor-1', 'mvp_ed1-airflow_db-1', 'mvp_ed1-airflow_scheduler-1']
+ligados_sem_estarem_de_pe []
+stats_falhou_codigo_medidor 0
+stats_falhou_estacao Airbyte
+stats_falhou_amostragem {'intervalo_s': 1, 'amostras': 2, 'disponivel_minimo_mb': 2584, 'disponivel_minimo_em': '2026-09-23T20:33:32Z', 'disponivel_falhas': 0, 'conteineres_maximo_mb': None, 'conteineres_falhas': 2, 'janela_s': 1}
+pipeline_sigint_disposicao <built-in function default_int_handler>
+pipeline_recebeu_keyboardinterrupt True
+pipeline_exigiu_sigkill False
+pipeline_codigo_medidor 0
+```
+
+A leitura real continua lendo — o medidor contra o Docker de verdade, com um
+`Makefile` de rascunho (`sleep 3`) e o registro fora de `data/medicoes/`:
+
+```text
+| alvo | Airbyte,bancos | 0m 03s | 2,4 GB | 3,1 GB | 1 amostras a cada 1s |
+{'intervalo_s': 1, 'amostras': 1, 'disponivel_minimo_mb': 2507, 'disponivel_minimo_em': '2026-09-23T20:34:01Z', 'disponivel_falhas': 0, 'conteineres_maximo_mb': 3222, 'conteineres_maximo_em': '2026-09-23T20:34:01Z', 'conteineres_falhas': 0, 'janela_s': 0}
+```
+
+E um alvo que termina antes da primeira amostra (`medir.sh help`) agora diz
+`| help | Airbyte,bancos | 0m 00s | não medido | não medido | 0 amostras a cada 1s |`
+— antes, a mesma linha imprimia `0.0 GB` nas duas colunas.
+
+A correção do RVE2-04 revelou que **os cenários da própria suíte** também
+passavam pelo SIGKILL: o `sleep 600` do `Makefile` de mentira herdava o SIGINT
+ignorado e só saía no prazo de 5 s. A suíte do medidor caiu de 35 s para 29 s
+com os mesmos casos.
+
+**RVE2-05 — o achado, e o link:**
+
+A premissa do achado próprio, medida num diretório de rascunho — o `copy2`
+da restauração sobre um `manifesto.json` que aponta para outro lote:
+
+```text
+lrwxrwxrwx 1 doug doug   20 set 23 17:38 manifesto.json -> manifesto-outro.json
+-rw-rw-r-- 1 doug doug   18 set 23 17:38 manifesto-outro.json
+--- manifesto-outro.json agora:
+{"lote":"pacote"}
+```
+
+`mutacoes._ler` resolve o link e grava o diário no arquivo apontado: é o
+arquivo do lote, não o link, que carrega o diário. A sonda E2-5 contra o
+candidato de 21/09 passou a recusar antes de mexer em qualquer arquivo — o
+manifesto dele não tem `artefatos_links` —, e é por isso que o candidato foi
+refeito:
+
+```text
+$ .venv/bin/python /tmp/rve2_xEBKdU/sonda_artefatos.py     # contra o candidato de 21/09
+artefatos_ausentes_no_candidato ['data/source/geracao.json']
+geracao_source_no_candidato None
+restore_artefatos_codigo 1
+registro_posterior_sobreviveu True
+proximo_pack_atribuiria_a_origem {'semente': 'carga-posterior-ao-pacote', 'as_of': '2026-09-23'}
+```
+
+A recusa não mexeu em nada, nem no registro da sonda — é o "confere tudo
+antes de mudar qualquer arquivo". Com a árvore limpa em `8c04106` (os
+documentos desta rodada guardados à parte), o candidato foi refeito e
+conferido contra os bancos vivos:
+
+```text
+$ make recovery-pack
+[preflight] nenhum trabalho em andamento — janela parada.
+[recovery] ATENÇÃO: nenhum arquivo para os padrões ['data/source/geracao.json'] — os oráculos que dependem deles não estarão no pacote
+[recovery] corte em 2026-09-23T20:53:54+00:00 — janela parada
+candidato pronto em /home/doug/Projetos/mvp_ed1/data/recovery/candidato          real 0m20,938s
+$ make recovery-verify CONTRA_O_BANCO=1
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações como no manifesto)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam.          real 0m15,656s
+commit 8c04106 | corte 2026-09-23T20:53:54+00:00 | formato 2
+artefatos_links {'data/legacy/manifesto.json': 'manifesto-3f9e5088c72234045351b251d406ce9e.json'}
+artefatos_ausentes ['data/source/geracao.json']
+```
+
+E a sonda E2-5, repetida contra o candidato novo (cópias dele num *checkout*
+temporário; os artefatos do projeto não foram tocados — `data/legacy/` e a
+ausência de `data/source/` conferidos depois):
+
+```text
+[recovery] afastado: data/source/geracao.json (o pacote não o traz) → *.anterior-a-restauracao-20260923T205446Z
+[recovery] devolvido: data/legacy/manifesto-3f9e5088c72234045351b251d406ce9e.json
+[recovery] devolvido: data/legacy/manifesto-anterior-20260907-sem-hash.json
+[recovery] devolvido: data/legacy/manifesto.json → manifesto-3f9e5088c72234045351b251d406ce9e.json
+[recovery] devolvido: .stream/producer_state.json
+restore_artefatos_codigo 0
+registro_posterior_sobreviveu False
+proximo_pack_atribuiria_a_origem None
+```
+
+**A suíte inteira:** `make test` → `461 passed, 8 skipped in 257.09s` (eram
+437 + 8; os 24 novos são 7 do passo 9 e do job, 5 dos artefatos, 3 do
+`--job-em`, 7 do medidor e 2 do preflight). `make check`:
+
+```text
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 976 links de arquivo, 128 âncoras, 588 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+20:48:21  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+461 passed, 8 skipped in 264.39s (0:04:24)
+exit=0
+```
+
+**Um incidente desta aplicação, e o que ele confirma.** Para ler a receita
+editada, rodei `make -n recovery-restore RESTAURAR=1` — a armadilha que o
+RVE-02 e o docstring de `tests/test_recovery.py::_receita` registram: o `make`
+executa de verdade a linha de `airbyte-up` que mistura `$(MAKE)` com o `if`
+(`Makefile:297–302`), e ela chamou `abctl local install` com o Airbyte de pé.
+O `abctl` reescreveu `~/.airbyte/abctl/abctl.kubeconfig` (17:27:18) e abortou
+antes de mudar o cluster — o mesmo desfecho que o docstring descreve. Conferido
+em seguida, só leitura: a *release* do helm continua `airbyte-abctl.v1` (de
+05/09), nenhum *pod* recriado, o nó de pé desde 20:00:37Z, `GET /health` → 200,
+`airbyte_jobs.sh ler` → `maior_job=43 ultimo_valor=43 chamado=t`. A receita foi
+conferida lendo o texto. A linha de `airbyte-up` continua sendo uma armadilha
+para quem rodar `make -n` sobre qualquer alvo que a chame — fica registrada
+aqui, fora do escopo desta rodada.
+
+**O que continua não verificado, e é de B5:** o passo 9 depois de uma
+captura nova real (o esperado vem da classificação dela, e isso só se mede
+com ela); o `jobId` atravessando `sync-legacy JOB_EM=` num disparo real (o
+teste injeta o fluxo certificado); o runner Beam real encerrando pelo SIGINT
+(a prova é de um Python comum lançado pelo cenário real); `restore-artefatos`
+num clone; e tudo o que a §10 e a §11.3 já listavam.
+
+## Achados da revisão — primeira rodada e respostas do autor
 
 As referências E1–E9 são as evidências acima; as linhas de "Onde" referem-se ao
 código da entrega em `3e21a54`. **Situação preenchida em 21/09/2026**, na mesma
@@ -1385,3 +2023,21 @@ declarou dublê. O que a execução acrescentou está na §10.
 | RVE-15 | `src/mvp_ed1/recovery/cli.py:122`; `leitura.py:65` | **O manifesto não contém todo o metadado prometido pela §6.** O candidato real e o gerador não têm `seed`, `as_of_date` ou tamanhos por tabela; gravam somente contagens. Registrar os valores de geração efetivos e tamanhos medidos, sem inferir defaults, e conferir os campos obrigatórios antes de declarar o pacote apto. **E8.** | `ajuste` | **Corrigido**: o gerador da origem passa a gravar `data/source/geracao.json` (semente, `as_of`, fator, linhas, commit, instante — os efetivos); o manifesto ganha `geracao` (com `None` + motivo quando não há registro — a origem atual foi carregada antes disto, e o manifesto diz isso), `tamanhos` por tabela (`pg_total_relation_size`) e `CAMPOS_OBRIGATORIOS` conferidos em `pack` e `verify`. Teste: `test_a_geracao_registrada_nunca_e_inferida`, `test_o_manifesto_incompleto_ou_de_outro_formato_e_dito`. |
 | RVE-16 | `src/mvp_ed1/recovery/rebase.py:120` | **O oráculo de domínio consome um Iterable duas vezes.** `dominio_valido(iter([0, 1]))` devolveu lista vazia porque a contagem de nulos esgotou o iterador antes de procurar não negativos. Materializar uma vez ou conferir em passagem única. Os chamadores atuais fornecem lista, então a falha não invalida os ciclos medidos. **E3.** | `ajuste` | **Corrigido** em `rebase.dominio_valido`: materializa uma vez. Teste: `test_o_dominio_aceita_um_iterador_sem_perder_a_segunda_passagem`. |
 | RVE-17 | `Makefile:469` | **Falha ao pausar a DAG é ignorada pela manutenção.** `pausar ... \|\| true` deixa a sequência destrutiva continuar também quando há scheduler ativo e a pausa falha/expira. Diferenciar Airflow comprovadamente ausente de pausa indeterminada/falha; no segundo caso, recusar antes do descarte. **E4, inspeção do declarativo; pausa não executada.** | `bloqueante` | **Corrigido**: `airflow_cli.sh pausar` sai 0 (pausou), 3 (Airflow ausente — seguro) ou 1 (falhou/indeterminado); o passo 2 de `recovery-restore` só segue com 0 ou 3 e recusa com instrução nos demais. Testes: `test_pausar_distingue_airflow_ausente_de_pausa_que_falhou`, `test_a_manutencao_nao_ignora_a_pausa_que_falhou`. |
+
+## Achados da revisão — segunda rodada, 23/09/2026
+
+Esta tabela é o estado atual do parecer. As respostas da primeira rodada
+acima ficam preservadas como relato do autor; RVE-05 e RVE-11 permanecem
+parciais pelos motivos abaixo. Nenhuma correção desta rodada foi aplicada.
+
+**Situação preenchida em 23/09/2026**, na sessão que aplicou os cinco: cada um
+foi reproduzido pela sonda da §11.2 antes de corrigido e conferido por ela
+depois; o que a aplicação acrescentou — dois achados próprios — está na §12.
+
+| ID | Onde | Achado e correção necessária | Veredito | Situação |
+|---|---|---|---|---|
+| RVE2-01 | `src/mvp_ed1/recovery/cli.py:724` | **O passo 9 aceita a ausência da auditoria da captura nova.** Partindo da fixture válida, retirar somente a fatia 44 da quarentena mantém saída 0, inclusive com `job=44`. O código confere que fatias extras pertencem às capturas novas, mas não que as fatias esperadas existem com as linhas certas. Comparar contagem/conteúdo do acréscimo com a classificação da captura efetivamente disparada, aceitando vazio somente quando o esperado for vazio; conduzir seu jobId do passo 8 ao passo 9. É a parte ainda não cumprida de RVE-05 e da §6, passo 9. **E2-3.** | `bloqueante` | **Corrigido** (`fba57cc`) em `cli._conferir_auditoria_da_captura_nova`: o acréscimo da captura nova é comparado, por contagem **e** digest, com `leitura.classificacao_corrente` — as rejeitadas de `trusted.legacy_classifications`, de que a quarentena é `select *` —; a classificação precisa tratar exatamente as capturas novas; nada a mais entra em nome delas; captura sem rejeição tem acréscimo vazio e passa. `--job` é obrigatório: `sync-legacy JOB_EM=` grava o jobId da captura concluída **e** certificada, e `recovery-restore` o leva ao passo 9, apagando antes o de uma execução anterior. Premissa medida no banco vivo, só leitura: a fatia da 43 é igual às rejeitadas da classificação (3.207 linhas, mesmo digest), e a conferência nova, com a 43 no papel de nova, passa com a fatia e acusa sem ela (§12). Sonda E2-3 repetida: `sem_fatia_da_captura_nova codigo= 1`. **Achado próprio na mesma sonda:** `livros_ambos_vazios` também saía 0 — os dois caminhos agora precisam ter o tamanho do livro na origem (13.700 nos três, medido). Testes: `test_o_passo_9_recusa_a_falta_da_auditoria_da_captura_nova` e mais nove — seis do passo 9 (um é o do livro vazio), três do `--job-em`. |
+| RVE2-02 | `docker/medir.sh:42`; `docker/medir.sh:58` | **Falha de `docker stats` vira medição de 0 MB com sucesso.** Na sonda, `ps` informa Airbyte de pé, `stats` sai 1 nas duas consultas e o JSON grava duas amostras, máximo 0 e código 0. O `awk` produz zero para entrada vazia; o `printf` externo perde a falha. Propagar o estado da coleta, separar amostras válidas de falhas e registrar a métrica como indisponível quando não foi medida. Um zero inventado não pode alimentar a tabela de capacidade de B5 (P5). **E2-4.** | `bloqueante` | **Corrigido** (`e12d39d`) em `medir.sh`: leitura que falha é `NA` — `docker stats` com erro, linha sem número (`--`), `/proc/meminfo` ilegível —; `agregar` tira o extremo só das amostras válidas de cada grandeza e conta `disponivel_falhas`/`conteineres_falhas`; sem nenhuma válida o extremo é `null`, sem instante; a linha da tabela diz "não medido" e avisa quantas faltaram. O código de saída continua o do alvo, que rodou. Sonda E2-4 repetida: `conteineres_maximo_mb: None`, `conteineres_falhas: 2`. Contra o Docker real: 3.222 MB, 0 falhas (§12). Testes: `test_docker_stats_que_nao_mede_vira_nao_medido_e_nao_zero` (duas formas) e mais três. |
+| RVE2-03 | `docker/preflight.sh:134` | **O recuo da pausa liga serviços que já estavam parados.** Com apiserver inicialmente `exited` e parada do scheduler falhando, a tentativa recusada terminou com os quatro serviços de pé. `_religar` usa `resolver --todos`, sem preservar o conjunto inicial pedido em RVE-11. Guardar os nomes de pé antes da pausa e recompor exatamente esse conjunto, tanto na falha parcial quanto na recusa por memória; não aumentar o consumo ao desfazer uma troca recusada por R11. **E2-4.** | `ajuste` | **Corrigido** (`ad19028`) em `preflight.sh`: `_parar` anota por ambiente o que estava de pé (`ANTES_DA_PAUSA`) e `_religar` recompõe **exatamente** esse conjunto, conferindo nome a nome; vale para a pausa parcial e para a recusa por memória. `resolver --todos` fica só com a retomada pedida pelo operador (`*-resume`). Sonda E2-4 repetida: `ligados_sem_estarem_de_pe []`. Testes: `test_recuo_da_pausa_parcial_nao_liga_o_que_ja_estava_parado`, `test_recusa_por_memoria_devolve_so_o_que_estava_de_pe`. Com isto RVE-11 fica inteiro. |
+| RVE2-04 | `docker/medir.sh:303` | **O processo Python lançado pelo cenário herda `SIGINT` ignorado.** Com o lançador real e um Python mínimo que captura `KeyboardInterrupt`, a disposição foi `SIG_IGN`; SIGINT não o encerrou e houve SIGKILL após o prazo, com retorno 0. A CLI real usa `KeyboardInterrupt` para a interrupção; `setsid` só separa o grupo. Restaurar a disposição de sinal antes de executar o filho e provar encerramento cooperativo; registrar quando foi necessário forçar. O runner Beam real não foi executado nesta contraprova. **E2-4.** | `ajuste` | **Corrigido** (`e2a18c5`) em `medir.sh`: `( trap - INT QUIT; exec setsid make … stream-run ) &` — a disposição volta ao padrão antes do `exec`, que preserva o PID anotado como grupo. O registro ganha `encerramento`: `limpo`, `forcado` ou `null`. Sonda repetida: `default_int_handler`, `KeyboardInterrupt` recebido, sem SIGKILL. **O que a correção revelou:** os cenários da suíte com `sleep 600` também só saíam pelo SIGKILL do prazo, sem que ninguém visse — a suíte do medidor caiu de 35 s para 29 s. O runner Beam real não foi executado (é de B5). Testes: `test_o_pipeline_lancado_encerra_pelo_sigint_e_nao_pelo_prazo`, `test_encerramento_forcado_fica_no_registro`. |
+| RVE2-05 | `src/mvp_ed1/recovery/cli.py:562` | **Restaurar artefatos preserva metadado de uma carga posterior quando ele estava ausente do pacote.** O candidato real não tem `data/source/geracao.json`; em um checkout temporário com esse arquivo de outra carga, `restore-artefatos` saiu 0 e o próximo `geracao_registrada` atribuiu à fonte restaurada os parâmetros posteriores. B5 executa `seed-data` antes de restaurar, portanto cria esse caso com o candidato atual. Restaurar também a ausência dos arquivos de estado conhecidos, ou invalidar explicitamente o registro incompatível, para que a falta continue sendo `None` com motivo. **E2-5.** | `ajuste` | **Corrigido** (`8c04106`) em `restore-artefatos`: o estado de trabalho que o pacote não traz é afastado — renomeado com `.anterior-a-restauracao-<instante>`, fora dos padrões de `ARTEFATOS`, nunca apagado —, e tudo é conferido antes de qualquer arquivo mudar. **Achado próprio na mesma função:** o `copy2` sobre `data/legacy/manifesto.json` escrevia **através do link** do *checkout*, no manifesto do lote apontado — onde `mutacoes._ler` grava o diário (medido num rascunho, §12). O pack passa a registrar `artefatos_links` (obrigatório) e a restauração refaz o link. O candidato de 21/09 não tinha o campo e a restauração o recusava sem tocar em nada: **refeito** (corte `2026-09-23T20:53:54+00:00`, código `8c04106`) e conferido contra os bancos. Sonda E2-5 repetida contra ele: `registro_posterior_sobreviveu False`, `proximo_pack_atribuiria_a_origem None`. Testes: `test_restaurar_os_artefatos_restaura_a_ausencia` e mais quatro. |
