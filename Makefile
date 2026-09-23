@@ -294,7 +294,7 @@ RETOMAR_AIRBYTE = command -v curl >/dev/null \
 		if curl -s --max-time 5 $(AIRBYTE_WEB)/api/v1/health 2>/dev/null | grep -Eq '"available": *true'; then \
 			pronta=1; break; fi; \
 		printf "."; sleep 5; done; \
-	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu em 5 min."; \
+	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu a 60 consultas, uma a cada 5 s."; \
 		echo "  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'."; exit 1; }; \
 	echo " pronta."
 
