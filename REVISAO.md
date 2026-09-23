@@ -463,11 +463,208 @@ duas mudanças a pedido do Owner:
 
 ---
 
+## 9. Parecer da terceira rodada — 23/09/2026
+
+**As respostas a RVE2-01–05 foram confirmadas nos caminhos ensaiados. Há dois problemas
+remanescentes: um bloqueante no instrumento de medição e um ajuste na espera da retomada do
+Airbyte. Ambos também foram reproduzidos em `b1011e7`: são lacunas anteriores, ainda presentes
+nos trechos revisados, e não regressões introduzidas pelo intervalo desta rodada.**
+
+Escopo: `b1011e7..2136781`, com o dossiê de `78d0dcb`. Revisados o declarativo e os testes
+indicados na §2, as decisões D45–D52 e os contratos pertinentes dos ADRs 0044–0046. B2/B3
+continuam fora deste parecer. Esta revisão altera somente este dossiê; não executa B5, não
+aprova a implementação pelo Owner nem encerra a Etapa 12.
+
+### 9.1 Conferência das respostas
+
+| Item | Resultado desta rodada |
+|---|---|
+| RVE2-01 — auditoria e identidade | **Confirmado.** As contraprovas anteriores recusam a auditoria ausente e os dois livros vazios. A classificação real da 43 coincide com sua auditoria e a conferência acusa sua retirada. A receita real, copiada para um rascunho com ferramentas simuladas, elimina o job antigo e entrega o novo ao passo 9; falha ou ausência do arquivo impedem esse passo. Uma captura nova real continua pendente de B5. |
+| RVE2-02 — leitura indisponível | **Confirmado para a falha descrita.** `docker stats` com erro ou `--` vira indisponível, e a ausência de `MemAvailable` também vira `null`, com falhas contadas. A conversão de uma leitura decimal válida ainda depende do locale: RVE3-01. |
+| RVE2-03 — recuo da pausa | **Confirmado com Docker simulado.** Pausa parcial e recusa por memória recompõem os contêineres que estavam de pé, preservando os que já estavam parados. A sonda anterior voltou a produzir `ligados_sem_estarem_de_pe []`. |
+| RVE2-04 — sinais | **Confirmado com processo Python.** Disposição `default_int_handler`, `KeyboardInterrupt` recebido e nenhum SIGKILL na sonda anterior. A suíte também confere o registro do encerramento forçado. O runner Beam real continua não exercitado. |
+| RVE2-05 — artefatos | **Confirmado.** A sonda anterior, com cópia dos artefatos do candidato atual em diretório temporário, retira o registro posterior de geração; o próximo leitor devolve `None`. A suíte confere a reconstrução do link e a preservação do manifesto de outro lote. |
+| Período do medidor | **Confirmado nos testes.** A série sintética confere o cálculo; a coleta com `stats` lento inclui o custo da leitura no período. Isso não valida a conversão dos valores de memória, objeto de RVE3-01. |
+| Receitas sob `make -n` | **Confirmado.** Os sete testes do Makefile passaram, inclusive os três alvos sob `-n`. A extração de `RETOMAR_AIRBYTE` preservou também os falsos sucessos da espera antiga: RVE3-02. |
+
+### 9.2 Evidências executadas pelo revisor
+
+**E3-1 — suíte do escopo.** Sem `.env` carregado; os cinco arquivos exercitam dublês e
+diretórios temporários. Saída final literal:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_recovery.py tests/test_medicao.py tests/test_preflight.py tests/test_makefile.py tests/test_identidade_captura.py
+159 passed in 56.67s
+```
+
+**E3-2 — candidato e leituras reais.** A primeira tentativa de `recovery-verify` foi recusada
+pelo sandbox ao acessar Docker. Repetido com a permissão solicitada pela ferramenta, somente
+leitura, terminou com código 0:
+
+```text
+$ make recovery-verify CONTRA_O_BANCO=1
+[recovery] RECOVERY_DIR = /home/doug/Projetos/mvp_ed1/data/recovery
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações como no manifesto)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+```
+
+A sonda `/tmp/rve3_fECjjc/leitura.py` abriu conexões com
+`default_transaction_read_only=on` e `statement_timeout=15000`. A conexão também precisou de
+permissão para sair do sandbox. A 43 foi tratada **em memória** como a nova captura; nenhum
+registro foi excluído do banco. Saída literal:
+
+```text
+SOURCE_DB transaction_read_only on
+WAREHOUSE_DB transaction_read_only on
+capturas_tratadas [43]
+rejeitadas {'["legacy",43,9,"607e6288f4f57e39"]': {'linhas': 3207, 'digest': '2f4d3211d2eb589828e9ec3a7117d68b'}}
+conferencia_com_fatia []
+conferencia_sem_fatia ['quarentena, auditoria da captura nova: fatia sumiu: \'["legacy",43,9,"607e6288f4f57e39"]\' (3207 linhas)']
+livro_na_origem 13700
+caminhos {'corte': 13700, 'so_no_lote': 0, 'so_no_fluxo': 0, 'payloads_diferentes': 0, 'saldos_diferentes': 0, 'soma_lote': 701841, 'soma_fluxo': 701841, 'linhas_lote': 13700, 'linhas_fluxo': 13700}
+```
+
+**E3-3 — contraprovas e composição.** Repetidas as três sondas anteriores,
+`/tmp/rve2_xEBKdU/{sondas_oraculos,sondas_scripts,sonda_artefatos}.py`. Recorte literal dos
+resultados; o código delas permanece no dossiê histórico identificado na §1:
+
+```text
+controle_valido codigo= 0 erros= ''
+sem_fatia_da_captura_nova codigo= 1 erros= '  quarentena, auditoria da captura nova: fatia sumiu: \'["legacy",44,9,"hash"]\' (1 linhas)\n\nconferir-restauracao: 1 problema(s)\n'
+livros_ambos_vazios codigo= 1 erros= '  caminhos do livro: 0 no lote e 0 no fluxo até o corte, e a origem tem 100 — iguais entre si não é o livro de volta\n\nconferir-restauracao: 1 problema(s)\n'
+ligados_sem_estarem_de_pe []
+stats_falhou_amostragem {'intervalo_s': 1, 'amostras': 2, 'disponivel_minimo_mb': 2498, 'disponivel_minimo_em': '2026-09-23T22:56:32Z', 'disponivel_falhas': 0, 'conteineres_maximo_mb': None, 'conteineres_falhas': 2, 'janela_s': 1, 'periodo_medio_s': 1.0}
+pipeline_sigint_disposicao <built-in function default_int_handler>
+pipeline_recebeu_keyboardinterrupt True
+pipeline_exigiu_sigkill False
+pipeline_codigo_medidor 0
+restore_artefatos_codigo 0
+registro_posterior_sobreviveu False
+proximo_pack_atribuiria_a_origem None
+```
+
+`/tmp/rve3_fECjjc/sondas.py` também executou uma cópia do Makefile inteiro: os executáveis
+do projeto e Docker foram substituídos por registradores, e o arquivo de job começou com
+`999`. O substituto da sincronização escreveu `61`, não escreveu nada ou falhou, conforme o
+caso. Outra sonda montou um `/proc/meminfo` sem `MemAvailable` em namespace privado, sem
+modificar o do host. Saída literal:
+
+```text
+make_job valido codigo 0 passo_9 ['--job 61'] estado_no_disparo ['job_anterior_presente=False'] arquivo_final 61
+make_job ausente codigo 2 passo_9 [] estado_no_disparo ['job_anterior_presente=False'] arquivo_final None
+make_job falha codigo 2 passo_9 [] estado_no_disparo ['job_anterior_presente=False'] arquivo_final None
+sem_MemAvailable codigo 0 inicial None minimo None falhas 3 amostras 3
+```
+
+**E3-4 — decimal no medidor.** O script real mediu um alvo `sleep 3`, com Docker simulado
+entregando sempre `1.5GiB / 8GiB` e `512.5MiB / 1GiB`. O esperado é 2.048 MB após o truncamento
+inteiro adotado pelo medidor. Saída literal de `sondas.py`:
+
+```text
+locale C codigo 0 maximo_mb 2048 falhas 0 esperado_mb 2048
+locale pt_BR.UTF-8 codigo 0 maximo_mb 1536 falhas 0 esperado_mb 2048
+```
+
+O `LC_ALL=C` de `agregar` só protege a agregação; o valor já chega truncado indevidamente
+por `_mem_conteineres`. Repetindo a mesma sonda com `medir.sh` e `conteineres.sh` extraídos de
+`b1011e7`, sem alterar o checkout:
+
+```text
+base b1011e7 locale pt_BR.UTF-8 codigo 0 maximo_mb 1536
+```
+
+Reprodução independente de conservar `/tmp`, a partir da raiz, usando apenas os dublês
+versionados da suíte:
+
+```python
+import importlib.util, subprocess, tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("m", "tests/test_medicao.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+for locale in ("C", "pt_BR.UTF-8"):
+    with tempfile.TemporaryDirectory() as folder:
+        base = Path(folder)
+        env, cwd = m._ambiente(base, makefile="alvo:\n\t@sleep 3\n")
+        env["LC_ALL"] = locale
+        m._docker_com_stats(base, 'printf "1.5GiB / 8GiB\\n512.5MiB / 1GiB\\n"')
+        r = subprocess.run([str(m.MEDIR), "alvo"], cwd=cwd, env=env,
+                           capture_output=True, text=True, timeout=20)
+        print(locale, r.returncode, m._registro(base)["amostragem"])
+```
+
+**E3-5 — espera da retomada.** `/tmp/rve3_fECjjc/retomada.py` executou os dois alvos do
+Makefile copiado com Docker simulado. `docker start` saiu 0; `crictl pods` respondeu somente
+um pod `NotReady`, ou nenhuma linha. `sleep` foi substituído por um executável que sai 0:
+foram exercitadas as 30 tentativas, **não medidos 150 segundos**. Saída literal:
+
+```text
+airbyte-resume NotReady codigo 0 pronto True tempo_esgotado False consultas 1
+airbyte-up NotReady codigo 0 pronto True tempo_esgotado False consultas 1
+airbyte-resume vazio codigo 0 pronto False tempo_esgotado True consultas 30
+airbyte-up vazio codigo 0 pronto False tempo_esgotado True consultas 30
+```
+
+Repetição com `git show b1011e7:Makefile` no rascunho:
+
+```text
+base b1011e7
+airbyte-resume NotReady codigo 0 pronto True tempo_esgotado False consultas 1
+airbyte-up NotReady codigo 0 pronto True tempo_esgotado False consultas 1
+airbyte-resume vazio codigo 0 pronto False tempo_esgotado True consultas 30
+airbyte-up vazio codigo 0 pronto False tempo_esgotado True consultas 30
+```
+
+Reprodução independente de `/tmp`, também só com dublês:
+
+```python
+import importlib.util, os, tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("mk", "tests/test_makefile.py")
+mk = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mk)
+for state in ("NotReady", ""):
+    for target in ("airbyte-resume", "airbyte-up"):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            extra = base / "extra"
+            extra.mkdir()
+            (extra / "sleep").write_text("#!/bin/sh\nexit 0\n")
+            (extra / "sleep").chmod(0o755)
+            docker = ('#!/bin/sh\ncase "$1" in\n'
+                      'ps) echo node-id ;;\n'
+                      f'exec) echo "{state}" ;;\nesac\nexit 0\n')
+            r, _ = mk._make(base, target, docker=docker, ambiente_extra={
+                "PATH": f'{base / "bin"}:{extra}:{os.environ["PATH"]}'})
+            print(target, state or "vazio", r.returncode, r.stdout.strip())
+```
+
+### 9.3 Limites do parecer
+
+- Não executados: `make check` completo (inclui escrita via dbt), nova sincronização,
+  restauração dos dumps, avanço de sequências, runner Beam, pausa/retomada de contêineres
+  reais ou clone de B5. As leituras reais não substituem essas validações.
+- O candidato atual foi verificado e seus artefatos foram restaurados somente em rascunho;
+  não há prova nova de restauração integral. B5 continua sem autorização nesta conversa.
+- `MemAvailable` ausente foi ensaiado; falha de permissão ao abrir `/proc/meminfo`, colisão do
+  sufixo de afastamento e link absoluto continuam sem contraprova específica nesta rodada.
+- O impacto do locale nas medições históricas não foi quantificado. Não cabe corrigir seus
+  números por estimativa: é preciso conferir a localidade de cada execução e remedir os
+  cenários afetados. A sessão do revisor iniciou com `LC_ALL=C.UTF-8`; a contraprova fixou
+  explicitamente `pt_BR.UTF-8`.
+
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+Um achado por linha, com veredito. Os dois são remanescentes reproduzidos também na base;
+as cinco correções anteriores permanecem confirmadas conforme §9.1.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RVE3-01 | `docker/medir.sh:61–72` | **A conversão da memória ainda depende do locale e subestima leituras válidas.** Com `LC_ALL=pt_BR.UTF-8`, as entradas `1.5GiB` e `512.5MiB` resultam em **1.536 MB**, contra **2.048 MB** sob `C`, com código 0 e nenhuma falha. O `awk` da coleta interpreta o ponto conforme a localidade; o `LC_ALL=C` acrescentado à agregação não recupera a fração perdida antes. Isso impede usar o medidor como evidência de capacidade de B5 nesse ambiente (P5). Fixar a localidade numérica da conversão e testar a mesma entrada decimal sob `C` e `pt_BR.UTF-8`; conferir a necessidade de remedir registros anteriores, sem estimar números. **E3-4.** | `bloqueante` | Aberto. Defeito anterior ao intervalo, ainda presente no instrumento revisado; nenhuma correção implementada nesta revisão. |
+| RVE3-02 | `Makefile:277–280` (`RETOMAR_AIRBYTE`) | **A espera da retomada anuncia sucesso sem observar prontidão.** `grep -q Ready` aceita uma linha `NotReady` e imprime `pronto`; se nenhuma linha casar nas 30 tentativas, o último `echo` também devolve 0. As duas formas afetam `airbyte-resume` e o ramo de retomada de `airbyte-up`, permitindo que chamadores prossigam mesmo sem a condição que o alvo promete esperar. Reconhecer o estado `Ready` de forma exata e sair com erro ao esgotar o prazo; cobrir `NotReady`, consulta sem resposta útil e timeout nos dois chamadores. Preservar a correção de `make -n`. **E3-5.** | `ajuste` | Aberto. O timeout já era ressalva da §7; o falso positivo de `NotReady` foi reproduzido nesta rodada. Ambos também ocorrem no Makefile da base. |
