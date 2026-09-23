@@ -282,8 +282,12 @@ airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-
 # pausa. A API respondeu em 101 s e em 96 s; o ingress devolve 503 na metade
 # final. Quem vem depois — `recovery-airbyte-jobs`, `sync-airbyte` — usa a API
 # e o banco dela. O prazo, 60 consultas a cada 5 s, é três vezes o medido, e
-# esgotá-lo é erro.
-RETOMAR_AIRBYTE = docker start airbyte-abctl-control-plane >/dev/null \
+# esgotá-lo é erro. Sem `curl` a espera seria cega — o `2>/dev/null` engoliria
+# o "command not found" e o prazo venceria dizendo que a API não respondeu —,
+# por isso a falta dele recusa antes de religar qualquer coisa.
+RETOMAR_AIRBYTE = command -v curl >/dev/null \
+	|| { echo "ERRO: curl ausente — é por ele que a retomada espera a API do Airbyte."; exit 1; }; \
+	docker start airbyte-abctl-control-plane >/dev/null \
 	|| { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
 	printf "aguardando a API do Airbyte"; pronta=; \
 	for i in $$(seq 1 60); do \

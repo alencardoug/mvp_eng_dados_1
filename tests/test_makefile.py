@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 
 import pytest
@@ -82,13 +83,13 @@ def _make(
     tmp_path: pathlib.Path,
     *argumentos: str,
     docker: str = REGISTRADOR,
-    binarios: dict[str, str] | None = None,
+    binarios: dict[str, str | None] | None = None,
     ambiente_extra: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """`make` sobre o `Makefile` real copiado; devolve a execução e o que foi chamado.
 
     `binarios` troca ou acrescenta executáveis à frente do `PATH` — o `curl` da
-    API, o `sleep` que não dorme.
+    API, o `sleep` que não dorme —, e `None` tira um dos simulados padrão.
     """
     trabalho = tmp_path / "checkout"
     for relativo in SIMULADOS:
@@ -98,6 +99,8 @@ def _make(
         caminho.chmod(0o755)
     (tmp_path / "bin").mkdir()
     for nome, script in ({"docker": docker, "curl": REGISTRADOR} | (binarios or {})).items():
+        if script is None:
+            continue
         (tmp_path / "bin" / nome).write_text(script, encoding="utf-8")
         (tmp_path / "bin" / nome).chmod(0o755)
     (trabalho / "Makefile").write_text((RAIZ / "Makefile").read_text(encoding="utf-8"), encoding="utf-8")
@@ -226,6 +229,30 @@ def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, api):
     assert "tempo esgotado" in r.stdout and "pronta." not in r.stdout, r.stdout
     assert len(curls) == 60, "o prazo é de 60 consultas"
     assert "Interface em" not in r.stdout
+
+
+def test_sem_curl_a_retomada_recusa_antes_de_religar(tmp_path):
+    """Sem `curl`, a espera venceria o prazo dizendo que a API não respondeu.
+
+    O `2>/dev/null` da consulta engoliria o "command not found". O `PATH` aqui
+    tem só o que a receita usa além do `curl`, e nada é religado.
+    """
+    restrito = tmp_path / "restrito"
+    restrito.mkdir()
+    for ferramenta in ("make", "bash", "seq", "grep", "sleep"):
+        (restrito / ferramenta).symlink_to(shutil.which(ferramenta))
+
+    r, chamadas = _make(
+        tmp_path,
+        "airbyte-resume",
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": None},
+        ambiente_extra={"SIM_PAUSADO": "1", "PATH": f"{tmp_path / 'bin'}:{restrito}"},
+    )
+
+    assert r.returncode != 0, r.stdout
+    assert "curl ausente" in r.stdout, r.stdout + r.stderr
+    assert "docker start airbyte-abctl-control-plane" not in chamadas
 
 
 def test_airbyte_up_retoma_o_cluster_pausado_sem_reinstalar(tmp_path):
