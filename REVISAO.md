@@ -1989,6 +1989,36 @@ conferida lendo o texto. A linha de `airbyte-up` continua sendo uma armadilha
 para quem rodar `make -n` sobre qualquer alvo que a chame — fica registrada
 aqui, fora do escopo desta rodada.
 
+**Depois da rodada, a pedido do Owner — `docker stats` falha de verdade?**
+Doze leituras seguidas enquanto um contêiner descartável (`postgres:16-alpine`,
+`sleep 2`, `--rm`, 64 MB) nascia e morria seis vezes — a transição que a troca
+do preflight provoca no meio do cenário de *streaming*:
+
+```text
+leitura  1 rc=0 2,0s linhas=5 com_tracos=0 sonda=452KiB / 64MiB
+leitura  2 rc=0 3,0s linhas=5 com_tracos=0 sonda=356KiB / 64MiB
+leitura  3 rc=0 2,0s linhas=4 com_tracos=0 sonda=
+…
+leitura 12 rc=0 2,0s linhas=4 com_tracos=0 sonda=
+sobrou: 0
+```
+
+Recorte: omitidas as linhas de erro do `printf` da própria sonda, que recusava
+o decimal com ponto em pt_BR e por isso trunca as durações acima — as exatas
+foram de 1,95 a 3,06 s. Nenhuma falha, nenhuma linha `--`: o Docker só demora
+mais (3 s) quando o contêiner morre no meio da leitura. A falha da E2-4 continua sendo um dublê; o
+caminho real que resta para ela é o *daemon* não responder, e esperar alguns
+segundos não o resolve — por isso não há nova tentativa dentro da amostra: a
+amostra seguinte já é essa tentativa, com o instante certo. O que a medição
+mostrou foi outra coisa: `intervalo_s` é a **pausa**, e o período real é maior
+(4,5 s no registro de 20/09). `2022bdd` grava `periodo_medio_s`, medido na
+série, e a tabela o mostra — contra o Docker real:
+
+```text
+| alvo | Airbyte,bancos | 0m 12s | 2,1 GB | 3,2 GB | 3 amostras, uma a cada 4,0 s (pausa de 2 s) |
+{'intervalo_s': 2, 'amostras': 3, 'janela_s': 8, 'periodo_medio_s': 4.0, 'conteineres_maximo_mb': 3317, 'conteineres_falhas': 0}
+```
+
 **O que continua não verificado, e é de B5:** o passo 9 depois de uma
 captura nova real (o esperado vem da classificação dela, e isso só se mede
 com ela); o `jobId` atravessando `sync-legacy JOB_EM=` num disparo real (o

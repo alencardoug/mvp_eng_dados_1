@@ -529,6 +529,13 @@ só das amostras válidas e conta as falhas de cada grandeza, e o que não foi l
 `exec setsid`, que preserva o PID anotado) e o registro ganha `encerramento`
 (`limpo`/`forcado`/`null`). Suíte do medidor: 19 → 26 casos.
 
+**Período medido — 23/09/2026, a pedido do Owner.** A linha de 20/09 acima dizia "3 amostras a
+cada 2s", mas 2 s era a **pausa**: cada amostra ainda espera o `docker stats`, que leva de 2 a 3 s
+(medido), e o período real foi de 4,5 s — 3 amostras em 9 s. O registro passa a gravar
+`periodo_medio_s`, medido na série, ao lado de `intervalo_s` (a pausa), e a linha da tabela diz os
+dois: `3 amostras, uma a cada 4,0 s (pausa de 2 s)`, medido contra o Docker real. Suíte do
+medidor: 26 → 28 casos.
+
 ---
 
 ## 4. B2 — segredos no histórico
