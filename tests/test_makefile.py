@@ -13,6 +13,10 @@ Dois oráculos: a **regra**, lida do texto — toda linha que referencia `$(MAKE
 é só a recursão —, e o **efeito**, medido — `make -n` sobre uma cópia do
 `Makefile` real, num diretório de rascunho com executáveis simulados que
 registram cada chamada, não chama nada.
+
+Com os mesmos executáveis simulados, e sem `-n`, a retomada do Airbyte que a
+correção transformou em variável: ela só diz "pronta" quando a API responde, e
+esgotar o prazo é erro nos dois chamadores (RVE3-02).
 """
 
 from __future__ import annotations
@@ -65,7 +69,7 @@ def test_toda_linha_com_make_recursivo_e_so_a_recursao():
 REGISTRADOR = '#!/usr/bin/env bash\necho "$(basename "$0") $*" >> "$SIM_LOG"\n'
 
 #: Tudo o que as receitas chamam por caminho — ferramentas, ambiente Python e os
-#: scripts do projeto. O `docker` vai à frente do `PATH`.
+#: scripts do projeto. O `docker` e o `curl` vão à frente do `PATH`.
 SIMULADOS = (
     ".tools/abctl", ".tools/terraform",
     ".venv/bin/alembic", ".venv/bin/dbt", ".venv/bin/python", ".venv/bin/pytest",
@@ -75,9 +79,17 @@ SIMULADOS = (
 
 
 def _make(
-    tmp_path: pathlib.Path, *argumentos: str, docker: str = REGISTRADOR, ambiente_extra: dict[str, str] | None = None
+    tmp_path: pathlib.Path,
+    *argumentos: str,
+    docker: str = REGISTRADOR,
+    binarios: dict[str, str] | None = None,
+    ambiente_extra: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
-    """`make` sobre o `Makefile` real copiado; devolve a execução e o que foi chamado."""
+    """`make` sobre o `Makefile` real copiado; devolve a execução e o que foi chamado.
+
+    `binarios` troca ou acrescenta executáveis à frente do `PATH` — o `curl` da
+    API, o `sleep` que não dorme.
+    """
     trabalho = tmp_path / "checkout"
     for relativo in SIMULADOS:
         caminho = trabalho / relativo
@@ -85,8 +97,9 @@ def _make(
         caminho.write_text(REGISTRADOR, encoding="utf-8")
         caminho.chmod(0o755)
     (tmp_path / "bin").mkdir()
-    (tmp_path / "bin" / "docker").write_text(docker, encoding="utf-8")
-    (tmp_path / "bin" / "docker").chmod(0o755)
+    for nome, script in ({"docker": docker, "curl": REGISTRADOR} | (binarios or {})).items():
+        (tmp_path / "bin" / nome).write_text(script, encoding="utf-8")
+        (tmp_path / "bin" / nome).chmod(0o755)
     (trabalho / "Makefile").write_text((RAIZ / "Makefile").read_text(encoding="utf-8"), encoding="utf-8")
     (trabalho / ".env").write_text("", encoding="utf-8")
     (trabalho / "dbt").mkdir()
@@ -122,24 +135,112 @@ def test_make_n_nao_executa_nada(tmp_path, alvo):
 
 
 #: Um `docker` que responde o que `airbyte-up` pergunta: o cluster está parado
-#: (`SIM_PAUSADO=1`) ou não existe, e o nó tem pod pronto.
+#: (`SIM_PAUSADO=1`) ou não existe.
 DOCKER_DO_CLUSTER = """#!/usr/bin/env bash
 echo "docker $*" >> "$SIM_LOG"
 case "$1" in
   ps) [ "${SIM_PAUSADO:-0}" = 1 ] && echo 3f2a1b ;;
-  exec) echo "POD ID  CREATED  STATE  NAME  Ready" ;;
 esac
 exit 0
 """
 
+#: A API do Airbyte, uma resposta por consulta, na ordem de `SIM_API`; a
+#: última se repete. As quatro formas são as da retomada real de 23/09/2026:
+#: `muda` é a conexão recusada (nada na saída, `curl` sai 7), `503` é o ingress
+#: de pé com o servidor ainda subindo, `falsa` é a API que responde sem estar
+#: disponível e `pronta` é a resposta medida, byte a byte.
+CURL_DA_API = """#!/usr/bin/env bash
+echo "curl $*" >> "$SIM_LOG"
+IFS=, read -ra respostas <<< "$SIM_API"
+n=$(grep -c '^curl ' "$SIM_LOG")
+i=$(( n <= ${#respostas[@]} ? n - 1 : ${#respostas[@]} - 1 ))
+case "${respostas[$i]}" in
+  muda) exit 7 ;;
+  503) echo '<html><head><title>503 Service Temporarily Unavailable</title></head></html>' ;;
+  falsa) echo '{"available":false}' ;;
+  pronta) echo '{"available":true}' ;;
+esac
+exit 0
+"""
+
+#: O prazo é contado em consultas; o `sleep` que não dorme faz as 60 caberem
+#: num teste.
+SLEEP_INSTANTANEO = "#!/bin/sh\nexit 0\n"
+
+#: Os dois chamadores de `RETOMAR_AIRBYTE`, com o cluster parado.
+CHAMADORES = [pytest.param("airbyte-resume", id="airbyte-resume"), pytest.param("airbyte-up", id="airbyte-up")]
+
+
+def _retomar(tmp_path: pathlib.Path, alvo: str, api: str) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    r, chamadas = _make(
+        tmp_path,
+        alvo,
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": CURL_DA_API, "sleep": SLEEP_INSTANTANEO},
+        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": api},
+    )
+    return r, [c for c in chamadas if c.startswith("curl ")]
+
+
+@pytest.mark.parametrize("alvo", CHAMADORES)
+@pytest.mark.parametrize(
+    "api, consultas",
+    [
+        pytest.param("pronta", 1, id="pronta-na-primeira"),
+        pytest.param("muda,muda,503,503,pronta", 5, id="espera-a-conexao-e-o-503-passarem"),
+    ],
+)
+def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, api, consultas):
+    """RVE3-02: pronto é a API responder `available:true`, e a espera espera por isso.
+
+    O caso de cinco consultas é o desenho da retomada real: primeiro a conexão
+    recusada, depois o 503 do ingress. A espera antiga dizia "pronto" antes de
+    tudo isso, porque o `grep -q Ready` casava nos sandboxes `NotReady`.
+    """
+    r, curls = _retomar(tmp_path, alvo, api)
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "aguardando a API do Airbyte" in r.stdout and r.stdout.count("pronta.") == 1, r.stdout
+    assert len(curls) == consultas, curls
+    assert all("http://localhost:8000/api/v1/health" in c for c in curls), curls
+
+
+@pytest.mark.parametrize("alvo", CHAMADORES)
+@pytest.mark.parametrize(
+    "api",
+    [
+        pytest.param("muda", id="sem-resposta"),
+        pytest.param("503", id="ingress-sem-servidor"),
+        pytest.param("falsa", id="available-false"),
+    ],
+)
+def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, api):
+    """RVE3-02: o prazo esgotado sai com erro, e `airbyte-up` não anuncia a interface.
+
+    Antes, as 30 consultas terminavam num `echo` que saía 0, e quem chamou
+    seguia adiante sem o Airbyte.
+    """
+    r, curls = _retomar(tmp_path, alvo, api)
+
+    assert r.returncode != 0, r.stdout
+    assert "tempo esgotado" in r.stdout and "pronta." not in r.stdout, r.stdout
+    assert len(curls) == 60, "o prazo é de 60 consultas"
+    assert "Interface em" not in r.stdout
+
 
 def test_airbyte_up_retoma_o_cluster_pausado_sem_reinstalar(tmp_path):
     """O comportamento que a variável substituiu, conferido sem `-n`."""
-    r, chamadas = _make(tmp_path, "airbyte-up", docker=DOCKER_DO_CLUSTER, ambiente_extra={"SIM_PAUSADO": "1"})
+    r, chamadas = _make(
+        tmp_path,
+        "airbyte-up",
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": CURL_DA_API},
+        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": "pronta"},
+    )
 
     assert r.returncode == 0, r.stdout + r.stderr
     assert "cluster pausado — retomando em vez de reinstalar" in r.stdout
-    assert "aguardando o cluster pronto." in r.stdout
+    assert "aguardando a API do Airbyte pronta." in r.stdout
     assert "docker start airbyte-abctl-control-plane" in chamadas
     assert not any(c.startswith("abctl") for c in chamadas), chamadas
 
@@ -150,11 +251,18 @@ def test_airbyte_up_instala_quando_nao_ha_cluster(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "abctl local install --values airbyte/values.yaml" in chamadas
     assert "docker start airbyte-abctl-control-plane" not in chamadas
+    assert not any(c.startswith("curl") for c in chamadas), "quem instala é o abctl, e ele espera por conta própria"
 
 
 def test_airbyte_resume_continua_retomando(tmp_path):
-    r, chamadas = _make(tmp_path, "airbyte-resume", docker=DOCKER_DO_CLUSTER, ambiente_extra={"SIM_PAUSADO": "1"})
+    r, chamadas = _make(
+        tmp_path,
+        "airbyte-resume",
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": CURL_DA_API},
+        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": "pronta"},
+    )
 
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "aguardando o cluster pronto." in r.stdout
+    assert "aguardando a API do Airbyte pronta." in r.stdout
     assert chamadas[0] == "docker start airbyte-abctl-control-plane"

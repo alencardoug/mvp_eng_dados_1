@@ -13,8 +13,9 @@
 # precisa poder ser rodado sem efeito nenhum. Com `--trocar`, que é como os
 # alvos `*-up` o chamam, ele **pausa** o ambiente conflitante em vez de recusar:
 # `docker stop`, que devolve a memória inteira, preserva contêiner e dados e
-# volta em ~20 s. Nunca `down`/`uninstall` — desmontar é decisão de quem opera,
-# e no caso do Airbyte custa uma reinstalação inteira (Execução Local §6).
+# volta sem reinstalar nada. Nunca `down`/`uninstall` — desmontar é decisão de
+# quem opera, e no caso do Airbyte custa uma reinstalação inteira (Execução
+# Local §6).
 #
 # Os custos abaixo são MEDIDOS, e cada um cita onde o número vive (P5).
 set -uo pipefail

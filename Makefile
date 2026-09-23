@@ -39,6 +39,8 @@ CREDENCIAIS = eval "$$($(ABCTL) local credentials 2>/dev/null \
 	| sed 's/\x1b\[[0-9;]*m//g' \
 	| sed -n 's/.*Client-Id: \(\S*\).*/AIRBYTE_CLIENT_ID=\1/p; s/.*Client-Secret: \(\S*\).*/AIRBYTE_CLIENT_SECRET=\1/p' \
 	| sed 's/^/export /')" 
+# A interface e a API do Airbyte local, na porta padrão do `abctl`.
+AIRBYTE_WEB := http://localhost:8000
 BASE := source_db legacy_db warehouse_db
 
 # Resolução de contêineres por rótulo do Compose. A regra vive em
@@ -258,28 +260,41 @@ medir: ## Mede um alvo: ALVO= [ATE=<alvo de espera>], ou CENARIO=streaming [LIMI
 # Devolver memória à máquina sem desmontar nada. `airbyte-down` é
 # `abctl local uninstall`: destrói o cluster, e voltar custa uma reinstalação
 # inteira — que é justamente onde mora a armadilha do `PG_VERSION`
-# (Execução Local §6). Parar o contêiner libera a mesma memória e volta em ~20 s.
+# (Execução Local §6). Parar o contêiner libera a mesma memória e volta sem
+# reinstalar nada — quanto leva está em `RETOMAR_AIRBYTE`, medido.
 airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-lo
 	@docker stop airbyte-abctl-control-plane >/dev/null 2>&1 && \
 		echo "Airbyte pausado. Retomar: make airbyte-resume" || \
 		echo "Airbyte já não estava de pé."
 
-# Religar o cluster pausado e esperar um pod pronto: uma receita, dois
+# Religar o cluster pausado e esperar a API do Airbyte: uma receita, dois
 # chamadores — `airbyte-resume` e o ramo "pausado" de `airbyte-up`. Variável, e
 # não `$(MAKE) airbyte-resume` dentro do `if` de `airbyte-up`: o `make` executa
 # de verdade, mesmo sob `-n`, toda linha em cujo texto aparece `$(MAKE)`, e
 # aquela linha tinha no outro ramo o `abctl local install` — um
 # `make -n recovery-restore` o chamou com o Airbyte de pé (23/09/2026).
+#
+# **Pronto é a API responder `available:true`, não um pod (RVE3-02).** Medido
+# em duas retomadas reais em 23/09/2026: o nó lista os sandboxes da partida
+# anterior como `NotReady`, e o `grep -q Ready` da espera antiga casava neles —
+# dizia "pronto" em 5,6 s. Nem pod serve: o primeiro sandbox fica pronto em
+# ~5 s, e o Kubernetes chegou a dizer 8/8 prontos aos 5 s, estado de antes da
+# pausa. A API respondeu em 101 s e em 96 s; o ingress devolve 503 na metade
+# final. Quem vem depois — `recovery-airbyte-jobs`, `sync-airbyte` — usa a API
+# e o banco dela. O prazo, 60 consultas a cada 5 s, é três vezes o medido, e
+# esgotá-lo é erro.
 RETOMAR_AIRBYTE = docker start airbyte-abctl-control-plane >/dev/null \
 	|| { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
-	printf "aguardando o cluster"; \
-	for i in $$(seq 1 30); do \
-		if docker exec airbyte-abctl-control-plane crictl pods 2>/dev/null | grep -q Ready; then \
-			echo " pronto."; exit 0; fi; \
+	printf "aguardando a API do Airbyte"; pronta=; \
+	for i in $$(seq 1 60); do \
+		if curl -s --max-time 5 $(AIRBYTE_WEB)/api/v1/health 2>/dev/null | grep -Eq '"available": *true'; then \
+			pronta=1; break; fi; \
 		printf "."; sleep 5; done; \
-	echo " tempo esgotado — veja 'docker logs airbyte-abctl-control-plane'."
+	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu em 5 min."; \
+		echo "  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'."; exit 1; }; \
+	echo " pronta."
 
-airbyte-resume: ## Religa o cluster do Airbyte pausado e espera os pods
+airbyte-resume: ## Religa o cluster do Airbyte pausado e espera a API responder
 	@$(RETOMAR_AIRBYTE)
 
 stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
@@ -302,7 +317,8 @@ airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
 	@# Cluster pausado — por `airbyte-pause`, ou pela troca automática que o
 	@# preflight faz ao subir o streaming — não se reinstala: o `abctl` valida o
 	@# cluster antes de qualquer coisa e recusa um contêiner parado. Retomar leva
-	@# ~20 s; reinstalar leva minutos e esbarra no `PG_VERSION` (§6).
+	@# ~100 s até a API responder; reinstalar leva minutos e esbarra no
+	@# `PG_VERSION` (§6).
 	@if [ -n "$$(docker ps -aq -f 'name=^airbyte-abctl-control-plane$$' -f status=exited)" ]; then \
 		echo "cluster pausado — retomando em vez de reinstalar"; \
 		$(RETOMAR_AIRBYTE); \
@@ -310,7 +326,7 @@ airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
 		$(ABCTL) local install --values airbyte/values.yaml; \
 	fi
 	@echo ""
-	@echo "Interface em http://localhost:8000 — credenciais em 'make airbyte-credentials'."
+	@echo "Interface em $(AIRBYTE_WEB) — credenciais em 'make airbyte-credentials'."
 
 airbyte-down: require-abctl ## Derruba o Airbyte, preservando os dados dele
 	@$(ABCTL) local uninstall
