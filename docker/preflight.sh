@@ -108,6 +108,11 @@ _ainda_no_ar() {
 # sem conferir é pior que não pausar — o preflight libera o alvo achando que
 # desfez o conflito, e os dois ambientes sobem juntos, que é o R11. E "não
 # consegui conferir" **não** é "parou": só o estado lido conta.
+#
+# O que estava de pé **antes** de cada pausa fica anotado por ambiente: é o
+# conjunto que desfazer a pausa recompõe (RVE2-03).
+declare -A ANTES_DA_PAUSA=()
+
 _parar() {
 	local nomes=""
 	case "$1" in
@@ -115,33 +120,33 @@ _parar() {
 	Airflow)   nomes=$(resolver @airflow) || return 1 ;;
 	Airbyte)   nomes=airbyte-abctl-control-plane ;;
 	esac
+	ANTES_DA_PAUSA[$1]="$nomes"
 	# shellcheck disable=SC2086
 	[ -n "$nomes" ] && docker stop $nomes >/dev/null 2>&1
 	_ainda_no_ar "$1"
 	[ $? -eq 1 ]
 }
 
-# Religa **todos** os contêineres do ambiente e confere que todos voltaram —
-# não que "algum" está de pé (RVE-11): um grupo recomposto pela metade é o
-# mesmo defeito da pausa parcial, visto do outro lado.
+# Religa **exatamente** o que estava de pé antes da pausa e confere que cada
+# um voltou. Não "algum de pé" (RVE-11): um grupo recomposto pela metade é o
+# mesmo defeito da pausa parcial, visto do outro lado. E não o grupo inteiro
+# (RVE2-03): ele inclui o que já estava parado antes da troca, e desfazer uma
+# troca recusada pelo R11 não pode terminar com **mais** de pé do que havia.
 _religar() {
-	local todos de_pe
-	case "$1" in
-	Airbyte)
-		docker start airbyte-abctl-control-plane >/dev/null 2>&1
-		_ainda_no_ar Airbyte
-		return ;;
-	streaming) todos=$(resolver --todos @streaming) || return 1 ;;
-	Airflow)   todos=$(resolver --todos @airflow) || return 1 ;;
-	esac
-	[ -z "$todos" ] && return 1
+	local antes de_pe nome
+	antes="${ANTES_DA_PAUSA[$1]:-}"
+	[ -z "$antes" ] && return 0   # nada foi parado — nada a recompor
 	# shellcheck disable=SC2086
-	docker start $todos >/dev/null 2>&1
+	docker start $antes >/dev/null 2>&1
 	case "$1" in
+	Airbyte)   _ainda_no_ar Airbyte; return ;;
 	streaming) de_pe=$(resolver @streaming) || return 1 ;;
 	Airflow)   de_pe=$(resolver @airflow) || return 1 ;;
 	esac
-	[ "$(printf '%s\n' $todos | sort)" = "$(printf '%s\n' $de_pe | sort)" ]
+	for nome in $antes; do
+		# shellcheck disable=SC2086
+		printf '%s\n' $de_pe | grep -qxF -- "$nome" || return 1
+	done
 }
 
 # Desfaz as pausas já feitas. Restauração que falha é dita em voz alta e por
@@ -379,7 +384,9 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
   # não pode significar "de pé pela metade".
   if [ -n "$FALHOU" ]; then
     [ ${#PAUSADOS[@]} -gt 0 ] && _restaurar "${PAUSADOS[@]}"
-    if _religar "$FALHOU"; then
+    if [ -z "${ANTES_DA_PAUSA[$FALHOU]:-}" ]; then
+      echo "[preflight] nada de $FALHOU chegou a ser parado."
+    elif _religar "$FALHOU"; then
       echo "[preflight] $FALHOU recomposto — o que a pausa parcial tinha parado voltou."
     else
       echo "[preflight] ATENÇÃO: $FALHOU ficou parcialmente parado — confira com 'make ps' e 'docker ps -a'."

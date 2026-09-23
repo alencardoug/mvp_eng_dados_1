@@ -490,6 +490,47 @@ def test_pausa_parcial_recompoe_o_grupo_que_falhou(tmp_path):
     assert r.religou()
 
 
+def _com_parado(ambiente: str, parado: str) -> str:
+    """O estado de um ambiente com um contêiner **já parado** antes da troca."""
+    return "".join(
+        linha.rsplit("|", 1)[0] + "|exited\n" if linha.startswith(f"{parado}|") else linha + "\n"
+        for linha in _linhas_de_estado([ambiente]).splitlines()
+    )
+
+
+@exige_unshare
+def test_recuo_da_pausa_parcial_nao_liga_o_que_ja_estava_parado(tmp_path):
+    """RVE2-03, a sonda do revisor: apiserver parado antes; a parada do scheduler falha.
+
+    O recuo religava o grupo inteiro (`resolver --todos`) e terminava com os
+    quatro de pé — mais do que havia antes da troca que ele estava desfazendo.
+    """
+    parado = "mvp_ed1-airflow_apiserver-1"
+    r = executa(
+        tmp_path, "streaming", [], estado_extra=_com_parado("Airflow", parado),
+        stop_ignorar="mvp_ed1-airflow_scheduler-1",
+    )
+
+    assert r.codigo == 1, r.saida
+    assert "Airflow recomposto" in r.saida
+    assert sorted(r.de_pe) == sorted(n for n in nomes("Airflow") if n != parado)
+    assert not any(parado in l for l in r.log if l.startswith("docker start")), r.log
+
+
+@exige_unshare
+def test_recusa_por_memoria_devolve_so_o_que_estava_de_pe(tmp_path):
+    """O outro recuo: a pausa deu certo, a memória não bastou — e o parado continua parado."""
+    parado = "mvp_ed1_kafka_connect"
+    r = executa(
+        tmp_path, "airbyte", [], estado_extra=_com_parado("streaming", parado),
+        mem_mib=6000, mem_apos_mib=6400,
+    )
+
+    assert r.codigo == 1, r.saida
+    assert "restaurando o que foi pausado" in r.saida and "streaming restaurado" in r.saida
+    assert r.de_pe == ["mvp_ed1_redpanda"]
+
+
 # ── B0, defeito 1: o Airflow existe para o preflight ─────────────────────────
 
 
