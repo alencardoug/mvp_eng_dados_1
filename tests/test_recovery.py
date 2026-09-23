@@ -662,7 +662,7 @@ MANIFESTO = {
     "governance_versions": ["v1"],
     "max_event_sequence": 100,
     "contagens": {
-        "source_db": {"oltp.customers": 10},
+        "source_db": {"oltp.customers": 10, "oltp.inventory_movements": 100},
         "legacy_db": {"legacy.customers": 10},
         "warehouse_db": {"raw_legacy.customers": 20},
     },
@@ -759,7 +759,7 @@ def test_o_passo_5_aceita_o_mesmo_estado_do_pacote_antes_e_depois_do_rebase():
     assert any("partição" in p for p in problemas), problemas
 
 
-def _passo_9(estado: dict, job: int | None = None) -> tuple[int, str]:
+def _passo_9(estado: dict, job: int = 44) -> tuple[int, str]:
     erro = io.StringIO()
     with _leituras(estado), patch.object(cli, "_pasta_do_pacote", return_value=pathlib.Path("/nao-usado")), \
             patch.object(pacote.Manifesto, "ler", return_value=pacote.Manifesto(copy.deepcopy(MANIFESTO))), \
@@ -777,14 +777,18 @@ ESTADO_RESTAURADO_INVALIDO = dict(ESTADO_INVALIDO) | {
         "geracoes_por_tabela": {"customers": {"minima": 1, "maxima": 1, "classes": 1, "nulas": 0}},
     },
     "capturas_certificadas_desde": lambda engine, corte: [44],
+    "classificacao_corrente": lambda engine: None,
     "comparar_caminhos": lambda engine, corte: {
         "corte": corte, "so_no_lote": 3, "so_no_fluxo": 0, "payloads_diferentes": 1,
         "saldos_diferentes": 0, "soma_lote": 10, "soma_fluxo": 9, "linhas_lote": 1, "linhas_fluxo": 1,
     },
 }
 
+FATIA_44 = '["legacy",44,9,"hash"]'
+
 #: Uma restauração de verdade bem-sucedida: tudo do manifesto de volta, a
-#: captura 44 certificada acima da 43, a fatia dela na quarentena, o livro igual.
+#: captura 44 certificada acima da 43, a fatia dela na quarentena igual ao que
+#: a classificação dela rejeitou, o livro da origem inteiro nos dois caminhos.
 ESTADO_RESTAURADO = dict(ESTADO_DO_PACOTE) | {
     "oraculo_das_capturas": lambda engine: {
         "certificadas": [9, 43, 44], "maior_snapshot": 44,
@@ -792,7 +796,10 @@ ESTADO_RESTAURADO = dict(ESTADO_DO_PACOTE) | {
     },
     "capturas_certificadas_desde": lambda engine, corte: [44],
     "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"])
-    | {'["legacy",44,9,"hash"]': {"linhas": 1, "digest": "nova"}},
+    | {FATIA_44: {"linhas": 1, "digest": "nova"}},
+    "classificacao_corrente": lambda engine: {
+        "tratadas": [FATIA_44], "rejeitadas": {FATIA_44: {"linhas": 1, "digest": "nova"}},
+    },
     "comparar_caminhos": lambda engine, corte: {
         "corte": corte, "so_no_lote": 0, "so_no_fluxo": 0, "payloads_diferentes": 0,
         "saldos_diferentes": 0, "soma_lote": 10, "soma_fluxo": 10, "linhas_lote": 100, "linhas_fluxo": 100,
@@ -812,14 +819,91 @@ def test_o_passo_9_recusa_a_restauracao_que_a_revisao_viu_ser_anunciada():
 
 
 def test_o_passo_9_aceita_a_restauracao_inteira_e_relaciona_a_captura_ao_job_real():
-    codigo, erro = _passo_9(ESTADO_RESTAURADO)
-    assert codigo == 0, erro
-
     codigo, erro = _passo_9(ESTADO_RESTAURADO, job=44)
     assert codigo == 0, erro
 
     codigo, erro = _passo_9(ESTADO_RESTAURADO, job=45)
     assert codigo == 1 and "o job disparado foi 45" in erro
+
+
+def test_o_passo_9_exige_o_job_do_passo_8():
+    """RVE2-01: sem `--job`, "a captura nova" seria a que o banco disser."""
+    with pytest.raises(SystemExit) as saida, contextlib.redirect_stderr(io.StringIO()):
+        cli.main(["conferir-restauracao"])
+    assert saida.value.code == 2
+
+
+def test_o_passo_9_recusa_a_falta_da_auditoria_da_captura_nova():
+    """RVE2-01, a sonda do revisor: a fixture válida sem a fatia da 44 saía 0.
+
+    A captura 44 continua certificada, com job e partições certos; só a
+    auditoria dela não está na quarentena. Conferir que o acréscimo "não tinha
+    fatia estranha" aceitava isso — nada a mais é diferente de nada faltando.
+    """
+    sem_a_fatia = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+    }
+    codigo, erro = _passo_9(sem_a_fatia, job=44)
+    assert codigo == 1 and "auditoria da captura nova: fatia sumiu" in erro, erro
+
+
+def test_o_passo_9_compara_contagem_e_conteudo_da_auditoria_nova():
+    outra = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"])
+        | {FATIA_44: {"linhas": 2, "digest": "outra"}},
+    }
+    codigo, erro = _passo_9(outra, job=44)
+    assert codigo == 1 and "contagem mudou" in erro and "conteúdo mudou" in erro, erro
+
+    a_mais = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"])
+        | {FATIA_44: {"linhas": 1, "digest": "nova"}, '["legacy",44,8,"velha"]': {"linhas": 1, "digest": "x"}},
+    }
+    codigo, erro = _passo_9(a_mais, job=44)
+    assert codigo == 1 and "que a classificação dela não rejeitou" in erro, erro
+
+
+def test_captura_nova_sem_rejeicao_tem_acrescimo_vazio_e_passa():
+    """Rejeição nenhuma é legítima: o esperado vem da classificação, não de um total positivo."""
+    limpa = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+        "classificacao_corrente": lambda engine: {"tratadas": [FATIA_44], "rejeitadas": {}},
+    }
+    codigo, erro = _passo_9(limpa, job=44)
+    assert codigo == 0, erro
+
+
+def test_a_classificacao_precisa_ser_a_da_captura_nova():
+    """Sem o build da captura nova, a classificação ainda é a da 43 — e o esperado seria o dela."""
+    da_retida = dict(ESTADO_RESTAURADO) | {
+        "oraculo_da_quarentena": lambda engine: copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+        "classificacao_corrente": lambda engine: {
+            "tratadas": ['["legacy",43,9,"hash"]'],
+            "rejeitadas": copy.deepcopy(MANIFESTO["oraculo_quarentena"]),
+        },
+    }
+    codigo, erro = _passo_9(da_retida, job=44)
+    assert codigo == 1 and "a classificação corrente trata a(s) captura(s) [43]" in erro, erro
+
+    sem_classificacao = dict(ESTADO_RESTAURADO) | {"classificacao_corrente": lambda engine: None}
+    codigo, erro = _passo_9(sem_classificacao, job=44)
+    assert codigo == 1 and "legacy_classifications não existe" in erro, erro
+
+
+def test_o_passo_9_recusa_o_livro_vazio_nos_dois_caminhos():
+    """Dois caminhos vazios são iguais entre si — e o livro não voltou.
+
+    Achado próprio na aplicação da segunda rodada: a terceira sonda do revisor
+    (`livros_ambos_vazios`) também saía 0, sem ter virado achado.
+    """
+    vazio = dict(ESTADO_RESTAURADO) | {
+        "comparar_caminhos": lambda engine, corte: {
+            "corte": corte, "so_no_lote": 0, "so_no_fluxo": 0, "payloads_diferentes": 0,
+            "saldos_diferentes": 0, "soma_lote": 0, "soma_fluxo": 0, "linhas_lote": 0, "linhas_fluxo": 0,
+        },
+    }
+    codigo, erro = _passo_9(vazio, job=44)
+    assert codigo == 1 and "e a origem tem 100" in erro, erro
 
 
 def test_o_passo_9_recusa_acrescimo_que_nao_e_da_captura_nova():
@@ -939,6 +1023,17 @@ def test_o_script_do_contador_para_na_premissa_que_falhar(tmp_path):
                                    env=ambiente | {"SIM_TABELA": "jobs", "SIM_SEQ": "", "SIM_LINHA": ""})
     assert sem_sequencia.returncode == 3 and "não tem sequência" in sem_sequencia.stderr
     assert "setval" not in log.read_text(encoding="utf-8").split("43)")[-1]
+
+
+def test_o_job_do_passo_8_chega_ao_passo_9():
+    """RVE2-01: o Makefile não passava `--job`, e o passo 9 aceitava a identidade que o banco dissesse."""
+    receita = _receita("recovery-restore")
+    apaga = receita.index('rm -f "$(RECOVERY_JOB)"')
+    grava = receita.index('sync-legacy JOB_EM="$(RECOVERY_JOB)"')
+    le = receita.index('cat "$(RECOVERY_JOB)"')
+    assert apaga < grava < le, "o job de uma restauração anterior não pode ser o desta"
+    assert 'conferir-restauracao --job "$$job"' in receita
+    assert '--job-em "$(JOB_EM)"' in _receita("sync-legacy")
 
 
 def test_o_passo_d50_vem_depois_do_airbyte_e_antes_de_qualquer_sincronizacao():

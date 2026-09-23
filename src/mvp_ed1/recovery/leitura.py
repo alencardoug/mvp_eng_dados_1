@@ -27,6 +27,13 @@ CHAVE_DA_QUARENTENA = (
 )
 
 TABELA_DA_QUARENTENA = "quarantine.rejected_legacy_records"
+
+#: A classificação da captura selecionada. A auditoria de uma captura tratada
+#: é `select *` das rejeitadas daqui (`rejected_legacy_records.sql`), e por
+#: isso é daqui que sai o **esperado** do acréscimo da quarentena no passo 9
+#: (RVE2-01). Medido em 23/09/2026 na captura 43: 3.207 rejeitadas aqui e na
+#: fatia dela na quarentena, com o mesmo digest.
+TABELA_DA_CLASSIFICACAO = "trusted.legacy_classifications"
 SCHEMA_DOS_SNAPSHOTS = "snapshots"
 SCHEMA_DO_BRUTO = "raw_legacy"
 
@@ -44,6 +51,11 @@ COLUNAS_VOLATEIS_DAS_EXCLUSOES = ("observed_in_snapshot_id",)
 #: diferir entre quem o escreveu.
 CAMINHO_LOTE = "raw.inventory_movements"
 CAMINHO_FLUXO = "raw.inventory_movements_stream"
+
+#: O livro na origem, pela chave com que `contagens(origem, ["oltp"])` o
+#: devolve. É o tamanho que os dois caminhos precisam ter até o corte: sem ele,
+#: dois caminhos vazios são "iguais" e o passo 9 aceitava o livro que não voltou.
+LIVRO_NA_ORIGEM = "oltp.inventory_movements"
 
 #: Onde o gerador da origem principal registra os parâmetros efetivos da
 #: última carga (`make seed-data`). O do legado registra os seus em
@@ -153,6 +165,33 @@ def oraculo_da_quarentena(engine: Engine) -> dict[str, dict[str, Any]]:
     with _somente_leitura(engine) as conexao:
         linhas = _linhas(conexao, f"select * from {TABELA_DA_QUARENTENA}")
         return oraculos.por_chave(linhas, CHAVE_DA_QUARENTENA)
+
+
+def classificacao_corrente(engine: Engine) -> dict[str, Any] | None:
+    """O que a classificação corrente afirma: as fatias que ela trata e as que ela rejeita.
+
+    `tratadas` são as chaves `(origem, captura, versão, impressão)` presentes —
+    com ou sem rejeição —, e `rejeitadas` o oráculo por chave das linhas
+    `rejected`, na mesma forma do da quarentena. Uma captura tratada sem
+    rejeição nenhuma é **legítima** e tem acréscimo vazio; é o que distingue
+    "não havia o que auditar" de "a auditoria não entrou". `None` quando a
+    tabela não existe — armazém que ainda não teve `dbt build`.
+    """
+    schema, tabela = TABELA_DA_CLASSIFICACAO.split(".")
+    with _somente_leitura(engine) as conexao:
+        if tabela not in tabelas_do_schema(conexao, schema):
+            return None
+        tratadas = sorted(
+            oraculos.nome_da_fatia(linha, CHAVE_DA_QUARENTENA)
+            for linha in _linhas(
+                conexao, f"select distinct {', '.join(CHAVE_DA_QUARENTENA)} from {TABELA_DA_CLASSIFICACAO}"
+            )
+        )
+        rejeitadas = oraculos.por_chave(
+            _linhas(conexao, f"select * from {TABELA_DA_CLASSIFICACAO} where classification = 'rejected'"),
+            CHAVE_DA_QUARENTENA,
+        )
+    return {"tratadas": tratadas, "rejeitadas": rejeitadas}
 
 
 def oraculo_das_capturas(engine: Engine) -> dict[str, Any]:

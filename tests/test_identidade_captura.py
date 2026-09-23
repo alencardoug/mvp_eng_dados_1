@@ -219,3 +219,56 @@ def test_a_tarefa_da_dag_dispara_pela_porta_com_guarda():
     assert "airbyte.sincronizar" not in chamadas, (
         "a tarefa voltou a chamar o transporte cru, por fora da guarda"
     )
+
+
+# ── O job concluído, entregue ao passo 9 da restauração (RVE2-01) ───────────
+
+
+def _sync_do_legado(monkeypatch, tmp_path, *, certificado: str) -> tuple[int, object]:
+    """`make sync-legacy JOB_EM=…` sem Airbyte e sem banco: o fluxo certificado é injetado."""
+    monkeypatch.setattr(airbyte, "token", lambda: "jwt")
+    monkeypatch.setattr(airbyte, "conexao", lambda _nome, _jwt: "id-ficticio")
+    monkeypatch.setattr(
+        airbyte,
+        "sincronizar_certificando",
+        lambda _id, _nome, _jwt: (
+            {"jobId": 44, "status": "succeeded", "rowsSynced": 75},
+            {"tabelas": {"customers": certificado}, "status": certificado,
+             "capture_attempt_id": "a" * 32, "snapshot_id": 44},
+        ),
+    )
+    arquivo = tmp_path / "job-do-passo-8"
+    codigo = airbyte.main(["sync", "--connection", identidade.CONEXAO_LEGADA, "--job-em", str(arquivo)])
+    return codigo, arquivo
+
+
+def test_a_captura_certificada_deixa_o_seu_job(monkeypatch, tmp_path):
+    codigo, arquivo = _sync_do_legado(monkeypatch, tmp_path, certificado="complete")
+
+    assert codigo == 0
+    assert arquivo.read_text(encoding="utf-8") == "44\n"
+
+
+def test_captura_nao_elegivel_nao_deixa_job(monkeypatch, tmp_path):
+    """O passo 9 só pode receber o job de uma captura que o passo 8 aceitou."""
+    codigo, arquivo = _sync_do_legado(monkeypatch, tmp_path, certificado="incomplete")
+
+    assert codigo == 1
+    assert not arquivo.exists()
+
+
+def test_o_job_que_vale_e_o_do_disparo(monkeypatch):
+    """O id gravado no certificado é o do `POST /jobs`, e é ele que sai — não o que a consulta repetir."""
+    registrado: list[int] = []
+    monkeypatch.setattr("sqlalchemy.create_engine", lambda *_a, **_k: _Motor())
+    monkeypatch.setattr("mvp_ed1.db.database_url", lambda _p=None: "postgresql+psycopg://x/y")
+    monkeypatch.setattr("mvp_ed1.legacy.captura.iniciar", lambda *_a, **_k: "tentativa")
+    monkeypatch.setattr("mvp_ed1.legacy.captura.registrar_job", lambda _a, _t, job: registrado.append(job))
+    monkeypatch.setattr("mvp_ed1.legacy.captura.concluir", lambda *_a: {"status": "complete"})
+    monkeypatch.setattr(airbyte, "estado_do_job", lambda _jwt: None)
+    monkeypatch.setattr(airbyte, "disparar", lambda *_a, **_k: {"jobId": 44})
+    monkeypatch.setattr(airbyte, "acompanhar", lambda _job, _jwt: {"status": "succeeded"})
+
+    job, _certificado = airbyte.sincronizar_certificando("id-ficticio", identidade.CONEXAO_LEGADA, "jwt")
+
+    assert job["jobId"] == 44 and registrado == [44]

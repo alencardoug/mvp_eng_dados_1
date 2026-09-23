@@ -58,6 +58,10 @@ AIRFLOW_CLI := docker/airflow_cli.sh
 # em B5 quem chama é o clone.
 RECOVERY := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery
 RECOVERY_DIR ?= $(abspath data/recovery)
+# O jobId que o passo 8 da restauração disparou, para o passo 9 conferir a
+# captura dele e não a que o banco disser (RVE2-01). Fora de `candidato/`: é
+# estado desta restauração, não conteúdo do pacote.
+RECOVERY_JOB = $(RECOVERY_DIR)/job-do-passo-8
 
 # Medição (Etapa 12, B1). A lógica vive em docker/medir.sh; daqui só se passa
 # o alvo. `ATE=` é o que separa "disparei" de "rodou".
@@ -320,14 +324,17 @@ sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 desca
 		$(if $(filter 1,$(RESET)),.venv/bin/python -m mvp_ed1.airbyte reset &&) \
 		.venv/bin/python -m mvp_ed1.airbyte sync
 
-sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy e a certifica (ADR-0044); cada execução acrescenta um snapshot
+sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy e a certifica (ADR-0044); cada execução acrescenta um snapshot; JOB_EM= grava o jobId
 	@# Sem RESET: o modo é `full_refresh_append` (ADR-0037), e descartar o
 	@# estado aqui não faria a carga anterior voltar — ela está retida de
 	@# propósito. Duas execuções são duas capturas, que é o ponto.
 	@# `--certificar-legado` põe a sincronização entre as duas fases do
 	@# certificado: origem medida antes, origem e bruto conferidos depois.
+	@# `JOB_EM=<arquivo>` grava o jobId da captura concluída e certificada — é
+	@# como o passo 9 da restauração recebe a identidade do passo 8 (RVE2-01).
 	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
-		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado
+		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado \
+		$(if $(JOB_EM),--job-em "$(JOB_EM)")
 
 dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 refaz histórico SCD e incrementais
 	@# `--full-refresh` junto com o descarte do histórico, e não por precaução:
@@ -499,11 +506,16 @@ recovery-restore: require-env require-venv ## A sequência de restauração, pas
 	@# Airbyte de sempre, o alvo lê, constata e não escreve nada (RVE-06).
 	@$(MAKE) --no-print-directory recovery-airbyte-jobs
 	@$(MAKE) --no-print-directory sync-airbyte RESET=1
-	@$(MAKE) --no-print-directory sync-legacy
+	@# O job é o desta execução, nunca o de uma anterior que tenha sobrado.
+	@rm -f "$(RECOVERY_JOB)"
+	@$(MAKE) --no-print-directory sync-legacy JOB_EM="$(RECOVERY_JOB)"
 	@$(MAKE) --no-print-directory dbt-rebuild
 	@$(MAKE) --no-print-directory check
 	@echo "── 9/9 oráculos explícitos ──"
-	@$(RECOVERY) --dir "$(RECOVERY_DIR)" conferir-restauracao
+	@job=$$(cat "$(RECOVERY_JOB)" 2>/dev/null); [ -n "$$job" ] || { \
+		echo "RECUSADO — o passo 8 não deixou o jobId da captura em $(RECOVERY_JOB);"; \
+		echo "  sem ele o passo 9 conferiria a captura que o banco disser, não a disparada."; exit 1; }; \
+		$(RECOVERY) --dir "$(RECOVERY_DIR)" conferir-restauracao --job "$$job"
 	@echo "recovery-restore: a sequência inteira passou. 'make recovery-promote' aprova o pacote."
 
 dbt-rebuild: require-env require-venv ## Reconstrói TUDO sem derrubar os snapshots — o alvo de uma restauração

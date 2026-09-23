@@ -6,7 +6,7 @@
     python -m mvp_ed1.recovery restore-dumps           pg_restore das fontes e da memória (passo 4)
     python -m mvp_ed1.recovery restore-artefatos       devolve manifesto do legado e cursor (passo 6)
     python -m mvp_ed1.recovery avancar-jobs            o contador de jobs de um Airbyte novo (D50)
-    python -m mvp_ed1.recovery conferir-restauracao    os oráculos explícitos (passo 9)
+    python -m mvp_ed1.recovery conferir-restauracao --job N    os oráculos explícitos (passo 9)
     python -m mvp_ed1.recovery promote                 candidato/ → aprovado/
 
 A **sequência de restauração** não está aqui: ela mistura `pg_restore`,
@@ -656,16 +656,54 @@ def _airbyte_jobs(*acao: str) -> dict[str, Any]:
 
 
 # ── conferir-restauracao (passo 9) ──────────────────────────────────────────
+def _conferir_auditoria_da_captura_nova(armazem, novas: list[int], acrescimo: dict[str, Any]) -> list[str]:
+    """O acréscimo da quarentena é **exatamente** o que a classificação da captura nova rejeitou.
+
+    Não "só fatias da captura nova" — isso aceitava a falta da fatia esperada
+    (RVE2-01). O esperado vem da classificação corrente, que é a da captura
+    selecionada: cada fatia rejeitada dela reaparece com a mesma contagem e o
+    mesmo digest, e nada a mais entra em nome dela. Rejeição nenhuma é
+    acréscimo vazio, e passa — o que não passa é a classificação tratar outra
+    captura, ou não existir.
+    """
+    classificacao = leitura.classificacao_corrente(armazem)
+    if classificacao is None:
+        return [
+            f"quarentena: {leitura.TABELA_DA_CLASSIFICACAO} não existe — sem ela não há esperado "
+            "para a auditoria da captura nova"
+        ]
+    problemas: list[str] = []
+    tratadas = sorted({leitura.snapshot_da_fatia(chave) for chave in classificacao["tratadas"]})
+    if tratadas != novas:
+        problemas.append(
+            f"quarentena: a classificação corrente trata a(s) captura(s) {tratadas}, e as novas são {novas}"
+        )
+    esperado = classificacao["rejeitadas"]
+    da_nova = {chave: fatia for chave, fatia in acrescimo.items() if leitura.snapshot_da_fatia(chave) in novas}
+    problemas += [f"quarentena, auditoria da captura nova: {p}" for p in oraculos.contido(esperado, da_nova)]
+    sobrando = oraculos.acrescimo(esperado, da_nova)
+    if sobrando:
+        problemas.append(
+            f"quarentena: fatia(s) da captura nova que a classificação dela não rejeitou: {list(sobrando)[:3]}"
+        )
+    return problemas
+
+
 def comando_conferir_restauracao(args: argparse.Namespace) -> int:
     """Os oráculos explícitos, no roteiro executável — não só o `PASS` do dbt.
 
     O que se prova aqui, contra o manifesto e nunca contra número escrito em
     plano (RVE-05): as fontes de volta (contagens, Alembic, corte do livro), a
     memória intacta (versões, SCD, certificados, partição das linhas retidas),
-    a quarentena **contida** e acrescida só pelas capturas novas — as que o
-    Airbyte devolveu de fato —, a memória de exclusões renascida igual, e o
-    livro quente igual ao lote: chave e as 16 colunas de negócio, saldo por
-    armazém/SKU, soma dos deltas.
+    a quarentena **contida** e acrescida **exatamente** da auditoria da captura
+    nova — a do job que o passo 8 disparou —, a memória de exclusões renascida
+    igual, e o livro quente igual ao lote: chave e as 16 colunas de negócio,
+    saldo por armazém/SKU, soma dos deltas, com o tamanho do livro da origem.
+
+    **Ausência não é igualdade (RVE2-01).** Conferir só que o acréscimo não
+    tinha fatia estranha aceitava a falta da fatia esperada, e comparar os dois
+    caminhos do livro aceitava os dois vazios. O esperado do acréscimo vem da
+    classificação da captura disparada; o do livro, da origem.
     """
     from mvp_ed1 import db
 
@@ -680,7 +718,8 @@ def comando_conferir_restauracao(args: argparse.Namespace) -> int:
     origem, legado, armazem = _motor(db.SOURCE), _motor(db.LEGACY), _motor(db.WAREHOUSE)
     try:
         # As fontes.
-        problemas += _comparar("contagens em source_db", dados["contagens"]["source_db"], leitura.contagens(origem, ["oltp"]))
+        contagens_da_origem = leitura.contagens(origem, ["oltp"])
+        problemas += _comparar("contagens em source_db", dados["contagens"]["source_db"], contagens_da_origem)
         problemas += _comparar("contagens em legacy_db", dados["contagens"]["legacy_db"], leitura.contagens(legado, ["legacy"]))
         problemas += _comparar(
             "alembic",
@@ -713,7 +752,10 @@ def comando_conferir_restauracao(args: argparse.Namespace) -> int:
             problemas.append(
                 f"as capturas novas ({novas}) não são as certificadas depois do corte ({desde_o_corte})"
             )
-        if args.job is not None and novas != [args.job]:
+        # O job vem do passo 8, sempre (RVE2-01): sem ele, "as capturas novas"
+        # seriam as que o banco diz, e o que se quer provar é o que o Airbyte
+        # devolveu a quem disparou.
+        if novas != [args.job]:
             problemas.append(f"o job disparado foi {args.job}, e as capturas novas são {novas}")
         for tabela, geracao in capturas["geracoes_por_tabela"].items():
             if geracao["maxima"] is not None and geracao["maxima"] < 0:
@@ -725,18 +767,27 @@ def comando_conferir_restauracao(args: argparse.Namespace) -> int:
         estranhas = [chave for chave in acrescimo if leitura.snapshot_da_fatia(chave) not in novas]
         if estranhas:
             problemas.append(f"quarentena: fatia(s) acrescentadas que não são da captura nova: {estranhas[:3]}")
+        problemas += _conferir_auditoria_da_captura_nova(armazem, novas, acrescimo)
         print(
             f"[recovery] quarentena: {len(dados['oraculo_quarentena'])} fatia(s) do manifesto contidas, "
             f"{len(acrescimo)} acrescentada(s) pela(s) captura(s) {novas}"
         )
 
-        # O livro: os dois caminhos.
+        # O livro: os dois caminhos, e o tamanho que eles precisam ter.
         caminhos = leitura.comparar_caminhos(armazem, sequencia)
         for campo in ("so_no_lote", "so_no_fluxo", "payloads_diferentes", "saldos_diferentes"):
             if caminhos[campo]:
                 problemas.append(f"caminhos do livro: {campo} = {caminhos[campo]} (esperado 0)")
         if caminhos["soma_lote"] != caminhos["soma_fluxo"]:
             problemas.append(f"caminhos do livro: soma dos deltas {caminhos['soma_lote']} × {caminhos['soma_fluxo']}")
+        na_origem = contagens_da_origem.get(leitura.LIVRO_NA_ORIGEM)
+        if na_origem is None:
+            problemas.append(f"caminhos do livro: {leitura.LIVRO_NA_ORIGEM} não foi contado na origem")
+        elif (caminhos["linhas_lote"], caminhos["linhas_fluxo"]) != (na_origem, na_origem):
+            problemas.append(
+                f"caminhos do livro: {caminhos['linhas_lote']} no lote e {caminhos['linhas_fluxo']} no fluxo "
+                f"até o corte, e a origem tem {na_origem} — iguais entre si não é o livro de volta"
+            )
         print(
             f"[recovery] livro até {caminhos['corte']}: {caminhos['linhas_lote']} no lote, "
             f"{caminhos['linhas_fluxo']} no fluxo; só num lado {caminhos['so_no_lote']}/{caminhos['so_no_fluxo']}, "
@@ -758,7 +809,8 @@ def comando_conferir_restauracao(args: argparse.Namespace) -> int:
         return 1
     print(
         "conferir-restauracao: fontes iguais ao manifesto, memória contida e intacta, identidade "
-        "nova acima da retida, memória de exclusões renascida igual, livro igual nos dois caminhos.\n"
+        "nova acima da retida, auditoria dela igual ao que a classificação rejeitou, memória de "
+        "exclusões renascida igual, livro da origem inteiro e igual nos dois caminhos.\n"
         "  As oito fronteiras e os testes de dados são do `make check` do passo 8."
     )
     return 0
@@ -805,7 +857,10 @@ def main(argv: list[str] | None = None) -> int:
         "avancar-jobs", help="avança o contador de jobs de um Airbyte novo para além da captura retida (D50)"
     ).set_defaults(func=comando_avancar_jobs)
     cr = sub.add_parser("conferir-restauracao", help="os oráculos explícitos do passo 9")
-    cr.add_argument("--job", type=int, default=None, help="o jobId da sincronização do legado disparada no passo 8")
+    cr.add_argument(
+        "--job", type=int, required=True,
+        help="o jobId da sincronização do legado disparada no passo 8 (o Makefile o traz de lá)",
+    )
     cr.set_defaults(func=comando_conferir_restauracao)
     sub.add_parser("promote", help="candidato/ → aprovado/").set_defaults(func=comando_promote)
 

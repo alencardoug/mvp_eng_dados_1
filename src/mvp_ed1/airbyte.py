@@ -207,9 +207,11 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
     armazem = create_engine(database_url(WAREHOUSE))
     try:
         tentativa = captura.iniciar(legado, armazem, nome, estado_do_job=estado_do_job(jwt))
-        job = disparar(nome, connection_id, jwt)
-        captura.registrar_job(armazem, tentativa, job["jobId"])
-        job = acompanhar(job["jobId"], jwt)
+        nascido = disparar(nome, connection_id, jwt)["jobId"]
+        captura.registrar_job(armazem, tentativa, nascido)
+        # O id que vale é o do disparo — o que o certificado gravou —, e não o
+        # que a consulta de andamento repetir.
+        job = acompanhar(nascido, jwt) | {"jobId": nascido}
         certificado = captura.concluir(legado, armazem, tentativa)
     finally:
         legado.dispose()
@@ -225,6 +227,11 @@ def main(argv: list[str] | None = None) -> int:
         "--certificar-legado",
         action="store_true",
         help="mede a origem legada antes do job e confere origem e bruto depois (ADR-0044)",
+    )
+    parser.add_argument(
+        "--job-em",
+        metavar="ARQUIVO",
+        help="grava o jobId da sincronização concluída — é como o passo 9 da restauração o recebe",
     )
     args = parser.parse_args(argv)
 
@@ -255,7 +262,8 @@ def main(argv: list[str] | None = None) -> int:
         if tipo == "sync" and (args.certificar_legado or legada):
             job, certificado = sincronizar_certificando(connection_id, args.connection, jwt)
         else:
-            job = acompanhar(disparar(args.connection, connection_id, jwt, tipo)["jobId"], jwt)
+            nascido = disparar(args.connection, connection_id, jwt, tipo)["jobId"]
+            job = acompanhar(nascido, jwt) | {"jobId": nascido}
     except AirbyteIndisponivel as erro:
         print(f"ERRO: {erro}", file=sys.stderr)
         return 2
@@ -278,6 +286,12 @@ def main(argv: list[str] | None = None) -> int:
         if certificado["status"] != "complete":
             print("ERRO: a captura não é elegível; ver governance.legacy_captures", file=sys.stderr)
             return 1
+    if args.job_em:
+        # Só a sincronização concluída — e certificada, quando é a do legado —
+        # deixa o seu job: o passo 9 confere a captura **deste** job, e não a
+        # que o banco disser que é a nova (RVE2-01).
+        with open(args.job_em, "w", encoding="utf-8") as arquivo:
+            arquivo.write(f"{job['jobId']}\n")
     return 0
 
 

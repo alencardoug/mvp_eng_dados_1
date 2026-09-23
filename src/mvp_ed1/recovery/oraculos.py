@@ -129,6 +129,11 @@ def digest(linhas: Iterable[Mapping[str, Any]]) -> str:
     return acumulador.hexdigest()
 
 
+def nome_da_fatia(linha: Mapping[str, Any], chave: Sequence[str]) -> str:
+    """A chave de uma fatia como texto — a mesma no manifesto e em toda leitura."""
+    return json.dumps([_codificar(linha[c]) for c in chave], ensure_ascii=True, separators=(",", ":"))
+
+
 def por_chave(
     linhas: Iterable[Mapping[str, Any]], chave: Sequence[str]
 ) -> dict[str, dict[str, Any]]:
@@ -139,8 +144,7 @@ def por_chave(
     """
     grupos: dict[str, list[Mapping[str, Any]]] = {}
     for linha in linhas:
-        nome = json.dumps([_codificar(linha[c]) for c in chave], ensure_ascii=True, separators=(",", ":"))
-        grupos.setdefault(nome, []).append(linha)
+        grupos.setdefault(nome_da_fatia(linha, chave), []).append(linha)
     return {
         nome: {"linhas": len(fatia), "digest": digest(fatia)}
         for nome, fatia in sorted(grupos.items())
