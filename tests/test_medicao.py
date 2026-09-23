@@ -129,6 +129,38 @@ def test_agregacao_de_serie_vazia_nao_inventa_extremos(tmp_path):
     assert r.stdout.split() == ["amostras=0"]
 
 
+def test_leitura_que_falhou_nao_entra_no_extremo_e_e_contada(tmp_path):
+    """RVE2-02: `NA` é amostra sem a grandeza, não zero — o extremo sai só das válidas."""
+    serie = tmp_path / "amostras"
+    # Se `NA` valesse zero, o mínimo de disponível seria 0 em 1002.
+    serie.write_text("1000 8000 NA\n1002 NA 3900\n1004 7000 3100\n", encoding="utf-8")
+
+    r = subprocess.run(
+        [str(MEDIR), "--agregar", str(serie)], capture_output=True, text=True, timeout=60
+    )
+    valores = dict(l.split("=", 1) for l in r.stdout.split())
+
+    assert r.returncode == 0, r.stderr
+    assert valores["amostras"] == "3"
+    assert (valores["disponivel_minimo_mb"], valores["disponivel_minimo_em"]) == ("7000", "1004")
+    assert (valores["conteineres_maximo_mb"], valores["conteineres_maximo_em"]) == ("3900", "1002")
+    assert valores["disponivel_falhas"] == "1" and valores["conteineres_falhas"] == "1"
+
+
+def test_grandeza_sem_nenhuma_leitura_e_null_e_nao_zero(tmp_path):
+    serie = tmp_path / "amostras"
+    serie.write_text("1000 8000 NA\n1002 7900 NA\n", encoding="utf-8")
+
+    r = subprocess.run(
+        [str(MEDIR), "--agregar", str(serie)], capture_output=True, text=True, timeout=60
+    )
+    valores = dict(l.split("=", 1) for l in r.stdout.split())
+
+    assert valores["conteineres_maximo_mb"] == "null"
+    assert "conteineres_maximo_em" not in valores, "não há instante de um extremo que não existe"
+    assert valores["conteineres_falhas"] == "2"
+
+
 # ── Recusar antes de medir ──────────────────────────────────────────────────
 
 
@@ -212,6 +244,65 @@ def test_medicao_registra_duracao_codigo_e_a_linha_da_tabela(tmp_path):
     linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
     assert len(linha) == 1, r.stdout
     assert "amostras a cada 1s" in linha[0]
+
+
+def _docker_com_stats(tmp_path: pathlib.Path, stats: str) -> None:
+    """Troca o `docker` simulado: `ps` diz o Airbyte de pé, `stats` faz o que o caso pede."""
+    (tmp_path / "bin" / "docker").write_text(
+        "#!/usr/bin/env bash\n"
+        "# `docker` SIMULADO.\n"
+        'case "$1" in\n'
+        '  ps) [[ "$*" == *--filter* ]] || echo airbyte-abctl-control-plane; exit 0 ;;\n'
+        f"  stats) {stats} ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    "stats",
+    [
+        pytest.param('echo "daemon unavailable" >&2; exit 1', id="stats-falha"),
+        pytest.param('echo "-- / --"; exit 0', id="linha-sem-numero"),
+    ],
+)
+def test_docker_stats_que_nao_mede_vira_nao_medido_e_nao_zero(tmp_path, stats):
+    """RVE2-02, a sonda do revisor: Airbyte de pé, `stats` falhando — e o JSON dizia máximo 0.
+
+    O código de saída continua sendo o do alvo, que rodou; o que muda é o que
+    o registro afirma sobre a memória dos contêineres.
+    """
+    ambiente, trabalho = _ambiente(tmp_path, makefile="alvo:\n\t@sleep 2\n")
+    _docker_com_stats(tmp_path, stats)
+
+    r = subprocess.run(
+        [str(MEDIR), "alvo"], cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    amostragem = _registro(tmp_path)["amostragem"]
+    assert amostragem["amostras"] >= 2
+    assert amostragem["conteineres_maximo_mb"] is None
+    assert amostragem["conteineres_falhas"] == amostragem["amostras"]
+    assert "conteineres_maximo_em" not in amostragem
+    assert amostragem["disponivel_minimo_mb"] > 0 and amostragem["disponivel_falhas"] == 0
+    linha = next(l for l in r.stdout.splitlines() if l.startswith("| alvo |"))
+    assert "não medido" in linha and "0.0 GB" not in linha, linha
+    assert "leitura que falhou não é zero" in r.stdout
+
+
+def test_nenhum_conteiner_de_pe_e_zero_lido(tmp_path):
+    """O outro lado: `stats` que responde sem linha nenhuma é soma zero **medida**."""
+    ambiente, trabalho = _ambiente(tmp_path, makefile="alvo:\n\t@sleep 2\n")
+    _docker_com_stats(tmp_path, "exit 0")
+
+    r = subprocess.run(
+        [str(MEDIR), "alvo"], cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    amostragem = _registro(tmp_path)["amostragem"]
+    assert amostragem["conteineres_maximo_mb"] == 0 and amostragem["conteineres_falhas"] == 0
 
 
 def test_ate_roda_depois_do_alvo_e_entra_no_registro(tmp_path):

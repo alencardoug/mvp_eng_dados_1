@@ -34,25 +34,42 @@ PRAZO_ENCERRAMENTO="${MEDIR_PRAZO_ENCERRAMENTO:-60}"
 _agora() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 _epoch() { date +%s; }
 
-_mem_disponivel() { awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 0; }
+# **Leitura que falha é `NA`, nunca zero (RVE2-02).** As duas leituras abaixo
+# somavam a entrada vazia — `docker stats` que não respondeu, `/proc/meminfo`
+# ilegível — e devolviam 0, que o registro gravava como medição. Um zero
+# inventado na tabela de capacidade de B5 é o que o P5 proíbe: o que não foi
+# lido vai como não medido, e a amostra conta como falha.
+_mem_disponivel() {
+	local mb
+	mb=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null)
+	if [ -n "$mb" ]; then printf '%s' "$mb"; else printf 'NA'; fi
+}
 
 # Soma do uso de memória dos contêineres, em MB. `docker stats` devolve
 # "1.234GiB / 11.5GiB"; só a primeira parcela interessa, e a unidade varia.
+# Nenhum contêiner de pé é soma zero **lida**; uma linha sem número (`--`,
+# contêiner que o Docker não conseguiu medir) torna a amostra inteira `NA`.
 _mem_conteineres() {
-	docker stats --no-stream --format '{{.MemUsage}}' 2>/dev/null \
-		| awk -F' / ' '{
+	local uso
+	uso=$(docker stats --no-stream --format '{{.MemUsage}}' 2>/dev/null) || { printf 'NA'; return; }
+	printf '%s\n' "$uso" | awk -F' / ' '
+		NF == 0 { next }
+		{
 			v = $1
 			u = v; gsub(/[0-9.]/, "", u)
 			gsub(/[^0-9.]/, "", v)
+			if (v == "") { ilegivel = 1; next }
 			if (u == "GiB") v *= 1024
-			else if (u == "KiB") v /= 1024
+			else if (u == "TiB") v *= 1024 * 1024
+			else if (u == "KiB" || u == "kB") v /= 1024
 			else if (u == "B") v = 0
 			total += v
-		} END { printf "%d", total }'
+		} END { if (ilegivel) printf "NA"; else printf "%d", total }'
 }
 
 # ── Amostragem ──────────────────────────────────────────────────────────────
-# Uma amostra por linha: `epoch mem_disponivel_mb mem_conteineres_mb`.
+# Uma amostra por linha: `epoch mem_disponivel_mb mem_conteineres_mb`, com
+# `NA` no lugar da leitura que falhou.
 _amostrar_ate_morrer() {  # $1 = arquivo de amostras, $2 = PID a vigiar
 	while kill -0 "$2" 2>/dev/null; do
 		printf '%s %s %s\n' "$(_epoch)" "$(_mem_disponivel)" "$(_mem_conteineres)" >> "$1"
@@ -63,19 +80,27 @@ _amostrar_ate_morrer() {  # $1 = arquivo de amostras, $2 = PID a vigiar
 # Agrega a série: extremos com instante, intervalo e contagem. Saída em linhas
 # `chave=valor`, para quem chama montar o JSON — é o pedaço que os testes
 # exercitam com uma série sintética, sem docker e sem /proc.
+#
+# Cada grandeza conta as **suas** falhas, e o extremo sai só das amostras
+# válidas dela. Sem nenhuma válida o extremo é `null` — não medido —, e o
+# instante dele não existe.
 agregar() {  # $1 = arquivo de amostras
 	awk '
-		NR == 1 { min_disp = $2; min_t = $1; max_cont = $3; max_t = $1; primeiro = $1 }
-		$2 < min_disp { min_disp = $2; min_t = $1 }
-		$3 > max_cont { max_cont = $3; max_t = $1 }
-		{ ultimo = $1; n += 1 }
+		NF == 0 { next }
+		{ n += 1; if (n == 1) primeiro = $1; ultimo = $1 }
+		$2 == "NA" { falhas_disp += 1 }
+		$2 != "NA" { validas_disp += 1; if (validas_disp == 1 || $2 + 0 < min_disp) { min_disp = $2 + 0; min_t = $1 } }
+		$3 == "NA" { falhas_cont += 1 }
+		$3 != "NA" { validas_cont += 1; if (validas_cont == 1 || $3 + 0 > max_cont) { max_cont = $3 + 0; max_t = $1 } }
 		END {
 			if (n == 0) { print "amostras=0"; exit }
 			printf "amostras=%d\n", n
-			printf "disponivel_minimo_mb=%d\n", min_disp
-			printf "disponivel_minimo_em=%d\n", min_t
-			printf "conteineres_maximo_mb=%d\n", max_cont
-			printf "conteineres_maximo_em=%d\n", max_t
+			if (validas_disp) printf "disponivel_minimo_mb=%d\ndisponivel_minimo_em=%d\n", min_disp, min_t
+			else print "disponivel_minimo_mb=null"
+			printf "disponivel_falhas=%d\n", falhas_disp
+			if (validas_cont) printf "conteineres_maximo_mb=%d\nconteineres_maximo_em=%d\n", max_cont, max_t
+			else print "conteineres_maximo_mb=null"
+			printf "conteineres_falhas=%d\n", falhas_cont
 			printf "janela_s=%d\n", ultimo - primeiro
 		}
 	' "$1"
@@ -98,6 +123,10 @@ _de_pe() {
 
 # ── Registro ────────────────────────────────────────────────────────────────
 _json_escapar() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+_numero_ou_null() { case "$1" in ''|NA|null) printf 'null' ;; *) printf '%d' "$1" ;; esac; }
+
+# MB em GB para o humano ler — ou "não medido", que é diferente de 0,0 GB.
+_gb() { case "$1" in ''|NA|null) printf 'não medido' ;; *) awk -v m="$1" 'BEGIN{printf "%.1f GB", m/1024}' ;; esac; }
 
 _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 	mkdir -p "$(dirname "$1")"
@@ -113,8 +142,8 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 		printf '  "codigo_de_saida": %d,\n' "$CODIGO"
 		printf '  "interrompido": %s,\n' "$INTERROMPIDO"
 		printf '  "parametros": {"limite": %s, "corte": %s},\n' "${LIMITE:-null}" "${CORTE:-null}"
-		printf '  "estacao": {"disponivel_mb": %d, "de_pe": "%s", "loadavg": "%s"},\n' \
-			"$MEM_INICIAL" "$DE_PE" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
+		printf '  "estacao": {"disponivel_mb": %s, "de_pe": "%s", "loadavg": "%s"},\n' \
+			"$(_numero_ou_null "$MEM_INICIAL")" "$DE_PE" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
 		printf '  "amostragem": {"intervalo_s": %s' "$INTERVALO"
 		local chave valor
 		while IFS='=' read -r chave valor; do
@@ -148,15 +177,20 @@ _nome_do_registro() {
 _linha_da_tabela() {
 	local valores
 	valores=$(agregar "$AMOSTRAS")
-	local n disp cont
+	local n disp cont falhas_disp falhas_cont nota=""
 	n=$(printf '%s\n' "$valores" | sed -n 's/^amostras=//p')
 	disp=$(printf '%s\n' "$valores" | sed -n 's/^disponivel_minimo_mb=//p')
 	cont=$(printf '%s\n' "$valores" | sed -n 's/^conteineres_maximo_mb=//p')
-	printf '| %s | %s | %dm %02ds | %s GB | %s GB | %s amostras a cada %ss |\n' \
+	falhas_disp=$(printf '%s\n' "$valores" | sed -n 's/^disponivel_falhas=//p')
+	falhas_cont=$(printf '%s\n' "$valores" | sed -n 's/^conteineres_falhas=//p')
+	[ "${falhas_disp:-0}" -gt 0 ] && nota="${nota}; MemAvailable não lido em ${falhas_disp}"
+	[ "${falhas_cont:-0}" -gt 0 ] && nota="${nota}; soma dos contêineres não lida em ${falhas_cont}"
+	if [ -n "$nota" ]; then
+		echo "[medir] ATENÇÃO: leitura que falhou não é zero — o registro diz quantas faltaram${nota}."
+	fi
+	printf '| %s | %s | %dm %02ds | %s | %s | %s amostras a cada %ss%s |\n' \
 		"$ALVO" "$DE_PE" "$((DURACAO / 60))" "$((DURACAO % 60))" \
-		"$(awk -v m="${disp:-0}" 'BEGIN{printf "%.1f", m/1024}')" \
-		"$(awk -v m="${cont:-0}" 'BEGIN{printf "%.1f", m/1024}')" \
-		"${n:-0}" "$INTERVALO"
+		"$(_gb "$disp")" "$(_gb "$cont")" "${n:-0}" "$INTERVALO" "$nota"
 }
 
 # ── Execução ────────────────────────────────────────────────────────────────
@@ -282,7 +316,7 @@ DE_PE="$(_de_pe)"
 AMOSTRAS="$(mktemp)"
 trap 'rm -f "$AMOSTRAS"' EXIT
 
-echo "[medir] $ALVO — início $INICIO_ISO; estação: $(awk -v m="$MEM_INICIAL" 'BEGIN{printf "%.1f GB", m/1024}') livres, de pé: $DE_PE"
+echo "[medir] $ALVO — início $INICIO_ISO; estação: $(_gb "$MEM_INICIAL") livres, de pé: $DE_PE"
 
 # O amostrador vigia ESTE processo e morre com ele.
 _amostrar_ate_morrer "$AMOSTRAS" $$ &
