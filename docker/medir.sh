@@ -11,11 +11,17 @@
 #   medir.sh --cenario streaming [--limite n]    o caso do pipeline concorrente
 #   medir.sh --agregar <arquivo de amostras>     só agrega (é o que os testes usam)
 #
-# **Os extremos são amostrados, não garantidos.** A cada `INTERVALO` segundos o
-# medidor lê `MemAvailable` e a soma do uso dos contêineres, e guarda o mínimo
-# e o máximo com o instante, o intervalo e o número de amostras. Um pico entre
-# duas amostras não aparece, e é por isso que o intervalo e a contagem vão no
-# registro: sem eles o número parece uma garantia.
+# **Os extremos são amostrados, não garantidos.** Com uma pausa de `INTERVALO`
+# segundos entre uma amostra e a seguinte, o medidor lê `MemAvailable` e a soma
+# do uso dos contêineres, e guarda o mínimo e o máximo com o instante, o período
+# e o número de amostras. Um pico entre duas amostras não aparece, e é por isso
+# que o período e a contagem vão no registro: sem eles o número parece uma
+# garantia.
+#
+# **A pausa não é o período.** Cada amostra ainda espera o `docker stats`, que
+# leva de 2 a 3 s (medido em 23/09/2026) — com `INTERVALO=2` saem amostras a
+# cada ~4,5 s, não a cada 2. O período vai no registro como foi **medido** na
+# série (`periodo_medio_s`), ao lado da pausa configurada (`intervalo_s`).
 #
 # **Os dois números não medem a mesma coisa, e ficam lado a lado por isso.** O
 # `MemAvailable` inclui a estação inteira — navegador, editor, sessões de
@@ -83,9 +89,13 @@ _amostrar_ate_morrer() {  # $1 = arquivo de amostras, $2 = PID a vigiar
 #
 # Cada grandeza conta as **suas** falhas, e o extremo sai só das amostras
 # válidas dela. Sem nenhuma válida o extremo é `null` — não medido —, e o
-# instante dele não existe.
+# instante dele não existe. O período é a janela dividida pelos intervalos
+# entre amostras; com menos de duas, não há período, e ele vai `null`.
+#
+# `LC_ALL=C` porque o `mawk` segue o locale, e em pt_BR o `%.1f` sai com
+# vírgula — que no JSON do registro é erro de sintaxe.
 agregar() {  # $1 = arquivo de amostras
-	awk '
+	LC_ALL=C awk '
 		NF == 0 { next }
 		{ n += 1; if (n == 1) primeiro = $1; ultimo = $1 }
 		$2 == "NA" { falhas_disp += 1 }
@@ -102,6 +112,8 @@ agregar() {  # $1 = arquivo de amostras
 			else print "conteineres_maximo_mb=null"
 			printf "conteineres_falhas=%d\n", falhas_cont
 			printf "janela_s=%d\n", ultimo - primeiro
+			if (n >= 2) printf "periodo_medio_s=%.1f\n", (ultimo - primeiro) / (n - 1)
+			else print "periodo_medio_s=null"
 		}
 	' "$1"
 }
@@ -155,7 +167,7 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 			esac
 		done < <(agregar "$AMOSTRAS")
 		printf '},\n'
-		printf '  "limite": "a soma dos contêineres não inclui o Beam nem o produtor, que rodam no host; os extremos são amostrados"\n'
+		printf '  "limite": "a soma dos contêineres não inclui o Beam nem o produtor, que rodam no host; os extremos são amostrados, e o período entre amostras é periodo_medio_s — intervalo_s é só a pausa"\n'
 		printf '}\n'
 	} > "$1"
 }
@@ -178,8 +190,12 @@ _nome_do_registro() {
 _linha_da_tabela() {
 	local valores
 	valores=$(agregar "$AMOSTRAS")
-	local n disp cont falhas_disp falhas_cont nota=""
+	local n disp cont falhas_disp falhas_cont periodo cadencia="" nota=""
 	n=$(printf '%s\n' "$valores" | sed -n 's/^amostras=//p')
+	periodo=$(printf '%s\n' "$valores" | sed -n 's/^periodo_medio_s=//p')
+	# O período medido, com a vírgula da tabela da Capacidade; a pausa vai ao
+	# lado, entre parênteses, para que ninguém leia uma pela outra.
+	case "$periodo" in ''|null) ;; *) cadencia=", uma a cada ${periodo/./,} s" ;; esac
 	disp=$(printf '%s\n' "$valores" | sed -n 's/^disponivel_minimo_mb=//p')
 	cont=$(printf '%s\n' "$valores" | sed -n 's/^conteineres_maximo_mb=//p')
 	falhas_disp=$(printf '%s\n' "$valores" | sed -n 's/^disponivel_falhas=//p')
@@ -189,9 +205,9 @@ _linha_da_tabela() {
 	if [ -n "$nota" ]; then
 		echo "[medir] ATENÇÃO: leitura que falhou não é zero — o registro diz quantas faltaram${nota}."
 	fi
-	printf '| %s | %s | %dm %02ds | %s | %s | %s amostras a cada %ss%s |\n' \
+	printf '| %s | %s | %dm %02ds | %s | %s | %s amostras%s (pausa de %s s)%s |\n' \
 		"$ALVO" "$DE_PE" "$((DURACAO / 60))" "$((DURACAO % 60))" \
-		"$(_gb "$disp")" "$(_gb "$cont")" "${n:-0}" "$INTERVALO" "$nota"
+		"$(_gb "$disp")" "$(_gb "$cont")" "${n:-0}" "$cadencia" "$INTERVALO" "$nota"
 }
 
 # ── Execução ────────────────────────────────────────────────────────────────

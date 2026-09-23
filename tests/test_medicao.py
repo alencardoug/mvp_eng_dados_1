@@ -114,6 +114,20 @@ def test_agregacao_acha_extremos_e_diz_de_quantas_amostras(tmp_path):
     assert valores["conteineres_maximo_mb"] == "4200"
     assert valores["conteineres_maximo_em"] == "1004"
     assert valores["janela_s"] == "6"
+    assert valores["periodo_medio_s"] == "2.0", "três intervalos em seis segundos"
+
+
+def test_uma_amostra_nao_tem_periodo(tmp_path):
+    """Período é entre amostras: com uma só, ele não existe — e não é zero."""
+    serie = tmp_path / "amostras"
+    serie.write_text("1000 8000 3000\n", encoding="utf-8")
+
+    r = subprocess.run(
+        [str(MEDIR), "--agregar", str(serie)], capture_output=True, text=True, timeout=60
+    )
+    valores = dict(l.split("=", 1) for l in r.stdout.split())
+
+    assert valores["periodo_medio_s"] == "null"
 
 
 def test_agregacao_de_serie_vazia_nao_inventa_extremos(tmp_path):
@@ -238,13 +252,14 @@ def test_medicao_registra_duracao_codigo_e_a_linha_da_tabela(tmp_path):
     assert registro["duracao_involucro_s"] >= 3
     assert registro["amostragem"]["amostras"] >= 2
     assert registro["amostragem"]["intervalo_s"] == 1
+    assert registro["amostragem"]["periodo_medio_s"] >= 1
     # O limite vai no registro, não num comentário que ninguém lê depois.
     assert "não inclui o Beam" in registro["limite"]
     assert registro["encerramento"] is None, "o medidor não iniciou nada que precisasse encerrar"
     # A linha impressa é a da tabela da Capacidade.
     linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
     assert len(linha) == 1, r.stdout
-    assert "amostras a cada 1s" in linha[0]
+    assert "uma a cada" in linha[0] and "(pausa de 1 s)" in linha[0], linha[0]
 
 
 def _docker_com_stats(tmp_path: pathlib.Path, stats: str) -> None:
@@ -290,6 +305,30 @@ def test_docker_stats_que_nao_mede_vira_nao_medido_e_nao_zero(tmp_path, stats):
     linha = next(l for l in r.stdout.splitlines() if l.startswith("| alvo |"))
     assert "não medido" in linha and "0.0 GB" not in linha, linha
     assert "leitura que falhou não é zero" in r.stdout
+
+
+def test_o_periodo_medido_inclui_a_leitura_e_nao_so_a_pausa(tmp_path):
+    """A pausa não é o período: cada amostra ainda espera o `docker stats`.
+
+    Medido em 23/09/2026: o `docker stats` real leva de 2 a 3 s, e o registro de
+    20/09 dizia `intervalo_s: 2` com 3 amostras em 9 s — uma a cada 4,5 s. Aqui
+    o `stats` simulado leva 1 s e a pausa é de 1 s: o período sai ~2 s, e é ele
+    que o registro e a tabela afirmam.
+    """
+    ambiente, trabalho = _ambiente(tmp_path, makefile="alvo:\n\t@sleep 7\n")
+    _docker_com_stats(tmp_path, 'sleep 1; echo "10MiB / 1GiB"')
+
+    r = subprocess.run(
+        [str(MEDIR), "alvo"], cwd=trabalho, capture_output=True, text=True, env=ambiente, timeout=60
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    amostragem = _registro(tmp_path)["amostragem"]
+    assert amostragem["intervalo_s"] == 1
+    assert amostragem["periodo_medio_s"] >= 1.5, amostragem
+    linha = next(l for l in r.stdout.splitlines() if l.startswith("| alvo |"))
+    periodo = str(amostragem["periodo_medio_s"]).replace(".", ",")
+    assert f"uma a cada {periodo} s (pausa de 1 s)" in linha, linha
 
 
 def test_nenhum_conteiner_de_pe_e_zero_lido(tmp_path):
