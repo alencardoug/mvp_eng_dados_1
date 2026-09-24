@@ -10,7 +10,7 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.11 |
+| Versão | 1.12 |
 | Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
 | Última revisão | 24/09/2026 |
 
@@ -259,6 +259,19 @@ completo de troca, medido: **18 s**. A volta do Airbyte, medida em 23/09/2026 em
 API responde **entre 74 s e 101 s** depois do `docker start` (74 s com 9,0 GB livres depois da pausa,
 96 s com 6,3 GB), e `airbyte-resume` e `airbyte-up` esperam por ela.
 
+**O que a pausa custa a quem é pausado (D56).** O `docker stop` dá 10 s. O nó do Airbyte para com o
+desligamento ordenado do systemd, que leva **~91 s** (90,7 s medidos em 24/09/2026, código 130); na
+pausa, ele termina em SIGKILL (137), e o Kafka Connect também. Para o Postgres interno do Airbyte —
+o contador de *jobs* e os cursores —, cada pausa é uma queda, e a retomada passa pela recuperação
+dele. Nas retomadas medidas depois da pausa de sempre — três em 23/09 e duas em 24/09/2026, com o
+137 observado nas de 24/09 —, a API voltou e o contador de *jobs* continuou o mesmo. Esperar a
+parada limpa custaria ~80 s em toda troca que pausa o Airbyte, e ficou decidido não pagar.
+
+**A rede do projeto é externa (D55).** As três composições compartilham o projeto e a rede dele,
+que o `Makefile` cria antes de qualquer `up` e nenhum `down` remove: contêiner pausado nunca perde a
+rede. Antes, o `make down` dos bancos a levava — ver
+[a retomada que falha com `network … not found`](#retomar-o-airflow-ou-o-streaming-falha-com-network--not-found).
+
 **Duas salvaguardas, porque troca automática que erra custa trabalho perdido:**
 
 - **Nada é pausado com trabalho em andamento.** Antes de parar qualquer coisa, o *preflight* procura
@@ -491,6 +504,34 @@ Kubernetes chega a dizer todos prontos nos primeiros segundos, com o estado de a
 Reiniciar o contêiner **não** reaplica o chart, e `make airbyte-up` também não: com o cluster de
 pé, ele só confere a API (D53). Mudança no `airbyte/values.yaml` vale na instalação — ver
 [a sincronização que fica `running`](#a-sincronização-do-airbyte-fica-running-para-sempre-e-não-move-linha).
+
+### Retomar o Airflow ou o *streaming* falha com `network … not found`
+
+Sintoma, num `make airflow-resume` (ou `stream-resume`), ou já no `make airflow-up`:
+
+```
+ATENÇÃO: Airflow NÃO voltou por inteiro — 4 de 4 continuam parados:
+```
+
+e o erro que o Docker guardou no contêiner, em `docker inspect -f '{{.State.Error}}' <contêiner>`:
+
+```
+failed to set up container networking: network ca8efc33b24f… not found
+```
+
+As três composições compartilham o projeto e a rede dele. Até a D55, essa rede era do Compose, e o
+`make down` dos bancos a removia; o `make up` seguinte criava outra, com outro ID, e os contêineres
+pausados do Airflow e do *streaming* continuavam apontando para a antiga. Foi o que aconteceu de
+21/09 a 24/09/2026. Desde a D55, a rede é externa e nenhum `down` a remove: o sintoma não se repete.
+
+**Com contêineres presos a uma rede que já saiu:** recriá-los. `make airflow-up` recria os que
+mudaram de configuração, mas não o que ficou igual — em 24/09/2026, o `airflow_db` continuou preso.
+O que funcionou foi remover só o contêiner preso, cujos dados ficam no volume, e subir de novo:
+
+```bash
+docker rm mvp_ed1-airflow_db-1   # o volume mvp_ed1_airflow_db_data fica — o histórico da DAG sobreviveu
+make airflow-up
+```
 
 ### `make airbyte-up` falha com `permission denied` no `PG_VERSION`
 

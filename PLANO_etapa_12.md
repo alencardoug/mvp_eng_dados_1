@@ -96,6 +96,11 @@
 > `airbyte-up` confere a API em vez de reinstalar, e os `*-resume` passam pela mesma troca dos
 > `*-up`. O que mudou está no fim da §2.1. A quarta rodada de revisão da entrega confere as
 > respostas da terceira e estas duas mudanças.
+>
+> **D55 e D56 — 24/09/2026, mesma data.** Exercitar de verdade a D53 e a D54, com a memória
+> liberada, achou a rede do projeto sendo levada pelo `make down` — os contêineres pausados do
+> Airflow presos à rede antiga desde 21/09 — e a pausa do Airbyte terminando em SIGKILL. O Owner
+> decidiu a rede externa e manter a pausa, documentada. Tudo no fim da §2.1.
 
 ---
 
@@ -426,6 +431,17 @@ preflight: 33 → 39 casos; `tests/test_makefile.py`: 18 → 41. Medido sem muda
 com o Airbyte de pé e 2,3 GB livres, o *preflight* anterior recusava ("sobraria -2,5 GB") e o novo
 diz "nada a cobrar"; `airbyte-up` e `airbyte-resume` com o cluster de pé terminam em 0,32 s, com o
 instante de início do contêiner intacto.
+
+**Exercitado de verdade, com a memória liberada — 24/09/2026.** Rodaram contra a máquina, sem
+`FORCE`: as três trocas das retomadas (`airbyte-resume` e `airflow-resume` pausando o *streaming*,
+`stream-resume` pausando o Airbyte), `stream-up` pausando o Airbyte e o Airflow juntos, `airbyte-up`
+pelo ramo pausado, o Airflow de pé pela metade e o Docker que não responde (`DOCKER_HOST` num soquete
+inexistente). As saídas estão no dossiê. O exercício achou dois assuntos, decididos pelo Owner no
+mesmo dia ([Pendências §2](docs/pendencias.md#d55-e-d56--decididas-em-24092026)): **D55** — a rede do
+projeto passa a ser externa, porque o `make down` a levava e os contêineres pausados ficavam presos
+ao ID antigo, os do Airflow desde 21/09; **D56** — a pausa do Airbyte continua terminando em SIGKILL
+aos 10 s, contra ~91 s da parada limpa, e ficou documentada. `tests/test_makefile.py`: 41 → 48
+casos; suíte do preflight: 39 → 40.
 
 ---
 

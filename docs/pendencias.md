@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; D53 e D54, levantadas na verificação da terceira, **decididas e implementadas em 24/09/2026**; **B5 sem autorização** — exige a do Owner, e o candidato do pacote precisa ser refeito antes (`make recovery-pack`) |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; D53 e D54, levantadas na verificação da terceira, **decididas e implementadas em 24/09/2026**, e D55 e D56, levantadas ao exercitá-las, decididas no mesmo dia; **B5 sem autorização** — exige a do Owner, e o candidato do pacote precisa ser refeito antes (`make recovery-pack`) |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 24/09/2026 |
@@ -82,6 +82,33 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 ---
 
 ## 2. Decisões já fechadas
+
+### D55 e D56 — decididas em 24/09/2026
+
+Duas decisões de operação que o exercício real da D53 e da D54 levantou, com a memória liberada.
+Como D45–D54, nenhuma troca ferramenta, camada ou modelagem; nenhum ADR.
+
+- **D55 — a rede do projeto é externa, e nenhum `down` a remove.** As três composições compartilham o
+  projeto e a rede padrão dele. Gerida pelo Compose, ela ia embora no `make down` dos bancos, e os
+  contêineres pausados do Airflow e do *streaming* ficavam presos ao ID antigo: em 21/09 um down/up
+  a recriou, e de lá até 24/09 nenhuma retomada do Airflow funcionaria — `airflow-resume` recusou
+  ("network … not found"), e `airflow-up` não recriou o `airflow_db`. Agora as três declaram
+  `<projeto>_default` como externa — o nome que o Compose já dava, para não recriar o que está de pé
+  —, e `up`, `airflow-up` e `stream-up` a garantem antes de subir. Medido: numa composição
+  descartável, a rede gerida reproduz a falha e a externa não; no projeto, `make down` manteve a rede
+  com o mesmo ID, e `make airflow-resume` religou depois do down/up. *Descartadas:* `make down`
+  recusar com contêiner parado de outra composição — atrito, e não conserta o que já quebrou —; as
+  retomadas recriarem pelo Compose o que perdeu a rede — a retomada passaria a conhecer o Compose, e
+  o preflight também —; e só documentar, com o defeito voltando a cada `make down`. *Custo aceito:*
+  um recurso que o `Makefile` cria e nenhum alvo remove — nem `make reset`, porque removê-la é o que
+  prendia os pausados —, e o nome `_default`, que parece do Compose e não é mais.
+- **D56 — a pausa do Airbyte continua terminando em SIGKILL, documentada.** O `docker stop` dá 10 s,
+  e o desligamento ordenado do nó do `kind` leva ~91 s (90,7 s medidos, código 130): a pausa termina
+  em 137, e a do Kafka Connect também. Para o Postgres interno do Airbyte, cada pausa é uma queda com
+  recuperação na volta; ela não falhou em nenhuma retomada medida, e o contador de *jobs* continuou em
+  43. *Descartada:* a parada limpa (`docker stop -t 120`) na pausa, ~80 s a mais em toda troca que
+  pausa o Airbyte. *Risco aceito:* uma recuperação que falhe, que ninguém mediu falhando. A nota
+  operacional está na [Execução Local §5](execucao_local.md#5-executando-por-partes).
 
 ### D53 e D54 — decididas e implementadas em 24/09/2026
 
