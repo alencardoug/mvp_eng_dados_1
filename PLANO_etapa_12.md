@@ -112,6 +112,15 @@
 > parecer (`REVISAO.md` §14) confirmou as formas originais e achou uma regressão da correção,
 > RVE5-01: o YAML do `config` põe entre aspas nomes como `123` e `yes`, e as aspas iam para o nome.
 > Aplicado no mesmo dia; o que mudou está no fim da §2.1, e as saídas na §15 do dossiê.
+>
+> **Revisão da entrega B0/B1/B4 encerrada — 24/09/2026, mesma data.** A sexta rodada, só sobre o
+> RVE5-01, confirmou a correção e não abriu achado. Seis rodadas sobre o código, **26 achados** —
+> 15 bloqueantes e 11 ajustes (17 + 5 + 2 + 1 + 1 + 0) —, todos fechados com a situação preenchida
+> na rodada que os recebeu, e as decisões D53 a D56 tomadas no caminho. O dossiê saiu da árvore no
+> *commit* do encerramento, e o histórico está no *git*: as rodadas 1 e 2 em
+> `git show 2136781:REVISAO.md`, a 3ª em `git show c10a30c:REVISAO.md`, da 4ª à 6ª em
+> `git show a001887:REVISAO.md`. B2 e B3 ficam para a revisão final, depois de B6, com dossiê novo. O
+> próximo bloco é B5, que exige a autorização do Owner.
 
 ---
 
@@ -470,6 +479,11 @@ YAML do `config`, que põe entre aspas os nomes que ele mesmo leria como outra c
 `resolver`. A leitura passa a ser a do JSON do mesmo `config`, só a chave do topo e só um nome na
 gramática do Compose; qualquer outra forma é "não sei". `jq` e Python, leitores de verdade, seriam
 pré-requisitos novos, e não foram adotados. `tests/test_makefile.py`: 61 → 79 casos.
+
+**Sexta rodada — 24/09/2026 (`REVISAO.md` §17).** Confirmou o RVE5-01 e não abriu achado; as sondas
+do revisor ampliaram as nossas — dez nomes conferem com o Compose, e JSON compacto, outro recuo,
+nome só aninhado e nome inválido dão "não sei". Com ela, a revisão da entrega B0/B1/B4 está
+encerrada (cabeçalho deste plano).
 
 ---
 
