@@ -191,6 +191,7 @@ def test_partial_unique_index_does_not_reject_secondary_or_deleted_addresses(cla
         assert codes(actual[1]) == codes(actual[4]) == {"DUP_PARTIAL"}
 
 
+@pytest.mark.integracao  # chama `dbt compile`, que precisa do perfil de conexão e do projeto compilável
 def test_configuracao_divergente_da_impressao_recusa_a_compilacao(tmp_path):
     """R24 da terceira revisão: `--vars` mudava o tratamento e preservava o hash.
 
@@ -248,6 +249,7 @@ def _identidade_canonica(expressao: str) -> str:
     return jinja2.Environment().from_string(fonte).module.identidade_canonica(expressao)
 
 
+@pytest.mark.integracao  # consulta o armazém pela fixture `classifier_engine`
 def test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai(classifier_engine):
     """R29 da terceira revisão: auditoria bruta contra pai tipado nunca casava.
 

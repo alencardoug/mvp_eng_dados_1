@@ -113,7 +113,7 @@ endef
         stream-duplicate stream-alerts stream-reset-sink \
         preflight airbyte-pause airbyte-resume stream-pause stream-resume \
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
-        docs-check secrets-history dbt-rebuild \
+        docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         require-env require-venv require-abctl require-terraform
 
@@ -685,6 +685,25 @@ check: require-env require-venv ## Verificação completa, parando na primeira f
 	@echo "── 4/4 pytest: código, contratos e integração ──"
 	@$(MAKE) --no-print-directory test FATO=$(FATO)
 	@echo "check: as quatro etapas passaram"
+
+check-offline: require-env require-venv ## O que se confere sem nada de pé: segredos, documentos e a suíte sem os testes de integração
+	@# O primeiro comando do clone de B5, antes de subir qualquer contêiner
+	@# (RV12-2-04): mede o que não depende de banco, `dbt` nem serviço, e por
+	@# isso roda num checkout novo, sem `dbt/target` nem dados gerados. O
+	@# `check` completo continua o mesmo e roda depois das ingestões. Quem
+	@# precisa de banco ou do `dbt` leva a marca `integracao` — achados por uma
+	@# sonda que nega e anota cada acesso, com as variáveis de conexão
+	@# presentes, porque sem elas os guardas de `skip` escondem o acesso. O que
+	@# fica de fora é listado: os pulados, com o motivo; os de integração, por
+	@# arquivo.
+	@echo "── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──"
+	@.venv/bin/python -m mvp_ed1.secrets_review
+	@.venv/bin/python -m mvp_ed1.docs_check
+	@echo "── 2/3 pytest sem os testes de integração ──"
+	@set -a; . ./.env; set +a; MVP_TESTE_FATO=0 .venv/bin/pytest -q -rs -m "not integracao"
+	@echo "── 3/3 o que ficou de fora: os de integração, que rodam no make check ──"
+	@.venv/bin/pytest -q --co -m integracao | sed -n 's/::.*//p' | sort | uniq -c
+	@echo "check-offline: as três etapas passaram"
 
 test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui
 	@# O banco nasce ao lado do `source_db`, com sufixo `_carga`, recebe as

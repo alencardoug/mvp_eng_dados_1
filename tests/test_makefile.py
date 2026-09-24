@@ -786,3 +786,43 @@ def test_o_filtro_de_projeto_e_o_nome_que_o_compose_resolve(tmp_path, nome):
     filtros = [p for linha in registro.read_text(encoding="utf-8").splitlines() for p in linha.split()
                if p.startswith("label=com.docker.compose.project=")]
     assert filtros == [f"label=com.docker.compose.project={esperado}"], filtros
+
+
+# ── RV12-2-04: o check-offline, o primeiro comando do clone de B5 ───────────
+
+
+def test_check_offline_nao_sobe_nem_consulta_nada(tmp_path):
+    """Segredos, documentos e a suíte sem a marca `integracao` — nada de `dbt`, migração ou
+    contêiner: é o que roda num clone antes de subir qualquer coisa."""
+    r, chamadas = _make(tmp_path, "check-offline")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert chamadas[:3] == [
+        "python -m mvp_ed1.secrets_review",
+        "python -m mvp_ed1.docs_check",
+        "pytest -q -rs -m not integracao",
+    ], chamadas
+    assert "pytest -q --co -m integracao" in chamadas, chamadas
+    assert not any(c.split()[0] in {"dbt", "alembic", "docker", "abctl", "terraform"} for c in chamadas), chamadas
+
+
+#: Os quatro que a sonda achou tocando o armazém ou o `dbt` (a do plano em 19/09 e a de 24/09, com a
+#: suíte três vezes maior, acharam os mesmos): fora da seleção offline.
+PRECISAM_DO_ARMAZEM = [
+    "tests/test_consumo.py::test_toda_view_de_consumo_responde",
+    "tests/test_consumo.py::test_as_dezesseis_perguntas_estao_publicadas",
+    "tests/test_legacy_classification.py::test_configuracao_divergente_da_impressao_recusa_a_compilacao",
+    "tests/test_legacy_classification.py::test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai",
+]
+
+
+def test_o_que_precisa_do_armazem_fica_fora_do_check_offline():
+    r = subprocess.run(
+        [str(RAIZ / ".venv" / "bin" / "pytest"), "--co", "-q", "-m", "not integracao", "-p", "no:cacheprovider",
+         "tests/test_consumo.py", "tests/test_legacy_classification.py"],
+        cwd=RAIZ, capture_output=True, text=True, timeout=120,
+    )
+
+    selecionados = set(r.stdout.split())
+    assert not [t for t in PRECISAM_DO_ARMAZEM if t in selecionados], r.stdout
+    assert any(t.startswith("tests/test_legacy_classification.py::") for t in selecionados), "os outros continuam"

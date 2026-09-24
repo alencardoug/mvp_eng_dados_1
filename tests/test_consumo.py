@@ -21,6 +21,10 @@ from sqlalchemy import create_engine, text
 
 from mvp_ed1.db import WAREHOUSE, database_url
 
+#: O arquivo inteiro consulta o armazém — a fixture de conexão é de módulo e
+#: serve os dois testes. Fora de `make check-offline` (RV12-2-04).
+pytestmark = pytest.mark.integracao
+
 
 @pytest.fixture(scope="module")
 def engine():
