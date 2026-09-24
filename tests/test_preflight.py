@@ -914,6 +914,14 @@ def test_resolucao_separa_projetos(tmp_path):
     assert r.stdout.split() == ["clone_etapa12-airflow_scheduler-1"], r.stdout
 
 
+def test_projeto_diz_o_nome_que_o_compose_usa(tmp_path):
+    """D55: a rede do projeto é `<projeto>_default`, e o `Makefile` tira o nome daqui."""
+    r = _conteineres(tmp_path, "projeto", estado="", projeto="clone_etapa12")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout == "clone_etapa12\n"
+
+
 # ── airflow_cli.sh: esperar a execução certa, pausar com três desfechos ──────
 
 AIRFLOW_CLI_SH = RAIZ / "docker" / "airflow_cli.sh"

@@ -21,7 +21,8 @@ esgotar o prazo é erro nos dois chamadores (RVE3-02).
 E as duas decisões de 24/09/2026 sobre subir e retomar: `airbyte-up` com o
 cluster de pé confere a API em vez de reinstalar (D53), e todo alvo que liga
 Airbyte, Airflow ou *streaming* passa pelo preflight antes — os `*-resume`
-religavam sem conferir memória nem conflito (D54).
+religavam sem conferir memória nem conflito (D54). E a rede do projeto passa a
+ser externa, criada pelo `Makefile`, para que nenhum `down` a leve (D55).
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ import shutil
 import subprocess
 
 import pytest
+import yaml
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 
@@ -497,3 +499,83 @@ def test_retomar_o_que_nao_existe_recusa_antes_da_troca(tmp_path, alvo, familia)
     assert r.returncode != 0, r.stdout
     assert "não existe" in r.stdout or "não tem contêineres" in r.stdout, r.stdout
     assert not any(c.startswith("preflight.sh") for c in chamadas), chamadas
+
+
+# ── D55: a rede do projeto é externa, e nenhum `down` a remove ──────────────
+
+#: As três composições que compartilham o projeto — e a rede dele.
+COMPOSICOES = ("docker/docker-compose.yml", "docker/docker-compose.airflow.yml", "docker/docker-compose.streaming.yml")
+
+
+@pytest.mark.parametrize("composicao", COMPOSICOES)
+def test_as_composicoes_declaram_a_rede_do_projeto_como_externa(composicao):
+    """D55: gerida pelo Compose, a rede ia embora no `make down` dos bancos, e os
+    contêineres pausados do Airflow e do streaming ficavam presos ao ID antigo —
+    `docker start` recusava, de 21/09 a 24/09/2026. Externa, nenhum `down` a
+    remove. O nome é o que o Compose já dava, e os contêineres de pé ficam nela.
+    """
+    documento = yaml.safe_load((RAIZ / composicao).read_text(encoding="utf-8"))
+
+    assert documento["networks"]["default"] == {"name": "${COMPOSE_PROJECT_NAME:-mvp_ed1}_default", "external": True}
+
+
+#: Uma receita que sobe uma composição.
+SOBE_COMPOSICAO = re.compile(r"\$\(COMPOSE(?:_AIRFLOW|_STREAM)?\) up\b")
+
+
+def test_todo_up_do_compose_garante_a_rede_antes():
+    """Externa, a rede não nasce do `up`: quem sobe uma composição a garante antes."""
+    receitas = _receitas((RAIZ / "Makefile").read_text(encoding="utf-8"))
+    sobem = {alvo: linhas for alvo, linhas in receitas.items() if any(SOBE_COMPOSICAO.search(l) for l in linhas)}
+
+    sem_rede = []
+    for alvo, linhas in sobem.items():
+        sobe = next(i for i, l in enumerate(linhas) if SOBE_COMPOSICAO.search(l))
+        if not any(l == "$(GARANTIR_REDE)" for l in linhas[:sobe]):
+            sem_rede.append(alvo)
+
+    assert sorted(sobem) == ["airflow-up", "stream-up", "up"], "o conjunto dos que sobem mudou — confira o padrão"
+    assert sem_rede == [], "sobe composição sem garantir a rede antes: " + ", ".join(sem_rede)
+
+
+#: `docker` que responde pela rede: `SIM_REDE=1` diz que ela existe, e
+#: `SIM_CRIA=0` faz a criação falhar. O resto só é registrado.
+DOCKER_DA_REDE = """#!/usr/bin/env bash
+echo "docker $*" >> "$SIM_LOG"
+case "$1 $2" in
+  "network inspect") [ "${SIM_REDE:-0}" = 1 ] || exit 1 ;;
+  "network create") [ "${SIM_CRIA:-1}" = 1 ] || exit 1 ;;
+esac
+exit 0
+"""
+
+#: O `conteineres.sh` real: é ele quem diz o nome do projeto, e daí o da rede.
+CONTEINERES_REAL = (RAIZ / "docker" / "conteineres.sh").read_text(encoding="utf-8")
+
+
+def _subir(tmp_path: pathlib.Path, **ambiente: str) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    return _make(
+        tmp_path,
+        "up",
+        docker=DOCKER_DA_REDE,
+        ambiente_extra={"COMPOSE_PROJECT_NAME": "mvp_ed1", **ambiente},
+        simulados={"docker/conteineres.sh": CONTEINERES_REAL},
+    )
+
+
+@pytest.mark.parametrize("existe", [pytest.param(False, id="sem-rede"), pytest.param(True, id="com-rede")])
+def test_make_up_cria_a_rede_so_quando_falta(tmp_path, existe):
+    r, chamadas = _subir(tmp_path, SIM_REDE="1" if existe else "0")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert ("docker network create mvp_ed1_default" in chamadas) is (not existe), chamadas
+    sobe = next(i for i, c in enumerate(chamadas) if c.startswith("docker compose") and " up " in c)
+    assert chamadas.index("docker network inspect mvp_ed1_default") < sobe, chamadas
+
+
+def test_sem_rede_nada_sobe(tmp_path):
+    r, chamadas = _subir(tmp_path, SIM_REDE="0", SIM_CRIA="0")
+
+    assert r.returncode != 0, r.stdout
+    assert "a rede mvp_ed1_default não existe e não consegui criá-la" in r.stdout, r.stdout
+    assert not any(c.startswith("docker compose") for c in chamadas), chamadas

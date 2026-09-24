@@ -17,6 +17,7 @@
 #   conteineres.sh resolver [--todos] <serviço|@grupo>...   nomes, um por linha
 #   conteineres.sh pausar   <rótulo> <serviço|@grupo>...    para e CONFERE o estado
 #   conteineres.sh retomar  <rótulo> <serviço|@grupo>...    religa e CONFERE o estado
+#   conteineres.sh projeto                                  o nome do projeto do Compose
 #
 # `@airflow`, `@streaming` e `@bancos` são os grupos declarados abaixo. Quem
 # consome — preflight e Makefile — cita o grupo, nunca repete a lista: lista
@@ -155,11 +156,12 @@ retomar() {
 
 # --- CLI, só quando executado ------------------------------------------------
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-	acao="${1:?uso: conteineres.sh <resolver|pausar|retomar> ...}"; shift
+	acao="${1:?uso: conteineres.sh <resolver|pausar|retomar|projeto> ...}"; shift
 	case "$acao" in
 	resolver) resolver "$@" ;;
 	pausar)   pausar "$@" ;;
 	retomar)  retomar "$@" ;;
+	projeto)  projeto_compose; echo ;;
 	*) echo "conteineres.sh: ação desconhecida '$acao'" >&2; exit 2 ;;
 	esac
 fi

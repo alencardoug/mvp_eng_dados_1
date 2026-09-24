@@ -132,3 +132,10 @@ services:
 volumes:
   airflow_db_data:
   airflow_logs:
+
+# A rede do projeto é externa (D55): o `Makefile` a cria antes de qualquer `up`
+# (`GARANTIR_REDE`), e nenhum `down` a remove. O porquê está lá.
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_default
+    external: true

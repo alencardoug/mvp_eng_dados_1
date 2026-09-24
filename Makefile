@@ -52,6 +52,20 @@ BASE := source_db legacy_db warehouse_db
 CONTEINERES := docker/conteineres.sh
 AIRFLOW_CLI := docker/airflow_cli.sh
 
+# A rede do projeto (D55). As três composições a declaram `external`, e ela
+# nasce aqui, antes de qualquer `up`: nenhum `down` a remove. Gerida pelo
+# Compose, ela ia embora no `make down` dos bancos, e os contêineres pausados
+# do Airflow e do streaming ficavam presos ao ID da rede antiga — o `docker
+# start` recusava ("network … not found"), e nem `airflow-up` recriava o
+# `airflow_db`. Foi assim de 21/09 a 24/09/2026. O nome é o que o Compose já
+# dava à rede, para que os contêineres de pé continuem nela sem recriação; o
+# do projeto vem de `conteineres.sh`, dono da regra. Nenhum alvo a remove: ela
+# não guarda estado, e removê-la é o que prendia os pausados.
+REDE = $$($(CONTEINERES) projeto)_default
+GARANTIR_REDE = docker network inspect "$(REDE)" >/dev/null 2>&1 \
+	|| docker network create "$(REDE)" >/dev/null \
+	|| { echo "ERRO: a rede $(REDE) não existe e não consegui criá-la — o Docker respondeu?"; exit 1; }
+
 # Ponto único de recuperação (Etapa 12, B4). A lógica vive em
 # `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,
 # stream-*, airbyte-* e dbt-rebuild — e a interface de operação é o Makefile
@@ -164,6 +178,7 @@ install: ## Cria o .venv com Python 3.11 e instala o projeto em modo editável
 	@.venv/bin/python -c "import mvp_ed1, sys; print(f'mvp_ed1 {mvp_ed1.__version__} sobre Python {sys.version.split()[0]}')"
 
 up: require-env ## Sobe os três bancos e espera ficarem saudáveis
+	@$(GARANTIR_REDE)
 	$(COMPOSE) up -d --wait $(BASE)
 	@echo ""
 	@$(MAKE) --no-print-directory ps
@@ -427,6 +442,7 @@ airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, tr
 		  echo "AIRFLOW_PORT=8081"; \
 		  echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
 		  echo "AIRFLOW_FERNET_KEY=$$(pw)"; } >> .env; }
+	@$(GARANTIR_REDE)
 	@$(CREDENCIAIS); \
 		AIRFLOW_UID="$$(id -u)" \
 		AIRBYTE_CLIENT_ID="$$AIRBYTE_CLIENT_ID" AIRBYTE_CLIENT_SECRET="$$AIRBYTE_CLIENT_SECRET" \
@@ -459,6 +475,7 @@ dag-status: require-env ## Mostra o estado das tarefas da última execução da 
 # ── Caminho quente (Etapa 7) ────────────────────────────────────────────────
 stream-up: require-env ## Sobe Redpanda e Kafka Connect e aplica o conector Debezium
 	$(call preflight,streaming)
+	@$(GARANTIR_REDE)
 	@$(COMPOSE_STREAM) up -d --wait redpanda kafka_connect
 	@$(MAKE) --no-print-directory stream-connector
 	@echo ""
