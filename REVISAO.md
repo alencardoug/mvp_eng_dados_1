@@ -378,9 +378,11 @@ exercitado depois, com a memória liberada: §10. O que continua sem verificaç�
 - **O exemplo de saída da Execução Local §5** continua com a mensagem antiga ("não convive com
   'streaming'"), e a lista "Já de pé" junta os nomes com `;` sem espaço — cosmético, anterior. A
   atualização da §5 é de B6 (plano, §8, item 2).
-- **O `verificar.py` da skill de ADR acusa dois contadores — e já acusava em `c10a30c`**: conta as
-  pendentes pelo `**Dnn**` em negrito da §3 do Registro de Decisões, onde a D43 não está em negrito,
-  e não reconhece o formato `1 (D43, …)` do cabeçalho das Pendências. Os contadores estão certos.
+- **O `verificar.py` da skill de ADR acusava dois contadores — e já acusava em `c10a30c`**: contava
+  as pendentes pelo `**Dnn**` em negrito da §3 do Registro de Decisões, onde a D43 não está em
+  negrito, e não reconhecia o formato `1 (D43, …)` do cabeçalho das Pendências. **Corrigido depois,
+  fora do intervalo desta rodada** (`bb783f4`, a pedido do Owner): é ferramenta de coerência dos
+  documentos, escopo de B3, que fica para a revisão final.
 - O que os dossiês anteriores listavam como de B5 continua de B5.
 
 ## 5. Premissas sobre o ambiente
