@@ -1825,9 +1825,76 @@ Python seriam pré-requisitos novos.
 O ambiente continua como a §6 descreve; nenhuma sonda desta aplicação subiu ou criou nada — o
 `config` não fala com o daemon, e os diretórios de sonda, dentro de `.git/`, foram apagados.
 
+## 17. Parecer da sexta rodada — 24/09/2026
+
+Conferidos a resposta ao RVE5-01, a §15, `git show 9e20bcf` e o registro de `6a47ec8`, no escopo
+mínimo da §16. Os dois arquivos de implementação e testes de `9e20bcf` continuam iguais em
+`462c276`. **RVE5-01 confirmado como corrigido; nenhum achado novo nesta rodada.**
+
+A extração restrita é suficiente para o formato produzido pelo Compose instalado e para a
+gramática de nomes conferida. Ela não é um leitor geral de JSON: o recuo e a disposição da chave
+continuam sendo a premissa declarada na §15.4. Não identifiquei motivo, neste escopo, para exigir
+a adoção de outra ferramenta. As sondas abaixo confirmaram tanto os nomes quanto a recusa nas
+variações de formato exercitadas, sem apresentar essa verificação como garantia para todo JSON.
+
+### 17.1 E6-1 — testes
+
+Comando e linha final literal; omitidas apenas as linhas de progresso:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_makefile.py tests/test_preflight.py
+120 passed in 32.47s
+```
+
+A suíte confere nome e rede contra o `config --format json` lido por `json.loads`, o filtro de
+projeto enviado ao `docker ps` e os argumentos da garantia da rede. O Compose é real; as
+mutações desses testes são simuladas.
+
+### 17.2 E6-2 — comparação independente de nome e rede
+
+Sonda Python com `_rascunho`, `_ambiente_sem_projeto`, `_projeto` e `_config_do_compose` de
+`tests/test_makefile.py`, em diretórios temporários: `.env` com as três portas e
+`COMPOSE_PROJECT_NAME=<nome>`, sem a variável de projeto no ambiente do processo. `confere`
+exige saída 0, nome igual ao campo `name` do JSON e `<nome>_default` igual à rede resolvida pelo
+Compose. Saída literal:
+
+```text
+{"nome": "123", "script": "123", "exit": 0, "rede": "123_default", "confere": true}
+{"nome": "20260924", "script": "20260924", "exit": 0, "rede": "20260924_default", "confere": true}
+{"nome": "yes", "script": "yes", "exit": 0, "rede": "yes_default", "confere": true}
+{"nome": "true", "script": "true", "exit": 0, "rede": "true_default", "confere": true}
+{"nome": "false", "script": "false", "exit": 0, "rede": "false_default", "confere": true}
+{"nome": "null", "script": "null", "exit": 0, "rede": "null_default", "confere": true}
+{"nome": "on", "script": "on", "exit": 0, "rede": "on_default", "confere": true}
+{"nome": "off", "script": "off", "exit": 0, "rede": "off_default", "confere": true}
+{"nome": "0", "script": "0", "exit": 0, "rede": "0_default", "confere": true}
+{"nome": "a-b_c", "script": "a-b_c", "exit": 0, "rede": "a-b_c_default", "confere": true}
+```
+
+### 17.3 E6-3 — recusa das formas fora do contrato
+
+Mesmo script copiado para um rascunho, com um `docker` simulado que somente imprime o arquivo
+JSON da sonda e sai 0. O caso de controle tem `name` no topo, com dois espaços; os demais têm
+JSON compacto, recuo de quatro espaços, somente `networks.default.name` aninhado ou nome `a.b`.
+Cada recusa foi conferida pelo código 4 **e** pela saída vazia:
+
+```text
+{"caso": "nome_no_topo", "exit": 0, "projeto": "123"}
+{"caso": "json_compacto", "exit": 4, "projeto": ""}
+{"caso": "outro_recuo", "exit": 4, "projeto": ""}
+{"caso": "somente_nome_aninhado", "exit": 4, "projeto": ""}
+{"caso": "nome_invalido", "exit": 4, "projeto": ""}
+```
+
+### 17.4 Limites
+
+Nenhum contêiner, rede ou dado foi alterado. Não executados `make check`, subida real, restauração
+ou B5; nenhum `FORCE=1` foi usado para operar o ambiente. `bb783f4` continua fora desta revisão.
+A confirmação técnica do RVE5-01 não constitui aceite da entrega nem autorização de B5.
+
 ## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RVE4-01 | `Makefile:64–67`; `docker/conteineres.sh:67–77` | **A garantia pode preparar outra rede que a exigida pelo Compose.** Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, um `.env` válido com `export COMPOSE_PROJECT_NAME=rve4_clone_probe` faz o script retornar `mvp_ed1`, enquanto o Compose exige `rve4_clone_probe_default`. `make up` foi executado no rascunho com Docker real e saiu 2: `network rve4_clone_probe_default declared as external, but could not be found`. Comentário na mesma linha, interpolação e chave repetida também divergem na comparação de configuração. A D55 tornou esse parser uma pré-condição nova da subida: a rede deixou de ser criada pelo Compose. Fazer a garantia usar o mesmo nome efetivamente resolvido pelo Compose e cobrir a leitura pelo `.env`, além do nome fornecido diretamente pelo ambiente. Preservar a rede externa e a precedência do ambiente. **E4-3.** | `ajuste` | **Corrigido** (`c683313`). `projeto_compose` passa a perguntar o nome ao próprio Compose — o `config` da composição dos bancos, a linha `name:` —, com o ambiente na frente, como o Compose; uma consulta por execução, herdada pelos `resolver`; Compose que não responde é 4, e não o nome padrão. `GARANTIR_REDE` usa esse nome e recusa sem ele, sem criar nada. A precedência do ambiente e a rede externa ficam. A mesma leitura alimentava o `resolver` do preflight, que nessas formas procurava os contêineres pelo rótulo de outro projeto: corrigido na mesma fonte. Reproduzido antes, com os valores da E4-3 nas quatro formas. Depois: as sete formas (as seis da E4-3 e o `.env` sem o nome) batem com a rede do Compose instalado; a sonda do `make up` com `export`, espelhada com Docker real, sai 0 e cria `rve4_clone_probe_default`, desfeita em seguida. **Achado próprio:** a composição do Airflow não declarava `name:`; com o `.env` sem o nome, o Compose chamaria o projeto dela pela pasta — `docker` —, fora do alcance do preflight. Passa a declarar, e o nome resolvido não muda. Testes: +13 em `tests/test_makefile.py` e +1 em `tests/test_preflight.py`, oito reprovando o código anterior. `make check`: 545 passed, 8 skipped, `PASS=905`. §12. |
-| RVE5-01 | `docker/conteineres.sh:91` | **A extração mantém as aspas do YAML dentro do nome do projeto.** Com `COMPOSE_PROJECT_NAME=123` somente no `.env`, o Compose resolve o projeto `123`, mas serializa `name: "123"`; o `sed` devolve `"123"` com as aspas e código 0. A garantia passa a procurar/criar `"123"_default`, diferente de `123_default`, e o `resolver` consulta o rótulo `project="123"`, diferente do projeto existente. `yes` reproduz com aspas simples. A contraprova em `c683313^` devolve `123` corretamente, caracterizando regressão da correção. Extrair o valor do campo por uma leitura estruturada da configuração e acrescentar os casos de nomes que o YAML serializa entre aspas, comparando também a rede e o filtro de projeto. **E5-2.** | `ajuste` | **Corrigido** (`9e20bcf`). A leitura passa a ser a do JSON do mesmo `config`, em que o valor é sempre string entre aspas duplas e um nome de projeto válido não tem o que escapar; só a chave do topo casa, e só com um nome na gramática do Compose — minúsculas, dígitos, `_` e `-`, começando por letra ou dígito, a mesma da recusa dele —; qualquer outra forma é "não sei" (4), nunca um nome errado. Reproduzido antes nos cinco nomes que o YAML serializa entre aspas — `123`, `20260924`, `yes`, `true`, `null` —, com os valores da E5-2 no filtro do `resolver`. Depois, contra o Compose instalado: nome, rede e filtro de projeto iguais nas doze formas do `.env` dos testes; `ABC` e `a.b`, que o Compose recusa, dão "não sei". Um leitor de JSON de verdade — `jq`, Python — seria pré-requisito novo, e não foi adotado: fica como alternativa. Testes: +18 em `tests/test_makefile.py`, onze reprovando a correção anterior. `make check`: 563 passed, 8 skipped, `PASS=905`. §15. |
+| RVE5-01 | `docker/conteineres.sh:91` | **A extração mantém as aspas do YAML dentro do nome do projeto.** Com `COMPOSE_PROJECT_NAME=123` somente no `.env`, o Compose resolve o projeto `123`, mas serializa `name: "123"`; o `sed` devolve `"123"` com as aspas e código 0. A garantia passa a procurar/criar `"123"_default`, diferente de `123_default`, e o `resolver` consulta o rótulo `project="123"`, diferente do projeto existente. `yes` reproduz com aspas simples. A contraprova em `c683313^` devolve `123` corretamente, caracterizando regressão da correção. Extrair o valor do campo por uma leitura estruturada da configuração e acrescentar os casos de nomes que o YAML serializa entre aspas, comparando também a rede e o filtro de projeto. **E5-2.** | `ajuste` | **Corrigido** (`9e20bcf`). A leitura passa a ser a do JSON do mesmo `config`, em que o valor é sempre string entre aspas duplas e um nome de projeto válido não tem o que escapar; só a chave do topo casa, e só com um nome na gramática do Compose — minúsculas, dígitos, `_` e `-`, começando por letra ou dígito, a mesma da recusa dele —; qualquer outra forma é "não sei" (4), nunca um nome errado. Reproduzido antes nos cinco nomes que o YAML serializa entre aspas — `123`, `20260924`, `yes`, `true`, `null` —, com os valores da E5-2 no filtro do `resolver`. Depois, contra o Compose instalado: nome, rede e filtro de projeto iguais nas doze formas do `.env` dos testes; `ABC` e `a.b`, que o Compose recusa, dão "não sei". Um leitor de JSON de verdade — `jq`, Python — seria pré-requisito novo, e não foi adotado: fica como alternativa. Testes: +18 em `tests/test_makefile.py`, onze reprovando a correção anterior. `make check`: 563 passed, 8 skipped, `PASS=905`. §15. **Conferido pelo revisor na sexta rodada (§17): correção confirmada, sem achado novo no escopo.** |
