@@ -78,17 +78,29 @@ _raiz_do_projeto() { cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd; }
 # `resolver` roda em subshell a cada chamada e herda a resposta daqui. Compose
 # que não responde é "não sei" — `projeto_compose` sai 4 —, e não o nome
 # padrão: o preflight que procura o projeto errado não vê o R11.
+#
+# **A leitura é a do JSON do `config`, e não a do YAML (RVE5-01).** O YAML põe
+# entre aspas os nomes que ele mesmo leria como outra coisa — `name: "123"`,
+# `name: 'yes'`, e também `true`, `null`, `20260924` —, e as aspas iam para o
+# nome: a garantia procurava `"123"_default`, e o `resolver` filtrava pelo
+# rótulo `"123"`. No JSON o valor é sempre uma string entre aspas duplas, e um
+# nome de projeto válido — `[a-z0-9][a-z0-9_-]*`, a regra do Compose — não tem
+# o que escapar. Só a chave do topo, com dois espaços de recuo, casa, e só com
+# um nome válido; qualquer outra forma não casa e é "não sei", nunca um nome
+# errado. Um leitor de JSON de verdade — `jq`, Python — seria dependência nova:
+# nenhum dos dois é pré-requisito, e o Python do projeto só existe depois de
+# `make install`.
 _projeto_pelo_compose() {
 	local raiz
 	raiz=$(_raiz_do_projeto) || return 4
 	(
 		cd "$raiz" || exit 4
 		if [ -f .env ]; then
-			docker compose --env-file .env -f docker/docker-compose.yml config 2>/dev/null
+			docker compose --env-file .env -f docker/docker-compose.yml config --format json 2>/dev/null
 		else
-			docker compose -f docker/docker-compose.yml config 2>/dev/null
+			docker compose -f docker/docker-compose.yml config --format json 2>/dev/null
 		fi
-	) | sed -n 's/^name: //p'
+	) | sed -n 's/^  "name": "\([a-z0-9][a-z0-9_-]*\)",\{0,1\}$/\1/p'
 }
 
 PROJETO_DO_COMPOSE=""

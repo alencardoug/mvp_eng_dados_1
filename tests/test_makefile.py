@@ -624,6 +624,13 @@ FORMAS_DO_NOME = [
     pytest.param("PREFIX=clone\nCOMPOSE_PROJECT_NAME=${PREFIX}_etapa12\n", id="expansao"),
     pytest.param("COMPOSE_PROJECT_NAME=mvp_ed1\nCOMPOSE_PROJECT_NAME=clone_etapa12\n", id="duplicado"),
     pytest.param("", id="sem-nome"),
+    # RVE5-01: nomes que o YAML do `config` serializa entre aspas — `name: "123"`, `name: 'yes'` —, e
+    # a extração por `sed` levava as aspas para o nome. O JSON do mesmo `config` é canônico.
+    pytest.param("COMPOSE_PROJECT_NAME=123\n", id="numero"),
+    pytest.param("COMPOSE_PROJECT_NAME=20260924\n", id="data"),
+    pytest.param("COMPOSE_PROJECT_NAME=yes\n", id="yes"),
+    pytest.param("COMPOSE_PROJECT_NAME=true\n", id="true"),
+    pytest.param("COMPOSE_PROJECT_NAME=null\n", id="null"),
 ]
 
 COMPOSE_BANCOS = (RAIZ / "docker" / "docker-compose.yml").read_text(encoding="utf-8")
@@ -643,12 +650,17 @@ def _rascunho(tmp_path: pathlib.Path, nome: str) -> pathlib.Path:
     return raiz
 
 
-def _rede_que_o_compose_exige(raiz: pathlib.Path, ambiente: dict[str, str]) -> str:
+def _config_do_compose(raiz: pathlib.Path, ambiente: dict[str, str]) -> dict:
+    """A configuração que o Compose instalado resolve, lida por um leitor de JSON de verdade."""
     r = subprocess.run(
         ["docker", "compose", "--env-file", ".env", "-f", "docker/docker-compose.yml", "config", "--format", "json"],
         cwd=raiz, env=ambiente, capture_output=True, text=True, check=True, timeout=60,
     )
-    return json.loads(r.stdout)["networks"]["default"]["name"]
+    return json.loads(r.stdout)
+
+
+def _rede_que_o_compose_exige(raiz: pathlib.Path, ambiente: dict[str, str]) -> str:
+    return _config_do_compose(raiz, ambiente)["networks"]["default"]["name"]
 
 
 def _projeto(raiz: pathlib.Path, ambiente: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -695,23 +707,32 @@ DOCKER_DA_REDE_E_DO_COMPOSE = DOCKER_DA_REDE.replace(
 
 
 @exige_compose
-def test_make_up_garante_a_rede_que_o_compose_exige(tmp_path):
+@pytest.mark.parametrize(
+    "nome, rede",
+    [
+        pytest.param("export COMPOSE_PROJECT_NAME=rve4_clone_probe\n", "rve4_clone_probe_default", id="export-RVE4-01"),
+        pytest.param("COMPOSE_PROJECT_NAME=123\n", "123_default", id="numero-RVE5-01"),
+    ],
+)
+def test_make_up_garante_a_rede_que_o_compose_exige(tmp_path, nome, rede):
     """RVE4-01, a sonda do revisor: com `export` no `.env`, a garantia achava `mvp_ed1_default`, e o
     `make up` real parou em "network rve4_clone_probe_default declared as external, but could not
-    be found"."""
+    be found". RVE5-01: com `123`, a correção procurava `"123"_default`, com as aspas do YAML."""
     r, chamadas = _make(
         tmp_path,
         "up",
         docker=DOCKER_DA_REDE_E_DO_COMPOSE,
         ambiente_extra={"SIM_REDE": "0", "DOCKER_REAL": shutil.which("docker") or "docker"},
         simulados={"docker/conteineres.sh": CONTEINERES_REAL, "docker/docker-compose.yml": COMPOSE_BANCOS},
-        env_texto=PORTAS + "export COMPOSE_PROJECT_NAME=rve4_clone_probe\n",
+        env_texto=PORTAS + nome,
         sem_ambiente=("COMPOSE_PROJECT_NAME",),
     )
 
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "docker network create rve4_clone_probe_default" in chamadas, chamadas
-    assert not any("mvp_ed1_default" in c for c in chamadas), chamadas
+    assert f"docker network create {rede}" in chamadas, chamadas
+    assert [c for c in chamadas if c.startswith("docker network")] == [
+        f"docker network inspect {rede}", f"docker network create {rede}"
+    ], chamadas
 
 
 def test_sem_o_nome_do_projeto_nada_sobe(tmp_path):
@@ -729,3 +750,39 @@ def test_sem_o_nome_do_projeto_nada_sobe(tmp_path):
     assert "o Compose não disse o nome do projeto" in r.stdout, r.stdout
     assert not any(c.startswith("docker network create") for c in chamadas), chamadas
     assert not any(c.startswith("docker compose") and " up " in c for c in chamadas), chamadas
+
+
+#: `docker` que passa o `config` ao Docker de verdade e só registra o resto — é por ele que se lê o
+#: filtro de projeto que o `resolver` manda ao `docker ps`.
+DOCKER_QUE_REGISTRA = """#!/usr/bin/env bash
+case " $* " in *" config "*) exec "$DOCKER_REAL" "$@" ;; esac
+printf '%s\\n' "$*" >> "$SIM_LOG"
+exit 0
+"""
+
+
+@exige_compose
+@pytest.mark.parametrize("nome", FORMAS_DO_NOME)
+def test_o_filtro_de_projeto_e_o_nome_que_o_compose_resolve(tmp_path, nome):
+    """RVE5-01, o outro consumidor: o `resolver` do preflight procura os contêineres pelo rótulo do
+    projeto. Com `name: "123"` no YAML, ele filtrava por `project="123"`, com as aspas."""
+    raiz = _rascunho(tmp_path, nome)
+    binario = tmp_path / "bin"
+    binario.mkdir()
+    (binario / "docker").write_text(DOCKER_QUE_REGISTRA, encoding="utf-8")
+    (binario / "docker").chmod(0o755)
+    registro = tmp_path / "chamadas"
+    ambiente = _ambiente_sem_projeto()
+    esperado = _config_do_compose(raiz, ambiente)["name"]
+
+    r = subprocess.run(
+        ["bash", "docker/conteineres.sh", "resolver", "airflow_scheduler"],
+        cwd=raiz, capture_output=True, text=True, timeout=60,
+        env=ambiente | {"PATH": f"{binario}:{os.environ['PATH']}", "DOCKER_REAL": shutil.which("docker") or "docker",
+                        "SIM_LOG": str(registro)},
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    filtros = [p for linha in registro.read_text(encoding="utf-8").splitlines() for p in linha.split()
+               if p.startswith("label=com.docker.compose.project=")]
+    assert filtros == [f"label=com.docker.compose.project={esperado}"], filtros
