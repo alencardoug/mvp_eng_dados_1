@@ -316,6 +316,33 @@ if [ "$FAMILIA" = "streaming" ]; then
   $AIRFLOW_NO_AR && CONFLITO+=("Airflow:make airflow-resume")
 fi
 
+# --- o alvo já de pé (D53) ---------------------------------------------------
+# Subir o que já está inteiro de pé não acrescenta memória: o que ele ocupa já
+# está fora do `MemAvailable`. Cobrar o custo de novo recusava `airbyte-up` com
+# o cluster rodando — "sobraria 0,3 GB" com 5,2 GB livres, em 23/09/2026 — e
+# mandava fechar programas quando a causa era a conta. De pé pela metade
+# continua cobrado inteiro: o que falta subir custa, e não há medida por
+# serviço para descontar o resto.
+#
+# A família não muda: o alvo de pé não autoriza a outra a continuar de pé
+# junto, e a troca abaixo vale igual. Também não muda o que ninguém confere —
+# o acréscimo de uma sincronização sobre o Airbyte ocioso, até o pico do custo
+# acima: `sync-airbyte` nunca passou por aqui.
+_inteiro_no_ar() {
+	local servico nomes
+	case "$1" in
+	airbyte) $AIRBYTE_NO_AR ;;
+	*)
+		for servico in $(_expandir "@$1"); do
+			nomes=$(resolver "$servico") || return 1
+			[ -n "$nomes" ] || return 1
+		done ;;
+	esac
+}
+ALVO_DE_PE=false
+_inteiro_no_ar "$ALVO" && ALVO_DE_PE=true
+$ALVO_DE_PE && CUSTO=0
+
 # --- memória -----------------------------------------------------------------
 DISPONIVEL=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
 PROJECAO=$((DISPONIVEL - CUSTO))
@@ -328,13 +355,17 @@ if [ ${#DE_PE[@]} -gt 0 ]; then
 else
   echo "[preflight] Já de pé: nada além dos bancos"
 fi
-echo "[preflight] '$ALVO' custa ~$(_gb "$CUSTO") — sobraria $(_gb "$PROJECAO")"
+if $ALVO_DE_PE; then
+  echo "[preflight] '$ALVO' já está de pé — nada a cobrar"
+else
+  echo "[preflight] '$ALVO' custa ~$(_gb "$CUSTO") — sobraria $(_gb "$PROJECAO")"
+fi
 
 # --- veredito ----------------------------------------------------------------
 RECUSA=""
 if [ ${#CONFLITO[@]} -gt 0 ]; then
   RECUSA="batch e streaming não sobem juntos (R11; a validação é por partes, ADR-0046)"
-elif [ "$PROJECAO" -lt "$FOLGA_MINIMA" ]; then
+elif ! $ALVO_DE_PE && [ "$PROJECAO" -lt "$FOLGA_MINIMA" ]; then
   RECUSA="sobraria menos que a folga mínima de $(_gb "$FOLGA_MINIMA") para o host"
 fi
 
@@ -415,9 +446,15 @@ if [ ${#CONFLITO[@]} -gt 0 ] && $TROCAR; then
 
   PROJECAO=$((DISPONIVEL - CUSTO))
   CONFLITO=()
-  echo "[preflight] RAM disponível agora: $(_gb "$DISPONIVEL") — sobraria $(_gb "$PROJECAO")"
   RECUSA=""
-  if [ "$PROJECAO" -lt "$FOLGA_MINIMA" ]; then
+  if $ALVO_DE_PE; then
+    # Pausar só devolveu memória, e o alvo não acrescenta nada: não há conta a
+    # refazer. Desfazer a pausa aqui religaria a outra família ao lado dele.
+    echo "[preflight] RAM disponível agora: $(_gb "$DISPONIVEL")"
+  else
+    echo "[preflight] RAM disponível agora: $(_gb "$DISPONIVEL") — sobraria $(_gb "$PROJECAO")"
+  fi
+  if ! $ALVO_DE_PE && [ "$PROJECAO" -lt "$FOLGA_MINIMA" ]; then
     # Pausar e desistir deixaria o ambiente pior do que estava: quem rodou o
     # alvo não pediu para derrubar nada, pediu para subir. Desfaz.
     echo "[preflight] não cabe mesmo assim — restaurando o que foi pausado."

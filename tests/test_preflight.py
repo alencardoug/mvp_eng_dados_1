@@ -531,6 +531,70 @@ def test_recusa_por_memoria_devolve_so_o_que_estava_de_pe(tmp_path):
     assert r.de_pe == ["mvp_ed1_redpanda"]
 
 
+# ── D53: o alvo que já está de pé não é cobrado de novo ──────────────────────
+
+#: Memória em que a conta dupla recusava, por alvo: o custo do alvo mais a
+#: folga de 1.500 MB não cabem nela, mas o alvo já está de pé e não acrescenta
+#: nada. O caso do Airbyte é o medido em 23/09/2026 — 5,2 GB livres com o
+#: cluster rodando, "sobraria 0,3 GB".
+COBRADOS_DE_NOVO = [
+    pytest.param("airbyte", "Airbyte", 5200, id="airbyte"),
+    pytest.param("airflow", "Airflow", 2500, id="airflow"),
+    pytest.param("streaming", "streaming", 1800, id="streaming"),
+]
+
+
+@exige_unshare
+@pytest.mark.parametrize("alvo, ambiente, mem", COBRADOS_DE_NOVO)
+def test_alvo_ja_de_pe_nao_e_cobrado_de_novo(tmp_path, alvo, ambiente, mem):
+    """D53: `airbyte-up` com o cluster rodando era recusado por uma memória que o
+    próprio cluster já ocupava, e a mensagem mandava fechar programas quando a
+    causa era a conta. `airflow-up` e `stream-up` têm a mesma conta, menor."""
+    r = executa(tmp_path, alvo, [ambiente], mem_mib=mem)
+
+    assert r.codigo == 0, r.saida
+    assert f"'{alvo}' já está de pé — nada a cobrar" in r.saida
+    assert "[preflight] OK" in r.saida
+    assert not r.parou()
+
+
+@exige_unshare
+def test_alvo_de_pe_pela_metade_continua_cobrado(tmp_path):
+    """O que falta subir custa, e não há medida por serviço para descontar o que
+    já está no ar: de pé pela metade é cobrado inteiro, como sempre foi."""
+    parado = "mvp_ed1-airflow_apiserver-1"
+    r = executa(tmp_path, "airflow", [], estado_extra=_com_parado("Airflow", parado), mem_mib=2500)
+
+    assert r.codigo == 1, r.saida
+    assert "'airflow' custa ~" in r.saida and "já está de pé" not in r.saida
+    assert "sobraria menos que a folga mínima" in r.saida
+
+
+@exige_unshare
+def test_alvo_de_pe_ainda_troca_a_outra_familia(tmp_path):
+    """D53 não afrouxa o R11: o alvo de pé não autoriza a outra família a
+    continuar de pé junto. A troca pausa o streaming — e, como o alvo não
+    acrescenta memória, a pausa não é desfeita por falta dela, o que religaria
+    o streaming ao lado do Airbyte."""
+    r = executa(tmp_path, "airbyte", ["Airbyte", "streaming"], mem_mib=5200, mem_apos_mib=5600)
+
+    assert r.codigo == 0, r.saida
+    assert "streaming está de pé e ocioso — pausando" in r.saida
+    assert "restaurando" not in r.saida and not r.religou()
+    assert r.de_pe == [AIRBYTE]
+
+
+@exige_unshare
+def test_alvo_de_pe_com_trabalho_na_outra_familia_recusa_sem_tocar(tmp_path):
+    """A guarda do trabalho em andamento vale igual com o alvo de pé."""
+    r = executa(tmp_path, "airbyte", ["Airbyte", "streaming"], mem_mib=5200, pgrep_rc=0)
+
+    assert r.codigo == 1, r.saida
+    assert "streaming tem trabalho em andamento" in r.saida
+    assert not r.parou()
+    assert sorted(r.de_pe) == sorted([AIRBYTE, *nomes("streaming")])
+
+
 # ── B0, defeito 1: o Airflow existe para o preflight ─────────────────────────
 
 
