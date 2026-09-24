@@ -178,10 +178,16 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 	@chmod 600 .env
 	@echo "'.env' criado com senhas aleatórias e permissão 600."
 
-install: ## Cria o .venv com Python 3.11 e instala o projeto em modo editável
+install: ## Cria o .venv com Python 3.11, instala o projeto em modo editável e os pacotes dbt da trava
 	uv sync
+	@# Os pacotes do dbt — dbt_utils, dbt_expectations, dbt_date — não vêm do
+	@# `uv`: sem eles, o primeiro comando dbt de um clone falha no `parse`
+	@# (RV12-07, medido na revisão do plano). `dbt deps` instala as versões do
+	@# `package-lock.yml` versionado, e não as mais novas que o `packages.yml`
+	@# aceita. Não precisa do `.env`: o perfil só é lido por quem conecta.
+	cd dbt && DBT_PROFILES_DIR=. ../.venv/bin/dbt deps
 	@echo ""
-	@echo "Ambiente pronto. O 'uv.lock' é a trava — versione-o."
+	@echo "Ambiente pronto. O 'uv.lock' e o 'dbt/package-lock.yml' são as travas — versione-os."
 	@.venv/bin/python -c "import mvp_ed1, sys; print(f'mvp_ed1 {mvp_ed1.__version__} sobre Python {sys.version.split()[0]}')"
 
 up: require-env ## Sobe os três bancos e espera ficarem saudáveis

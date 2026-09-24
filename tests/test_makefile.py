@@ -826,3 +826,17 @@ def test_o_que_precisa_do_armazem_fica_fora_do_check_offline():
     selecionados = set(r.stdout.split())
     assert not [t for t in PRECISAM_DO_ARMAZEM if t in selecionados], r.stdout
     assert any(t.startswith("tests/test_legacy_classification.py::") for t in selecionados), "os outros continuam"
+
+
+# ── RV12-07: o install traz os pacotes dbt da trava ─────────────────────────
+
+
+def test_install_traz_os_pacotes_dbt_da_trava(tmp_path):
+    """Sem `dbt deps`, o primeiro comando dbt de um clone falhava no `parse` — medido na revisão do
+    plano, com `dbt_utils`, `dbt_date` e `dbt_expectations` ausentes. As versões são as da trava
+    versionada, lidas pelo próprio `dbt deps`."""
+    r, chamadas = _make(tmp_path, "install", binarios={"uv": REGISTRADOR})
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert chamadas[:2] == ["uv sync", "dbt deps"], chamadas
+    assert "cd dbt && DBT_PROFILES_DIR=. ../.venv/bin/dbt deps" in r.stdout, r.stdout
