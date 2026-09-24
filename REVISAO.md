@@ -1814,6 +1814,17 @@ saida=0
   escolher ferramenta é decisão do Owner. Fica a alternativa, se o revisor achar a leitura
   insuficiente.
 
+## 16. Para a sexta rodada
+
+Mínima, por decisão do Owner: conferir a resposta ao RVE5-01 — a coluna *Situação* na tabela
+abaixo, a §15 e o diff de `9e20bcf` (`git show 9e20bcf`), que troca a linha de leitura do nome em
+`docker/conteineres.sh` e acrescenta os testes. O registro está em `6a47ec8`. A escolha que vale
+contestar, se for o caso, está na §15.4: o JSON lido sem um leitor de JSON de verdade, porque `jq` e
+Python seriam pré-requisitos novos.
+
+O ambiente continua como a §6 descreve; nenhuma sonda desta aplicação subiu ou criou nada — o
+`config` não fala com o daemon, e os diretórios de sonda, dentro de `.git/`, foram apagados.
+
 ## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
