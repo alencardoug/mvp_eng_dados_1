@@ -1289,11 +1289,12 @@ amostras. **R11** vale o tempo todo; recusa do preflight é registrada, não con
 1. **Capacidade**: §2.12 com a tabela medida; §3 reescrita para D49 **e D51** (conteúdo —
    quarentena incluída —, limite, sequência com o re-base do passo 4b) e "entregue em …" com o
    caminho do pacote aprovado; tabela de situação.
-2. **Execução Local**: §3 na ordem corrigida (streaming antes do primeiro build; `dbt deps` em
-   `install`; `make tools` no clone; `medir`, `dag-wait`, `stream-wait`, `docs-generate`,
-   `check-offline`, `dbt-rebuild`, `recovery-*`); §3.2 apontando para a sequência de
-   restauração; §4 com os alvos novos; §5 com a detecção por rótulos **e a consulta de trabalho
-   por DAG**; §6 com a armadilha do `PG_VERSION` conferida e a regra da sequência do Airbyte.
+2. **Execução Local**: as §2–§4 foram corrigidas **antes** de B5, porque são o roteiro dele — o
+   preparo do clone (`dbt deps` em `install`, `make tools`, `check-offline`), o ciclo com o
+   *streaming* antes do primeiro *build* e os alvos novos (versão 1.13, 24/09/2026). O que resta
+   aqui: conferi-las contra o diário de B5; a §3.2 apontando para a sequência de restauração; a §5
+   com a detecção por rótulos **e a consulta de trabalho por DAG**; a §6 com a armadilha do
+   `PG_VERSION` conferida e a regra da sequência do Airbyte.
 2b. **ADR-0044**: nas *Consequências*, a guarda de identidade da captura — **antes do disparo do
    *job*, em todo ponto de entrada da conexão legada** (RV12-4-03), e como rede em `decidir`, que
    recusa o certificado e não protege o bruto retroativamente (D50) — e o re-base das gerações na

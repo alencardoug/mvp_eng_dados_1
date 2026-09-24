@@ -10,8 +10,8 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.12 |
-| Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
+| Versão | 1.13 |
+| Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
 | Última revisão | 24/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
@@ -42,9 +42,18 @@ máquina para executá-la.
 ## 2. Configuração
 
 ```bash
-make env        # gera o .env com portas padrão e senhas aleatórias, permissão 600
-make install    # instala o Python 3.11 e o pacote no .venv
+make env            # gera o .env com portas padrão e senhas aleatórias, permissão 600
+make install        # instala o Python 3.11, o pacote no .venv e os pacotes dbt da trava
+make tools          # baixa o abctl e o Terraform nas versões fixadas, para .tools/
+make check-offline  # segredos, documentos e a suíte sem os testes de integração
 ```
+
+É o preparo de um clone novo, e nada dele sobe contêiner. `make install` traz os pacotes do dbt —
+`dbt_utils`, `dbt_expectations`, `dbt_date` — nas versões do `dbt/package-lock.yml`: sem eles, o
+primeiro comando dbt falha no `parse`. `make tools` põe o `abctl` e o Terraform em `.tools/`, que é
+de cada *checkout* e não vem no clone. `make check-offline` é a primeira verificação, antes dos
+bancos: o que ele não roda — os testes marcados `integracao`, que precisam do armazém ou do `dbt` —
+é listado por arquivo, e roda no `make check` do ciclo.
 
 O `.env.example` é versionado com as chaves e **sem** valores, e serve para declarar quais chaves
 existem — não para ser copiado e preenchido à mão. `make env` recusa sobrescrever um `.env`
@@ -55,29 +64,36 @@ existente, porque trocar as senhas torna os volumes já criados inacessíveis. V
 
 ## 3. Ciclo completo
 
-A sequência abaixo leva de um repositório recém-clonado até as views de consumo.
+A sequência abaixo leva de um repositório recém-clonado, preparado pela seção 2, até as views de
+consumo. **A ordem importa num ponto:** o *snapshot* do *streaming* vem antes do primeiro
+`dbt-build` completo. O *staging* do estoque lê `raw.inventory_movements_stream`, que só o
+*pipeline* Beam cria, e a reconciliação dos dois caminhos reprova todo movimento que só chegou pelo
+lote: num armazém vazio, o primeiro *build* sem o *snapshot* falha por construção. As trocas entre
+Airbyte e *streaming* são automáticas (seção 5).
 
 | # | Comando | O que faz | Disponível na |
 |---|---|---|---|
-| 1 | `make up` | Sobe os contêineres base: `source_db`, `legacy_db`, `warehouse_db` | Etapa 2 |
-| 2 | `make migrate` | Aplica as migrações Alembic até a última revisão | Etapa 3 |
-| 3 | `make seed-data` | Gera os dados sintéticos da origem principal | Etapa 4 |
-| 3b | `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
-| 3c | `make migrate-legacy` | Aplica as migrações Alembic do schema legado (`legacy_db`); `seed-legacy` já a executa | Etapa 10 |
-| 4 | `make seed-legacy` | Gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
-| 4b | `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
-| 4c | `make legacy-catalogo` | Imprime o catálogo de falhas em português, para revisão sem abrir o YAML | Etapa 10 |
-| 4d | `make sync-legacy` | Captura o legado em `raw_legacy` e a **certifica** em `governance.legacy_captures` (duas fases, [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)); cada execução acrescenta um snapshot | Etapa 10 |
-| 4b | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
-| 4c | `make airbyte-config` | Cria fonte, destino e conexão por Terraform | Etapa 5 |
-| 5 | `make sync-airbyte` | Executa as sincronizações para `raw` e `raw_legacy` | Etapa 5 |
-| 6 | `make dbt-build` | Roda os modelos dbt e os testes de dados; `RESET=1` refaz o histórico SCD | Etapa 5 |
-| 7 | `make stream-up` | Sobe Redpanda e Kafka Connect e aplica o conector Debezium | Etapa 7 |
-| 7b | `make stream-run` | Sobe o *pipeline* Beam — **primeiro plano**, `Ctrl-C` encerra | Etapa 7 |
-| 8 | `make stream-produce` | Executa o produtor de eventos de estoque; `LIMITE=`, `SEED=` | Etapa 7 |
-| 9 | `make dbt-docs` | Gera e serve o catálogo com dicionário, linhagem e glossário | Etapa 5 |
-| 10 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
-| 11 | `make check` | Verificação completa em quatro etapas, parando na primeira falha: revisão de segredos e `.gitignore`, `dbt build` (modelos, testes de dados, reconciliações), classificação derivada em dia com os modelos, `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 17/09/2026: 4 min 27 s (antes da quarta etapa, que custa ~20 s) | Etapa 11 |
+| 1 | `make up` | Sobe os três bancos — `source_db`, `legacy_db`, `warehouse_db` — e garante a rede do projeto | Etapa 2 · 12 |
+| 2 | `make migrate` | Aplica as migrações Alembic da origem principal | Etapa 3 |
+| 3 | `make seed-data` | Gera e carrega os dados sintéticos da origem principal | Etapa 4 |
+| 4 | `make seed-legacy` | Migra o schema legado e gera a origem legada com as falhas do catálogo; `FORCE=1` trunca antes | Etapa 10 |
+| 5 | `make airbyte-up` | Sobe o Airbyte local, em cluster próprio | Etapa 5 |
+| 6 | `make airbyte-config` | Cria fonte, destinos e conexões por Terraform; `AUTO=1` aplica sem perguntar | Etapa 5 |
+| 7 | `make sync-airbyte` | Sincroniza a origem principal: `oltp` → `raw` | Etapa 5 |
+| 8 | `make sync-legacy` | Captura o legado em `raw_legacy` e a **certifica** em `governance.legacy_captures` (duas fases, [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)); cada execução acrescenta uma captura | Etapa 10 |
+| 9 | `make stream-up` | Sobe Redpanda e Kafka Connect e aplica o conector Debezium; pausa o Airbyte | Etapa 7 |
+| 10 | `make stream-run` | Sobe o *pipeline* Beam — **primeiro plano**, noutro terminal | Etapa 7 |
+| 11 | `make stream-wait ATE_SEQ=<corte>` | Espera o livro quente alcançar a origem; o corte é o que `make stream-corte` imprime. Depois, `Ctrl-C` no `stream-run` | Etapa 12 |
+| 12 | `make airbyte-up` | Retoma o Airbyte; pausa o *streaming* | Etapa 5 · 12 |
+| 13 | `make dbt-build` | O primeiro *build* completo: modelos, testes de dados e reconciliações | Etapa 5 |
+| 14 | `make check` | Verificação completa em quatro etapas, parando na primeira falha: segredos e documentos, `dbt build` (modelos, testes de dados, reconciliações), classificação e linhagem derivadas em dia com os modelos, `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 24/09/2026: 6 min 42 s, 563 testes | Etapa 11 |
+| 15 | `make airflow-up`, `make dag-run`, `make dag-wait` | O fluxo pelo orquestrador, com o Airbyte de pé — o par permitido | Etapa 5 · 12 |
+| 16 | `make stream-produce` | Eventos novos no livro da origem, com o *streaming* de pé e o `stream-run` rodando; `LIMITE=`, `SEED=` | Etapa 7 |
+| 17 | `make docs-generate`, `make dbt-docs` | Gera o catálogo; o segundo o serve | Etapa 5 · 12 |
+| 18 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
+
+Qualquer linha pode rodar sob `make medir ALVO=<alvo>`, que registra duração, memória e tamanho; é
+assim que a capacidade é medida (seção 4).
 
 ### 3.1 Parâmetros do gerador
 
@@ -188,7 +204,11 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make migrate-down` | Desfaz migrações; `TO=base` derruba tudo | Etapa 3 |
 | `make migrate-new` | Gera rascunho de migração; exige `M="o que mudou"` | Etapa 3 |
 | `make migrate-status` | Mostra a revisão aplicada no banco | Etapa 3 |
+| `make migrate-legacy` | Aplica as migrações do schema legado (`legacy_db`); `seed-legacy` já a executa | Etapa 10 |
 | `make migrate-legacy-down` / `-status` / `-new` | O mesmo ciclo para o schema legado (`alembic -n legacy`) | Etapa 10 |
+| `make seed-plan` | Mostra o plano de volume das 40 tabelas, sem tocar no banco | Etapa 4 |
+| `make legacy-plan` | Mostra o que o legado geraria e injetaria, sem tocar no banco | Etapa 10 |
+| `make legacy-catalogo` | Imprime o catálogo de falhas em português, para revisão sem abrir o YAML | Etapa 10 |
 | `make catalog` | Regenera dicionário, inventário de tabelas e diagrama ER dos modelos e da configuração, e a classificação de sensibilidade derivada nos `.yml` do dbt (precisa do `manifest` de um `make dbt-build` recente) | Etapa 3 · 11 |
 | `make dbt-drop-snapshots` | **Destrói** o histórico SCD; só depois de regerar a origem | Etapa 5 |
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
@@ -210,14 +230,27 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make stream-alerts` | Lê e resume o tópico de alerta de estoque baixo | Etapa 7 |
 | `make stream-down` | Derruba Kafka Connect e mensageria; `FORCE=1` apaga tópicos **e o slot de replicação** | Etapa 7 |
 | `make stream-reset-sink FORCE=1` | Esvazia somente `raw.inventory_movements_stream`, com consumidores parados e ausência conferida | D31 |
-| `make recover-dump` | Gera o pacote candidato do ponto de recuperação | Etapa 12 |
-| `make recover-restore` | Restaura as origens a partir do pacote aprovado | Etapa 12 |
+| `make check-offline` | Segredos, documentos e a suíte sem os testes de integração — o que se confere sem nada de pé | Etapa 12 |
+| `make docs-check` | Confere links, âncoras e citações de ADR nos documentos rastreados | Etapa 12 |
+| `make secrets-history` | Varre **todo** o histórico do *git* por forma de credencial, sem depender do `.env` | Etapa 12 |
+| `make medir` | Mede um alvo: `ALVO=` e, para quem só dispara, `ATE=<alvo de espera>`; ou `CENARIO=streaming [LIMITE=n]` | Etapa 12 |
+| `make dag-wait` | Espera a execução da DAG terminar; `RUN_ID=` (padrão: a última disparada), `PRAZO=` | Etapa 12 |
+| `make stream-corte` | Imprime o `max(event_sequence)` da origem — o fim de uma medição | Etapa 12 |
+| `make stream-wait` | Espera o livro quente alcançar `ATE_SEQ=`; `PID=` vigia o *pipeline*, `PRAZO=` | Etapa 12 |
+| `make docs-generate` | Só gera o catálogo — tem fim, e por isso é o que se mede | Etapa 12 |
+| `make dbt-rebuild` | Reconstrói tudo **sem** derrubar os *snapshots* — o *build* de uma restauração | Etapa 12 |
+| `make recovery-pack` | Monta o candidato do pacote de recuperação; exige janela parada e árvore limpa | Etapa 12 |
+| `make recovery-verify` | Confere o pacote sem restaurar nada; `CONTRA_O_BANCO=1` o compara com os bancos | Etapa 12 |
+| `make recovery-rebase` | Re-basa as gerações retidas do bruto; `DRY_RUN=1` só mostra | Etapa 12 |
+| `make recovery-airbyte-jobs` | Num Airbyte novo, avança o contador de *jobs* além da captura retida (D50) | Etapa 12 |
+| `make recovery-restore RESTAURAR=1` | A sequência de restauração, passo a passo, a partir do pacote | Etapa 12 |
+| `make recovery-promote` | Promove o candidato a aprovado, depois de uma restauração validada | Etapa 12 |
 
 > `make reset`, `make seed-data FORCE=1`, `make sync-airbyte RESET=1`, `make dbt-build RESET=1`,
-> `make stream-down FORCE=1`, `make stream-reset-sink FORCE=1`, `make dbt-drop-snapshots`,
-> `make test FATO=1` e `make recover-restore` **destroem estado**. Todos
-> exigem a variável explícita, exceto `dbt-drop-snapshots`, cujo nome já é o aviso;
-> `recover-restore` só é executado mediante decisão explícita do responsável técnico.
+> `make stream-down FORCE=1`, `make stream-reset-sink FORCE=1`, `make airflow-down FORCE=1`,
+> `make dbt-drop-snapshots`, `make test FATO=1` e `make recovery-restore RESTAURAR=1` **destroem
+> estado**. Todos exigem a variável explícita, exceto `dbt-drop-snapshots`, cujo nome já é o aviso;
+> `recovery-restore` só é executado mediante decisão explícita do Owner.
 
 ---
 
