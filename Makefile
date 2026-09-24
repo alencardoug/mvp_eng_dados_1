@@ -262,6 +262,13 @@ medir: ## Mede um alvo: ALVO= [ATE=<alvo de espera>], ou CENARIO=streaming [LIMI
 # inteira — que é justamente onde mora a armadilha do `PG_VERSION`
 # (Execução Local §6). Parar o contêiner libera a mesma memória e volta sem
 # reinstalar nada — quanto leva está em `AGUARDAR_API_AIRBYTE`, medido.
+#
+# **Retomar passa pela mesma troca que subir (D54).** Os `*-resume` religavam
+# sem conferir memória nem conflito, e o preflight mandava retomar por eles:
+# retomar o Airbyte com o *streaming* de pé subia as duas famílias juntas, que
+# é o R11. `FORCE=1` continua sendo o caminho sem conferência — agora o único,
+# e do Owner. Antes da troca, cada retomada confere que há o que religar: sem
+# isso, o preflight pausaria o outro ambiente à toa.
 airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-lo
 	@docker stop airbyte-abctl-control-plane >/dev/null 2>&1 && \
 		echo "Airbyte pausado. Retomar: make airbyte-resume" || \
@@ -315,23 +322,31 @@ RETOMAR_AIRBYTE = docker start airbyte-abctl-control-plane >/dev/null \
 	|| { echo "ERRO: o cluster não religou — veja 'docker ps -a'."; exit 1; }; \
 	$(AGUARDAR_API_AIRBYTE)
 
-airbyte-resume: ## Religa o cluster do Airbyte pausado e espera a API responder
+airbyte-resume: ## Religa o cluster do Airbyte pausado, pela troca do preflight, e espera a API responder
 	@$(ESTADO_AIRBYTE); [ -n "$$estado" ] || { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
-		$(CURL_DA_ESPERA); $(RETOMAR_AIRBYTE)
+		$(CURL_DA_ESPERA)
+	$(call preflight,airbyte)
+	@$(RETOMAR_AIRBYTE)
 
 stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
 	@RETOMAR_COM='make stream-resume' $(CONTEINERES) pausar streaming @streaming; \
 		s=$$?; [ $$s -eq 3 ] && exit 0 || exit $$s
 
-stream-resume: ## Religa Redpanda e Kafka Connect pausados
-	@$(CONTEINERES) retomar streaming @streaming || { echo "Use 'make stream-up' se os contêineres não existem."; exit 1; }
+stream-resume: ## Religa Redpanda e Kafka Connect pausados, pela troca do preflight
+	@n=$$($(CONTEINERES) resolver --todos @streaming) || { echo "ERRO: o Docker não respondeu — nada foi tocado."; exit 1; }; \
+		[ -n "$$n" ] || { echo "streaming não tem contêineres neste projeto — use 'make stream-up'."; exit 1; }
+	$(call preflight,streaming)
+	@$(CONTEINERES) retomar streaming @streaming
 	@echo "O conector Debezium volta do ponto em que parou."
 
 airflow-pause: ## Para os contêineres do Airflow liberando a memória
 	@RETOMAR_COM='make airflow-resume' $(CONTEINERES) pausar Airflow @airflow; \
 		s=$$?; [ $$s -eq 3 ] && exit 0 || exit $$s
 
-airflow-resume: ## Religa os contêineres do Airflow pausados
+airflow-resume: ## Religa os contêineres do Airflow pausados, pela troca do preflight
+	@n=$$($(CONTEINERES) resolver --todos @airflow) || { echo "ERRO: o Docker não respondeu — nada foi tocado."; exit 1; }; \
+		[ -n "$$n" ] || { echo "Airflow não tem contêineres neste projeto — use 'make airflow-up'."; exit 1; }
+	$(call preflight,airflow)
 	@$(CONTEINERES) retomar Airflow @airflow
 
 airbyte-up: require-abctl ## Sobe o Airbyte local: instala, retoma o pausado ou confere o que já está de pé

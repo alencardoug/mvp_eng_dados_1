@@ -18,8 +18,10 @@ Com os mesmos executáveis simulados, e sem `-n`, a retomada do Airbyte que a
 correção transformou em variável: ela só diz "pronta" quando a API responde, e
 esgotar o prazo é erro nos dois chamadores (RVE3-02).
 
-E a decisão de 24/09/2026 sobre subir: `airbyte-up` decide pelo estado lido do
-cluster, e com ele de pé confere a API em vez de reinstalar (D53).
+E as duas decisões de 24/09/2026 sobre subir e retomar: `airbyte-up` com o
+cluster de pé confere a API em vez de reinstalar (D53), e todo alvo que liga
+Airbyte, Airflow ou *streaming* passa pelo preflight antes — os `*-resume`
+religavam sem conferir memória nem conflito (D54).
 """
 
 from __future__ import annotations
@@ -88,17 +90,20 @@ def _make(
     docker: str = REGISTRADOR,
     binarios: dict[str, str | None] | None = None,
     ambiente_extra: dict[str, str] | None = None,
+    simulados: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """`make` sobre o `Makefile` real copiado; devolve a execução e o que foi chamado.
 
     `binarios` troca ou acrescenta executáveis à frente do `PATH` — o `curl` da
     API, o `sleep` que não dorme —, e `None` tira um dos simulados padrão.
+    `simulados` troca o corpo de um dos scripts do projeto — o preflight que
+    recusa, o `conteineres.sh` que resolve um contêiner.
     """
     trabalho = tmp_path / "checkout"
     for relativo in SIMULADOS:
         caminho = trabalho / relativo
         caminho.parent.mkdir(parents=True, exist_ok=True)
-        caminho.write_text(REGISTRADOR, encoding="utf-8")
+        caminho.write_text((simulados or {}).get(relativo, REGISTRADOR), encoding="utf-8")
         caminho.chmod(0o755)
     (tmp_path / "bin").mkdir()
     for nome, script in ({"docker": docker, "curl": REGISTRADOR} | (binarios or {})).items():
@@ -360,3 +365,135 @@ def test_airbyte_up_em_estado_que_nao_trata_recusa(tmp_path):
     assert "'paused'" in r.stdout, r.stdout
     assert not any(c.startswith(("abctl", "preflight.sh", "docker start")) for c in chamadas), chamadas
 
+
+# ── D54: todo alvo que liga ambiente pesado passa pelo preflight ─────────────
+
+#: O que liga Airbyte, Airflow ou *streaming* no texto de uma receita. Os
+#: bancos (`$(COMPOSE) up`) ficam de fora: não são ambiente pesado do R11, e
+#: sobem sempre.
+LIGA_AMBIENTE = re.compile(
+    r"\$\((?:RETOMAR_AIRBYTE|AGUARDAR_API_AIRBYTE)\)|\$\(ABCTL\) local install|docker start|"
+    r"\$\(CONTEINERES\) retomar|\$\(COMPOSE_(?:AIRFLOW|STREAM)\) up"
+)
+
+#: A família que cada prefixo de alvo liga — é ela que o preflight precisa conferir.
+FAMILIA_DO_ALVO = {"airbyte-": "airbyte", "airflow-": "airflow", "stream-": "streaming"}
+
+
+def _receitas(texto: str) -> dict[str, list[str]]:
+    """Alvo → linhas de receita, com as continuações juntadas e sem os comentários de receita."""
+    receitas: dict[str, list[str]] = {}
+    alvo = None
+    for linha in texto.replace("\\\n", " ").splitlines():
+        if linha.startswith("\t"):
+            corpo = linha.strip().lstrip("@+-").strip()
+            if alvo and not corpo.startswith("#"):
+                receitas[alvo].append(corpo)
+            continue
+        cabecalho = re.match(r"([a-z][a-z0-9_-]*):(?!=)", linha)
+        alvo = cabecalho[1] if cabecalho else None
+        if alvo:
+            receitas.setdefault(alvo, [])
+    return receitas
+
+
+def test_todo_alvo_que_liga_ambiente_pesado_passa_pelo_preflight():
+    """D54: `airbyte-resume`, `stream-resume` e `airflow-resume` religavam sem
+    conferir memória nem conflito, e o próprio preflight mandava retomar por
+    eles — retomar o Airbyte com o *streaming* de pé subia as duas famílias
+    juntas. A regra, lida do texto: a receita que liga ambiente pesado chama o
+    preflight da própria família antes da primeira linha que liga.
+    """
+    receitas = _receitas((RAIZ / "Makefile").read_text(encoding="utf-8"))
+    ligam = {alvo: linhas for alvo, linhas in receitas.items() if any(LIGA_AMBIENTE.search(l) for l in linhas)}
+
+    sem_guarda = []
+    for alvo, linhas in ligam.items():
+        familia = next(f for prefixo, f in FAMILIA_DO_ALVO.items() if alvo.startswith(prefixo))
+        liga = next(i for i, l in enumerate(linhas) if LIGA_AMBIENTE.search(l))
+        guarda = [i for i, l in enumerate(linhas) if l == f"$(call preflight,{familia})"]
+        if not guarda or guarda[0] > liga:
+            sem_guarda.append(alvo)
+
+    assert sorted(ligam) == [
+        "airbyte-resume", "airbyte-up", "airflow-resume", "airflow-up", "stream-resume", "stream-up",
+    ], "o conjunto dos que ligam mudou — confira se o padrão ainda o reconhece"
+    assert sem_guarda == [], "liga ambiente pesado sem passar pelo preflight antes: " + ", ".join(sem_guarda)
+
+
+#: `conteineres.sh` que resolve um contêiner em qualquer grupo e registra o resto.
+CONTEINERES_COM_UM = (
+    '#!/usr/bin/env bash\necho "conteineres.sh $*" >> "$SIM_LOG"\n'
+    '[ "$1" = resolver ] && echo mvp_ed1_x\nexit 0\n'
+)
+
+#: O preflight que recusa — memória que nem a troca resolve, por exemplo.
+PREFLIGHT_QUE_RECUSA = (
+    '#!/usr/bin/env bash\necho "preflight.sh $*" >> "$SIM_LOG"\n'
+    'echo "RECUSADO — simulado."\nexit 1\n'
+)
+
+RETOMADAS = [
+    pytest.param("airbyte-resume", "airbyte", id="airbyte-resume"),
+    pytest.param("stream-resume", "streaming", id="stream-resume"),
+    pytest.param("airflow-resume", "airflow", id="airflow-resume"),
+]
+
+
+def _retomada(
+    tmp_path: pathlib.Path, alvo: str, *argumentos: str, simulados: dict[str, str] | None = None
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Uma retomada com o que ela precisa existindo: o cluster parado, um contêiner por grupo."""
+    return _make(
+        tmp_path,
+        alvo,
+        *argumentos,
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": CURL_DA_API, "sleep": SLEEP_INSTANTANEO},
+        ambiente_extra={"SIM_CLUSTER": "exited", "SIM_API": "pronta"},
+        simulados={"docker/conteineres.sh": CONTEINERES_COM_UM} | (simulados or {}),
+    )
+
+
+def _religacoes(chamadas: list[str]) -> list[int]:
+    return [i for i, c in enumerate(chamadas) if c.startswith(("docker start", "conteineres.sh retomar"))]
+
+
+@pytest.mark.parametrize("alvo, familia", RETOMADAS)
+def test_a_retomada_passa_pela_troca_antes_de_religar(tmp_path, alvo, familia):
+    """D54: a mesma troca dos `*-up` — pausa o conflitante e confere a memória —, antes de religar."""
+    r, chamadas = _retomada(tmp_path, alvo)
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    troca = chamadas.index(f"preflight.sh {familia} --trocar")
+    assert _religacoes(chamadas) and troca < _religacoes(chamadas)[0], chamadas
+
+
+@pytest.mark.parametrize("alvo, familia", RETOMADAS)
+def test_recusa_do_preflight_nao_religa_nada(tmp_path, alvo, familia):
+    r, chamadas = _retomada(tmp_path, alvo, simulados={"docker/preflight.sh": PREFLIGHT_QUE_RECUSA})
+
+    assert r.returncode != 0, r.stdout
+    assert f"preflight.sh {familia} --trocar" in chamadas
+    assert _religacoes(chamadas) == [], chamadas
+
+
+@pytest.mark.parametrize("alvo, familia", RETOMADAS)
+def test_force_na_retomada_e_a_autorizacao_do_owner(tmp_path, alvo, familia):
+    """O caminho sem conferência continua existindo — agora é só este, e é do Owner."""
+    r, chamadas = _retomada(tmp_path, alvo, "FORCE=1")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert f"ignorado por FORCE=1 — subida de {familia} autorizada pelo Owner" in r.stdout
+    assert not any(c.startswith("preflight.sh") for c in chamadas), chamadas
+    assert _religacoes(chamadas), chamadas
+
+
+@pytest.mark.parametrize("alvo, familia", RETOMADAS)
+def test_retomar_o_que_nao_existe_recusa_antes_da_troca(tmp_path, alvo, familia):
+    """Sem nada para religar, a troca pausaria o outro ambiente à toa."""
+    r, chamadas = _make(tmp_path, alvo, docker=DOCKER_DO_CLUSTER, binarios={"sleep": SLEEP_INSTANTANEO})
+
+    assert r.returncode != 0, r.stdout
+    assert "não existe" in r.stdout or "não tem contêineres" in r.stdout, r.stdout
+    assert not any(c.startswith("preflight.sh") for c in chamadas), chamadas
