@@ -1613,8 +1613,101 @@ O ambiente está como a §6 descreve: bancos e Airbyte de pé, Airflow pausado, 
 rede `mvp_ed1_default` externa. A sonda da §12.4 foi desfeita, e nada mais mudou nele. Para sondar o
 nome do projeto sem subir nada, `docker compose … config` basta: ele não fala com o daemon.
 
+## 14. Parecer da quinta rodada — 24/09/2026
+
+Conferidos a resposta ao RVE4-01, a §12, `git show c683313` e o registro de `a7a12a9`, no escopo
+da §13. Os cinco arquivos de implementação e testes de `c683313` continuam iguais em `79240ac`.
+**As formas originais do RVE4-01 estão corrigidas; resta um ajuste, RVE5-01**, introduzido na
+extração do nome da saída YAML. O `name:` acrescentado ao Airflow e a recusa sem nome estão
+cobertos pelos testes. `bb783f4` não foi revisado.
+
+### 14.1 E5-1 — testes
+
+Comando e linha final literal; omitidas apenas as linhas de progresso:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_makefile.py tests/test_preflight.py
+102 passed in 29.46s
+```
+
+### 14.2 E5-2 — nome serializado não é nome resolvido
+
+Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, o Compose instalado aceita nomes como
+`123`, `20260924`, `true`, `false`, `null` e `yes` no `.env`. Seu YAML coloca esses valores entre
+aspas. O `sed` novo retira `name: `, mas mantém as aspas como parte do identificador. A comparação
+com `config --format json` mostrou a divergência; trechos literais da saída da sonda, com o script
+e a composição dos bancos reais copiados para um diretório temporário:
+
+```text
+{"entrada": "123", "script_exit": 0, "script": "\"123\"", "compose": "123", "rede_script": "\"123\"_default", "rede_compose": "123_default", "yaml_name": "name: \"123\""}
+{"entrada": "yes", "script_exit": 0, "script": "'yes'", "compose": "yes", "rede_script": "'yes'_default", "rede_compose": "yes_default", "yaml_name": "name: 'yes'"}
+```
+
+**Contraprova antes/depois**, reutilizando o rascunho dos testes novos, que declara as três portas
+e copia a composição. O Compose é real; a consulta de configuração não acessa o daemon:
+
+```python
+import importlib.util
+import json
+import pathlib
+import subprocess
+import tempfile
+
+spec = importlib.util.spec_from_file_location("review_makefile", "tests/test_makefile.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+previous = subprocess.run(
+    ["git", "show", "c683313^:docker/conteineres.sh"],
+    capture_output=True, text=True, check=True,
+).stdout
+current = module.CONTEINERES_REAL
+for label, content in [("c683313^", previous), ("c683313", current)]:
+    module.CONTEINERES_REAL = content
+    with tempfile.TemporaryDirectory(prefix="rve5-compare-") as tmp:
+        root = module._rascunho(pathlib.Path(tmp), "COMPOSE_PROJECT_NAME=123\n")
+        env = module._ambiente_sem_projeto()
+        result = module._projeto(root, env)
+        print(label, json.dumps({
+            "exit": result.returncode,
+            "projeto": result.stdout.strip(),
+            "rede_exigida": module._rede_que_o_compose_exige(root, env),
+        }, ensure_ascii=False))
+```
+
+```text
+c683313^ {"exit": 0, "projeto": "123", "rede_exigida": "123_default"}
+c683313 {"exit": 0, "projeto": "\"123\"", "rede_exigida": "123_default"}
+```
+
+O efeito nos consumidores também foi conferido. `make up` rodou com o `_make` dos testes,
+`DOCKER_DA_REDE_E_DO_COMPOSE`, a composição real, `PORTAS + "COMPOSE_PROJECT_NAME=123\n"` e
+`sem_ambiente=("COMPOSE_PROJECT_NAME",)`. O `config` foi encaminhado ao Compose instalado; rede e
+subida foram somente registradas. Uma segunda sonda encaminhou igualmente o `config` e registrou
+o `ps` de `resolver airflow_scheduler`. Saída literal:
+
+```text
+make up com config real e mutacoes simuladas: exit=0
+docker network inspect "123"_default
+docker network create "123"_default
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait source_db legacy_db warehouse_db
+resolver com config real e enumeracao simulada: exit=0
+ps --filter label=com.docker.compose.project="123" --filter label=com.docker.compose.service=airflow_scheduler --format {{.Names}}
+```
+
+As aspas dessas linhas são caracteres presentes nos argumentos, não uma apresentação escapada
+pelo shell. O código 0 de `make up` é do dublê que só registra as mutações; **não** comprova que o
+Docker real criou uma rede ou subiu contêineres. O defeito comprovado é o nome divergente enviado
+à garantia e ao filtro de rótulo.
+
+### 14.3 Limites
+
+Nenhum contêiner, rede ou dado foi alterado; as sondas desta rodada usaram apenas `config` real e
+consumidores simulados. Não repetida a subida real da §12.4, nem `make check`, restauração ou B5.
+Nenhum `FORCE=1` foi usado para operar o ambiente. Este parecer não é aceite da entrega.
+
 ## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RVE4-01 | `Makefile:64–67`; `docker/conteineres.sh:67–77` | **A garantia pode preparar outra rede que a exigida pelo Compose.** Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, um `.env` válido com `export COMPOSE_PROJECT_NAME=rve4_clone_probe` faz o script retornar `mvp_ed1`, enquanto o Compose exige `rve4_clone_probe_default`. `make up` foi executado no rascunho com Docker real e saiu 2: `network rve4_clone_probe_default declared as external, but could not be found`. Comentário na mesma linha, interpolação e chave repetida também divergem na comparação de configuração. A D55 tornou esse parser uma pré-condição nova da subida: a rede deixou de ser criada pelo Compose. Fazer a garantia usar o mesmo nome efetivamente resolvido pelo Compose e cobrir a leitura pelo `.env`, além do nome fornecido diretamente pelo ambiente. Preservar a rede externa e a precedência do ambiente. **E4-3.** | `ajuste` | **Corrigido** (`c683313`). `projeto_compose` passa a perguntar o nome ao próprio Compose — o `config` da composição dos bancos, a linha `name:` —, com o ambiente na frente, como o Compose; uma consulta por execução, herdada pelos `resolver`; Compose que não responde é 4, e não o nome padrão. `GARANTIR_REDE` usa esse nome e recusa sem ele, sem criar nada. A precedência do ambiente e a rede externa ficam. A mesma leitura alimentava o `resolver` do preflight, que nessas formas procurava os contêineres pelo rótulo de outro projeto: corrigido na mesma fonte. Reproduzido antes, com os valores da E4-3 nas quatro formas. Depois: as sete formas (as seis da E4-3 e o `.env` sem o nome) batem com a rede do Compose instalado; a sonda do `make up` com `export`, espelhada com Docker real, sai 0 e cria `rve4_clone_probe_default`, desfeita em seguida. **Achado próprio:** a composição do Airflow não declarava `name:`; com o `.env` sem o nome, o Compose chamaria o projeto dela pela pasta — `docker` —, fora do alcance do preflight. Passa a declarar, e o nome resolvido não muda. Testes: +13 em `tests/test_makefile.py` e +1 em `tests/test_preflight.py`, oito reprovando o código anterior. `make check`: 545 passed, 8 skipped, `PASS=905`. §12. |
+| RVE5-01 | `docker/conteineres.sh:91` | **A extração mantém as aspas do YAML dentro do nome do projeto.** Com `COMPOSE_PROJECT_NAME=123` somente no `.env`, o Compose resolve o projeto `123`, mas serializa `name: "123"`; o `sed` devolve `"123"` com as aspas e código 0. A garantia passa a procurar/criar `"123"_default`, diferente de `123_default`, e o `resolver` consulta o rótulo `project="123"`, diferente do projeto existente. `yes` reproduz com aspas simples. A contraprova em `c683313^` devolve `123` corretamente, caracterizando regressão da correção. Extrair o valor do campo por uma leitura estruturada da configuração e acrescentar os casos de nomes que o YAML serializa entre aspas, comparando também a rede e o filtro de projeto. **E5-2.** | `ajuste` | Pendente de aplicação. |
