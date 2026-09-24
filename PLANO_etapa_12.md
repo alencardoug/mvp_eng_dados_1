@@ -90,6 +90,12 @@
 > e a aplicação achou mais dois; a retomada foi medida em duas pausas reais do Airbyte, autorizadas pelo Owner, que decidiu que
 > pronto é a API responder. O que mudou está no bloco "Terceira rodada" da §3, e as saídas na §10
 > do dossiê. B5 continua sem autorização.
+>
+> **D53 e D54 — 24/09/2026.** As duas pendências que a verificação da terceira rodada levantou foram
+> decididas pelo Owner e implementadas: o *preflight* não cobra de novo o alvo que já está de pé,
+> `airbyte-up` confere a API em vez de reinstalar, e os `*-resume` passam pela mesma troca dos
+> `*-up`. O que mudou está no fim da §2.1. A quarta rodada de revisão da entrega confere as
+> respostas da terceira e estas duas mudanças.
 
 ---
 
@@ -404,6 +410,23 @@ anotar, por ambiente, o que estava de pé, e `_religar` recompõe **exatamente**
 conferindo nome a nome, tanto na pausa parcial quanto na recusa por memória. Suíte do preflight:
 31 → 33 casos.
 
+**D53 e D54 — 24/09/2026 (decisões do Owner; [Pendências §2](docs/pendencias.md#d53-e-d54--decididas-e-implementadas-em-24092026)).**
+Duas pendências anteriores a esta entrega, levantadas na verificação da terceira rodada. **D53:** o
+*preflight* cobrava de novo o alvo que já estava de pé — `airbyte-up` com o cluster rodando e
+5,2 GB livres dava "sobraria 0,3 GB" —, e, se passasse, o ramo seguinte era o `abctl local
+install` sobre o cluster de pé. O alvo inteiro de pé deixa de ser cobrado; a troca continua, e a
+pausa da outra família não é desfeita por falta de memória, o que religaria as duas juntas.
+`airbyte-up` decide por três estados lidos: ausente instala, pausado retoma, de pé confere a API;
+consulta que falha ou estado que nenhum caminho trata recusa antes da troca, e o `curl` da espera
+também é conferido antes dela. **D54:** os três `*-resume` religavam sem conferir nada, e o
+*preflight* mandava retomar por eles. Agora passam pela mesma troca, depois de conferir que há o
+que religar, e `FORCE=1` é o único caminho sem conferência. A regra — todo alvo que liga ambiente
+pesado chama o *preflight* da própria família antes — é teste sobre o texto do `Makefile`. Suíte do
+preflight: 33 → 39 casos; `tests/test_makefile.py`: 18 → 41. Medido sem mudar o estado da máquina:
+com o Airbyte de pé e 2,3 GB livres, o *preflight* anterior recusava ("sobraria -2,5 GB") e o novo
+diz "nada a cobrar"; `airbyte-up` e `airbyte-resume` com o cluster de pé terminam em 0,32 s, com o
+instante de início do contêiner intacto.
+
 ---
 
 ## 3. B1 — o instrumento de medição
@@ -589,7 +612,8 @@ seguida `recovery-airbyte-jobs` leu o banco interno do Airbyte e a leitura auten
 identidade devolveu 43 — o que o passo 8 usa estava pronto. O prazo esgotou de verdade, com `make`,
 `curl`, `sleep` e `docker` reais e só a URL trocada: 301 s com a porta recusando, 602 s com cada
 consulta gastando os 5 s do `--max-time`; a mensagem, que afirmava "uma a cada 5 s", passa a dizer
-o tempo contado. A verificação levantou duas pendências anteriores a esta entrega, D53 e D54.
+o tempo contado. A verificação levantou duas pendências anteriores a esta entrega, D53 e D54 —
+decididas e implementadas em 24/09/2026 (fim da §2.1).
 
 ---
 

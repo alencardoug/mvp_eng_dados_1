@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.10 |
+| Versão | 1.11 |
 | Situação | Operação até a Etapa 9 implementada; reconstrução com streaming conferida na D31. Alvos futuros identificados pela etapa |
-| Última revisão | 18/09/2026 |
+| Última revisão | 24/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -195,9 +195,9 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |
 | `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
 | `make preflight` | Diz se cabe subir um subconjunto; `ALVO=airbyte\|airflow\|streaming`. Consulta pura | Etapa 10 |
-| `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo | Etapa 10 |
-| `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector | Etapa 10 |
-| `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow | Etapa 10 |
+| `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo; a retomada passa pela troca do *preflight* | Etapa 10 · 12 |
+| `make stream-pause` / `-resume` | Para e religa Redpanda e Kafka Connect preservando o conector; a retomada passa pela troca do *preflight* | Etapa 10 · 12 |
+| `make airflow-pause` / `-resume` | Para e religa os contêineres do Airflow; a retomada passa pela troca do *preflight* | Etapa 10 · 12 |
 | `make test` | Testes de código Python (`pytest`); `CARGA=1` roda a carga num banco efêmero (`test-carga`); `FATO=1` inclui o teste que escreve na fato de trabalho | Etapa 4 |
 | `make dbt-test` | Somente os testes de dados | Etapa 5 |
 | `make airflow-up` | Sobe o Airflow (LocalExecutor, três contêineres) | Etapa 5 |
@@ -236,8 +236,9 @@ para subir em subconjuntos, mitigação direta do risco **R11**:
 | Execução completa de validação (Etapa 12) | Cada cenário acima, no seu subconjunto — nunca tudo de pé ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) |
 
 **A tabela deixou de depender de quem a lê, e a troca deixou de ser manual.** `make airbyte-up`,
-`airflow-up` e `stream-up` passam por `docker/preflight.sh`, que mede a memória, vê o que está de pé
-e **pausa o ambiente conflitante** antes de subir o que foi pedido:
+`airflow-up` e `stream-up` — e as retomadas, `airbyte-resume`, `stream-resume` e `airflow-resume`
+(D54) — passam por `docker/preflight.sh`, que mede a memória, vê o que está de pé e **pausa o
+ambiente conflitante** antes de subir o que foi pedido:
 
 ```
 $ make stream-up
@@ -252,7 +253,8 @@ $ make stream-up
 e o conector Debezium, e a volta não reinstala nada — contra os minutos de um `airbyte-down`, que é
 `abctl local uninstall` e cai na armadilha do `PG_VERSION` da seção 6. Os pares são
 `airbyte-pause`/`airbyte-resume`, `stream-pause`/`stream-resume` e `airflow-pause`/`airflow-resume`,
-e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo. O ciclo
+e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo — e, com
+ele de pé, só confere a API (D53). O ciclo
 completo de troca, medido: **18 s**. A volta do Airbyte, medida em 23/09/2026 em três retomadas: a
 API responde **entre 74 s e 101 s** depois do `docker start` (74 s com 9,0 GB livres depois da pausa,
 96 s com 6,3 GB), e `airbyte-resume` e `airbyte-up` esperam por ela.
@@ -267,7 +269,16 @@ API responde **entre 74 s e 101 s** depois do `docker start` (74 s com 9,0 GB li
   uma recusa a mais.
 - **Pausa que não resolve é desfeita.** Se, mesmo depois de pausar, a memória ainda não bastar, o
   que foi pausado é religado antes da recusa. Quem rodou o alvo pediu para subir algo, não para
-  derrubar o resto.
+  derrubar o resto. Pelo mesmo motivo, a retomada confere antes da troca que há o que religar, e
+  `airbyte-up` confere o `curl` da espera: sem isso, o outro ambiente seria pausado à toa.
+
+**O que já está de pé não é cobrado de novo (D53).** Subir o que já está inteiro de pé não
+acrescenta memória, e o *preflight* não cobra o custo dele; de pé pela metade, cobra inteiro. A
+família continua valendo: a outra é pausada do mesmo jeito, e essa pausa não é desfeita por falta
+de memória — desfazê-la religaria as duas famílias juntas. O que ninguém confere é o acréscimo de
+uma sincronização sobre o Airbyte ocioso, até o pico de 4,95 GiB da
+[Capacidade §2.9](capacidade_e_recuperacao.md#29-o-teto-de-memória-do-airbyte-medido--07092026):
+`sync-airbyte` nunca passou pelo *preflight*.
 
 `make preflight ALVO=airbyte|airflow|streaming` responde à mesma pergunta sem efeito nenhum — é
 consulta, não ação.
@@ -276,7 +287,8 @@ consulta, não ação.
 `seed-data` e `reset`, `FORCE=1` autoriza — e é autorização do Owner, não atalho de quem esbarrou na
 recusa. Não há cenário previsto em que ela se aplique: a Etapa 12 valida **por partes**, cada
 cenário no seu subconjunto ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — *batch* e
-*streaming* juntos nesta máquina foi o que a travou em 07/09/2026 (D36, fechada).
+*streaming* juntos nesta máquina foi o que a travou em 07/09/2026 (D36, fechada). Desde a D54,
+`FORCE=1` é o único caminho que liga ambiente pesado sem conferência, nos `*-up` e nos `*-resume`.
 
 ---
 
@@ -313,9 +325,12 @@ docker exec airbyte-abctl-control-plane \
 orquestrador e 1 para cada conector —, e a plataforma já segura 1,1 dos 4 da máquina. O Kubernetes
 não agenda, o Airbyte não avisa, e o job fica vivo sem executar.
 
-**Solução:** `make airbyte-up`, que passa [`airbyte/values.yaml`](../airbyte/values.yaml) ao
-`abctl`. Ele fixa `global.workloads.resources` com pedidos de 100m por contêiner, e o *pod* passa a
-pedir 300m em vez de 4 CPUs.
+**Solução:** o [`airbyte/values.yaml`](../airbyte/values.yaml), que `make airbyte-up` passa ao
+`abctl` **na instalação**. Ele fixa `global.workloads.resources` com pedidos de 100m por contêiner,
+e o *pod* passa a pedir 300m em vez de 4 CPUs. Num cluster já instalado, `make airbyte-up` não
+reaplica o chart — com o cluster de pé, só confere a API (D53) —, e o caminho documentado para
+reaplicá-lo é reinstalar: `make airbyte-down`, a armadilha do
+[`PG_VERSION`](#make-airbyte-up-falha-com-permission-denied-no-pg_version) e `make airbyte-up`.
 
 Três caminhos **não** funcionam, e estão registrados no próprio `values.yaml` para não serem
 tentados de novo: `--low-resource-mode`, que é a resposta documentada do Airbyte;
@@ -462,7 +477,9 @@ nada — e é o que o [preflight](#5-executando-por-partes) recomenda quando o A
 —, então o caminho de volta precisa ser conhecido.
 
 **Solução:** religar o contêiner e esperar a API do Airbyte responder, que é quando ele volta a
-servir — é o que `make airbyte-resume` faz (e `make airbyte-up`, quando encontra o cluster parado).
+servir — é o que `make airbyte-resume` faz (e `make airbyte-up`, quando encontra o cluster parado),
+depois da mesma troca do [preflight](#5-executando-por-partes): o *streaming* de pé é pausado antes
+(D54).
 
 ```bash
 make airbyte-resume
@@ -471,8 +488,9 @@ make airbyte-resume
 
 Os pods não servem de sinal: o nó lista os sandboxes da partida anterior como `NotReady`, e o
 Kubernetes chega a dizer todos prontos nos primeiros segundos, com o estado de antes da pausa.
-Depois disso, `make airbyte-up` só é necessário quando o `airbyte/values.yaml` mudou, porque
-reiniciar o contêiner **não** reaplica o chart.
+Reiniciar o contêiner **não** reaplica o chart, e `make airbyte-up` também não: com o cluster de
+pé, ele só confere a API (D53). Mudança no `airbyte/values.yaml` vale na instalação — ver
+[a sincronização que fica `running`](#a-sincronização-do-airbyte-fica-running-para-sempre-e-não-move-linha).
 
 ### `make airbyte-up` falha com `permission denied` no `PG_VERSION`
 
@@ -510,9 +528,11 @@ e o log do `server` traz a causa real: `ERROR: relation "public.auth_user" does 
 
 O banco interno do Airbyte subiu **vazio** — `select count(*) from information_schema.tables where
 table_schema='public'` devolve zero. Os *pods* estão todos de pé; o que falta é o schema. Não é o
-mesmo caso da seção anterior, ainda que o `make airbyte-up` esbarre no mesmo `permission denied` ao
-tentar consertar: lá o cluster foi destruído e os dados ficaram; aqui o cluster está inteiro e os
-dados é que não estão.
+mesmo caso da seção anterior: lá o cluster foi destruído e os dados ficaram; aqui o cluster está
+inteiro e os dados é que não estão. Em 05/09/2026, o `make airbyte-up` esbarrou no mesmo
+`permission denied` ao tentar consertar. Desde a D53 ele nem tenta: com o cluster de pé, só confere
+o `/health`, que nesse estado responde — se com `available:true`, não foi registrado —, e por isso
+não é o que acusa o problema.
 
 Quem cria esse schema é o *pod* `airbyte-abctl-bootloader`, que roda uma vez na instalação e fica
 como `Completed`. Rodá-lo de novo aplica as migrações sobre o banco vazio, e é a correção mais

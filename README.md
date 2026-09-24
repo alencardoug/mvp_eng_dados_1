@@ -43,11 +43,11 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 1 pendente em 18/09/2026: a D43 (adiada para a fase GCP) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 1 pendente em 24/09/2026: a D43 (adiada para a fase GCP) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 47 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
-| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.10 — regeneração da origem medida de ponta a ponta |
+| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.11 — subir e retomar pela mesma troca (D53, D54) |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 
 ## Decisões já tomadas
