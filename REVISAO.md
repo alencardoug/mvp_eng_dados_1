@@ -1602,6 +1602,17 @@ saida=0
 - **O preflight lendo um clone com outro nome pelo `.env`**: provado pelo nome resolvido
   (`test_a_rede_garantida_e_a_que_o_compose_exige`), não por um clone de verdade.
 
+## 13. Para a quinta rodada
+
+Curta, por decisão do Owner: conferir a resposta ao RVE4-01 — a coluna *Situação* na tabela abaixo,
+a §12 e o diff de `c683313` (`git show c683313`). O registro está em `a7a12a9`. O resto do que
+entrou depois de `dbdb52b` não é desta rodada: `bb783f4`, o verificador de ADR, é escopo de B3 e fica
+para a revisão final; os demais *commits* só mexem neste dossiê.
+
+O ambiente está como a §6 descreve: bancos e Airbyte de pé, Airflow pausado, *streaming* ausente, a
+rede `mvp_ed1_default` externa. A sonda da §12.4 foi desfeita, e nada mais mudou nele. Para sondar o
+nome do projeto sem subir nada, `docker compose … config` basta: ele não fala com o daemon.
+
 ## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
