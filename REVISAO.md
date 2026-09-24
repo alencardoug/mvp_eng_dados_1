@@ -1443,8 +1443,167 @@ ambiente e não o compara com a interpretação de um `.env` pelo Compose.
 - Nenhuma alteração de implementação ou de dado do projeto. O parecer foi acrescentado a este
   dossiê. Não constitui aceite da entrega nem autorização de B5.
 
+## 12. A aplicação do RVE4-01 — o que foi medido, 24/09/2026
+
+Um *commit*, `c683313`: `projeto_compose` pergunta o nome do projeto ao próprio Compose,
+`GARANTIR_REDE` recusa sem ele, e a composição do Airflow declara o projeto como as outras duas —
+achado na aplicação. O achado foi reproduzido **antes** de corrigido, e cada teste novo rodou contra
+o código anterior, onde precisa reprovar, e contra o novo.
+
+### 12.1 Antes — os testes novos contra `07c5df6`
+
+```text
+$ set -a; . ./.env; set +a; .venv/bin/pytest -p no:randomly -q tests/test_makefile.py tests/test_preflight.py -k "compose or rede or projeto or resolver_sem"
+FAILED tests/test_makefile.py::test_as_composicoes_declaram_o_mesmo_projeto[docker/docker-compose.airflow.yml]
+FAILED tests/test_makefile.py::test_a_rede_garantida_e_a_que_o_compose_exige[comentario]
+FAILED tests/test_makefile.py::test_a_rede_garantida_e_a_que_o_compose_exige[export]
+FAILED tests/test_makefile.py::test_a_rede_garantida_e_a_que_o_compose_exige[expansao]
+FAILED tests/test_makefile.py::test_a_rede_garantida_e_a_que_o_compose_exige[duplicado]
+FAILED tests/test_makefile.py::test_make_up_garante_a_rede_que_o_compose_exige
+FAILED tests/test_makefile.py::test_sem_o_nome_do_projeto_nada_sobe
+FAILED tests/test_preflight.py::test_resolver_sem_o_nome_do_projeto_e_indeterminado
+8 failed, 16 passed, 78 deselected in 5.81s
+```
+
+As quatro divergências, comparadas com a rede do `docker compose config` instalado — os mesmos
+valores da E4-3:
+
+```text
+tests/test_makefile.py:673: AssertionError: assert 'clone_etapa12#clone_default' == 'clone_etapa12_default'
+tests/test_makefile.py:673: AssertionError: assert 'mvp_ed1_default' == 'clone_etapa12_default'
+tests/test_makefile.py:673: AssertionError: assert '${PREFIX}_etapa12_default' == 'clone_etapa12_default'
+tests/test_makefile.py:673: AssertionError: assert 'mvp_ed1_default' == 'clone_etapa12_default'
+```
+
+Os de controle passam nos dois lados: `simples`, `aspas`, o `.env` sem o nome e a precedência do
+ambiente. Os testes do nível do `make` passam o `config` ao Docker de verdade e registram o resto,
+sem tocar em rede ou contêiner.
+
+### 12.2 As premissas da correção, medidas
+
+A saída do `config` traz uma linha `name:` só, no topo; ele responde sem o daemon; e custa pouco:
+
+```text
+$ docker compose --env-file .env -f docker/docker-compose.yml config | head -1
+name: mvp_ed1
+$ … config | grep -c '^name: '
+1
+$ DOCKER_HOST=unix:///tmp/nao-existe.sock docker compose --env-file .env -f docker/docker-compose.yml config | sed -n 's/^name: //p'
+mvp_ed1
+saida=0
+$ time (5 × docker compose … config)
+real	0m0,453s
+$ docker compose version
+Docker Compose version v5.5.0
+```
+
+A composição dos bancos é a consultada porque não declara variável obrigatória — as `:?` estão só
+na do Airflow.
+
+### 12.3 Depois — contra a máquina, sem mudar o estado dela
+
+```text
+$ env -u COMPOSE_PROJECT_NAME docker/conteineres.sh projeto
+projeto: [mvp_ed1] saída=0
+$ docker compose --env-file .env -f <composição> config --format json   # nome e rede
+docker/docker-compose.yml mvp_ed1 mvp_ed1_default
+docker/docker-compose.airflow.yml mvp_ed1 mvp_ed1_default
+docker/docker-compose.streaming.yml mvp_ed1 mvp_ed1_default
+$ make preflight ALVO=airbyte
+[preflight] RAM disponível agora: 4,5 GB
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] 'airbyte' já está de pé — nada a cobrar
+[preflight] OK
+real	0m0,353s
+$ make up   # bancos de pé
+ Container mvp_ed1_source_db Running
+ Container mvp_ed1_legacy_db Running
+ Container mvp_ed1_warehouse_db Running
+```
+
+O `name:` novo do Airflow resolve para o mesmo projeto de antes: nenhum contêiner foi recriado.
+
+### 12.4 Depois — a sonda do revisor, espelhada
+
+A sonda da E4-3 foi escrita para confirmar a falha: com a correção, ela criaria rede e contêineres
+e pararia em "desfecho inesperado". Esta é a mesma composição e o mesmo `.env`, esperando o
+sucesso e desfazendo tudo no fim — contêineres por `compose down`, a rede criada por `docker network
+rm`, o diretório temporário sozinho:
+
+```python
+env = {k: v for k, v in os.environ.items() if k != "COMPOSE_PROJECT_NAME"}
+with tempfile.TemporaryDirectory(prefix="rve4-depois-") as tmp:
+    # Makefile e docker/conteineres.sh copiados de c683313; a composição da E4-3; o .env:
+    (work / ".env").write_text("export COMPOSE_PROJECT_NAME=rve4_clone_probe\n")
+    # pré-condições: a imagem existe; rve4_clone_probe_default não existe; os conjuntos de
+    # contêineres e de redes, anotados
+    print("rede que GARANTIR_REDE procura: " + run(["docker/conteineres.sh", "projeto"]).stdout.strip() + "_default")
+    print("rede que o Compose exige: " + json.loads(run([... "config", "--format", "json"]).stdout)["networks"]["default"]["name"])
+    r = run(["make", "--no-print-directory", "up"])
+    # … a rede criada, o que ficou de pé no projeto da sonda, e o desfazer:
+    run(["docker", "compose", "--env-file", ".env", "-f", "docker/docker-compose.yml", "down"])
+    run(["docker", "network", "rm", "rve4_clone_probe_default"])
+```
+
+```text
+.env: export COMPOSE_PROJECT_NAME=rve4_clone_probe
+rede que GARANTIR_REDE procura: rve4_clone_probe_default
+rede que o Compose exige: rve4_clone_probe_default
+$ make --no-print-directory up
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait source_db legacy_db warehouse_db
+NAME                              STATUS                  PORTS
+rve4_clone_probe-legacy_db-1      Up Less than a second   6379/tcp
+rve4_clone_probe-source_db-1      Up Less than a second   6379/tcp
+rve4_clone_probe-warehouse_db-1   Up Less than a second   6379/tcp
+exit=0
+rede criada: rve4_clone_probe_default
+de pé no projeto da sonda: rve4_clone_probe-legacy_db-1 rve4_clone_probe-source_db-1 rve4_clone_probe-warehouse_db-1
+depois de desfazer: contêineres iguais=True redes iguais=True
+```
+
+Da saída do `make up`, foram tiradas as linhas de progresso do Compose (`Creating`, `Started`,
+`Waiting`, `Healthy`).
+
+### 12.5 `make check`
+
+Sobre `c683313`, antes do *commit*:
+
+```text
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 983 links de arquivo, 139 âncoras, 588 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+21:30:24  787 of 904 START test accepted_values_fact_payment_transaction_transaction_result__succeeded__failed__pending  [RUN]
+21:30:25  787 of 904 PASS accepted_values_fact_payment_transaction_transaction_result__succeeded__failed__pending  [PASS in 0.15s]
+21:30:29  [WARNING]: Detected columns with numeric type and unspecified precision/scale, this can lead to unintended rounding: ['on_time_rate', 'avg_delay_days_when_late', 'avg_transit_days', 'failed_attempt_count']`
+21:30:31  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+545 passed, 8 skipped in 254.82s (0:04:14)
+check: as quatro etapas passaram
+real	6m36,268s
+saida=0
+```
+
+545 testes: os 531 da §3 e os 14 novos.
+
+### 12.6 O que esta aplicação não verificou
+
+- **A sonda original do revisor** não foi rodada de novo como está: ela afirma a falha. A espelhada
+  (§12.4) usa a mesma composição e o mesmo `.env`.
+- **Um `.env` em forma que só o Compose aceita** — a sintaxe `CHAVE: valor`, por exemplo — não foi
+  testado. A leitura agora é a do Compose, então ela acompanha; mas as receitas do `Makefile`
+  carregam o `.env` pelo `bash` (`set -a; . ./.env`), que não aceitaria essa forma, e isso é
+  anterior a esta entrega.
+- **O Compose que não responde, de verdade**: a recusa da garantia e o 4 do `resolver` rodaram com o
+  `docker` simulado que não responde ao `config`. O `config` real respondeu sem o daemon (§12.2).
+- **O preflight lendo um clone com outro nome pelo `.env`**: provado pelo nome resolvido
+  (`test_a_rede_garantida_e_a_que_o_compose_exige`), não por um clone de verdade.
+
 ## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVE4-01 | `Makefile:64–67`; `docker/conteineres.sh:67–77` | **A garantia pode preparar outra rede que a exigida pelo Compose.** Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, um `.env` válido com `export COMPOSE_PROJECT_NAME=rve4_clone_probe` faz o script retornar `mvp_ed1`, enquanto o Compose exige `rve4_clone_probe_default`. `make up` foi executado no rascunho com Docker real e saiu 2: `network rve4_clone_probe_default declared as external, but could not be found`. Comentário na mesma linha, interpolação e chave repetida também divergem na comparação de configuração. A D55 tornou esse parser uma pré-condição nova da subida: a rede deixou de ser criada pelo Compose. Fazer a garantia usar o mesmo nome efetivamente resolvido pelo Compose e cobrir a leitura pelo `.env`, além do nome fornecido diretamente pelo ambiente. Preservar a rede externa e a precedência do ambiente. **E4-3.** | `ajuste` | Pendente de aplicação. |
+| RVE4-01 | `Makefile:64–67`; `docker/conteineres.sh:67–77` | **A garantia pode preparar outra rede que a exigida pelo Compose.** Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, um `.env` válido com `export COMPOSE_PROJECT_NAME=rve4_clone_probe` faz o script retornar `mvp_ed1`, enquanto o Compose exige `rve4_clone_probe_default`. `make up` foi executado no rascunho com Docker real e saiu 2: `network rve4_clone_probe_default declared as external, but could not be found`. Comentário na mesma linha, interpolação e chave repetida também divergem na comparação de configuração. A D55 tornou esse parser uma pré-condição nova da subida: a rede deixou de ser criada pelo Compose. Fazer a garantia usar o mesmo nome efetivamente resolvido pelo Compose e cobrir a leitura pelo `.env`, além do nome fornecido diretamente pelo ambiente. Preservar a rede externa e a precedência do ambiente. **E4-3.** | `ajuste` | **Corrigido** (`c683313`). `projeto_compose` passa a perguntar o nome ao próprio Compose — o `config` da composição dos bancos, a linha `name:` —, com o ambiente na frente, como o Compose; uma consulta por execução, herdada pelos `resolver`; Compose que não responde é 4, e não o nome padrão. `GARANTIR_REDE` usa esse nome e recusa sem ele, sem criar nada. A precedência do ambiente e a rede externa ficam. A mesma leitura alimentava o `resolver` do preflight, que nessas formas procurava os contêineres pelo rótulo de outro projeto: corrigido na mesma fonte. Reproduzido antes, com os valores da E4-3 nas quatro formas. Depois: as sete formas (as seis da E4-3 e o `.env` sem o nome) batem com a rede do Compose instalado; a sonda do `make up` com `export`, espelhada com Docker real, sai 0 e cria `rve4_clone_probe_default`, desfeita em seguida. **Achado próprio:** a composição do Airflow não declarava `name:`; com o `.env` sem o nome, o Compose chamaria o projeto dela pela pasta — `docker` —, fora do alcance do preflight. Passa a declarar, e o nome resolvido não muda. Testes: +13 em `tests/test_makefile.py` e +1 em `tests/test_preflight.py`, oito reprovando o código anterior. `make check`: 545 passed, 8 skipped, `PASS=905`. §12. |

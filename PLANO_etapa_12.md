@@ -101,6 +101,12 @@
 > liberada, achou a rede do projeto sendo levada pelo `make down` — os contêineres pausados do
 > Airflow presos à rede antiga desde 21/09 — e a pausa do Airbyte terminando em SIGKILL. O Owner
 > decidiu a rede externa e manter a pausa, documentada. Tudo no fim da §2.1.
+>
+> **Quarta rodada da revisão da entrega — 24/09/2026, mesma data.** O parecer (`REVISAO.md` §11)
+> confirmou as respostas da terceira rodada e as decisões D53, D54 e D56, e abriu um ajuste,
+> RVE4-01: a garantia da rede externa (D55) tirava o nome do projeto de uma leitura do `.env` que
+> diverge do Compose. Aplicado no mesmo dia, com um achado próprio; o que mudou está no fim da §2.1,
+> e as saídas na §12 do dossiê. B5 continua sem autorização.
 
 ---
 
@@ -442,6 +448,16 @@ projeto passa a ser externa, porque o `make down` a levava e os contêineres pau
 ao ID antigo, os do Airflow desde 21/09; **D56** — a pausa do Airbyte continua terminando em SIGKILL
 aos 10 s, contra ~91 s da parada limpa, e ficou documentada. `tests/test_makefile.py`: 41 → 48
 casos; suíte do preflight: 39 → 40.
+
+**Quarta rodada — 24/09/2026 (RVE4-01; `REVISAO.md` §11–12).** A garantia da rede externa tirava
+o nome do projeto de um `sed` no `.env`, e o Compose interpreta o arquivo: com `export`, comentário
+na linha, interpolação ou chave repetida, a garantia preparava uma rede e o `up` exigia outra — o
+revisor parou um `make up` real assim. A mesma leitura alimentava o `resolver` do preflight.
+`conteineres.sh` passa a perguntar o nome ao próprio Compose — o `config` da composição dos bancos,
+com o ambiente na frente —, e "não sei" é 4; `GARANTIR_REDE` recusa sem o nome. **Achado próprio:**
+a composição do Airflow não declarava `name:`, e com o `.env` sem o nome o projeto dela seria
+`docker`, invisível ao preflight. `tests/test_makefile.py`: 48 → 61 casos; suíte do preflight:
+40 → 41.
 
 ---
 
