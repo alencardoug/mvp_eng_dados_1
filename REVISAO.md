@@ -1013,6 +1013,282 @@ comentário, docstring e o id de um teste de `tests/test_makefile.py`: `18 passe
 - **A vírgula da tabela posta à mão** vai além da letra do RVE3-01, e é a mesma regra que o período
   já seguia.
 
+## 11. O que a §10.4 deixou aberto, verificado depois — 23/09/2026
+
+A pedido do Owner, com a memória liberada por ele: item a item, na ordem da §10.4. O que ainda
+depende de outra autorização fica dito como tal.
+
+### 11.1 `airbyte-up` retomando de verdade
+
+`make preflight ALVO=trabalho` → `nenhum trabalho em andamento`; `airbyte_jobs.sh ler` →
+`maior_job=43`; `make airbyte-pause`; `MemAvailable: 9028160 kB`. No instante T0, a sonda da §10.2
+em segundo plano e, em sequência, o que o passo 8 da restauração faz: `make airbyte-up`,
+`make recovery-airbyte-jobs` (só lê: o próximo job, 44, já nasce acima da captura retida, 43) e a
+leitura autenticada da guarda de identidade (`GET /jobs`, a mesma que a sincronização do legado faz
+antes do `POST`), por um alvo de uma linha passado em `--eval`, com as credenciais pela macro do
+próprio `Makefile`:
+
+```bash
+make --no-print-directory --eval 'sonda-api: ; @set -a; . ./.env; set +a; $(CREDENCIAIS); .venv/bin/python -c "from mvp_ed1 import airbyte; from mvp_ed1.legacy import identidade; jwt = airbyte.token(); print(\"maior_job_conhecido pela API:\", identidade.maior_job_conhecido(lambda: airbyte.jobs(jwt)))"' sonda-api
+```
+
+```text
+airbyte-up saiu 0 em +75.9s | recovery-airbyte-jobs saiu 0 em +77.5s | sonda-api saiu 0 em +81.7s
+=== airbyte-up ===
+[preflight] RAM disponível agora: 8,6 GB
+[preflight] Já de pé: nada além dos bancos
+[preflight] 'airbyte' custa ~4,9 GB — sobraria 3,8 GB
+[preflight] OK
+cluster pausado — retomando em vez de reinstalar
+aguardando a API do Airbyte............... pronta.
+
+Interface em http://localhost:8000 — credenciais em 'make airbyte-credentials'.
+=== recovery-airbyte-jobs ===
+[recovery] Airbyte: maior job 43, sequência public.jobs_id_seq em 43 (já usada) → próximo job 44; captura retida 43
+[recovery] o próximo job já nasce acima da captura retida — nada a avançar
+=== sonda-api ===
+maior_job_conhecido pela API: 43
+```
+
+A sonda, com o mesmo recorte da §10.2:
+
+```text
+t=+   0.0s antigo=sem_resposta sandbox_ready=0   notready=0   k8s_airbyte_prontos=0/0    api= http=000
+t=+   2.1s antigo=casa         sandbox_ready=0   notready=34  k8s_airbyte_prontos=0/0    api= http=000
+t=+   4.6s antigo=casa         sandbox_ready=4   notready=19  k8s_airbyte_prontos=0/0    api= http=000
+t=+   8.6s antigo=casa         sandbox_ready=10  notready=19  k8s_airbyte_prontos=0/8    api= http=000
+t=+  11.5s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=2/8    api= http=000
+t=+  14.4s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+…
+t=+  42.2s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api= http=000
+t=+  45.1s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=3/8    api=<html 503> http=503
+t=+  47.9s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+t=+  50.7s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=4/8    api=<html 503> http=503
+t=+  53.4s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  56.1s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  58.8s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=7/8    api=<html 503> http=503
+t=+  61.2s antigo=casa         sandbox_ready=18  notready=19  k8s_airbyte_prontos=7/8    api=<html 503> http=503
+t=+  63.7s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=7/8    api=<html 503> http=503
+t=+  66.3s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+…
+t=+  71.7s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=6/8    api=<html 503> http=503
+t=+  74.2s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=7/8    api={"available":true} http=200
+…
+t=+  79.1s antigo=casa         sandbox_ready=18  notready=18  k8s_airbyte_prontos=7/8    api={"available":true} http=200
+fim: API disponível 3 vezes seguidas
+```
+
+O preflight aprovou (sobrariam 3,8 GB), a receita disse "pronta" em +75,9 s — a sonda viu
+`available:true` em +74,2 s —, e os dois passos seguintes encontraram o banco interno e a API
+autenticada de pé. Três retomadas, agora: 101 s (a primeira, sem a memória lida depois da pausa),
+96 s com 6,3 GB livres e 74 s com 9,0 GB.
+
+### 11.2 O prazo esgotando de verdade
+
+`make`, `curl`, `sleep` e `docker` reais; só a URL da API trocada, por `AIRBYTE_WEB=` na linha de
+comando (conferido antes, sem `make -n`: `--eval` que imprime a variável). O Airbyte estava de pé, e
+o `docker start` da receita não mudou nada. Dois casos em paralelo — a porta sem ninguém ouvindo, e
+um servidor que aceita a conexão e nunca responde:
+
+```bash
+#!/usr/bin/env bash
+# O prazo da retomada esgotando de verdade: make, curl, sleep e docker reais;
+# só a URL da API muda. O Airbyte está de pé, então o `docker start` da receita
+# não muda nada. Dois casos em paralelo:
+#   fechada   — porta sem ninguém ouvindo: o curl volta na hora;
+#   buraco    — um servidor que aceita a conexão e nunca responde: cada consulta
+#               gasta os 5 s do --max-time (o "pior caso" da §10.5).
+S=/tmp/claude-1000/-home-doug-Projetos-mvp-ed1/a5300d4d-5d68-4ecc-813f-6ef3f76cde85/scratchpad
+cd /home/doug/Projetos/mvp_ed1 || exit 1
+
+python3 - <<'EOF' &
+import socket, time
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", 58322))
+s.listen(256)
+guardadas = []
+while True:
+    c, _ = s.accept()
+    guardadas.append(c)   # aceita e nunca responde
+EOF
+BURACO=$!
+timeout 3 tail -f /dev/null
+
+_caso() {  # $1 = nome, $2 = porta
+	local ini fim rc
+	ini=$(date +%s.%N)
+	make --no-print-directory airbyte-resume AIRBYTE_WEB="http://127.0.0.1:$2" > "$S/prazo_$1.txt" 2>&1
+	rc=$?
+	fim=$(date +%s.%N)
+	LC_ALL=C awk -v a="$fim" -v b="$ini" -v rc=$rc -v n="$1" \
+		'BEGIN{printf "%s: make saiu %d em %.1f s\n", n, rc, a-b}' >> "$S/prazo_$1.txt"
+}
+_caso fechada 58321 &
+P1=$!
+_caso buraco 58322 &
+P2=$!
+wait $P1 $P2
+kill $BURACO 2>/dev/null
+echo "fim dos dois casos"
+```
+
+```text
+aguardando a API do Airbyte............................................................ tempo esgotado: a API não respondeu a 60 consultas, uma a cada 5 s.
+  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+make: *** [Makefile:302: airbyte-resume] Erro 1
+fechada: make saiu 2 em 301.5 s
+aguardando a API do Airbyte............................................................ tempo esgotado: a API não respondeu a 60 consultas, uma a cada 5 s.
+  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'.
+make: *** [Makefile:302: airbyte-resume] Erro 1
+buraco: make saiu 2 em 601.8 s
+```
+
+**301,5 s e 601,8 s**, erro nos dois. O segundo mede o "pior caso dobra" da §10.5, que era
+argumento. E desmentiu a mensagem: "60 consultas, uma a cada 5 s" foi uma a cada ~10 s. É a
+confusão entre pausa e período que o medidor já tinha corrigido. `5851d41` troca a cadência pelo
+tempo que o bash contou (`a API não respondeu a 60 consultas em $SECONDS s.`), e o teste do prazo
+confere o formato com `make` e bash reais.
+
+### 11.3 Sob mais pressão de memória
+
+Não induzi. O preflight só deixa `airbyte-up` passar com o custo (5.000 MB) mais a folga
+(1.500 MB) livres depois da pausa, ~6,5 GB. O ciclo 2 foi recusado a 6,0 GB, e as retomadas de 96 s
+e 101 s aconteceram nesse limite, com a carga normal da estação. Com o Airflow de pé, a pausa
+deixaria ~7,5 GB livres, menos pressão que naquelas duas. Abaixo do limite só se chega por
+`airbyte-resume`, que não passa por preflight, e medir isso é provocar o travamento que o R11
+registra — é a D54.
+
+### 11.4 O Kubernetes com estado velho
+
+Visto uma vez em três retomadas: no ciclo 2, 8/8 em +5,4 s. Nos ciclos 1 e 3, a primeira leitura do
+Kubernetes veio em +10,3 s e +8,6 s, já com 0/8. A janela é curta e nem sempre é pega; basta uma vez
+para o critério não servir.
+
+### 11.5 Máquina sem pt_BR, e outra implementação de `awk`
+
+O caso pt_BR do teste pula, com o motivo, quando o locale falta (`_locale_instalado` trocado por um
+que responde `False`):
+
+```text
+instalado de verdade: True | inexistente: False
+pulou: pt_BR.UTF-8 não está instalado — o medidor não roda sob ele nesta máquina
+```
+
+O `gawk` não está instalado nesta máquina; não instalei pacote de sistema. O que há é o `mawk` e o
+`busybox awk`:
+
+```text
+/bin/mawk 23
+/etc/alternatives/awk /bin/awk
+/etc/alternatives/awk /usr/bin/awk
+/etc/alternatives/nawk /bin/nawk
+/etc/alternatives/nawk /usr/bin/nawk
+/usr/bin/mawk 23
+/usr/bin/busybox
+/usr/bin/nawk
+/usr/bin/mawk
+```
+
+Então a afirmação sobre o `gawk` continua não verificada. O que importa ao projeto — que o resultado
+não dependa da implementação — foi medido com as duas que existem. O medidor antigo (`78d0dcb`) e o
+novo, com a entrada do revisor, trocando o `awk` do `PATH` por um que chama o `busybox awk`:
+
+```text
+busybox awk sob pt_BR, lendo "1.5": 1.5
+medir.sh antigo (78d0dcb)  mawk        C            codigo 0 maximo_mb 2048 tabela '2.0 GB'
+medir.sh antigo (78d0dcb)  mawk        pt_BR.UTF-8  codigo 0 maximo_mb 1536 tabela '1,5 GB'
+medir.sh antigo (78d0dcb)  busybox awk C            codigo 0 maximo_mb 2048 tabela '2.0 GB'
+medir.sh antigo (78d0dcb)  busybox awk pt_BR.UTF-8  codigo 0 maximo_mb 2048 tabela '2.0 GB'
+medir.sh novo              mawk        C            codigo 0 maximo_mb 2048 tabela '2,0 GB'
+medir.sh novo              mawk        pt_BR.UTF-8  codigo 0 maximo_mb 2048 tabela '2,0 GB'
+medir.sh novo              busybox awk C            codigo 0 maximo_mb 2048 tabela '2,0 GB'
+medir.sh novo              busybox awk pt_BR.UTF-8  codigo 0 maximo_mb 2048 tabela '2,0 GB'
+```
+
+O defeito era do `mawk`. O `busybox awk` não segue o locale nem para ler nem para escrever, e o
+medidor novo dá o mesmo número e a mesma linha nas quatro combinações.
+
+### 11.6 O `_gb` do preflight
+
+Ninguém lê número de volta das mensagens dele — só o próprio `preflight.sh` as usa:
+
+```text
+docker/preflight.sh:323:_gb() { awk -v m="$1" 'BEGIN {printf "%.1f GB", m/1024}'; }
+docker/preflight.sh:325:echo "[preflight] RAM disponível agora: $(_gb "$DISPONIVEL")"
+docker/preflight.sh:331:echo "[preflight] '$ALVO' custa ~$(_gb "$CUSTO") — sobraria $(_gb "$PROJECAO")"
+docker/preflight.sh:338:  RECUSA="sobraria menos que a folga mínima de $(_gb "$FOLGA_MINIMA") para o host"
+docker/preflight.sh:418:  echo "[preflight] RAM disponível agora: $(_gb "$DISPONIVEL") — sobraria $(_gb "$PROJECAO")"
+docker/preflight.sh:425:    RECUSA="mesmo depois de pausar $(IFS=' e '; echo "${PAUSADOS[*]}"), sobraria menos que a folga mínima de $(_gb "$FOLGA_MI
+```
+
+`docker/preflight.sh airbyte`, só leitura, sob C e sob pt_BR, com o Airbyte de pé — a mesma decisão,
+e só o separador muda (o 0.3 contra 0,2 é a memória que oscilou entre as duas execuções; a decisão
+é uma conta inteira em MB, no bash):
+
+```text
+C: rc=1
+pt_BR: rc=1
+1c1
+< [preflight] RAM disponível agora: 5.1 GB
+---
+> [preflight] RAM disponível agora: 5,1 GB
+3c3
+< [preflight] 'airbyte' custa ~4.9 GB — sobraria 0.3 GB
+---
+> [preflight] 'airbyte' custa ~4,9 GB — sobraria 0,2 GB
+5c5
+< RECUSADO — sobraria menos que a folga mínima de 1.5 GB para o host.
+---
+> RECUSADO — sobraria menos que a folga mínima de 1,5 GB para o host.
+```
+
+E a suíte do preflight nos dois:
+
+```text
+C            33 passed in 18.41s
+pt_BR.UTF-8  33 passed in 18.54s
+```
+
+### 11.7 O passo 8 de `recovery-restore` de ponta a ponta
+
+Não rodado: é de B5, que restaura os dumps sobre os bancos de trabalho e sincroniza com `RESET=1`, e
+exige autorização própria. A parte dele que o RVE3-02 toca — o que vem logo depois de `airbyte-up` e
+só lê — rodou de verdade, na 11.1.
+
+### 11.8 Duas pendências que a verificação levantou
+
+Anteriores a esta entrega, e nenhuma mudada por ela; registradas em `docs/pendencias.md` §1 com as
+alternativas, para decisão do Owner:
+
+- **D53** — o preflight de `airbyte-up` cobra de novo o Airbyte que já está de pé. A recusa da
+  11.6 é ela: 5,1 GB livres com o Airbyte rodando, "sobraria 0,3 GB". É a conta dupla que o pacote
+  tinha (`5e32d0d`).
+- **D54** — ao pausar, o preflight manda retomar por `make *-resume`, e os três religam sem conferir
+  memória nem conflito. Retomar o Airbyte com o *streaming* de pé põe as duas famílias juntas.
+
+### 11.9 `make check`
+
+Sobre `5851d41`, com os documentos desta seção na árvore:
+
+```text
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 977 links de arquivo, 128 âncoras, 589 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+00:18:44  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `name` não encontrada; tratada como técnica
+aviso: model.mvp_ed1.legacy_classifications: origem `c` de `name` não encontrada; tratada como técnica
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+484 passed, 8 skipped in 249.28s (0:04:09)
+check: as quatro etapas passaram
+real	6m27,127s
+```
+
 ## Achados da revisão
 
 Um achado por linha, com veredito. Os dois são remanescentes reproduzidos também na base;
@@ -1020,5 +1296,5 @@ as cinco correções anteriores permanecem confirmadas conforme §9.1.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVE3-01 | `docker/medir.sh:61–72` | **A conversão da memória ainda depende do locale e subestima leituras válidas.** Com `LC_ALL=pt_BR.UTF-8`, as entradas `1.5GiB` e `512.5MiB` resultam em **1.536 MB**, contra **2.048 MB** sob `C`, com código 0 e nenhuma falha. O `awk` da coleta interpreta o ponto conforme a localidade; o `LC_ALL=C` acrescentado à agregação não recupera a fração perdida antes. Isso impede usar o medidor como evidência de capacidade de B5 nesse ambiente (P5). Fixar a localidade numérica da conversão e testar a mesma entrada decimal sob `C` e `pt_BR.UTF-8`; conferir a necessidade de remedir registros anteriores, sem estimar números. **E3-4.** | `bloqueante` | **Corrigido** (`4921289`). Todo `awk` do medidor roda sob `LC_ALL=C` — leitura, soma e agregação —, e `_gb` põe a vírgula da tabela à mão, como o período já fazia. Sonda E3-4 repetida: 2.048 MB sob C, C.UTF-8 e pt_BR.UTF-8, com a mesma linha nos três. Contra o Docker real, sob pt_BR: 3.879 MB, entre leituras diretas de 3.878 e 3.882 MB somadas sob C. A mesma leitura real, somada sob pt_BR, perdia 733 MB (3.271 contra 4.004). **Achado próprio:** a linha da tabela também mudava de forma com o locale (`2.2 GB` sob C), e por isso o teste do RVE2-02 que recusava `0.0 GB` era vazio sob pt_BR; ele passa a recusar `0,0 GB`. Registros anteriores: há um só, o `size-report` de 20/09, com 3.961 MB, citado no plano §3. Ele saiu sob pt_BR e ficou marcado no plano como subestimado, sem estimativa de correção, porque a série bruta não existe. Nada o consome, e a Capacidade é medida em B5. Testes: `test_toda_conta_do_medidor_roda_sob_o_locale_c` (a regra, lida do texto) e `test_a_conversao_da_memoria_nao_depende_do_locale[C, pt_BR]` (o efeito, com a entrada do revisor). Os três reprovam o medidor anterior. §10.1. |
-| RVE3-02 | `Makefile:277–280` (`RETOMAR_AIRBYTE`) | **A espera da retomada anuncia sucesso sem observar prontidão.** `grep -q Ready` aceita uma linha `NotReady` e imprime `pronto`; se nenhuma linha casar nas 30 tentativas, o último `echo` também devolve 0. As duas formas afetam `airbyte-resume` e o ramo de retomada de `airbyte-up`, permitindo que chamadores prossigam mesmo sem a condição que o alvo promete esperar. Reconhecer o estado `Ready` de forma exata e sair com erro ao esgotar o prazo; cobrir `NotReady`, consulta sem resposta útil e timeout nos dois chamadores. Preservar a correção de `make -n`. **E3-5.** | `ajuste` | **Corrigido** (`d3a20df`, `c58a3cd`, `9d856df`). Por decisão do Owner, pronto é `GET /api/v1/health` responder `available:true`, que é o que os passos seguintes usam. Medido em duas pausas reais, autorizadas: a espera antiga disse "pronto" em 5,6 s, com 34 sandboxes `NotReady` e nenhum pronto, e a API respondeu em 101 s e em 96 s. Nem o sandbox exato (pronto em ~5 s) nem a prontidão do Kubernetes (8/8 aos 5 s, estado de antes da pausa) serviriam. O prazo é de 60 consultas a cada 5 s, três vezes o medido; esgotado, sai com erro nos dois chamadores, e `airbyte-up` não anuncia a interface. Numa retomada real, a receita nova disse "pronta" em 95,7 s, junto com a API. O `airbyte-up` real foi recusado pelo preflight por memória, e não foi forçado. Sonda E3-5 repetida: os quatro casos saem 2. **Achado próprio:** sem `curl`, o `2>/dev/null` engoliria o "command not found", e a espera venceria dizendo que a API não respondeu; a receita passa a conferir o `curl` antes de religar (`c58a3cd`). O "~20 s" que a Execução Local dava para a volta tinha saído da espera defeituosa, e foi trocado pelo medido. `make -n` continua sem executar nada, e agora vigia também o `curl`. Testes: dez da retomada (os dois chamadores × pronta na primeira; pronta depois de ficar sem resposta e de 503; sem resposta; 503; `available:false`) e o do `curl` ausente, todos reprovando a receita anterior. §10.2. |
+| RVE3-01 | `docker/medir.sh:61–72` | **A conversão da memória ainda depende do locale e subestima leituras válidas.** Com `LC_ALL=pt_BR.UTF-8`, as entradas `1.5GiB` e `512.5MiB` resultam em **1.536 MB**, contra **2.048 MB** sob `C`, com código 0 e nenhuma falha. O `awk` da coleta interpreta o ponto conforme a localidade; o `LC_ALL=C` acrescentado à agregação não recupera a fração perdida antes. Isso impede usar o medidor como evidência de capacidade de B5 nesse ambiente (P5). Fixar a localidade numérica da conversão e testar a mesma entrada decimal sob `C` e `pt_BR.UTF-8`; conferir a necessidade de remedir registros anteriores, sem estimar números. **E3-4.** | `bloqueante` | **Corrigido** (`4921289`). Todo `awk` do medidor roda sob `LC_ALL=C` — leitura, soma e agregação —, e `_gb` põe a vírgula da tabela à mão, como o período já fazia. Sonda E3-4 repetida: 2.048 MB sob C, C.UTF-8 e pt_BR.UTF-8, com a mesma linha nos três. Contra o Docker real, sob pt_BR: 3.879 MB, entre leituras diretas de 3.878 e 3.882 MB somadas sob C. A mesma leitura real, somada sob pt_BR, perdia 733 MB (3.271 contra 4.004). **Achado próprio:** a linha da tabela também mudava de forma com o locale (`2.2 GB` sob C), e por isso o teste do RVE2-02 que recusava `0.0 GB` era vazio sob pt_BR; ele passa a recusar `0,0 GB`. Registros anteriores: há um só, o `size-report` de 20/09, com 3.961 MB, citado no plano §3. Ele saiu sob pt_BR e ficou marcado no plano como subestimado, sem estimativa de correção, porque a série bruta não existe. Nada o consome, e a Capacidade é medida em B5. Testes: `test_toda_conta_do_medidor_roda_sob_o_locale_c` (a regra, lida do texto) e `test_a_conversao_da_memoria_nao_depende_do_locale[C, pt_BR]` (o efeito, com a entrada do revisor). Os três reprovam o medidor anterior. §10.1. **Verificado depois (§11.5):** com o `busybox awk` no lugar do `mawk`, o medidor novo dá o mesmo número e a mesma linha; o `gawk` não está instalado. |
+| RVE3-02 | `Makefile:277–280` (`RETOMAR_AIRBYTE`) | **A espera da retomada anuncia sucesso sem observar prontidão.** `grep -q Ready` aceita uma linha `NotReady` e imprime `pronto`; se nenhuma linha casar nas 30 tentativas, o último `echo` também devolve 0. As duas formas afetam `airbyte-resume` e o ramo de retomada de `airbyte-up`, permitindo que chamadores prossigam mesmo sem a condição que o alvo promete esperar. Reconhecer o estado `Ready` de forma exata e sair com erro ao esgotar o prazo; cobrir `NotReady`, consulta sem resposta útil e timeout nos dois chamadores. Preservar a correção de `make -n`. **E3-5.** | `ajuste` | **Corrigido** (`d3a20df`, `c58a3cd`, `9d856df`, `5851d41`). Por decisão do Owner, pronto é `GET /api/v1/health` responder `available:true`, que é o que os passos seguintes usam. Medido em duas pausas reais, autorizadas: a espera antiga disse "pronto" em 5,6 s, com 34 sandboxes `NotReady` e nenhum pronto, e a API respondeu em 101 s e em 96 s. Nem o sandbox exato (pronto em ~5 s) nem a prontidão do Kubernetes (8/8 aos 5 s, estado de antes da pausa) serviriam. O prazo é de 60 consultas a cada 5 s, três vezes o medido; esgotado, sai com erro nos dois chamadores, e `airbyte-up` não anuncia a interface. Numa retomada real, a receita nova disse "pronta" em 95,7 s, junto com a API. O `airbyte-up` real foi recusado pelo preflight por memória, e não foi forçado. Sonda E3-5 repetida: os quatro casos saem 2. **Achado próprio:** sem `curl`, o `2>/dev/null` engoliria o "command not found", e a espera venceria dizendo que a API não respondeu; a receita passa a conferir o `curl` antes de religar (`c58a3cd`). O "~20 s" que a Execução Local dava para a volta tinha saído da espera defeituosa, e foi trocado pelo medido. `make -n` continua sem executar nada, e agora vigia também o `curl`. Testes: dez da retomada (os dois chamadores × pronta na primeira; pronta depois de ficar sem resposta e de 503; sem resposta; 503; `available:false`) e o do `curl` ausente, todos reprovando a receita anterior. §10.2. **Verificado depois (§11):** `airbyte-up` real, com o preflight aprovando, disse "pronta" em 75,9 s, e os dois passos seguintes do passo 8 acharam banco e API de pé; o prazo esgotou de verdade em 301 s e, no pior caso, 602 s — e a mensagem passou a dizer o tempo contado (`5851d41`). |

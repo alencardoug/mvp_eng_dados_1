@@ -253,8 +253,9 @@ e o conector Debezium, e a volta não reinstala nada — contra os minutos de um
 `abctl local uninstall` e cai na armadilha do `PG_VERSION` da seção 6. Os pares são
 `airbyte-pause`/`airbyte-resume`, `stream-pause`/`stream-resume` e `airflow-pause`/`airflow-resume`,
 e **`make airbyte-up` retoma sozinho** um cluster pausado em vez de tentar reinstalá-lo. O ciclo
-completo de troca, medido: **18 s**. A volta do Airbyte, medida em 23/09/2026 em duas retomadas: a
-API responde **96 s e 101 s** depois do `docker start`, e `airbyte-resume` espera por ela.
+completo de troca, medido: **18 s**. A volta do Airbyte, medida em 23/09/2026 em três retomadas: a
+API responde **entre 74 s e 101 s** depois do `docker start` (74 s com 9,0 GB livres depois da pausa,
+96 s com 6,3 GB), e `airbyte-resume` e `airbyte-up` esperam por ela.
 
 **Duas salvaguardas, porque troca automática que erra custa trabalho perdido:**
 
@@ -465,7 +466,7 @@ servir — é o que `make airbyte-resume` faz (e `make airbyte-up`, quando encon
 
 ```bash
 make airbyte-resume
-# aguardando a API do Airbyte................... pronta.   ← ~100 s, medido em 23/09/2026
+# aguardando a API do Airbyte................... pronta.   ← 74 a 101 s, medido em 23/09/2026
 ```
 
 Os pods não servem de sinal: o nó lista os sandboxes da partida anterior como `NotReady`, e o

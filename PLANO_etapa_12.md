@@ -576,12 +576,20 @@ intervalo revisado, que o revisor reproduziu também na base:
   5,6 s, e a API respondeu em 101 s e em 96 s. **Por decisão do Owner, pronto é a API responder**
   (`GET /api/v1/health` → `available:true`). Nem pod serviria: o primeiro sandbox fica pronto em
   ~5 s, e o Kubernetes chegou a dizer 8/8 prontos aos 5 s, estado de antes da pausa. O prazo é de
-  60 consultas a cada 5 s, três vezes o medido, e esgotá-lo é erro nos dois chamadores. A receita
-  nova, numa retomada real, disse "pronta" em 95,7 s. O "~20 s" que a Execução Local dava para a
-  volta tinha saído da espera defeituosa, e foi trocado pelo medido. **Achado próprio:** sem
-  `curl`, a espera seria cega — o `2>/dev/null` engoliria o "command not found", e o prazo venceria
-  dizendo que a API não respondeu —, e a receita passa a conferir o `curl` antes de religar.
-  `tests/test_makefile.py`: 7 → 18 casos.
+  60 consultas com 5 s de pausa entre elas, três vezes o medido, e esgotá-lo é erro nos dois
+  chamadores. A receita nova, numa retomada real, disse "pronta" em 95,7 s. O "~20 s" que a
+  Execução Local dava para a volta tinha saído da espera defeituosa, e foi trocado pelo medido.
+  **Achado próprio:** sem `curl`, a espera seria cega — o `2>/dev/null` engoliria o "command not
+  found", e o prazo venceria dizendo que a API não respondeu —, e a receita passa a conferir o
+  `curl` antes de religar. `tests/test_makefile.py`: 7 → 18 casos.
+
+**Verificado depois, com a memória liberada pelo Owner (23/09/2026, `REVISAO.md` §11).**
+`make airbyte-up` retomou de verdade, com o preflight aprovando: disse "pronta" em 75,9 s, e logo em
+seguida `recovery-airbyte-jobs` leu o banco interno do Airbyte e a leitura autenticada da guarda de
+identidade devolveu 43 — o que o passo 8 usa estava pronto. O prazo esgotou de verdade, com `make`,
+`curl`, `sleep` e `docker` reais e só a URL trocada: 301 s com a porta recusando, 602 s com cada
+consulta gastando os 5 s do `--max-time`; a mensagem, que afirmava "uma a cada 5 s", passa a dizer
+o tempo contado. A verificação levantou duas pendências anteriores a esta entrega, D53 e D54.
 
 ---
 
