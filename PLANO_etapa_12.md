@@ -107,6 +107,11 @@
 > RVE4-01: a garantia da rede externa (D55) tirava o nome do projeto de uma leitura do `.env` que
 > diverge do Compose. Aplicado no mesmo dia, com um achado próprio; o que mudou está no fim da §2.1,
 > e as saídas na §12 do dossiê. B5 continua sem autorização.
+>
+> **Quinta rodada da revisão da entrega — 24/09/2026, mesma data.** Curta, só sobre o RVE4-01. O
+> parecer (`REVISAO.md` §14) confirmou as formas originais e achou uma regressão da correção,
+> RVE5-01: o YAML do `config` põe entre aspas nomes como `123` e `yes`, e as aspas iam para o nome.
+> Aplicado no mesmo dia; o que mudou está no fim da §2.1, e as saídas na §15 do dossiê.
 
 ---
 
@@ -458,6 +463,13 @@ com o ambiente na frente —, e "não sei" é 4; `GARANTIR_REDE` recusa sem o no
 a composição do Airflow não declarava `name:`, e com o `.env` sem o nome o projeto dela seria
 `docker`, invisível ao preflight. `tests/test_makefile.py`: 48 → 61 casos; suíte do preflight:
 40 → 41.
+
+**Quinta rodada — 24/09/2026 (RVE5-01; `REVISAO.md` §14–15).** A correção do RVE4-01 lia o nome do
+YAML do `config`, que põe entre aspas os nomes que ele mesmo leria como outra coisa — `123`,
+`20260924`, `yes`, `true`, `null` —, e as aspas iam para o nome da rede e para o filtro de rótulo do
+`resolver`. A leitura passa a ser a do JSON do mesmo `config`, só a chave do topo e só um nome na
+gramática do Compose; qualquer outra forma é "não sei". `jq` e Python, leitores de verdade, seriam
+pré-requisitos novos, e não foram adotados. `tests/test_makefile.py`: 61 → 79 casos.
 
 ---
 
