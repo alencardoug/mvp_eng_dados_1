@@ -1241,11 +1241,210 @@ mvp_ed1-airflow_init-1 criado 2026-09-24T20:19:34Z
 
 ---
 
-## Achados da revisão
+## 11. Parecer da quarta rodada — 24/09/2026
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+Revisão do intervalo fixado na §1, `2136781..dbdb52b`, com o dossiê em `3b3fe3d`.
+Os arquivos de implementação desse intervalo continuam iguais na ponta consultada. Mantido o
+escopo **B0/B1/B4**; B2/B3, inclusive `bb783f4`, continuam para a revisão final.
+
+**Um ajuste, RVE4-01; nenhum novo bloqueante identificado no escopo conferido.** As correções
+RVE3-01 e RVE3-02 foram confirmadas pelos testes e pela leitura dos chamadores. D53 e D54 preservam
+a troca e a recusa antes da retomada. A D55 funciona com o `.env` gerado pelo projeto, mas passa a
+depender de uma leitura do nome do projeto que diverge do Compose em formas válidas de `.env`:
+uma delas impediu `make up` na sonda real abaixo. D56 foi conferida como decisão documentada do
+Owner, sem refazer a medição nem alterar o risco aceito.
+
+### 11.1 E4-1 — testes executados pelo revisor
+
+Comandos e linhas finais literais; as linhas de progresso foram omitidas:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_makefile.py tests/test_medicao.py tests/test_preflight.py
+119 passed in 67.29s (0:01:07)
+```
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_recovery.py -k 'force_nao_atravessa or passo_d50_vem_depois or restore_sem_autorizacao'
+3 passed, 74 deselected in 0.10s
+```
+
+Os 119 incluem os dois locales do RVE3-01, os três caminhos da espera do Airbyte, timeout,
+ausência de `curl`, falha de enumeração, estados do cluster, a guarda dos `*-resume`, a recusa de
+memória e as trocas simuladas. Nenhum desses testes foi pulado. Os três de recuperação conferem
+a autorização de entrada, a não propagação de `FORCE` e a posição de D50 depois de `airbyte-up`.
+Isso valida a composição de B4; não é uma restauração executada.
+
+### 11.2 E4-2 — estado real, consultado sem troca
+
+A primeira tentativa, dentro da sandbox, não alcançou o daemon. As consultas foram repetidas
+fora dela; são estas as saídas abaixo. Nenhum `--trocar` ou `FORCE` foi usado.
+
+```text
+$ make preflight ALVO=airbyte
+[preflight] RAM disponível agora: 4.6 GB
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] 'airbyte' já está de pé — nada a cobrar
+[preflight] OK
+exit=0
+$ make preflight ALVO=airflow
+[preflight] RAM disponível agora: 4.6 GB
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] 'airflow' custa ~1.4 GB — sobraria 3.3 GB
+[preflight] OK
+exit=0
+$ make preflight ALVO=streaming
+[preflight] RAM disponível agora: 4.6 GB
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] 'streaming' custa ~0.5 GB — sobraria 4.1 GB
+
+RECUSADO — batch e streaming não sobem juntos (R11; a validação é por partes, ADR-0046).
+  A política de quais subconjuntos bastam está em docs/execucao_local.md §5.
+
+  Pause primeiro:
+    make airbyte-pause                     (pausa Airbyte; retomar com make airbyte-resume)
+
+  Se ambos são mesmo necessários (reconciliar o CDC contra a
+  carga completa), isto é uma PAUSA para o Owner liberar recursos:
+  peça a ele, confirme, e então autorize com FORCE=1.
+make: *** [Makefile:269: preflight] Error 1
+exit=2
+$ docker network inspect mvp_ed1_default --format {{.Id}}
+23dec8900a2580dd8d3a95e34b5f307ac7c36a32dbc4be6dd62f17c0e2463a4f
+exit=0
+```
+
+Também foram consultadas as três composições com `docker compose --env-file .env -f <arquivo>
+config --format json`. Só o nome e a rede foram impressos, sem os ambientes dos serviços:
+
+```text
+docker/docker-compose.yml {"name": "mvp_ed1", "networks": {"default": {"name": "mvp_ed1_default", "ipam": {}, "external": true}}}
+docker/docker-compose.airflow.yml {"name": "mvp_ed1", "networks": {"default": {"name": "mvp_ed1_default", "ipam": {}, "external": true}}}
+docker/docker-compose.streaming.yml {"name": "mvp_ed1", "networks": {"default": {"name": "mvp_ed1_default", "ipam": {}, "external": true}}}
+```
+
+### 11.3 E4-3 — o nome da rede diverge do Compose
+
+`GARANTIR_REDE` usa `conteineres.sh projeto`, que lê `.env` por `sed`, toma a primeira ocorrência
+e remove espaços e aspas. O Compose interpreta o arquivo. A comparação abaixo usa o
+`conteineres.sh` real copiado, o Compose instalado e um `.env` sintético, sem o
+`COMPOSE_PROJECT_NAME` herdado do processo. Não consulta o daemon nem sobe serviço.
+
+Código da comparação; a composição mínima preserva as declarações de nome e rede da entrega:
+
+```python
+import json
+import os
+import pathlib
+import subprocess
+import tempfile
+
+root = pathlib.Path.cwd()
+with tempfile.TemporaryDirectory(prefix="rve4-compose-") as tmp:
+    tmp = pathlib.Path(tmp)
+    (tmp / "docker").mkdir()
+    (tmp / "docker/conteineres.sh").write_bytes((root / "docker/conteineres.sh").read_bytes())
+    (tmp / "docker/compose.yml").write_text(
+        "name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}\n"
+        "services:\n  probe:\n    image: local-placeholder\n"
+        "networks:\n  default:\n"
+        "    name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_default\n    external: true\n"
+    )
+    env = os.environ.copy()
+    env.pop("COMPOSE_PROJECT_NAME", None)
+    cases = {
+        "simples": "COMPOSE_PROJECT_NAME=clone_etapa12\n",
+        "aspas": 'COMPOSE_PROJECT_NAME="clone_etapa12"\n',
+        "comentario": "COMPOSE_PROJECT_NAME=clone_etapa12 # clone\n",
+        "export": "export COMPOSE_PROJECT_NAME=clone_etapa12\n",
+        "expansao": "PREFIX=clone\nCOMPOSE_PROJECT_NAME=${PREFIX}_etapa12\n",
+        "duplicado": "COMPOSE_PROJECT_NAME=mvp_ed1\nCOMPOSE_PROJECT_NAME=clone_etapa12\n",
+    }
+    for label, body in cases.items():
+        (tmp / ".env").write_text(body)
+        resolver = subprocess.run(
+            ["bash", "docker/conteineres.sh", "projeto"],
+            cwd=tmp, env=env, text=True, capture_output=True, check=True,
+        )
+        compose = subprocess.run(
+            ["docker", "compose", "--env-file", ".env", "-f", "docker/compose.yml",
+             "config", "--format", "json"],
+            cwd=tmp, env=env, text=True, capture_output=True, check=True,
+        )
+        config = json.loads(compose.stdout)
+        print(label, "script=" + repr(resolver.stdout.strip() + "_default"),
+              "compose=" + repr(config["networks"]["default"]["name"]))
+```
+
+Saída literal dos seis casos:
+
+```text
+simples script='clone_etapa12_default' compose='clone_etapa12_default'
+aspas script='clone_etapa12_default' compose='clone_etapa12_default'
+comentario script='clone_etapa12#clone_default' compose='clone_etapa12_default'
+export script='mvp_ed1_default' compose='clone_etapa12_default'
+expansao script='${PREFIX}_etapa12_default' compose='clone_etapa12_default'
+duplicado script='mvp_ed1_default' compose='clone_etapa12_default'
+```
+
+**Efeito real em `make up`.** Rodado em `/tmp/rve4-rede-5msnbdys`, com cópias inalteradas do
+`Makefile` e de `docker/conteineres.sh`, `.env` contendo somente
+`export COMPOSE_PROJECT_NAME=rve4_clone_probe`, e esta composição sem volumes nem portas:
+
+```yaml
+name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}
+services:
+  source_db:
+    image: redis:7.2-bookworm
+    entrypoint: ["sleep", "30"]
+  legacy_db:
+    image: redis:7.2-bookworm
+    entrypoint: ["sleep", "30"]
+  warehouse_db:
+    image: redis:7.2-bookworm
+    entrypoint: ["sleep", "30"]
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}_default
+    external: true
+```
+
+A sonda conferiu antes que a imagem já existia, que `mvp_ed1_default` existia e que
+`rve4_clone_probe_default` estava ausente. Assim, a garantia encontrou a rede errada existente,
+sem criar outra, e o Compose recusou a rede externa ausente antes de criar contêiner. O conjunto
+de IDs e nomes de `docker ps -a` foi comparado antes e depois. Comando executado:
+`python3 /tmp/rve4-rede-5msnbdys/probe.py`, fora da sandbox após ela recusar o acesso ao daemon.
+
+```text
+.env: export COMPOSE_PROJECT_NAME=rve4_clone_probe
+rede que GARANTIR_REDE procura: mvp_ed1_default
+rede que o Compose exige: rve4_clone_probe_default
+$ make --no-print-directory up
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait source_db legacy_db warehouse_db
+network rve4_clone_probe_default declared as external, but could not be found
+make: *** [Makefile:182: up] Error 1
+exit=2
+conjunto de conteineres preservado=True
+```
+
+O parser já existia antes do intervalo; **a dependência dele para criar a rede em `up` é nova**.
+Antes da D55, a rede era criada pelo próprio Compose. O teste
+`test_projeto_diz_o_nome_que_o_compose_usa` não exercita essa fronteira: fornece o nome pelo
+ambiente e não o compara com a interpretação de um `.env` pelo Compose.
+
+### 11.4 Limites desta revisão
+
+- Não repetidas as pausas, retomadas e trocas reais da §10, nem a parada limpa ou o SIGKILL de
+  D56. A conferência independente da política usou os testes isolados e as consultas de E4-2.
+- Não executado `make check`, que inclui `dbt build` e reescreve camadas. O resultado de 521
+  testes da §3 continua sendo a medição do autor; o revisor executou os 119 + 3 acima.
+- Não executados restore, sincronização, geração de dados, B5 ou seus testes de recuperação
+  ponta a ponta. Os limites já declarados na §4 permanecem, com a resolução do nome em `.env`
+  agora exercitada por E4-3.
+- Nenhuma alteração de implementação ou de dado do projeto. O parecer foi acrescentado a este
+  dossiê. Não constitui aceite da entrega nem autorização de B5.
+
+## Achados da revisão
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RVE4-01 | `Makefile:64–67`; `docker/conteineres.sh:67–77` | **A garantia pode preparar outra rede que a exigida pelo Compose.** Sem `COMPOSE_PROJECT_NAME` no ambiente do processo, um `.env` válido com `export COMPOSE_PROJECT_NAME=rve4_clone_probe` faz o script retornar `mvp_ed1`, enquanto o Compose exige `rve4_clone_probe_default`. `make up` foi executado no rascunho com Docker real e saiu 2: `network rve4_clone_probe_default declared as external, but could not be found`. Comentário na mesma linha, interpolação e chave repetida também divergem na comparação de configuração. A D55 tornou esse parser uma pré-condição nova da subida: a rede deixou de ser criada pelo Compose. Fazer a garantia usar o mesmo nome efetivamente resolvido pelo Compose e cobrir a leitura pelo `.env`, além do nome fornecido diretamente pelo ambiente. Preservar a rede externa e a precedência do ambiente. **E4-3.** | `ajuste` | Pendente de aplicação. |
