@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; D53 e D54, levantadas na verificação da terceira, **decididas e implementadas em 24/09/2026**, e D55 e D56, levantadas ao exercitá-las, decididas no mesmo dia; a quarta (1 ajuste, RVE4-01, mais 1 próprio) e a quinta (1 ajuste, RVE5-01) aplicadas, e a sexta, sem achado, **encerrou a revisão da entrega B0/B1/B4 em 24/09/2026** — 26 achados em seis rodadas, 15 bloqueantes e 11 ajustes; **B5 sem autorização** — exige a do Owner, e o candidato do pacote precisa ser refeito antes (`make recovery-pack`) |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; D53 e D54, levantadas na verificação da terceira, **decididas e implementadas em 24/09/2026**, e D55 e D56, levantadas ao exercitá-las, decididas no mesmo dia; a quarta (1 ajuste, RVE4-01, mais 1 próprio) e a quinta (1 ajuste, RVE5-01) aplicadas, e a sexta, sem achado, **encerrou a revisão da entrega B0/B1/B4 em 24/09/2026** — 26 achados em seis rodadas, 15 bloqueantes e 11 ajustes; **B5 sem autorização** — exige a do Owner; o preparo foi feito em 24/09/2026 (`check-offline`, `dbt deps` no `install`, a Execução Local como roteiro, o candidato do pacote refeito com o código final) e o roteiro, a revisão 8 do §7 do plano, vai à revisão do Codex antes |
 | Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 24/09/2026 |
@@ -82,6 +82,25 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 ---
 
 ## 2. Decisões já fechadas
+
+### D57 e D58 — decididas em 24/09/2026, para o roteiro do B5
+
+Duas decisões de operação tomadas ao escrever o roteiro do B5 (revisão 8 do §7 do plano). Como as
+anteriores desta etapa, nenhuma troca ferramenta, camada ou modelagem; nenhum ADR.
+
+- **D57 — a rede do projeto sai à mão no desmonte do B5.** O plano exige inventário vazio, inclusive
+  de redes, e pela D55 nenhum alvo remove a rede do projeto. Depois do `make reset`, `docker network
+  rm mvp_ed1_default`, registrado no diário: o inventário fica vazio de verdade, e o `make up` do
+  clone exercita a criação da rede do zero — o caminho da D55 que ainda não rodou de verdade no
+  projeto. *Descartada:* aceitar a rede como a única sobra declarada, com o clone reaproveitando-a.
+  *Custo aceito:* um comando fora do `Makefile`, no desmonte, que já é inventariado à mão.
+- **D58 — o clone do B5 vira o *checkout* de trabalho.** O clone sobe os bancos com as senhas novas
+  do `make env`, e o `.env` do *checkout* antigo deixa de abrir os volumes, que são os mesmos porque
+  o nome do projeto é o mesmo. O B5 prova que o clone sobe do zero, e ele segue como o *checkout* do
+  projeto: o B6 e a Etapa 13 continuam nele. O antigo fica parado, com o pacote, até o
+  `recovery-promote`, e o Owner o arquiva ou apaga quando quiser. *Descartada:* voltar ao antigo,
+  copiando para ele o `.env` e os artefatos do clone — um passo manual que o B5 não mede. *Custo
+  aceito:* o Owner troca de diretório.
 
 ### D55 e D56 — decididas em 24/09/2026
 
