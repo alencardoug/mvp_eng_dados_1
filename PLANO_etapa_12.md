@@ -121,6 +121,13 @@
 > `git show 2136781:REVISAO.md`, a 3ª em `git show c10a30c:REVISAO.md`, da 4ª à 6ª em
 > `git show a001887:REVISAO.md`. B2 e B3 ficam para a revisão final, depois de B6, com dossiê novo. O
 > próximo bloco é B5, que exige a autorização do Owner.
+>
+> **Revisão 8 — 24/09/2026, mesma data.** O §7, o B5, reescrito como roteiro executável, depois do
+> preparo — `make check-offline`, `dbt deps` no `make install`, a Execução Local §2–§4 como roteiro, o
+> candidato do pacote refeito com o código final — e das decisões D57 (a rede sai à mão no desmonte) e
+> D58 (o clone vira o *checkout* de trabalho). Ao escrevê-lo, apareceu um defeito da revisão 3:
+> `RECOVERY_DIR` no `.env` do clone não chega ao `make`, e o roteiro passa a exportá-lo no *shell*. O
+> roteiro vai à revisão do outro agente antes da autorização do B5.
 
 ---
 
@@ -1196,80 +1203,118 @@ Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 
 ## 7. B5 — o ciclo do zero, medido
 
-**Pré-condição:** B0–B4 entregues, pacote candidato montado e verificado, Execução Local
-corrigida nos seis desvios da §0 (senão o roteiro está errado antes de começar).
+> **Revisão 8 — 24/09/2026.** Reescrita como **roteiro executável** contra o código de `561edc2`,
+> depois da revisão da entrega B0/B1/B4 (encerrada). Mudou em relação à revisão 7: as pré-condições
+> que dependiam de construção foram cumpridas — `make check-offline` (`96c7a9f`), `dbt deps` no
+> `make install` (`6802d12`), a Execução Local §2–§4 como roteiro (`561edc2`), o candidato do pacote
+> refeito —; o roteiro incorpora as decisões D53 a D58; cada passo diz de qual diretório roda, com
+> que comando e qual saída vale como oráculo; e há pontos de parada, recuo e diário declarados.
+> Regime: **[medido]** tem saída por trás; **[planejado]** é intenção.
 
-### 7.1 Desmontar — no *checkout* antigo, que tem `.tools/`
+### 7.0 Pré-condições, conferidas uma a uma
 
-Com os processos parados (preflight sem trabalho):
+| # | Pré-condição | Como conferir | Estado em 24/09/2026 |
+|---|---|---|---|
+| P1 | B0–B4 entregues; revisão da entrega encerrada | `git log` | **[medido]** encerrada em `a4b04fc` — 26 achados em seis rodadas |
+| P2 | Execução Local §2–§4 servem de roteiro | leitura contra este §7 | **[medido]** versão 1.13 (`561edc2`) |
+| P3 | `check-offline` e `dbt deps` existem | `make help` | **[medido]** `96c7a9f`, `6802d12` |
+| P4 | O candidato do pacote foi montado com o código que o B5 vai usar | `make recovery-pack`, depois `make recovery-verify CONTRA_O_BANCO=1`; o manifesto registra o `commit` | **[medido]** corte `2026-09-24T23:43:04Z`, `commit` `561edc2`, conferido contra os bancos. **Refazer** se o código mudar depois da revisão deste roteiro |
+| P5 | Uma cópia do candidato fora do repositório | `cp -a data/recovery/candidato ~/mvp_ed1-candidato-<corte>`; `sha256sum -c` no diretório copiado | **[planejado]** — depois do `make reset`, o pacote é a única cópia da memória do armazém (capturas, certificados, SCD, quarentena); a cópia custa ~31 MB |
+| P6 | A autorização do Owner | explícita, na conversa | **[planejado]** — e o passo 9 pede a segunda: `RESTAURAR=1` |
+| P7 | A estação enxuta | `grep MemAvailable /proc/meminfo` antes de cada linha | **[planejado]** — com o Airbyte de pé e a estação de trabalho aberta, sobram ~5,5 GB (24/09, medido); o Airflow custa ~1,4 GB (derivado, não medido isolado) e o pico de uma sincronização fica ~1,3 GB acima do Airbyte ocioso (4,95 GiB de pico medidos em 07/09, contra ~3,7 GB ocioso). Recusa do preflight é registrada e **não** contornada: o Owner libera memória, e só então `FORCE=1`, com a autorização dele (`CLAUDE.md` §5) |
 
-1. `make stream-down FORCE=1` — tópicos, *offsets* do Connect, **e os *slots* enquanto o
-   `source_db` antigo ainda existe** (RV12-03).
-2. `make airflow-down FORCE=1` — metadados e histórico de execuções.
-3. `make airbyte-down` — o cluster `kind` cai; o diretório antigo do `abctl` é **apartado**
-   (renomeado com data) e isso fica no diário — é a armadilha do `PG_VERSION` da Execução Local
-   §6, reproduzida com o remédio documentado.
-4. `make reset` — os três volumes PostgreSQL (confirmação interativa, como sempre).
-5. **Inventário**: `docker ps -a` e `docker volume ls` filtrados por `mvp_ed1` **e** por
-   `airbyte-abctl` (o nó do cluster não leva o nome do projeto), `docker network ls` idem →
-   **vazio**. `kind` não está no PATH nem em `make tools`: o nó é um contêiner e é assim que se
-   inventaria; comando ausente **não** conta como inventário vazio. Colado no diário.
+**Tempo [planejado]:** ~2 h, a maior parte nas trocas, nas sincronizações e na restauração.
 
-### 7.2 Preparar o clone
+**O diário.** Um arquivo no clone, `data/medicoes/diario_b5.md` — fora do *git*, como as medições —,
+com uma entrada por comando: hora, diretório, comando, código de saída, as linhas que servem de
+oráculo e **desvio** (não, ou o quê). Os registros do `make medir` caem ao lado, em
+`data/medicoes/*.json`. O que o B5 mede vira a Capacidade §2.12, e o diário vai literal para o
+dossiê da revisão final.
 
-1. `git clone` de `origin/main` em outro diretório; `make env` (senhas novas); `make install`
-   — que passa a incluir **`dbt deps`** com o `package-lock.yml` versionado (RV12-07: hoje
-   `uv sync` só); `make tools` (baixa `abctl` e Terraform fixados para o `.tools/` do clone —
-   tempo medido, é a primeira vez que o alvo roda do zero desde a Etapa 5).
-2. `RECOVERY_DIR=<caminho absoluto do pacote no checkout antigo>` exportado no `.env` do clone.
-3. **`make check-offline` antes de subir nada** (RV12-2-04) — alvo novo, explícito: segredos,
-   `docs-check`, e `pytest -m "not integracao"`. O `make check` completo fica **intacto** e roda
-   na linha 4 da §7.3, depois das duas ingestões. O que `check-offline` pular é listado com
-   motivo.
+### 7.1 Desmontar — no *checkout* antigo, que tem `.tools/` e o pacote
 
-   **A seleção offline foi varrida inteira, não só o arquivo do parecer (RV12-3-06; a contagem
-   corrigida pelo RV12-5-01).** Com uma sonda que substitui `Engine.connect` e a chamada do `dbt`
-   por falha, e com variáveis de conexão **presentes** — sem elas os guardas de `skip` escondem o
-   acesso —, dos **169** testes selecionados a sonda interceptou **três acessos**, e deles
-   dependem **quatro** testes (§16.6):
+| # | Comando | Oráculo |
+|---|---|---|
+| 1 | `make preflight ALVO=trabalho` | "nenhum trabalho em andamento — janela parada" |
+| 2 | `make stream-down FORCE=1` | tópicos, *offsets* do Connect e **os *slots* removidos enquanto o `source_db` antigo existe** (RV12-03): `select count(*) from pg_replication_slots` → 0 |
+| 3 | `make airflow-down FORCE=1` | contêineres e volumes do Airflow fora — metadados e histórico de execuções |
+| 4 | `make airbyte-down`, depois `mv ~/.airbyte/abctl/data ~/.airbyte/abctl/data.<data>` | o nó `airbyte-abctl-control-plane` fora; o diretório de dados **apartado, não apagado** — é a armadilha do `PG_VERSION` da Execução Local §6, com o remédio documentado. O contador de *jobs* do Airbyte (43) sai junto, e é a D50 que o reconstrói no passo 9 |
+| 5 | `make reset` | os três volumes PostgreSQL fora (confirmação interativa) |
+| 6 | `docker network rm mvp_ed1_default` (**D57**) | a rede do projeto fora — nenhum alvo a remove (D55); aqui ela sai à mão para o inventário ficar vazio e o clone criá-la do zero |
+| 7 | Inventário | `docker ps -a`, `docker volume ls` e `docker network ls`, filtrados por `mvp_ed1` **e** por `airbyte-abctl`, → **vazio**; `kind` não está no `PATH` nem em `make tools`, e comando ausente **não** conta como inventário vazio. A rede `kind`, do próprio `kind` e sem estado do projeto, fica — a reinstalação deve reaproveitá-la: premissa, conferida na linha 2 do §7.3 |
 
-   | Teste | O que tenta | Hoje |
-   |---|---|---|
-   | `test_legacy_classification.py::test_configuracao_divergente_da_impressao_recusa_a_compilacao` | `dbt compile` | **falha** |
-   | `test_legacy_classification.py::test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai` | SQL no armazém | **falha** |
-   | `test_consumo.py::test_toda_view_de_consumo_responde` | SQL no armazém, pela fixture `engine` | pula limpo |
-   | `test_consumo.py::test_as_dezesseis_perguntas_estao_publicadas` | a **mesma** fixture, já resolvida | pula limpo, sem abrir uma segunda conexão |
+O candidato continua em `data/recovery/candidato` deste *checkout*: `make reset` não toca em `data/`.
 
-   **Três acessos não são três testes:** `engine` é fixture de **escopo de módulo**
-   (`tests/test_consumo.py`), resolve uma vez e serve os dois testes de consumo — a sonda vê um
-   acesso, e dele dependem dois. Os quatro ganham a marca `integracao` — o `test_consumo.py`
-   inteiro, que já estava previsto, e os dois de `test_legacy_classification.py`, que não estavam.
-   Os outros **165** não abrem conexão nem chamam dbt. **Limite da sonda [declarado]:** ela intercepta `Engine.connect` e o `dbt` por
-   subprocesso; acesso por outro caminho (psycopg cru, HTTP) não seria visto — a prova que fecha é
-   a execução do `check-offline` num clone sem bancos nem caches, com as variáveis de conexão
-   presentes, e é ela que roda aqui.
+**`RECOVERY_DIR` vai no *shell*, e não no `.env` [medido, 24/09/2026].** A revisão 3 dizia "exportado
+no `.env` do clone", e isso não funciona: o `Makefile` expande `$(RECOVERY_DIR)` antes de a receita
+carregar o `.env`, e não o inclui como variável dele. Com o valor só no `.env`, o `recovery-restore`
+do clone procuraria o pacote no `data/recovery` vazio do próprio clone e recusaria no passo 1. Medido
+com um alvo passado por `--eval`: sem nada, o valor é o `data/recovery` do *checkout*; com
+`RECOVERY_DIR` no ambiente, é o do ambiente. É o que o roteiro gravado no próprio pacote manda
+(`export RECOVERY_DIR=…`).
 
-### 7.3 O ciclo, na ordem certa — cada linha sob `make medir`
+### 7.2 Preparar o clone — que passa a ser o *checkout* de trabalho (D58)
 
-A ordem **não** é a da Execução Local §3 de hoje: o *streaming* vem antes do primeiro
-`dbt-build` completo (RV12-04), e a §3 é corrigida para dizer isso.
+| # | Comando | Oráculo |
+|---|---|---|
+| 1 | `git clone <origin> <clone>` — a ponta de `origin/main` revisada | o `HEAD` do clone é o *commit* revisado |
+| 2 | `make env`; depois, **no *shell* do clone**, `export RECOVERY_DIR=<checkout antigo>/data/recovery`, absoluto (D46) | `.env` com permissão 600 e senhas novas; cada alvo `recovery-*` imprime `[recovery] RECOVERY_DIR = <checkout antigo>/data/recovery` |
+| 3 | `make install` | `uv sync`; `dbt deps` com `dbt_utils` 1.4.1, `dbt_expectations` 0.10.10, `dbt_date` 0.21.0 |
+| 4 | `make tools` | `abctl` `v0.30.4` e Terraform `1.16.1` em `.tools/`; tempo registrado — é a primeira vez que o alvo roda do zero desde a Etapa 5 |
+| 5 | `make check-offline` — **antes de subir qualquer coisa** (RV12-2-04) | "check-offline: as três etapas passaram"; os pulados com motivo; os de integração listados por arquivo |
 
-| # | Cenário | Alvos | De pé | `ATE` | O que a linha prova |
-|---|---|---|---|---|---|
-| 1 | Base | `up` → `migrate` → `seed-data` → `migrate-legacy` → `seed-legacy` | bancos | — | migrações do zero; cobertura (`test_cobertura`, manifesto do legado novo) |
-| 2 | Carga | `airbyte-up` → `airbyte-config` → `sync-airbyte` → `sync-legacy` | + Airbyte | — | `raw`, `raw_legacy`, a primeira captura certificada — a identidade é o `jobId` devolvido, não `1` por definição (RV12-4-05); o pico da etapa |
-| 3 | Streaming — o *snapshot* | `make medir CENARIO=streaming` (sem `LIMITE`: sobe, `stream-run` sob guarda, corte = origem, `stream-wait`, encerra) | + streaming (pausa o Airbyte) | interno ao cenário | o livro quente igual à origem (comparação da §3.2: chave + as 16 colunas de `COLUNAS_DO_EVENTO`, lidas da tupla, e o saldo por armazém/SKU — os quatro zeros); Beam encerrado ao fim |
-| 4 | Transformação | `airbyte-up` (pausa o streaming) → `dbt-build` → `check` | + Airbyte | — | o primeiro `build` completo: `PASS=`, `caminhos_de_ingestao_reconciliam`, as oito fronteiras |
-| 5 | Orquestração | `airflow-up` → `dag-run` | + Airflow (Airbyte de pé: o par permitido) | `dag-wait` | 13 tarefas `success`, tempo da DAG, a captura seguinte certificada (identidade lida do `jobId` devolvido) |
-| 6 | Streaming — eventos novos | `make medir CENARIO=streaming LIMITE=n` (sobe, `stream-run` sob guarda, produz, **corte lido depois do produtor**, `stream-wait`, encerra) → `stream-alerts` | + streaming (Airbyte e Airflow pausados **pelo preflight de B0**) | interno ao cenário | os `n` eventos novos chegam (não só o *snapshot*); alerta emitido; Beam encerrado ao fim |
-| 7 | Reconciliação dos caminhos | `airbyte-up` → `sync-airbyte` → `dbt-build` | + Airbyte | — | os dois caminhos iguais com os eventos novos |
-| 8 | Catálogo | `docs-generate` → `catalog` | bancos | — | tempo; `sensitivity --check`, `lineage --check` sem diferença; `curl` na porta do `dbt-docs` no diário |
-| 9 | Recuperação | `recovery-restore RESTAURAR=1` (a sequência da §6, passo a passo, cada um medido) → `recovery-promote` | conforme o passo | — | C4 inteira: as fontes **e a memória** de volta — capturas, certificados, SCD e a **quarentena** (D51); o `pg_restore` em destino **povoado**, com dependências, permissões e erros propagados; o livro igual; a memória de exclusões renascida; **as versões SCD iguais ao manifesto** pelo oráculo canônico; **a auditoria da quarentena contendo a do manifesto — contagem e conteúdo por chave, com multiplicidade** (RV12-4-02), mais o acréscimo da captura nova conferido à parte; o **re-base das gerações** conferido (D52), inclusive a preservação da equivalência de geração por tabela (RV12-4-01); a guarda D50 dispara **antes do disparo do job** com o Airbyte novo, a sequência é avançada, a captura seguinte é certificada acima da 43 |
+**A seleção offline, varrida de novo em 24/09/2026 [medido].** Uma sonda — um *plugin* de *pytest*
+que nega e anota cada acesso: `Engine.connect`, `psycopg`, `dbt` por subprocesso, `docker` real fora
+do `compose config`, HTTP para as portas de serviço —, rodada numa *worktree* limpa do `HEAD`, sem
+`dbt/target` nem dados, com as variáveis de conexão presentes. Dos **441** testes selecionados, três
+acessos, de que dependem quatro testes — **os mesmos quatro** que a revisão 5 mediu com 169 (§16.6):
+o `test_consumo.py` inteiro e dois de `test_legacy_classification.py`, que ganharam a marca
+`integracao`. Um pulo limpo ficou, com motivo: `test_acesso_macro.py` sem o `manifest`. A prova que
+fecha continua sendo esta linha 5, num clone de verdade.
 
-Cada linha vira uma linha da **Capacidade §2.12**, com estado da estação, intervalo e número de
-amostras. **R11** vale o tempo todo; recusa do preflight é registrada, não contornada.
+### 7.3 O ciclo — no clone, cada linha sob `make medir`
 
-### 7.4 Os critérios do Termo, mapeados
+A ordem é a da Execução Local §3: o *snapshot* do *streaming* vem antes do primeiro `dbt-build`
+completo (RV12-04). As trocas entre as famílias são do preflight (D53, D54); **R11** vale o tempo
+todo.
+
+| # | Cenário | Comandos | De pé | Oráculo |
+|---|---|---|---|---|
+| 1 | Base | `make medir ALVO=up` → `ALVO=migrate` → `ALVO=seed-data` → `ALVO=seed-legacy` | bancos | a rede `mvp_ed1_default` criada pela garantia (D55, D57); `alembic current` nas duas origens; a cobertura, conferida no `check` da linha 4 (`test_cobertura`, o manifesto do legado novo) |
+| 2 | Carga | `make medir ALVO=airbyte-up` → `make airbyte-config AUTO=1` → `make medir ALVO=sync-airbyte` → `make medir ALVO=sync-legacy` | + Airbyte | a instalação limpa, sem o `PG_VERSION`; `raw` e `raw_legacy` carregados; a primeira captura certificada, com a identidade lida do `jobId` devolvido — num Airbyte novo ele recomeça baixo, e nada retido colide ainda (RV12-4-05); o pico da etapa |
+| 3 | *Streaming* — o *snapshot* | `make medir CENARIO=streaming` | + *streaming* (pausa o Airbyte) | o livro quente igual à origem — a chave e as 16 colunas de `COLUNAS_DO_EVENTO`, e o saldo por armazém e SKU, os quatro zeros; o Beam encerrado pelo SIGINT (`encerramento: limpo`) |
+| 4 | Transformação | `make airbyte-up` (pausa o *streaming*) → `make medir ALVO=dbt-build` → `make medir ALVO=check` | + Airbyte | o primeiro *build* completo: `PASS=`, `caminhos_de_ingestao_reconciliam`, as oito fronteiras; `N passed` |
+| 5 | Orquestração | `make airflow-up` → `make medir ALVO=dag-run ATE=dag-wait` → `make dag-status` | + Airflow (o par permitido) | as 13 tarefas `success`; o tempo da DAG; a captura seguinte certificada, identidade do `jobId` devolvido |
+| 6 | *Streaming* — eventos novos | `make medir CENARIO=streaming LIMITE=200` → `make stream-alerts` | + *streaming* (Airbyte e Airflow pausados pelo preflight) | os 200 eventos novos chegam — o corte é lido **depois** do produtor —; o alerta emitido; o Beam encerrado |
+| 7 | Reconciliação dos caminhos | `make airbyte-up` → `make medir ALVO=sync-airbyte` → `make medir ALVO=dbt-build` | + Airbyte | os dois caminhos iguais com os eventos novos |
+| 8 | Catálogo | `make medir ALVO=docs-generate` → `make catalog` → `make dbt-docs` e `curl` na porta dele | bancos | o tempo; `sensitivity --check` e `lineage --check` sem diferença; a resposta do `curl` no diário |
+| 9 | Recuperação | `RESTAURAR=1 make medir ALVO=recovery-restore` → `make recovery-promote` | conforme o passo | **C4 inteira**, pelos nove passos do alvo: o pacote conferido; a janela parada e a DAG pausada; o CDC descartado; o `pg_restore` em destino **povoado**; o re-base das gerações (D52), com a equivalência por tabela (RV12-4-01); o conteúdo contra o manifesto; os artefatos devolvidos, com a ausência (RVE2-05); o *snapshot* novo; `airbyte-up`, a guarda D50 **antes do disparo**, o contador avançado além da 43, `sync-airbyte RESET=1`, `sync-legacy` com o `jobId` gravado (RVE2-01); `dbt-rebuild` e `check`; e os oráculos do passo 9 — capturas, SCD pelo *digest* canônico, a quarentena contendo a do manifesto com multiplicidade (RV12-4-02) e o acréscimo da captura nova conferido à parte |
+
+O `LIMITE=200` da linha 6 é parâmetro do roteiro, **[planejado]**: basta que os eventos novos sejam
+distinguíveis do *snapshot*.
+
+### 7.4 Pontos de parada e recuo
+
+- **Oráculo que falha para a linha.** O desvio vai para o diário, e a causa é corrigida **na
+  origem** — documento ou código, com *commit* no clone, que já é o *checkout* de trabalho (D58). A
+  linha é refeita. Se a correção mudar o que uma linha anterior já provou, o Owner decide se o ciclo
+  recomeça do §7.1. **Desvios = 0 ao fechar** (§7.6) quer dizer nenhum desvio sem correção.
+- **Recusa do preflight não é contornada.** Fica no diário; o Owner libera memória e a linha é
+  refeita; `FORCE=1` só com a autorização dele.
+- **O recuo é o pacote.** Depois do §7.1, a memória do armazém só existe no candidato — e na cópia
+  da P5. A qualquer momento, `RESTAURAR=1 make recovery-restore` a devolve: é a linha 9, e é por isso
+  que ela existe. Se a própria restauração falhar, as fontes se regeram pelo gerador, mas a memória —
+  capturas, certificados, SCD, quarentena — só volta de uma cópia do pacote.
+- **O B5 não é repetido sem o Owner.** Recomeçar do §7.1 derruba de novo tudo o que o clone subiu.
+
+### 7.5 Depois do B5
+
+O clone segue como o *checkout* de trabalho (D58): o B6 e a Etapa 13 continuam nele. O *checkout*
+antigo fica parado, com o pacote, até o `make recovery-promote`; o Owner o arquiva ou apaga quando
+quiser. Cada linha do §7.3 vira uma linha da **Capacidade §2.12**, com o estado da estação, o
+intervalo e o número de amostras.
+
+### 7.6 Os critérios do Termo, mapeados
 
 | Termo §6 | Comando que prova | Saída que vale |
 |---|---|---|
