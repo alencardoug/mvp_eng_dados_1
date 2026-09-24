@@ -275,15 +275,19 @@ airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-
 # `make -n recovery-restore` o chamou com o Airbyte de pé (23/09/2026).
 #
 # **Pronto é a API responder `available:true`, não um pod (RVE3-02).** Medido
-# em duas retomadas reais em 23/09/2026: o nó lista os sandboxes da partida
+# em três retomadas reais em 23/09/2026: o nó lista os sandboxes da partida
 # anterior como `NotReady`, e o `grep -q Ready` da espera antiga casava neles —
 # dizia "pronto" em 5,6 s. Nem pod serve: o primeiro sandbox fica pronto em
 # ~5 s, e o Kubernetes chegou a dizer 8/8 prontos aos 5 s, estado de antes da
-# pausa. A API respondeu em 101 s e em 96 s; o ingress devolve 503 na metade
-# final. Quem vem depois — `recovery-airbyte-jobs`, `sync-airbyte` — usa a API
-# e o banco dela. O prazo, 60 consultas a cada 5 s, é três vezes o medido, e
-# esgotá-lo é erro. Sem `curl` a espera seria cega — o `2>/dev/null` engoliria
-# o "command not found" e o prazo venceria dizendo que a API não respondeu —,
+# pausa. A API respondeu entre 74 s e 101 s (74 s com 9,0 GB livres depois da
+# pausa, 96 s com 6,3 GB), e o ingress devolve 503 na metade final. Quem vem
+# depois — `recovery-airbyte-jobs`, `sync-airbyte` — usa a API e o banco dela.
+# O prazo, 60 consultas com 5 s de pausa entre elas, é três vezes o medido, e
+# esgotá-lo é erro. A pausa não é o período: esgotado de verdade, ele levou
+# 301 s com a API recusando na hora e 602 s com cada consulta gastando os 5 s
+# do `--max-time` — por isso a mensagem diz o tempo que o bash contou, e não
+# uma cadência. Sem `curl` a espera seria cega — o `2>/dev/null` engoliria o
+# "command not found" e o prazo venceria dizendo que a API não respondeu —,
 # por isso a falta dele recusa antes de religar qualquer coisa.
 RETOMAR_AIRBYTE = command -v curl >/dev/null \
 	|| { echo "ERRO: curl ausente — é por ele que a retomada espera a API do Airbyte."; exit 1; }; \
@@ -294,7 +298,7 @@ RETOMAR_AIRBYTE = command -v curl >/dev/null \
 		if curl -s --max-time 5 $(AIRBYTE_WEB)/api/v1/health 2>/dev/null | grep -Eq '"available": *true'; then \
 			pronta=1; break; fi; \
 		printf "."; sleep 5; done; \
-	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu a 60 consultas, uma a cada 5 s."; \
+	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu a 60 consultas em $$SECONDS s."; \
 		echo "  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'."; exit 1; }; \
 	echo " pronta."
 

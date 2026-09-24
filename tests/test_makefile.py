@@ -228,7 +228,8 @@ def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, api):
 
     assert r.returncode != 0, r.stdout
     assert "tempo esgotado" in r.stdout and "pronta." not in r.stdout, r.stdout
-    assert len(curls) == 60 and "a 60 consultas" in r.stdout, "a mensagem diz o que foi contado"
+    assert len(curls) == 60, "o prazo é de 60 consultas"
+    assert re.search(r"a 60 consultas em \d+ s\.", r.stdout), "a mensagem diz o que foi contado, e em quanto tempo"
     assert "Interface em" not in r.stdout
 
 
