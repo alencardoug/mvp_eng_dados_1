@@ -58,13 +58,20 @@ AIRFLOW_CLI := docker/airflow_cli.sh
 # do Airflow e do streaming ficavam presos ao ID da rede antiga — o `docker
 # start` recusava ("network … not found"), e nem `airflow-up` recriava o
 # `airflow_db`. Foi assim de 21/09 a 24/09/2026. O nome é o que o Compose já
-# dava à rede, para que os contêineres de pé continuem nela sem recriação; o
-# do projeto vem de `conteineres.sh`, dono da regra. Nenhum alvo a remove: ela
-# não guarda estado, e removê-la é o que prendia os pausados.
-REDE = $$($(CONTEINERES) projeto)_default
-GARANTIR_REDE = docker network inspect "$(REDE)" >/dev/null 2>&1 \
-	|| docker network create "$(REDE)" >/dev/null \
-	|| { echo "ERRO: a rede $(REDE) não existe e não consegui criá-la — o Docker respondeu?"; exit 1; }
+# dava à rede, para que os contêineres de pé continuem nela sem recriação.
+# Nenhum alvo a remove: ela não guarda estado, e removê-la é o que prendia os
+# pausados.
+#
+# **O nome do projeto é o que o Compose resolve (RVE4-01)**, e vem de
+# `conteineres.sh`, dono da regra, que o pergunta ao próprio Compose. Uma
+# leitura do `.env` por `sed` divergia dele em formas válidas do arquivo, e a
+# garantia preparava uma rede enquanto o `up` exigia outra — "declared as
+# external, but could not be found". Sem o nome, nada é criado.
+GARANTIR_REDE = projeto=$$($(CONTEINERES) projeto) \
+	|| { echo "ERRO: o Compose não disse o nome do projeto — sem ele a rede não tem nome, e nada foi criado."; exit 1; }; \
+	docker network inspect "$${projeto}_default" >/dev/null 2>&1 \
+	|| docker network create "$${projeto}_default" >/dev/null \
+	|| { echo "ERRO: a rede $${projeto}_default não existe e não consegui criá-la — o Docker respondeu?"; exit 1; }
 
 # Ponto único de recuperação (Etapa 12, B4). A lógica vive em
 # `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,

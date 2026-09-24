@@ -27,6 +27,7 @@ ser externa, criada pelo `Makefile`, para que nenhum `down` a leve (D55).
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import re
@@ -93,13 +94,17 @@ def _make(
     binarios: dict[str, str | None] | None = None,
     ambiente_extra: dict[str, str] | None = None,
     simulados: dict[str, str] | None = None,
+    env_texto: str = "",
+    sem_ambiente: tuple[str, ...] = (),
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """`make` sobre o `Makefile` real copiado; devolve a execução e o que foi chamado.
 
     `binarios` troca ou acrescenta executáveis à frente do `PATH` — o `curl` da
     API, o `sleep` que não dorme —, e `None` tira um dos simulados padrão.
     `simulados` troca o corpo de um dos scripts do projeto — o preflight que
-    recusa, o `conteineres.sh` que resolve um contêiner.
+    recusa, o `conteineres.sh` que resolve um contêiner — ou põe no rascunho um
+    arquivo a mais, como a composição dos bancos. `env_texto` é o `.env`, e
+    `sem_ambiente` tira chaves do ambiente — `make test` exporta as do `.env`.
     """
     trabalho = tmp_path / "checkout"
     for relativo in SIMULADOS:
@@ -107,6 +112,10 @@ def _make(
         caminho.parent.mkdir(parents=True, exist_ok=True)
         caminho.write_text((simulados or {}).get(relativo, REGISTRADOR), encoding="utf-8")
         caminho.chmod(0o755)
+    for relativo, corpo in (simulados or {}).items():
+        if relativo not in SIMULADOS:
+            (trabalho / relativo).parent.mkdir(parents=True, exist_ok=True)
+            (trabalho / relativo).write_text(corpo, encoding="utf-8")
     (tmp_path / "bin").mkdir()
     for nome, script in ({"docker": docker, "curl": REGISTRADOR} | (binarios or {})).items():
         if script is None:
@@ -114,10 +123,11 @@ def _make(
         (tmp_path / "bin" / nome).write_text(script, encoding="utf-8")
         (tmp_path / "bin" / nome).chmod(0o755)
     (trabalho / "Makefile").write_text((RAIZ / "Makefile").read_text(encoding="utf-8"), encoding="utf-8")
-    (trabalho / ".env").write_text("", encoding="utf-8")
+    (trabalho / ".env").write_text(env_texto, encoding="utf-8")
     (trabalho / "dbt").mkdir()
     registro = tmp_path / "chamadas"
-    ambiente = os.environ | {"PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}", "SIM_LOG": str(registro)}
+    ambiente = {k: v for k, v in os.environ.items() if k not in sem_ambiente}
+    ambiente |= {"PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}", "SIM_LOG": str(registro)}
 
     r = subprocess.run(
         ["make", "--no-print-directory", *argumentos],
@@ -579,3 +589,143 @@ def test_sem_rede_nada_sobe(tmp_path):
     assert r.returncode != 0, r.stdout
     assert "a rede mvp_ed1_default não existe e não consegui criá-la" in r.stdout, r.stdout
     assert not any(c.startswith("docker compose") for c in chamadas), chamadas
+
+
+@pytest.mark.parametrize("composicao", COMPOSICOES)
+def test_as_composicoes_declaram_o_mesmo_projeto(composicao):
+    """A do Airflow não declarava `name:`. Com o `.env` sem o nome, o Compose chamaria o projeto dela
+    pela pasta — `docker` —, e o preflight, que procura os contêineres pelo rótulo do projeto, não
+    veria o Airflow. Achado próprio, na aplicação do RVE4-01."""
+    documento = yaml.safe_load((RAIZ / composicao).read_text(encoding="utf-8"))
+
+    assert documento["name"] == "${COMPOSE_PROJECT_NAME:-mvp_ed1}"
+
+
+# ── RVE4-01: o nome da rede é o que o Compose resolve ───────────────────────
+
+
+def _compose_disponivel() -> bool:
+    docker = shutil.which("docker")
+    return bool(docker) and subprocess.run([docker, "compose", "version"], capture_output=True).returncode == 0
+
+
+#: Só o `config` do Compose, que não fala com o daemon: nenhuma rede ou contêiner é tocado.
+exige_compose = pytest.mark.skipif(not _compose_disponivel(), reason="exige o `docker compose` instalado")
+
+#: O resto de um `.env` que a composição dos bancos aceita: sem as portas, o `config` não fecha.
+PORTAS = "SOURCE_DB_PORT=5432\nLEGACY_DB_PORT=5433\nWAREHOUSE_DB_PORT=5434\n"
+
+#: As formas do nome no `.env` que a leitura por `sed` lia diferente do Compose (E4-3), e as de controle.
+FORMAS_DO_NOME = [
+    pytest.param("COMPOSE_PROJECT_NAME=clone_etapa12\n", id="simples"),
+    pytest.param('COMPOSE_PROJECT_NAME="clone_etapa12"\n', id="aspas"),
+    pytest.param("COMPOSE_PROJECT_NAME=clone_etapa12 # clone\n", id="comentario"),
+    pytest.param("export COMPOSE_PROJECT_NAME=clone_etapa12\n", id="export"),
+    pytest.param("PREFIX=clone\nCOMPOSE_PROJECT_NAME=${PREFIX}_etapa12\n", id="expansao"),
+    pytest.param("COMPOSE_PROJECT_NAME=mvp_ed1\nCOMPOSE_PROJECT_NAME=clone_etapa12\n", id="duplicado"),
+    pytest.param("", id="sem-nome"),
+]
+
+COMPOSE_BANCOS = (RAIZ / "docker" / "docker-compose.yml").read_text(encoding="utf-8")
+
+
+def _ambiente_sem_projeto() -> dict[str, str]:
+    """O ambiente sem `COMPOSE_PROJECT_NAME`: é o `.env` que precisa dizer o nome."""
+    return {k: v for k, v in os.environ.items() if k != "COMPOSE_PROJECT_NAME"}
+
+
+def _rascunho(tmp_path: pathlib.Path, nome: str) -> pathlib.Path:
+    raiz = tmp_path / "rascunho"
+    (raiz / "docker").mkdir(parents=True)
+    (raiz / "docker" / "conteineres.sh").write_text(CONTEINERES_REAL, encoding="utf-8")
+    (raiz / "docker" / "docker-compose.yml").write_text(COMPOSE_BANCOS, encoding="utf-8")
+    (raiz / ".env").write_text(PORTAS + nome, encoding="utf-8")
+    return raiz
+
+
+def _rede_que_o_compose_exige(raiz: pathlib.Path, ambiente: dict[str, str]) -> str:
+    r = subprocess.run(
+        ["docker", "compose", "--env-file", ".env", "-f", "docker/docker-compose.yml", "config", "--format", "json"],
+        cwd=raiz, env=ambiente, capture_output=True, text=True, check=True, timeout=60,
+    )
+    return json.loads(r.stdout)["networks"]["default"]["name"]
+
+
+def _projeto(raiz: pathlib.Path, ambiente: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "docker/conteineres.sh", "projeto"], cwd=raiz, env=ambiente, capture_output=True, text=True, timeout=60
+    )
+
+
+@exige_compose
+@pytest.mark.parametrize("nome", FORMAS_DO_NOME)
+def test_a_rede_garantida_e_a_que_o_compose_exige(tmp_path, nome):
+    """RVE4-01: `conteineres.sh projeto` lia o `.env` com `sed` — a primeira ocorrência, sem aspas nem
+    espaços —, e o Compose o interpreta. Com `export`, comentário na linha, interpolação ou chave
+    repetida, a garantia preparava uma rede e o Compose exigia outra. A comparação é com o Compose
+    instalado, e não com uma ideia dele."""
+    raiz = _rascunho(tmp_path, nome)
+    ambiente = _ambiente_sem_projeto()
+
+    r = _projeto(raiz, ambiente)
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert f"{r.stdout.strip()}_default" == _rede_que_o_compose_exige(raiz, ambiente)
+
+
+@exige_compose
+def test_o_ambiente_vence_o_env(tmp_path):
+    """A precedência que o Compose dá ao ambiente, preservada."""
+    raiz = _rascunho(tmp_path, "COMPOSE_PROJECT_NAME=do_env\n")
+    ambiente = _ambiente_sem_projeto() | {"COMPOSE_PROJECT_NAME": "do_ambiente"}
+
+    r = _projeto(raiz, ambiente)
+
+    assert r.stdout == "do_ambiente\n", r.stdout + r.stderr
+    assert _rede_que_o_compose_exige(raiz, ambiente) == "do_ambiente_default"
+
+
+#: O `docker` da rede, que passa o `config` ao Docker de verdade: o nome sai do Compose instalado, e
+#: o resto — rede e subida — só é registrado.
+DOCKER_DA_REDE_E_DO_COMPOSE = DOCKER_DA_REDE.replace(
+    'echo "docker $*" >> "$SIM_LOG"\n',
+    'echo "docker $*" >> "$SIM_LOG"\ncase " $* " in *" config "*) exec "$DOCKER_REAL" "$@" ;; esac\n',
+    1,
+)
+
+
+@exige_compose
+def test_make_up_garante_a_rede_que_o_compose_exige(tmp_path):
+    """RVE4-01, a sonda do revisor: com `export` no `.env`, a garantia achava `mvp_ed1_default`, e o
+    `make up` real parou em "network rve4_clone_probe_default declared as external, but could not
+    be found"."""
+    r, chamadas = _make(
+        tmp_path,
+        "up",
+        docker=DOCKER_DA_REDE_E_DO_COMPOSE,
+        ambiente_extra={"SIM_REDE": "0", "DOCKER_REAL": shutil.which("docker") or "docker"},
+        simulados={"docker/conteineres.sh": CONTEINERES_REAL, "docker/docker-compose.yml": COMPOSE_BANCOS},
+        env_texto=PORTAS + "export COMPOSE_PROJECT_NAME=rve4_clone_probe\n",
+        sem_ambiente=("COMPOSE_PROJECT_NAME",),
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "docker network create rve4_clone_probe_default" in chamadas, chamadas
+    assert not any("mvp_ed1_default" in c for c in chamadas), chamadas
+
+
+def test_sem_o_nome_do_projeto_nada_sobe(tmp_path):
+    """Se o Compose não diz o nome, a garantia não inventa um: "não sei" não é o padrão. O `docker`
+    daqui não responde ao `config`."""
+    r, chamadas = _make(
+        tmp_path,
+        "up",
+        docker=DOCKER_DA_REDE,
+        simulados={"docker/conteineres.sh": CONTEINERES_REAL},
+        sem_ambiente=("COMPOSE_PROJECT_NAME",),
+    )
+
+    assert r.returncode != 0, r.stdout
+    assert "o Compose não disse o nome do projeto" in r.stdout, r.stdout
+    assert not any(c.startswith("docker network create") for c in chamadas), chamadas
+    assert not any(c.startswith("docker compose") and " up " in c for c in chamadas), chamadas

@@ -8,6 +8,12 @@
 # e nenhum ganho de paralelismo que se justifique com uma DAG em uma máquina.
 # O que o ADR-0003 foi buscar no Airflow — dependência explícita, reexecução
 # parcial e histórico — o `LocalExecutor` entrega igual.
+#
+# O projeto é declarado aqui como nas outras duas composições. Sem isto, com o
+# `.env` sem o nome, o Compose chamaria o projeto pela pasta — `docker` —, e o
+# preflight, que acha os contêineres pelo rótulo do projeto, não veria o
+# Airflow (achado na aplicação do RVE4-01).
+name: ${COMPOSE_PROJECT_NAME:-mvp_ed1}
 
 x-airflow-comum: &airflow-comum
   build:

@@ -17,7 +17,7 @@
 #   conteineres.sh resolver [--todos] <serviço|@grupo>...   nomes, um por linha
 #   conteineres.sh pausar   <rótulo> <serviço|@grupo>...    para e CONFERE o estado
 #   conteineres.sh retomar  <rótulo> <serviço|@grupo>...    religa e CONFERE o estado
-#   conteineres.sh projeto                                  o nome do projeto do Compose
+#   conteineres.sh projeto                                  o nome do projeto, pelo Compose
 #
 # `@airflow`, `@streaming` e `@bancos` são os grupos declarados abaixo. Quem
 # consome — preflight e Makefile — cita o grupo, nunca repete a lista: lista
@@ -61,29 +61,56 @@ _expandir() {
 
 _raiz_do_projeto() { cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd; }
 
-# O nome do projeto é o mesmo que o Compose usa: do ambiente, senão do `.env`,
-# senão o padrão das composições. Um clone com outro nome resolve os próprios
-# contêineres, e não os do checkout antigo.
+# O nome do projeto é o que o **Compose** resolve (RVE4-01): do ambiente, que
+# ele põe na frente, senão da composição dos bancos lida por ele mesmo, com o
+# `.env` quando há. Um clone com outro nome resolve os próprios contêineres, e
+# não os do checkout antigo.
+#
+# Até 24/09/2026 era um `sed` no `.env` — a primeira ocorrência, sem aspas nem
+# espaços —, e o Compose interpreta o arquivo: com `export`, comentário na
+# linha, interpolação ou chave repetida, os dois divergiam. Com a rede externa
+# (D55), a divergência preparava uma rede enquanto o Compose exigia outra, e o
+# preflight procurava os contêineres pelo rótulo de outro projeto. Perguntar
+# ao próprio Compose é a única leitura que não diverge dele.
+#
+# A composição dos bancos é a consultada porque não declara variável
+# obrigatória, e o `config` não fala com o daemon. Uma consulta por execução:
+# `resolver` roda em subshell a cada chamada e herda a resposta daqui. Compose
+# que não responde é "não sei" — `projeto_compose` sai 4 —, e não o nome
+# padrão: o preflight que procura o projeto errado não vê o R11.
+_projeto_pelo_compose() {
+	local raiz
+	raiz=$(_raiz_do_projeto) || return 4
+	(
+		cd "$raiz" || exit 4
+		if [ -f .env ]; then
+			docker compose --env-file .env -f docker/docker-compose.yml config 2>/dev/null
+		else
+			docker compose -f docker/docker-compose.yml config 2>/dev/null
+		fi
+	) | sed -n 's/^name: //p'
+}
+
+PROJETO_DO_COMPOSE=""
+[ -n "${COMPOSE_PROJECT_NAME:-}" ] || PROJETO_DO_COMPOSE=$(_projeto_pelo_compose) || true
+
 projeto_compose() {
 	if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
 		printf '%s' "$COMPOSE_PROJECT_NAME"
 		return
 	fi
-	local env_file valor=""
-	env_file="$(_raiz_do_projeto)/.env"
-	if [ -f "$env_file" ]; then
-		valor=$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$env_file" | head -1 | tr -d '"'"'"' \r')
-	fi
-	printf '%s' "${valor:-mvp_ed1}"
+	[ -n "$PROJETO_DO_COMPOSE" ] || return 4
+	printf '%s' "$PROJETO_DO_COMPOSE"
 }
 
 # Nomes dos contêineres de um ou mais serviços. Sem `--todos`, só os de pé.
-# Sai 4, sem imprimir nada, se o `docker ps` falhar em qualquer consulta.
+# Sai 4, sem imprimir nada, se o `docker ps` falhar em qualquer consulta — ou se
+# o nome do projeto não for conhecido: sem ele, não há rótulo a procurar.
 resolver() {
 	local todos=false
 	if [ "${1:-}" = "--todos" ]; then todos=true; shift; fi
 	local projeto servico nomes
-	projeto=$(projeto_compose)
+	projeto=$(projeto_compose) || return 4
 	for servico in $(_expandir "$@"); do
 		if $todos; then
 			nomes=$(docker ps -a --filter "label=com.docker.compose.project=$projeto" \
@@ -161,7 +188,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 	resolver) resolver "$@" ;;
 	pausar)   pausar "$@" ;;
 	retomar)  retomar "$@" ;;
-	projeto)  projeto_compose; echo ;;
+	projeto)  projeto_compose || exit 4; echo ;;
 	*) echo "conteineres.sh: ação desconhecida '$acao'" >&2; exit 2 ;;
 	esac
 fi

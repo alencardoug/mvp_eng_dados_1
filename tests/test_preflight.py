@@ -914,6 +914,24 @@ def test_resolucao_separa_projetos(tmp_path):
     assert r.stdout.split() == ["clone_etapa12-airflow_scheduler-1"], r.stdout
 
 
+def test_resolver_sem_o_nome_do_projeto_e_indeterminado(tmp_path):
+    """RVE4-01: o nome do projeto passa a vir do Compose, e o `docker` daqui não responde ao
+    `config`. Sem o nome, não há rótulo a procurar — e "não sei" é 4, como o Docker mudo, e não o
+    projeto padrão: o preflight cego para o R11 é pior que uma recusa a mais."""
+    binario = _bin_falso(tmp_path)
+    r = subprocess.run(
+        [str(CONTEINERES_SH), "resolver", "@airflow"],
+        capture_output=True,
+        text=True,
+        env={k: v for k, v in os.environ.items() if k != "COMPOSE_PROJECT_NAME"}
+        | {"PATH": f"{binario}:{os.environ['PATH']}", "SIM_ESTADO": str(tmp_path / "de_pe"), "SIM_LOG": str(tmp_path / "log")},
+        timeout=60,
+    )
+
+    assert r.returncode == 4, r.stdout + r.stderr
+    assert r.stdout == ""
+
+
 def test_projeto_diz_o_nome_que_o_compose_usa(tmp_path):
     """D55: a rede do projeto é `<projeto>_default`, e o `Makefile` tira o nome daqui."""
     r = _conteineres(tmp_path, "projeto", estado="", projeto="clone_etapa12")
