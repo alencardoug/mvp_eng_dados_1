@@ -47,12 +47,15 @@ Na mesma entrega, sem exceção:
 | Arquivo | O que muda |
 |---|---|
 | `docs/adr/README.md` | Linha nova em §2; a linha correspondente **sai** de §3 |
-| `docs/pendencias.md` | Contadores do cabeçalho; a decisão sai da seção 2 ou 3; se resolveu um `Qn`, ele sai da seção 4 e é registrado na seção 5 |
+| `docs/pendencias.md` | A decisão sai de "Esperando você" (§1) e entra em "Decisões já fechadas" (§2); o contador do cabeçalho acompanha |
 | `README.md` | Contadores na linha *Registro de Decisões* e na linha *Pendências*; a decisão entra em *Decisões já tomadas*; *Status* revisto |
 | Cada documento da lista **"Documentos a atualizar"** do próprio ADR | O conteúdo, mais `Versão` e `Última revisão` no bloco de metadados |
 
-Os contadores de decisões pendentes aparecem em **três lugares** e precisam mover juntos. É o erro
-mais fácil de cometer aqui.
+Os contadores de pendentes são **dois**, e cada um aparece em mais de um lugar. As que esperam um ADR
+estão na §3 do Registro e na linha *Registro de Decisões* do README. Todas as que esperam o Owner —
+inclusive as de operação, que fecham nas Pendências sem ADR — estão em "Esperando você", no
+cabeçalho das Pendências e na linha *Pendências* do README; as da §3 do Registro estão entre elas.
+Movê-los juntos é o erro mais fácil de cometer aqui.
 
 Ao editar documento existente, prefira substituição verificada — que falha se o alvo não for único —
 em vez de `sed` solto. Um alvo que casa zero ou duas vezes é defeito silencioso.
@@ -63,8 +66,9 @@ em vez de `sed` solto. Um alvo que casa zero ou duas vezes é defeito silencioso
 python3 .claude/skills/adr/verificar.py
 ```
 
-Confere links relativos, ADRs citados, decisões resolvidas que ficaram na tabela de pendentes e a
-coerência dos contadores. Um ADR que cita vocabulário substituído no Contexto **não** é problema.
+Confere links relativos, ADRs citados, decisões resolvidas que continuam pendentes — no Registro ou
+nas Pendências — e os dois contadores. Um ADR que cita vocabulário substituído no Contexto **não** é
+problema.
 
 ## 5. Commit
 
