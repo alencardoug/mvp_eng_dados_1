@@ -12,7 +12,7 @@
 |---|---|
 | Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; **B5 sem autorização** — exige a do Owner, e o candidato do pacote precisa ser refeito antes (`make recovery-pack`) |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
+| Decisões pendentes | 3 (D43, adiada de propósito para a fase GCP; D53 e D54, levantadas em 23/09/2026 na verificação do RVE3-02) |
 | Última revisão | 23/09/2026 |
 
 ---
@@ -48,6 +48,47 @@ os filhos na limpeza. O bruto real não tem chave assim; até a decisão, o test
 `legado_vinculo_nao_diverge_por_representacao` (gerado, 56 vínculos) acusa o filho que só encontra o
 pai pela forma canônica — contraprova feita em 17/09 com um cupom apontando `0x1` para a campanha
 `1`. Unificar é mudança de tratamento (versão do catálogo, oráculo, auditorias) e pede ADR.
+
+### D53 — o preflight cobra de novo o Airbyte que já está de pé (levantada em 23/09/2026)
+
+**Pergunta:** o que `make airbyte-up` deve fazer quando o cluster já está de pé?
+
+Medido na verificação do RVE3-02: com o Airbyte rodando e 5,2 GB livres, `make preflight
+ALVO=airbyte` projeta "sobraria 0,3 GB" e recusa. Ele cobra os 4,9 GB de subir um Airbyte que já
+ocupa os seus ~3,7 GB. É a mesma conta dupla que o pacote tinha, e que foi corrigida para ele em
+`5e32d0d` perguntando por `trabalho`. Se o preflight deixasse passar, o ramo seguinte seria o
+`abctl local install` sobre o cluster de pé — o que, em 23/09/2026, abortou na armadilha do
+`PG_VERSION` sem mudar o cluster (`REVISAO.md` da terceira rodada, §3).
+
+1. **(Recomendada) `airbyte-up` com o cluster de pé diz que ele já está de pé e sai 0**, sem
+   preflight e sem `abctl`. É o que "subir" significa nos outros dois `*-up`, e tira as duas
+   armadilhas do caminho de quem só quer o Airbyte no ar. Reaplicar o chart vira ação explícita,
+   com o custo dela medido quando existir.
+2. **O preflight cobra só a diferença até o pico** (4,95 GiB medidos na sincronização, menos o
+   ocioso), e o `abctl` continua sendo chamado.
+3. **Manter:** a recusa é conservadora, e `FORCE=1` a atravessa.
+
+*Efeito de não decidir:* `make airbyte-up` com o cluster de pé é recusado com uma mensagem que manda
+fechar programas, quando a causa é a conta. B5 não passa por esse caminho: no passo 8 o Airbyte
+chega pausado pelo passo 7.
+
+### D54 — o preflight manda retomar por um alvo que não confere nada (levantada em 23/09/2026)
+
+**Pergunta:** ao pausar um ambiente, o preflight diz "retomar com `make airbyte-resume`" (ou
+`stream-resume`, `airflow-resume`). Esses três alvos religam sem conferir memória nem conflito, e
+retomar o Airbyte com o *streaming* ainda de pé põe as duas famílias juntas, o que o R11 e o
+[ADR-0046](adr/0046-validar-a-fase-local-por-partes.md) proíbem. A mensagem e os alvos são de
+07/09/2026 (`4d428af`); a correção do RVE3-02 não os mudou.
+
+1. **(Recomendada) A mensagem aponta o alvo guardado** — "retomar com `make airbyte-up`", que pausa o
+   conflitante e retoma o pausado (`CLAUDE.md` §5). Os `*-resume` ficam como o caminho cru, para
+   quem sabe o que está de pé.
+2. **Os `*-resume` passam pelo preflight**, com a mesma troca dos `*-up` — e deixam de ser o caminho
+   cru.
+3. **Manter.**
+
+*Efeito de não decidir:* quem segue a mensagem com o outro ambiente de pé sobe *batch* e *streaming*
+juntos numa máquina de 12 GB, que já travou assim.
 
 ---
 
