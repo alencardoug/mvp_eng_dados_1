@@ -261,18 +261,29 @@ medir: ## Mede um alvo: ALVO= [ATE=<alvo de espera>], ou CENARIO=streaming [LIMI
 # `abctl local uninstall`: destrói o cluster, e voltar custa uma reinstalação
 # inteira — que é justamente onde mora a armadilha do `PG_VERSION`
 # (Execução Local §6). Parar o contêiner libera a mesma memória e volta sem
-# reinstalar nada — quanto leva está em `RETOMAR_AIRBYTE`, medido.
+# reinstalar nada — quanto leva está em `AGUARDAR_API_AIRBYTE`, medido.
 airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-lo
 	@docker stop airbyte-abctl-control-plane >/dev/null 2>&1 && \
 		echo "Airbyte pausado. Retomar: make airbyte-resume" || \
 		echo "Airbyte já não estava de pé."
 
-# Religar o cluster pausado e esperar a API do Airbyte: uma receita, dois
-# chamadores — `airbyte-resume` e o ramo "pausado" de `airbyte-up`. Variável, e
-# não `$(MAKE) airbyte-resume` dentro do `if` de `airbyte-up`: o `make` executa
-# de verdade, mesmo sob `-n`, toda linha em cujo texto aparece `$(MAKE)`, e
-# aquela linha tinha no outro ramo o `abctl local install` — um
-# `make -n recovery-restore` o chamou com o Airbyte de pé (23/09/2026).
+# O estado do nó do Airbyte, lido antes de decidir: `running`, `exited`, ou
+# vazio quando ele não existe. Consulta que falha não é "não existe" (RVE-08) —
+# em `airbyte-up`, a consulta vazia levava ao `abctl local install` —, e um
+# estado que nenhum caminho sabe tratar (um `docker pause`, por exemplo) também
+# recusa antes de mexer em qualquer coisa.
+ESTADO_AIRBYTE = estado=$$(docker ps -a -f 'name=^airbyte-abctl-control-plane$$' --format '{{.State}}') \
+	|| { echo "ERRO: o Docker não respondeu — sem saber o estado do cluster, nada foi tocado."; exit 1; }; \
+	case "$$estado" in running|exited|"") ;; \
+	*) echo "ERRO: o cluster está '$$estado' — nem de pé, nem pausado, nem ausente. Veja 'docker ps -a'."; exit 1 ;; \
+	esac
+
+# Esperar a API do Airbyte: uma receita, três chamadores — `airbyte-resume` e os
+# ramos "pausado" e "de pé" de `airbyte-up`. Variável, e não `$(MAKE) ...`
+# dentro do `case` de `airbyte-up`: o `make` executa de verdade, mesmo sob
+# `-n`, toda linha em cujo texto aparece `$(MAKE)`, e aquela linha tinha no
+# outro ramo o `abctl local install` — um `make -n recovery-restore` o chamou
+# com o Airbyte de pé (23/09/2026).
 #
 # **Pronto é a API responder `available:true`, não um pod (RVE3-02).** Medido
 # em três retomadas reais em 23/09/2026: o nó lista os sandboxes da partida
@@ -288,12 +299,11 @@ airbyte-pause: ## Para o cluster do Airbyte liberando a memória, sem desmontá-
 # do `--max-time` — por isso a mensagem diz o tempo que o bash contou, e não
 # uma cadência. Sem `curl` a espera seria cega — o `2>/dev/null` engoliria o
 # "command not found" e o prazo venceria dizendo que a API não respondeu —,
-# por isso a falta dele recusa antes de religar qualquer coisa.
-RETOMAR_AIRBYTE = command -v curl >/dev/null \
-	|| { echo "ERRO: curl ausente — é por ele que a retomada espera a API do Airbyte."; exit 1; }; \
-	docker start airbyte-abctl-control-plane >/dev/null \
-	|| { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
-	printf "aguardando a API do Airbyte"; pronta=; \
+# por isso a falta dele (`CURL_DA_ESPERA`) recusa antes da troca do preflight e
+# de religar qualquer coisa.
+CURL_DA_ESPERA = command -v curl >/dev/null \
+	|| { echo "ERRO: curl ausente — é por ele que se espera a API do Airbyte."; exit 1; }
+AGUARDAR_API_AIRBYTE = printf "aguardando a API do Airbyte"; pronta=; \
 	for i in $$(seq 1 60); do \
 		if curl -s --max-time 5 $(AIRBYTE_WEB)/api/v1/health 2>/dev/null | grep -Eq '"available": *true'; then \
 			pronta=1; break; fi; \
@@ -301,9 +311,13 @@ RETOMAR_AIRBYTE = command -v curl >/dev/null \
 	[ -n "$$pronta" ] || { echo " tempo esgotado: a API não respondeu a 60 consultas em $$SECONDS s."; \
 		echo "  Veja 'docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl'."; exit 1; }; \
 	echo " pronta."
+RETOMAR_AIRBYTE = docker start airbyte-abctl-control-plane >/dev/null \
+	|| { echo "ERRO: o cluster não religou — veja 'docker ps -a'."; exit 1; }; \
+	$(AGUARDAR_API_AIRBYTE)
 
 airbyte-resume: ## Religa o cluster do Airbyte pausado e espera a API responder
-	@$(RETOMAR_AIRBYTE)
+	@$(ESTADO_AIRBYTE); [ -n "$$estado" ] || { echo "ERRO: cluster não existe. Use 'make airbyte-up'."; exit 1; }; \
+		$(CURL_DA_ESPERA); $(RETOMAR_AIRBYTE)
 
 stream-pause: ## Para Redpanda e Kafka Connect preservando os contêineres e o conector
 	@RETOMAR_COM='make stream-resume' $(CONTEINERES) pausar streaming @streaming; \
@@ -320,19 +334,24 @@ airflow-pause: ## Para os contêineres do Airflow liberando a memória
 airflow-resume: ## Religa os contêineres do Airflow pausados
 	@$(CONTEINERES) retomar Airflow @airflow
 
-airbyte-up: require-abctl ## Sobe o Airbyte local; retoma se estiver pausado
+airbyte-up: require-abctl ## Sobe o Airbyte local: instala, retoma o pausado ou confere o que já está de pé
+	@# Três estados, três caminhos — e o que cada um precisa é conferido antes
+	@# da troca do preflight, que pausaria o outro ambiente por nada:
+	@#   ausente → instala;
+	@#   pausado → retoma, seja por `airbyte-pause`, seja pela troca que o
+	@#     preflight faz ao subir o streaming. Não reinstala: o `abctl` valida o
+	@#     cluster antes de qualquer coisa e recusa um contêiner parado, e
+	@#     reinstalar esbarra no `PG_VERSION` (§6);
+	@#   de pé   → confere a API (D53). O `abctl local install` sobre o cluster de
+	@#     pé abortou no `PG_VERSION` em 05/09 e em 23/09/2026 (§6), e reaplicar o
+	@#     chart não é o que "subir" promete.
+	@$(ESTADO_AIRBYTE); [ -z "$$estado" ] || $(CURL_DA_ESPERA)
 	$(call preflight,airbyte)
-	@# Cluster pausado — por `airbyte-pause`, ou pela troca automática que o
-	@# preflight faz ao subir o streaming — não se reinstala: o `abctl` valida o
-	@# cluster antes de qualquer coisa e recusa um contêiner parado. Retomar leva
-	@# ~100 s até a API responder; reinstalar leva minutos e esbarra no
-	@# `PG_VERSION` (§6).
-	@if [ -n "$$(docker ps -aq -f 'name=^airbyte-abctl-control-plane$$' -f status=exited)" ]; then \
-		echo "cluster pausado — retomando em vez de reinstalar"; \
-		$(RETOMAR_AIRBYTE); \
-	else \
-		$(ABCTL) local install --values airbyte/values.yaml; \
-	fi
+	@$(ESTADO_AIRBYTE); case "$$estado" in \
+		running) echo "cluster de pé — conferindo a API"; $(AGUARDAR_API_AIRBYTE) ;; \
+		exited) echo "cluster pausado — retomando em vez de reinstalar"; $(RETOMAR_AIRBYTE) ;; \
+		"") $(ABCTL) local install --values airbyte/values.yaml ;; \
+	esac
 	@echo ""
 	@echo "Interface em $(AIRBYTE_WEB) — credenciais em 'make airbyte-credentials'."
 

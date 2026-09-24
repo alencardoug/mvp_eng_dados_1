@@ -17,6 +17,9 @@ registram cada chamada, não chama nada.
 Com os mesmos executáveis simulados, e sem `-n`, a retomada do Airbyte que a
 correção transformou em variável: ela só diz "pronta" quando a API responde, e
 esgotar o prazo é erro nos dois chamadores (RVE3-02).
+
+E a decisão de 24/09/2026 sobre subir: `airbyte-up` decide pelo estado lido do
+cluster, e com ele de pé confere a API em vez de reinstalar (D53).
 """
 
 from __future__ import annotations
@@ -137,14 +140,32 @@ def test_make_n_nao_executa_nada(tmp_path, alvo):
     assert chamadas == []
 
 
-#: Um `docker` que responde o que `airbyte-up` pergunta: o cluster está parado
-#: (`SIM_PAUSADO=1`) ou não existe.
+#: Um `docker` que responde o que `airbyte-up` e `airbyte-resume` perguntam, com
+#: a semântica do `docker ps` real: sem `-a` só o que está `running`, `-f
+#: status=` filtra o estado, e `--format '{{.State}}'` imprime o estado em vez
+#: do id. `SIM_CLUSTER` é o estado do nó — `running`, `exited`, outro, ou vazio
+#: quando ele não existe, e aí o `docker start` falha como o real —, e
+#: `SIM_DOCKER_MUDO=1` é o Docker que não responde (RVE-08).
 DOCKER_DO_CLUSTER = """#!/usr/bin/env bash
 echo "docker $*" >> "$SIM_LOG"
-case "$1" in
-  ps) [ "${SIM_PAUSADO:-0}" = 1 ] && echo 3f2a1b ;;
-esac
-exit 0
+if [ "$1" = start ] && [ -z "${SIM_CLUSTER:-}" ]; then
+  echo "Error response from daemon: No such container: $2" >&2; exit 1
+fi
+[ "$1" = ps ] || exit 0
+[ "${SIM_DOCKER_MUDO:-0}" = 1 ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+[ -n "${SIM_CLUSTER:-}" ] || exit 0
+shift; todos=false; estado=""; formato=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -a|-aq) todos=true ;;
+    -f|--filter) case "$2" in status=*) estado="${2#status=}" ;; esac; shift ;;
+    --format) formato="$2"; shift ;;
+  esac
+  shift
+done
+$todos || [ "$SIM_CLUSTER" = running ] || exit 0
+[ -z "$estado" ] || [ "$estado" = "$SIM_CLUSTER" ] || exit 0
+case "$formato" in *State*) echo "$SIM_CLUSTER" ;; *) echo 3f2a1b ;; esac
 """
 
 #: A API do Airbyte, uma resposta por consulta, na ordem de `SIM_API`; a
@@ -171,22 +192,29 @@ exit 0
 #: num teste.
 SLEEP_INSTANTANEO = "#!/bin/sh\nexit 0\n"
 
-#: Os dois chamadores de `RETOMAR_AIRBYTE`, com o cluster parado.
-CHAMADORES = [pytest.param("airbyte-resume", id="airbyte-resume"), pytest.param("airbyte-up", id="airbyte-up")]
+#: Os três caminhos que esperam a API: os dois chamadores da retomada, com o
+#: cluster parado, e `airbyte-up` com ele de pé, que só confere (D53).
+CHAMADORES = [
+    pytest.param("airbyte-resume", "exited", id="airbyte-resume"),
+    pytest.param("airbyte-up", "exited", id="airbyte-up-pausado"),
+    pytest.param("airbyte-up", "running", id="airbyte-up-de-pe"),
+]
 
 
-def _retomar(tmp_path: pathlib.Path, alvo: str, api: str) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+def _retomar(
+    tmp_path: pathlib.Path, alvo: str, cluster: str, api: str
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     r, chamadas = _make(
         tmp_path,
         alvo,
         docker=DOCKER_DO_CLUSTER,
         binarios={"curl": CURL_DA_API, "sleep": SLEEP_INSTANTANEO},
-        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": api},
+        ambiente_extra={"SIM_CLUSTER": cluster, "SIM_API": api},
     )
     return r, [c for c in chamadas if c.startswith("curl ")]
 
 
-@pytest.mark.parametrize("alvo", CHAMADORES)
+@pytest.mark.parametrize("alvo, cluster", CHAMADORES)
 @pytest.mark.parametrize(
     "api, consultas",
     [
@@ -194,14 +222,16 @@ def _retomar(tmp_path: pathlib.Path, alvo: str, api: str) -> tuple[subprocess.Co
         pytest.param("muda,muda,503,503,pronta", 5, id="espera-o-silencio-e-o-503-passarem"),
     ],
 )
-def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, api, consultas):
+def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, cluster, api, consultas):
     """RVE3-02: pronto é a API responder `available:true`, e a espera espera por isso.
 
     O caso de cinco consultas é o desenho da retomada real: primeiro a API sem
     resposta, depois o 503 do ingress. A espera antiga dizia "pronto" antes de
-    tudo isso, porque o `grep -q Ready` casava nos sandboxes `NotReady`.
+    tudo isso, porque o `grep -q Ready` casava nos sandboxes `NotReady`. O
+    cluster de pé passa pela mesma espera (D53): recém-religado à mão, ele
+    também pode estar no meio desse desenho.
     """
-    r, curls = _retomar(tmp_path, alvo, api)
+    r, curls = _retomar(tmp_path, alvo, cluster, api)
 
     assert r.returncode == 0, r.stdout + r.stderr
     assert "aguardando a API do Airbyte" in r.stdout and r.stdout.count("pronta.") == 1, r.stdout
@@ -209,7 +239,7 @@ def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, api, con
     assert all("http://localhost:8000/api/v1/health" in c for c in curls), curls
 
 
-@pytest.mark.parametrize("alvo", CHAMADORES)
+@pytest.mark.parametrize("alvo, cluster", CHAMADORES)
 @pytest.mark.parametrize(
     "api",
     [
@@ -218,13 +248,13 @@ def test_a_retomada_diz_pronta_so_quando_a_api_responde(tmp_path, alvo, api, con
         pytest.param("falsa", id="available-false"),
     ],
 )
-def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, api):
+def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, cluster, api):
     """RVE3-02: o prazo esgotado sai com erro, e `airbyte-up` não anuncia a interface.
 
     Antes, as 30 consultas terminavam num `echo` que saía 0, e quem chamou
     seguia adiante sem o Airbyte.
     """
-    r, curls = _retomar(tmp_path, alvo, api)
+    r, curls = _retomar(tmp_path, alvo, cluster, api)
 
     assert r.returncode != 0, r.stdout
     assert "tempo esgotado" in r.stdout and "pronta." not in r.stdout, r.stdout
@@ -233,28 +263,31 @@ def test_a_retomada_que_esgota_o_prazo_falha(tmp_path, alvo, api):
     assert "Interface em" not in r.stdout
 
 
-def test_sem_curl_a_retomada_recusa_antes_de_religar(tmp_path):
+@pytest.mark.parametrize("alvo, cluster", CHAMADORES)
+def test_sem_curl_a_espera_recusa_antes_de_mexer_em_qualquer_coisa(tmp_path, alvo, cluster):
     """Sem `curl`, a espera venceria o prazo dizendo que a API não respondeu.
 
-    O `2>/dev/null` da consulta engoliria o "command not found". O `PATH` aqui
-    tem só o que a receita usa além do `curl`, e nada é religado.
+    O `2>/dev/null` da consulta engoliria o "command not found". A recusa vem
+    antes do preflight, e não só antes de religar: a troca pausaria o outro
+    ambiente por uma espera que não tem como acontecer. O `PATH` aqui tem só o
+    que as receitas usam além do `curl`.
     """
     restrito = tmp_path / "restrito"
     restrito.mkdir()
-    for ferramenta in ("make", "bash", "seq", "grep", "sleep"):
+    for ferramenta in ("make", "bash", "seq", "grep", "sleep", "basename"):
         (restrito / ferramenta).symlink_to(shutil.which(ferramenta))
 
     r, chamadas = _make(
         tmp_path,
-        "airbyte-resume",
+        alvo,
         docker=DOCKER_DO_CLUSTER,
         binarios={"curl": None},
-        ambiente_extra={"SIM_PAUSADO": "1", "PATH": f"{tmp_path / 'bin'}:{restrito}"},
+        ambiente_extra={"SIM_CLUSTER": cluster, "PATH": f"{tmp_path / 'bin'}:{restrito}"},
     )
 
     assert r.returncode != 0, r.stdout
     assert "curl ausente" in r.stdout, r.stdout + r.stderr
-    assert "docker start airbyte-abctl-control-plane" not in chamadas
+    assert not any(c.startswith(("preflight.sh", "docker start", "abctl")) for c in chamadas), chamadas
 
 
 def test_airbyte_up_retoma_o_cluster_pausado_sem_reinstalar(tmp_path):
@@ -264,7 +297,7 @@ def test_airbyte_up_retoma_o_cluster_pausado_sem_reinstalar(tmp_path):
         "airbyte-up",
         docker=DOCKER_DO_CLUSTER,
         binarios={"curl": CURL_DA_API},
-        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": "pronta"},
+        ambiente_extra={"SIM_CLUSTER": "exited", "SIM_API": "pronta"},
     )
 
     assert r.returncode == 0, r.stdout + r.stderr
@@ -272,6 +305,24 @@ def test_airbyte_up_retoma_o_cluster_pausado_sem_reinstalar(tmp_path):
     assert "aguardando a API do Airbyte pronta." in r.stdout
     assert "docker start airbyte-abctl-control-plane" in chamadas
     assert not any(c.startswith("abctl") for c in chamadas), chamadas
+
+
+def test_airbyte_up_com_o_cluster_de_pe_confere_a_api_sem_reinstalar(tmp_path):
+    """D53: com o cluster de pé, o ramo de instalação chamava `abctl local install`
+    — que, assim, abortou no `PG_VERSION` em 05/09 e em 23/09/2026. De pé, ele
+    só confere a API, que é o que "de pé" promete a quem vem depois."""
+    r, chamadas = _make(
+        tmp_path,
+        "airbyte-up",
+        docker=DOCKER_DO_CLUSTER,
+        binarios={"curl": CURL_DA_API},
+        ambiente_extra={"SIM_CLUSTER": "running", "SIM_API": "pronta"},
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "cluster de pé — conferindo a API" in r.stdout
+    assert "aguardando a API do Airbyte pronta." in r.stdout
+    assert not any(c.startswith(("abctl", "docker start")) for c in chamadas), chamadas
 
 
 def test_airbyte_up_instala_quando_nao_ha_cluster(tmp_path):
@@ -283,15 +334,29 @@ def test_airbyte_up_instala_quando_nao_ha_cluster(tmp_path):
     assert not any(c.startswith("curl") for c in chamadas), "quem instala é o abctl, e ele espera por conta própria"
 
 
-def test_airbyte_resume_continua_retomando(tmp_path):
+@pytest.mark.parametrize("alvo", ["airbyte-up", "airbyte-resume"])
+def test_docker_mudo_nao_decide_as_cegas(tmp_path, alvo):
+    """RVE-08 no Makefile: `docker ps` que falha não é "não há cluster" — em
+    `airbyte-up`, a consulta vazia levava ao `abctl local install`."""
     r, chamadas = _make(
         tmp_path,
-        "airbyte-resume",
+        alvo,
         docker=DOCKER_DO_CLUSTER,
-        binarios={"curl": CURL_DA_API},
-        ambiente_extra={"SIM_PAUSADO": "1", "SIM_API": "pronta"},
+        binarios={"sleep": SLEEP_INSTANTANEO},
+        ambiente_extra={"SIM_DOCKER_MUDO": "1"},
     )
 
-    assert r.returncode == 0, r.stdout + r.stderr
-    assert "aguardando a API do Airbyte pronta." in r.stdout
-    assert chamadas[0] == "docker start airbyte-abctl-control-plane"
+    assert r.returncode != 0, r.stdout
+    assert "o Docker não respondeu" in r.stdout, r.stdout
+    assert not any(c.startswith(("abctl", "preflight.sh", "docker start", "curl")) for c in chamadas), chamadas
+
+
+def test_airbyte_up_em_estado_que_nao_trata_recusa(tmp_path):
+    """Nem de pé, nem pausado, nem ausente — um `docker pause`, por exemplo: o
+    `abctl` recusaria o contêiner, e o `docker start` também."""
+    r, chamadas = _make(tmp_path, "airbyte-up", docker=DOCKER_DO_CLUSTER, ambiente_extra={"SIM_CLUSTER": "paused"})
+
+    assert r.returncode != 0, r.stdout
+    assert "'paused'" in r.stdout, r.stdout
+    assert not any(c.startswith(("abctl", "preflight.sh", "docker start")) for c in chamadas), chamadas
+
