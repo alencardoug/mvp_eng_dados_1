@@ -486,10 +486,14 @@ def test_restore_sem_autorizacao_nao_toca_em_banco(tmp_path):
         )
         alvo.chmod(0o755)
 
+    # Sem autorização é a premissa, e o ambiente não a garante: dentro do `check` do próprio
+    # `recovery-restore` (linha 9 do B5, 25/09/2026), o `RESTAURAR=1` de fora chegava até aqui, a
+    # guarda deixava passar, e só os executáveis simulados paravam a restauração aninhada no passo 1.
+    ambiente = {k: v for k, v in os.environ.items() if k != "RESTAURAR"}
     saida = subprocess.run(
         ["make", "--no-print-directory", "recovery-restore"],
         cwd=RAIZ, capture_output=True, text=True,
-        env=os.environ | {"PATH": f"{binario}:{os.environ['PATH']}", "SIM_LOG": str(log)},
+        env=ambiente | {"PATH": f"{binario}:{os.environ['PATH']}", "SIM_LOG": str(log)},
         timeout=120,
     )
 
