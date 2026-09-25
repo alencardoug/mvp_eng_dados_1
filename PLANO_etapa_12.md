@@ -138,6 +138,14 @@
 > `make medir` passa a coletar o tamanho, como o B1 declarou (D59, RVB5-02); o `check-offline`
 > falha quando a coleta falha (RVB5-03); o pacote aprovado passa para o clone antes de o *checkout*
 > antigo ser liberado (D60, RVB5-04, §7.5); e a cópia da P5 nasce como um `RECOVERY_DIR`.
+>
+> **Revisão 10 — 25/09/2026.** A segunda rodada (`REVISAO.md` §12) deu o RVB5-01 por parcial: a
+> fase 1 do recuo voltava com um Airbyte novo e só a D50, e a geração reiniciada colidiria com a
+> geração 1 retida no bruto (RVB5-2-01). A fase 1 passa pelo `recovery-restore` no *checkout*
+> antigo, que faz o re-base da D52; o desmonte e a reinstalação da Execução Local §6 apartam o
+> estado do Terraform junto com o diretório de dados; e a P4 exige que nada rode entre o
+> `recovery-pack` e o desmonte. Os dois ajustes da rodada são do código: o fim do registro do
+> `medir` junto da duração (RVB5-2-02) e o teste dos papéis sem o `.env` (RVB5-2-03).
 
 ---
 
@@ -1225,6 +1233,10 @@ Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 > **Revisão 9 — 25/09/2026**, depois da primeira rodada de revisão do roteiro: o recuo por fase
 > (§7.4), o tamanho pelo `medir` (§7.3), o pacote aprovado no clone (§7.5) e a P5 como
 > `RECOVERY_DIR`. O que mudou e por quê está no cabeçalho do plano, na revisão 9.
+>
+> **Revisão 10 — 25/09/2026**, depois da segunda rodada: a fase 1 do recuo pela sequência de
+> restauração (§7.4), o estado do Terraform apartado no desmonte (§7.1, linha 4) e a P4 com nada
+> rodando entre o `recovery-pack` e o desmonte. O porquê está no cabeçalho do plano, na revisão 10.
 
 ### 7.0 Pré-condições, conferidas uma a uma
 
