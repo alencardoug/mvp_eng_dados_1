@@ -1846,16 +1846,77 @@ saida=0
 ---
 
 
+## 14. Parecer da terceira rodada do B5 — 25/09/2026
+
+**Veredito: RVB5-2-01, RVB5-2-02 e RVB5-2-03 atendidos; nenhum achado novo neste escopo.**
+Isso fecha também o restante do RVB5-01. Conferidos a coluna *Situação*, a §13 e o diff
+`96613ac..ed1184b`, no escopo curto pedido para esta rodada.
+
+| Resposta | Conferência |
+|---|---|
+| RVB5-2-01 | A fase 1 agora prepara Airbyte e conexões, quando removidos, e usa `recovery-restore` no checkout antigo. A receita faz o rebase antes da carga, avança a sequência e dispara `sync-airbyte` antes de `sync-legacy`. A P4 explicita a preservação do estado entre corte e desmonte. O afastamento do estado do Terraform não altera o pacote e está coberto pelo `.gitignore`; a sonda abaixo confirma a leitura do estado local após o afastamento. |
+| RVB5-2-02 | Início e fim são derivados das mesmas épocas usadas na duração; o fim é capturado antes do relatório. O teste com relatório demorado confere `fim − início = duração`, e os testes do medidor passaram. |
+| RVB5-2-03 | O teste agora simula `_env` e passou com as seis variáveis explicitamente removidas do ambiente. |
+
+**Verificações executadas.** Na raiz, sem carregar o `.env` (progresso omitido):
+
+```text
+$ env -u SOURCE_DB_USER -u SOURCE_DB_NAME -u LEGACY_DB_USER -u LEGACY_DB_NAME -u WAREHOUSE_DB_USER -u WAREHOUSE_DB_NAME .venv/bin/pytest -q -rs tests/test_medicao.py tests/test_recovery.py::test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump
+34 passed in 47.08s
+```
+
+**Estado do Terraform, sonda isolada.** Em `/tmp/rvb5_r3_tf_qt4hyrog`, criei um estado fictício
+de formato 4 com um único recurso `terraform_data.sonda`, e uma cópia
+`terraform.tfstate.backup`. Executei o binário instalado `.tools/terraform state list` nesse
+diretório, renomeei somente o estado fictício para `terraform.tfstate.20260925` e repeti o
+comando. Nenhum estado do projeto foi movido ou lido. Saída, retiradas apenas as cores ANSI:
+
+```text
+antes: saida=0
+terraform_data.sonda
+depois: saida=1
+No state file was found!
+
+State management commands require a state file. Run this command
+in a directory where Terraform has been run or use the -state flag
+to point the command to a specific state location.
+estado apartado preservado: True
+backup preservado: True
+rascunho: /tmp/rvb5_r3_tf_qt4hyrog
+```
+
+O código 1 da segunda chamada é esperado: sem o estado principal, o comando não recuperou o
+estado do backup. Isso confere a premissa local do afastamento, não o comportamento do provedor
+nem a criação das conexões numa reinstalação.
+
+```text
+$ git check-ignore airbyte/terraform.tfstate.20260925 airbyte/terraform.tfstate.backup
+airbyte/terraform.tfstate.20260925
+airbyte/terraform.tfstate.backup
+$ make docs-check
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+```
+
+Esses dois comandos saíram 0; `git diff --check` também saiu 0, sem saída.
+
+**Limites mantidos.** Não executei B5, reinstalação, restauração, rebase ou promoção; não usei
+`FORCE=1`. A fase 1 completa continua não medida, como a §13.5 declara. O candidato ainda precisa
+ser refeito com a ponta revisada (P4), e a execução do B5 depende da autorização do Owner.
+B2/B3 continuam para a revisão final. Só este dossiê foi alterado.
+
+---
+
+
 ## Achados da revisão
 
 Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar a revisão.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | **Corrigido** (`3788f34`, `0ffd346`, `25ac22e`). O §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make reset` até a linha 2 do §7.3; com o ambiente pronto —, cada uma com o que existe e o que o recuo pede antes do `recovery-restore`. Medir a fase 2 num destino novo, em projeto Compose à parte, achou que a restauração não passava nele: os `GRANT`s do dump da memória nomeiam papéis que só o `governance.garantir()` cria; o `restore-dumps` passa a criá-los antes do primeiro dump. Com o candidato real, os passos 1, 3, 4, 4b e 5 passam, com e sem migrações. Achado próprio: a conferência contra o banco sem o estado do pacote estourava em *traceback*; agora recusa numa linha. Passos 2 e 6–9 num destino novo não medidos (§11.1). A segunda rodada o deu por parcial; o restante, a fase 1, é o RVB5-2-01. |
+| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | **Corrigido** (`3788f34`, `0ffd346`, `25ac22e`). O §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make reset` até a linha 2 do §7.3; com o ambiente pronto —, cada uma com o que existe e o que o recuo pede antes do `recovery-restore`. Medir a fase 2 num destino novo, em projeto Compose à parte, achou que a restauração não passava nele: os `GRANT`s do dump da memória nomeiam papéis que só o `governance.garantir()` cria; o `restore-dumps` passa a criá-los antes do primeiro dump. Com o candidato real, os passos 1, 3, 4, 4b e 5 passam, com e sem migrações. Achado próprio: a conferência contra o banco sem o estado do pacote estourava em *traceback*; agora recusa numa linha. Passos 2 e 6–9 num destino novo não medidos (§11.1). A segunda rodada o deu por parcial; o restante, a fase 1, é o RVB5-2-01. **Terceira rodada (§14): restante atendido pela correção do RVB5-2-01.** |
 | RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | **Corrigido pela declaração** (`efb8fc1`; D59, do Owner em 25/09/2026). O plano (§3, B1) já mandava o medidor rodar o `size-report` ao fim e gravar o total por banco, e o código não fazia. Agora faz, depois do intervalo medido: o total de cada banco e a soma no registro e na linha da Capacidade; relatório que falha fica como não medido. A Execução Local diz o que o `size-report` detalha, e o §7.3, que cada `make medir` traz o tamanho. Testes vermelhos antes, verdes depois; medido de verdade (§11.2). |
 | RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | **Corrigido** (`28d34c7`): `pipefail` na terceira etapa e uma mensagem que diz o que faltou. O teste novo simula a coleta saindo 2: vermelho antes, verde depois; o caminho nominal real continua passando (§11.3). |
 | RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | **Corrigido** (`3788f34`; D60, do Owner em 25/09/2026). O §7.5 copia o `aprovado` para o `data/recovery` do clone — o caminho padrão da D46 no *checkout* de trabalho da D58 —, tira o `RECOVERY_DIR` do ambiente e confere com `make recovery-verify` no clone, antes de liberar o antigo; o B6 registra o caminho. A cópia da P5 passa a nascer como `RECOVERY_DIR`. Os dois ensaiados com cópias e os alvos de verdade (§11.4). |
-| RVB5-2-01 | `PLANO_etapa_12.md:1348`, fase 1 do recuo | **O Airbyte novo volta sobre o bruto antigo sem tratar a geração reiniciada.** D50 só avança os jobs; o candidato ainda retém geração 1 em `brands`. Mesmo com a guarda de identidade satisfeita e conteúdo correto, a sonda produziu `inconsistent` por intrusas; com o rebase, `complete` (§12.2). Completar a sequência da fase 1, incluindo configuração/conexões, proteção das gerações conforme D52 e ordem dos disparos, ou encaminhá-la a um procedimento de restauração que cumpra essas condições. **RVB5-01 permanece parcial**; subir o ambiente com D50 apenas não resolve o recuo. | `bloqueante` | **Corrigido** (`44da9b7`). A fase 1 do §7.4 passa pelo `recovery-restore` no *checkout* antigo — o re-base da D52 (passo 4b), o contador da D50 e o `sync-airbyte` antes do `sync-legacy` —, com `airbyte-up` e `airbyte-config` antes quando o Airbyte já saiu; a P4 exige que nada rode entre o `recovery-pack` e o desmonte. Achado próprio: o `airbyte-config` da fase 1 rodaria sobre o estado do Terraform do Airbyte removido, comportamento não verificado; a linha 4 do desmonte e a reinstalação da Execução Local §6 passam a apartá-lo. A fase 1 de ponta a ponta não foi medida (§13.1). |
-| RVB5-2-02 | `docker/medir.sh:201` e `_finalizar`, linhas 305–312 | **O instante final inclui a coleta que a duração exclui.** Com alvo de 1 s e relatório de 4 s, o JSON registra duração 1, mas `fim − inicio = 5` (§12.3). Esses campos deixam de delimitar o mesmo intervalo e comprometem a leitura do diário da medição. Capturar o fim junto da duração, antes do relatório, e conferir essa igualdade no teste; se houver instante de conclusão da coleta, identificá-lo separadamente. | `ajuste` | **Corrigido** (`66d457e`): o fim capturado com a duração, antes do relatório, e os dois instantes saídos das mesmas épocas que ela. O teste confere `fim − início = duração`: vermelho antes (5 × 1), verde depois; medido de verdade (§13.2). |
-| RVB5-2-03 | `tests/test_recovery.py:658` | **O teste novo de ordem dos papéis depende de ambiente externo apesar de simular os acessos.** A execução direta da suíte falha por `SOURCE_DB_USER` ausente; com as seis variáveis fictícias, o mesmo teste passa (§12.4). Fornecer essas entradas no teste ou simular `_env`, mantendo a prova independente do `.env` e sem transformá-la em teste de integração. | `ajuste` | **Corrigido** (`8662a67`): o teste simula o `_env`. Sem o `.env`, os três arquivos passam (196); antes, 1 falhava (§13.3). |
+| RVB5-2-01 | `PLANO_etapa_12.md:1348`, fase 1 do recuo | **O Airbyte novo volta sobre o bruto antigo sem tratar a geração reiniciada.** D50 só avança os jobs; o candidato ainda retém geração 1 em `brands`. Mesmo com a guarda de identidade satisfeita e conteúdo correto, a sonda produziu `inconsistent` por intrusas; com o rebase, `complete` (§12.2). Completar a sequência da fase 1, incluindo configuração/conexões, proteção das gerações conforme D52 e ordem dos disparos, ou encaminhá-la a um procedimento de restauração que cumpra essas condições. **RVB5-01 permanece parcial**; subir o ambiente com D50 apenas não resolve o recuo. | `bloqueante` | **Corrigido** (`44da9b7`). A fase 1 do §7.4 passa pelo `recovery-restore` no *checkout* antigo — o re-base da D52 (passo 4b), o contador da D50 e o `sync-airbyte` antes do `sync-legacy` —, com `airbyte-up` e `airbyte-config` antes quando o Airbyte já saiu; a P4 exige que nada rode entre o `recovery-pack` e o desmonte. Achado próprio: o `airbyte-config` da fase 1 rodaria sobre o estado do Terraform do Airbyte removido, comportamento não verificado; a linha 4 do desmonte e a reinstalação da Execução Local §6 passam a apartá-lo. A fase 1 de ponta a ponta não foi medida (§13.1). **Terceira rodada (§14): correção conferida; atendido.** |
+| RVB5-2-02 | `docker/medir.sh:201` e `_finalizar`, linhas 305–312 | **O instante final inclui a coleta que a duração exclui.** Com alvo de 1 s e relatório de 4 s, o JSON registra duração 1, mas `fim − inicio = 5` (§12.3). Esses campos deixam de delimitar o mesmo intervalo e comprometem a leitura do diário da medição. Capturar o fim junto da duração, antes do relatório, e conferir essa igualdade no teste; se houver instante de conclusão da coleta, identificá-lo separadamente. | `ajuste` | **Corrigido** (`66d457e`): o fim capturado com a duração, antes do relatório, e os dois instantes saídos das mesmas épocas que ela. O teste confere `fim − início = duração`: vermelho antes (5 × 1), verde depois; medido de verdade (§13.2). **Terceira rodada (§14): correção conferida; atendido.** |
+| RVB5-2-03 | `tests/test_recovery.py:658` | **O teste novo de ordem dos papéis depende de ambiente externo apesar de simular os acessos.** A execução direta da suíte falha por `SOURCE_DB_USER` ausente; com as seis variáveis fictícias, o mesmo teste passa (§12.4). Fornecer essas entradas no teste ou simular `_env`, mantendo a prova independente do `.env` e sem transformá-la em teste de integração. | `ajuste` | **Corrigido** (`8662a67`): o teste simula o `_env`. Sem o `.env`, os três arquivos passam (196); antes, 1 falhava (§13.3). **Terceira rodada (§14): correção conferida; atendido.** |
