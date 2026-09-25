@@ -115,6 +115,17 @@ def _garantir_papeis(conexao) -> None:
         conexao.execute(text(f"comment on role {papel} is '{_DESCRICAO_DOS_PAPEIS[papel]}'"))
 
 
+def garantir_papeis(engine: Engine) -> None:
+    """Só os papéis, sem as migrações — o que a restauração pede antes do `pg_restore` do armazém.
+
+    O dump da memória traz os `GRANT`s de `governance`, `quarantine`, `snapshots` e `raw_legacy` para
+    estes papéis, e num armazém recém-criado por `make up` eles ainda não existem: o `pg_restore`
+    recusava e desfazia o dump inteiro (RVB5-01). Papel é do *cluster*, não do dump — criá-lo antes
+    não conflita com o `--clean` da restauração, e as migrações ficam para o dump trazer."""
+    with engine.begin() as conexao:
+        _garantir_papeis(conexao)
+
+
 def garantir(engine: Engine) -> list[str]:
     """Aplica as migrações que faltam e devolve os nomes aplicados nesta chamada."""
     aplicadas: list[str] = []

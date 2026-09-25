@@ -655,6 +655,21 @@ def test_pg_restore_com_erro_acumulado_e_recusado_numa_transacao_so(tmp_path):
     assert "--single-transaction" in chamadas[0] and "--clean" in chamadas[0] and "--if-exists" in chamadas[0]
 
 
+def test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump(tmp_path):
+    """RVB5-01: o dump da memória traz `GRANT … TO ingestor`, e num armazém recém-criado por `make up`
+    os papéis ainda não existem — o `pg_restore` recusava e desfazia o dump inteiro (medido num destino
+    novo em 25/09/2026). Os papéis vêm antes do primeiro dump: sem eles, nada é tocado."""
+    ordem: list[str] = []
+    with patch.object(cli, "_pasta_do_pacote", return_value=tmp_path), \
+            patch.object(cli, "_motor", return_value="motor-do-armazem"), \
+            patch.object(cli.governance, "garantir_papeis", side_effect=lambda motor: ordem.append(f"papéis em {motor}")), \
+            patch.object(cli, "_pg_restore", side_effect=lambda servico, *a: ordem.append(servico)), \
+            contextlib.redirect_stdout(io.StringIO()):
+        assert cli.comando_restore_dumps(argparse.Namespace(dir=None)) == 0
+
+    assert ordem == ["papéis em motor-do-armazem", "source_db", "legacy_db", "warehouse_db"], ordem
+
+
 MANIFESTO = {
     "corte": "2026-09-21T12:00:00+00:00",
     "commit": "0" * 40,

@@ -29,6 +29,7 @@ import subprocess
 import sys
 from typing import Any
 
+from mvp_ed1 import governance
 from mvp_ed1.recovery import leitura, oraculos, pacote, rebase
 
 RAIZ = pathlib.Path(__file__).resolve().parents[3]
@@ -506,7 +507,8 @@ def _aplicar_rebase(armazem, planos: dict[str, dict[int, int]], recusas: list[st
 
 # ── restore-dumps (passo 4) ─────────────────────────────────────────────────
 def _pg_restore(servico: str, usuario: str, banco: str, dump: pathlib.Path) -> None:
-    """`--clean --if-exists --single-transaction`: o destino está **povoado**.
+    """`--clean --if-exists --single-transaction`: o destino pode estar **povoado** — a linha 9 do B5
+    — ou recém-criado por `make up` — o recuo antes de o ambiente estar pronto (RVB5-01).
 
     `pg_restore` devolve 1 quando **acumulou erros** (`exit_code = n_errors ?
     1 : 0`, `pg_restore.c`), e não por aviso benigno — `--if-exists` já cala o
@@ -537,13 +539,19 @@ def _pg_restore(servico: str, usuario: str, banco: str, dump: pathlib.Path) -> N
 
 
 def comando_restore_dumps(args: argparse.Namespace) -> int:
+    from mvp_ed1 import db
+
     pasta = _pasta_do_pacote(args)
+    # Os papéis do armazém antes do primeiro dump: num armazém recém-criado eles não existem, e os
+    # `GRANT`s do dump da memória desfaziam a restauração dele inteira (RVB5-01, medido num destino
+    # novo em 25/09/2026). Antes de tudo, e não antes do armazém: sem eles, nada é tocado.
+    governance.garantir_papeis(_motor(db.WAREHOUSE))
     for servico, usuario, banco, nome in (
         ("source_db", "SOURCE_DB_USER", "SOURCE_DB_NAME", "source_db.dump"),
         ("legacy_db", "LEGACY_DB_USER", "LEGACY_DB_NAME", "legacy_db.dump"),
         ("warehouse_db", "WAREHOUSE_DB_USER", "WAREHOUSE_DB_NAME", "warehouse_memoria.dump"),
     ):
-        print(f"[recovery] restaurando {nome} em destino povoado, numa transação só")
+        print(f"[recovery] restaurando {nome}, numa transação só")
         _pg_restore(servico, _env(usuario), _env(banco), pasta / nome)
     return 0
 
