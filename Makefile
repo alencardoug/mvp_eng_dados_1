@@ -666,8 +666,10 @@ test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em
 	@# escreve no armazém de trabalho por desenho (repara e confere) e é
 	@# autorização à parte. Uma flag só para os dois foi o que pôs a origem de
 	@# trabalho em fator 0,05 duas vezes.
+	@# `-rs` lista cada pulado com o motivo, e é por este alvo que o `check` os
+	@# lista: pulado não é verificado, e o Termo pede a lista (plano, §7.6).
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q
+		MVP_TESTE_FATO=$(if $(filter 1,$(FATO)),1,0) .venv/bin/pytest -q -rs
 	@$(if $(filter 1,$(CARGA)),$(MAKE) --no-print-directory test-carga,true)
 
 check: require-env require-venv ## Verificação completa, parando na primeira falha: segredos, dbt build + testes de dados, classificação e linhagem derivadas, pytest; FATO=1 inclui o teste que escreve na fato

@@ -806,6 +806,15 @@ def test_check_offline_nao_sobe_nem_consulta_nada(tmp_path):
     assert not any(c.split()[0] in {"dbt", "alembic", "docker", "abctl", "terraform"} for c in chamadas), chamadas
 
 
+def test_o_pytest_do_check_lista_os_pulados_com_motivo(tmp_path):
+    """O `check` chama o `make test`, e o Termo pede a lista de pulados com motivo (plano, §7.6).
+    Até 24/09/2026 só o `check-offline` a imprimia: o `-q` sozinho diz quantos, não quais."""
+    r, chamadas = _make(tmp_path, "test")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert chamadas == ["pytest -q -rs"], chamadas
+
+
 #: Os quatro que a sonda achou tocando o armazém ou o `dbt` (a do plano em 19/09 e a de 24/09, com a
 #: suíte três vezes maior, acharam os mesmos): fora da seleção offline.
 PRECISAM_DO_ARMAZEM = [
