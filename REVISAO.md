@@ -984,6 +984,517 @@ Falta, porém, a passagem para um destino que continue acessível depois do arqu
 exclusão do *checkout* antigo permitidos pelo §7.5. A D58 continua valendo; o ajuste é completar
 esse passo de operação e o caminho a registrar no B6.
 
+
+## 11. Resposta à primeira rodada do B5 — 25/09/2026
+
+Os quatro achados reproduzidos antes de qualquer correção, e os quatro corrigidos. Dois pediram
+decisão do Owner, tomada em 25/09/2026 e registrada nas Pendências §2: **D59** (o `make medir`
+coleta o tamanho, como o B1 declarou) e **D60** (o pacote aprovado vai para o `data/recovery` do
+clone). Medir o recuo da fase 2 achou dois defeitos que a sonda do parecer não alcançava: a
+restauração **não passava** num armazém recém-criado — os papéis dele —, e a conferência contra o
+banco estourava em *traceback* quando o estado do pacote faltava. Os dois estão corrigidos.
+
+```
+28d34c7 fix: check-offline falha quando a coleta dos testes de integração falha
+0ffd346 fix: a restauração garante os papéis do armazém antes do primeiro dump
+dddc1d1 docs: registra D59 e D60, decididas na resposta à revisão do roteiro do B5
+efb8fc1 feat: o medir coleta o tamanho dos bancos depois do intervalo medido
+3788f34 docs: o roteiro do B5 recua por fase e leva o pacote aprovado para o clone
+25ac22e fix: a conferência contra o banco recusa sem estourar quando falta o estado do pacote
+```
+
+**A próxima rodada revisa `00de1e5..` a ponta** — este registro incluído. O candidato do pacote é
+de `561edc2` e **não** foi refeito: o código da restauração mudou (`0ffd346`, `25ac22e`), e a P4
+manda refazê-lo uma vez, depois da última rodada, com a ponta revisada.
+
+### 11.1 RVB5-01 — o recuo por fase, e a restauração num destino novo
+
+**Reprodução.** O passo 1 com um projeto sem contêineres, direto pelo Python (pelo `Makefile` o
+`.env` seria recarregado, e com ele o projeto de trabalho):
+
+```
+$ (set -a; . ./.env; set +a; export COMPOSE_PROJECT_NAME=rvb5_vazio
+   .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery verify; echo "saida=$?")
+RECUSADO — não resolvi o contêiner do serviço 'warehouse_db' neste projeto. Rode `make up`.
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+saida=2
+```
+
+**O que o recuo da fase 2 pede, medido.** Um projeto Compose à parte, `rvb5_ensaio`, nas portas
+25432–25434: o `make up` de verdade, com o nome do projeto e as portas no ambiente — a garantia da
+rede e o `compose up` os leem antes do `.env` —; depois, os passos que escrevem, **só** por chamada
+direta ao Python e ao Alembic, com uma guarda que recusa tudo se algum contêiner ou URL não for do
+ensaio; e o derrubar com `-p` explícito, depois de conferir o nome que o Compose resolve, porque um
+`down -v` no projeto de trabalho apagaria os volumes dos três bancos. O `mvp_ed1` é conferido pelo
+`recovery-verify CONTRA_O_BANCO=1` antes e depois. O roteiro, na forma final (`VARIANTE` escolhe
+se as origens são migradas):
+
+```bash
+#!/usr/bin/env bash
+# RVB5-01 — a restauração num destino recém-criado, o da fase 2 do recuo: `make up`, as migrações das
+# duas origens, e os passos 4, 4b e 5 da sequência (restore-dumps, rebase, verify contra o banco),
+# com o pacote candidato real. Num projeto Compose à parte, `rvb5_ensaio`, em portas à parte: o
+# `mvp_ed1` não é tocado, e o `recovery-verify CONTRA_O_BANCO=1` dele roda antes e depois.
+set -u
+R=/home/doug/Projetos/mvp_ed1
+O=$R/.git/rvb5-saidas/${VARIANTE:?VARIANTE=com_migracoes|sem_migracoes}
+P=rvb5_ensaio
+cd "$R" || exit 1
+mkdir -p "$O"
+ISOLADO=(COMPOSE_PROJECT_NAME=$P SOURCE_DB_PORT=25432 LEGACY_DB_PORT=25433 WAREHOUSE_DB_PORT=25434)
+
+# Chamadas diretas, com o .env e, por cima dele, o projeto e as portas do ensaio. **Nunca pelo
+# Makefile nos passos que escrevem:** as receitas carregam o .env de novo, e o .env diz o projeto de
+# trabalho — o COMPOSE_PROJECT_NAME exportado não sobreviveria.
+isolado() { ( set -a; . ./.env; set +a; export "${ISOLADO[@]}"; "$@" ); }
+
+passo() {  # $1 = arquivo; o resto, o comando; registra comando, saída, código e duração
+	local arq=$1; shift
+	local t0; t0=$(date +%s)
+	{ echo "\$ $*"; "$@"; echo "saida=$? duracao=$(( $(date +%s) - t0 ))s"; } > "$O/$arq" 2>&1
+	tail -1 "$O/$arq"
+}
+
+# Derrubar só o ensaio: `-p` explícito, e antes a conferência do nome que o Compose resolve — um
+# `down -v` no projeto de trabalho apagaria os volumes dos três bancos.
+derrubar() {
+	local arq=$1 nome
+	nome=$(isolado docker/conteineres.sh projeto)
+	[ "$nome" = "$P" ] || { echo "derrubar recusado: o projeto resolvido é '$nome', não '$P'" > "$O/$arq"; return 1; }
+	{ echo "\$ docker compose -p $P … down -v"; isolado docker compose -p "$P" --env-file .env -f docker/docker-compose.yml down -v; echo "saida=$?"
+	  docker network rm "${P}_default"; } > "$O/$arq" 2>&1
+}
+
+livre=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
+echo "MemAvailable: ${livre} MiB" > "$O/0_memoria.txt"
+[ "$livre" -ge 1536 ] || { echo "memória livre abaixo de 1,5 GiB — nada foi feito"; exit 1; }
+
+# O de trabalho, antes: o candidato confere contra ele.
+passo 0_trabalho_antes.txt make --no-print-directory recovery-verify CONTRA_O_BANCO=1
+
+# 1. O destino recém-criado: `make up`, o alvo de verdade, com o projeto e as portas do ensaio no
+#    ambiente. A garantia da rede e o `compose up` leem o ambiente antes do .env.
+passo 1_up.txt env "${ISOLADO[@]}" make --no-print-directory up
+docker ps --filter "label=com.docker.compose.project=$P" --format '{{.Names}}  {{.Ports}}  {{.Status}}' \
+	> "$O/1_conteineres.txt"
+
+# Guarda: os três contêineres e as três URLs são do ensaio, ou nada que escreve roda.
+isolado .venv/bin/python - > "$O/2_guarda.txt" 2>&1 <<'PY'
+import sys
+from mvp_ed1 import db
+from mvp_ed1.recovery import cli
+nomes = {s: cli._conteineres(s) for s in ("source_db", "legacy_db", "warehouse_db")}
+urls = {p: db.database_url(p).split("@", 1)[1] for p in db.BANCOS}
+for s, n in nomes.items():
+    print(f"contêiner {s}: {n}")
+for p, u in urls.items():
+    print(f"url {p}: …@{u}")
+ok = all(n.startswith("rvb5_ensaio_") for n in nomes.values()) and all(":2543" in u for u in urls.values())
+print("guarda:", "ok" if ok else "RECUSADA")
+sys.exit(0 if ok else 1)
+PY
+if [ $? -ne 0 ]; then
+	echo "guarda recusada — nada foi escrito; derrubando o ensaio"
+	derrubar 9_down.txt
+	exit 1
+fi
+
+# 2. As migrações das duas origens — a ordem do ciclo, que o airbyte-config pede antes dele.
+if [ "$VARIANTE" = com_migracoes ]; then
+	passo 3_migrate.txt isolado .venv/bin/alembic upgrade head
+	passo 3_migrate_legacy.txt isolado .venv/bin/alembic -n legacy upgrade head
+fi
+
+# 3. Os passos 4, 4b e 5 da sequência de restauração, com o candidato real.
+passo 4_restore_dumps.txt isolado .venv/bin/python -m mvp_ed1.recovery --dir "$R/data/recovery" restore-dumps
+docker stats --no-stream --format '{{.Name}}  {{.MemUsage}}' $(docker ps --filter "label=com.docker.compose.project=$P" -q) \
+	> "$O/4_memoria.txt" 2>&1
+passo 5_rebase.txt isolado .venv/bin/python -m mvp_ed1.recovery rebase
+passo 6_verify_contra_o_banco.txt isolado .venv/bin/python -m mvp_ed1.recovery --dir "$R/data/recovery" verify --contra-o-banco
+passo 7_alembic_current.txt isolado bash -c '.venv/bin/alembic current 2>&1 | grep -v "^INFO"; .venv/bin/alembic -n legacy current 2>&1 | grep -v "^INFO"'
+
+# 4. Derrubar o ensaio inteiro: contêineres, volumes e a rede.
+derrubar 8_down.txt; tail -3 "$O/8_down.txt"
+{
+	echo "contêineres: $(docker ps -a --filter "label=com.docker.compose.project=$P" -q | wc -l)"
+	echo "volumes: $(docker volume ls --filter "name=$P" -q | wc -l)"
+	echo "redes: $(docker network ls --filter "name=$P" -q | wc -l)"
+} > "$O/8_sobra.txt"
+
+# O de trabalho, depois.
+passo 9_trabalho_depois.txt make --no-print-directory recovery-verify CONTRA_O_BANCO=1
+echo "ensaio RVB5-01 terminado"
+```
+
+**Primeira execução, antes da correção** (com as migrações). A guarda e a restauração:
+
+```
+contêiner source_db: rvb5_ensaio_source_db
+contêiner legacy_db: rvb5_ensaio_legacy_db
+contêiner warehouse_db: rvb5_ensaio_warehouse_db
+url SOURCE_DB: …@localhost:25432/source_db
+url LEGACY_DB: …@localhost:25433/legacy_db
+url WAREHOUSE_DB: …@localhost:25434/warehouse_db
+guarda: ok
+$ isolado .venv/bin/alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> deae0e5943e0, cria o schema oltp com as 40 tabelas transacionais
+saida=0 duracao=3s
+$ isolado .venv/bin/alembic -n legacy upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> f558a05ce90e, cria o schema legacy com as 40 tabelas frouxas
+saida=0 duracao=2s
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery restore-dumps
+RECUSADO — pg_restore de warehouse_db falhou (código 1) e a transação foi desfeita — o banco está como estava. Diagnóstico completo:
+pg_restore: error: could not execute query: ERROR:  role "ingestor" does not exist
+Command was: GRANT ALL ON SCHEMA governance TO ingestor;
+GRANT USAGE ON SCHEMA governance TO transformer;
+GRANT USAGE ON SCHEMA governance TO auditor;
+[recovery] restaurando source_db.dump em destino povoado, numa transação só
+[recovery] restaurando legacy_db.dump em destino povoado, numa transação só
+[recovery] restaurando warehouse_memoria.dump em destino povoado, numa transação só
+saida=2 duracao=22s
+```
+
+O dump da memória traz `GRANT … TO ingestor, transformer, auditor`, e esses papéis só o
+`governance.garantir()` cria — o `dbt-build` o chama. Na linha 9 do B5 eles já existem; num armazém
+recém-criado, não, e o `--single-transaction` desfez a restauração do armazém inteira. O `verify`
+seguinte, sobre um armazém sem a memória, estourava em vez de recusar:
+
+```
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery verify --contra-o-banco
+Traceback (most recent call last):
+  File "/home/doug/Projetos/mvp_ed1/.venv/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/doug/Projetos/mvp_ed1/.venv/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/home/doug/Projetos/mvp_ed1/.venv/lib/python3.11/site-packages/psycopg/_server_cursor.py", line 98, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedTable: relation "quarantine.rejected_legacy_records" does not exist
+LINE 1: ...CLARE "c_735900714ed0_1" CURSOR FOR select * from quarantine...
+                                                             ^
+
+[… mais 55 linhas]
+```
+
+**A correção dos papéis** (`0ffd346`): `restore-dumps` chama `governance.garantir_papeis` — os papéis,
+sem as migrações — antes de tocar em qualquer dump. Papel é do *cluster*, não do dump, e criá-lo
+antes não conflita com o `--clean`. O teste novo, vermelho antes e verde depois:
+
+```
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_recovery.py -k garante_os_papeis    # antes
+E               AttributeError: module 'mvp_ed1.recovery.cli' has no attribute 'governance'
+1 failed, 77 deselected in 0.39s
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_recovery.py                           # depois
+78 passed in 0.45s
+```
+
+**Depois da correção, com as migrações das origens** — a ordem que o §7.4 prescreve:
+
+```
+MemAvailable: 2885 MiB
+contêiner source_db: rvb5_ensaio_source_db
+contêiner legacy_db: rvb5_ensaio_legacy_db
+contêiner warehouse_db: rvb5_ensaio_warehouse_db
+url SOURCE_DB: …@localhost:25432/source_db
+url LEGACY_DB: …@localhost:25433/legacy_db
+url WAREHOUSE_DB: …@localhost:25434/warehouse_db
+guarda: ok
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery restore-dumps
+[recovery] restaurando source_db.dump, numa transação só
+[recovery] restaurando legacy_db.dump, numa transação só
+[recovery] restaurando warehouse_memoria.dump, numa transação só
+saida=0 duracao=15s
+rvb5_ensaio_warehouse_db  125.5MiB / 2GiB
+rvb5_ensaio_legacy_db  28.63MiB / 2GiB
+rvb5_ensaio_source_db  62.4MiB / 2GiB
+$ isolado .venv/bin/python -m mvp_ed1.recovery rebase
+[recovery] re-base aplicado a 40 tabela(s); partição conferida antes de confirmar: mesmas classes, mesmo agrupamento, toda linha retida com geração estritamente negativa
+saida=0 duracao=13s
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery verify --contra-o-banco
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações re-baseadas na faixa negativa)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0 duracao=16s
+$ isolado bash -c .venv/bin/alembic current 2>&1 | grep -v "^INFO"; .venv/bin/alembic -n legacy current 2>&1 | grep -v "^INFO"
+deae0e5943e0 (head)
+f558a05ce90e (head)
+saida=0 duracao=2s
+contêineres: 0
+volumes: 0
+redes: 0
+```
+
+**Depois da correção, sem as migrações** — a restauração não precisa delas; o §7.4 as mantém pelo
+`airbyte-config`, cujas conexões declaram as tabelas pelo nome:
+
+```
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery restore-dumps
+[recovery] restaurando source_db.dump, numa transação só
+[recovery] restaurando legacy_db.dump, numa transação só
+[recovery] restaurando warehouse_memoria.dump, numa transação só
+saida=0 duracao=16s
+$ isolado .venv/bin/python -m mvp_ed1.recovery rebase
+[recovery] re-base aplicado a 40 tabela(s); partição conferida antes de confirmar: mesmas classes, mesmo agrupamento, toda linha retida com geração estritamente negativa
+saida=0 duracao=14s
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery verify --contra-o-banco
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações re-baseadas na faixa negativa)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0 duracao=13s
+$ isolado bash -c .venv/bin/alembic current 2>&1 | grep -v "^INFO"; .venv/bin/alembic -n legacy current 2>&1 | grep -v "^INFO"
+deae0e5943e0 (head)
+f558a05ce90e (head)
+saida=0 duracao=2s
+contêineres: 0
+volumes: 0
+redes: 0
+```
+
+**O passo 3 num destino novo** — `drop-slots` e `reset-sink`, os dois com `--force`, pelo mesmo
+esquema de guarda (o `reset-sink` trunca o livro do *streaming*; o do `mvp_ed1` conferido depois):
+
+```
+['rvb5_ensaio_source_db', 'rvb5_ensaio_legacy_db', 'rvb5_ensaio_warehouse_db'] ['localhost:25432/source_db', 'localhost:25433/legacy_db', 'localhost:25434/warehouse_db']
+guarda: ok
+$ isolado .venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force
+slot 'mvp_inventory_movements': já ausente
+saida=0 duracao=1s
+$ isolado .venv/bin/python -m mvp_ed1.streaming.maintenance reset-sink --force
+raw.inventory_movements_stream: 0 linhas removidas; destino vazio conferido
+saida=0 duracao=0s
+sobra: 0 contêineres, 0 volumes, 0 redes
+```
+
+```
+$ docker exec mvp_ed1_warehouse_db … -tAc "select count(*) from raw.inventory_movements_stream"
+13700
+```
+
+**O `mvp_ed1`, antes e depois** — o `recovery-verify CONTRA_O_BANCO=1` do projeto de trabalho, em
+cada execução:
+
+```
+$ make --no-print-directory recovery-verify CONTRA_O_BANCO=1
+[recovery] RECOVERY_DIR = /home/doug/Projetos/mvp_ed1/data/recovery
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações como no manifesto)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0 duracao=12s
+$ make --no-print-directory recovery-verify CONTRA_O_BANCO=1
+[recovery] RECOVERY_DIR = /home/doug/Projetos/mvp_ed1/data/recovery
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+[recovery] contagens das três fontes, Alembic, versões do armazém e corte do livro conferidos
+[recovery] quarentena: 21 fatia(s) do manifesto conferidas por contagem e conteúdo, 0 acrescentada(s) desde o corte
+[recovery] SCD: 4 snapshot(s) conferidos pelo digest canônico de todas as colunas
+[recovery] capturas: 11 certificada(s) do manifesto conferidas; 40 tabela(s) do bruto com a partição por geração igual à do manifesto (gerações como no manifesto)
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0 duracao=12s
+```
+
+**A conferência sem o estado do pacote** (`25ac22e`, achado próprio): o `verify` da primeira execução
+estourava. Agora recusa com o diagnóstico numa linha, sem apontar o banco — no destino novo medido,
+a primeira tabela ausente é da origem. Um projeto à parte, recém-criado, sem restauração nenhuma:
+
+```
+$ isolado .venv/bin/python -m mvp_ed1.recovery --dir /home/doug/Projetos/mvp_ed1/data/recovery verify --contra-o-banco
+  contagens em source_db: oltp.brands — manifesto 18 × agora None
+  contagens em source_db: oltp.campaigns — manifesto 8 × agora None
+  contagens em source_db: oltp.carriers — manifesto 8 × agora None
+[… 65 linhas: as contagens dos três bancos, o Alembic e as versões do armazém]
+  a leitura dos bancos falhou — relation "oltp.inventory_movements" does not exist: eles não têm o estado que o manifesto descreve
+recovery-verify: 67 problema(s)
+saida=1 duracao=3s
+```
+
+O `alembic: … × agora 'INFO …'` que aparece nesse relatório é de `leitura.alembic_current`: sem
+revisão nenhuma, ele devolve as linhas `INFO` do Alembic em vez de vazio. A divergência é acusada
+do mesmo jeito; é ruído de diagnóstico, anterior a esta entrega, e fica como observação.
+
+**O roteiro** (`3788f34`): o §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make
+reset` até a linha 2 do §7.3; e com o ambiente pronto —, cada uma com o que existe e o que o recuo
+pede. Os passos 2 e 6–9 num destino novo **não** foram medidos: sobem o *streaming* e o Airbyte, que
+não se isolam num segundo projeto, e o 6 escreve no *checkout*. O caminho da fase 1 — o ambiente
+antigo de volta, com o Airbyte novo e a D50 — é **[planejado]**.
+
+### 11.2 RVB5-02 — o tamanho (D59)
+
+O plano (§3, B1) já declarava: "ao fim, `make size-report` e o total por banco". O código nunca fez,
+e seis rodadas sobre o B1 não viram. O Owner escolheu implementar o declarado (D59), em vez de
+mudar a declaração. Os testes — o tamanho fora do intervalo, o relatório que falha como não medido,
+a medição interrompida sem coleta —, vermelhos antes e verdes depois:
+
+```
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_medicao.py -k 'tamanho or interrupcao_deixa'   # antes
+E       KeyError: 'tamanho'
+E       KeyError: 'tamanho'
+E       KeyError: 'tamanho'
+3 failed, 30 deselected in 3.82s
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_medicao.py                                        # depois
+33 passed in 45.02s
+```
+
+De verdade, no *checkout* de trabalho, com um alvo só de leitura (as linhas por tabela do relatório
+omitidas):
+
+```
+$ make medir ALVO=migrate-status
+[…]
+[medir] tamanho, fora do intervalo medido: make size-report
+
+SOURCE_DB           62.4 MB
+  tabela                          linhas       dados     índices       total  bytes/linha
+  TOTAL                          252,955                             51.2 MB          212
+
+LEGACY_DB           13.2 MB
+  (sem tabelas com dados)
+
+WAREHOUSE_DB       472.1 MB
+  (sem tabelas com dados)
+
+soma dos três bancos: 547.7 MB
+Tamanho é observação, não limite (ADR-0014).
+[medir] registro: /home/doug/Projetos/mvp_ed1/data/medicoes/2026-09-25T041420Z_migrate_status.json
+| migrate-status | Airbyte,bancos | 0m 01s | não medido | não medido | 0 amostras (pausa de 2 s) | 547.7 MB |
+$ python3 -c "import json; d=json.load(open('…_migrate_status.json')); print(d['tamanho'], d['duracao_involucro_s'])"
+{'SOURCE_DB': '62.4 MB', 'LEGACY_DB': '13.2 MB', 'WAREHOUSE_DB': '472.1 MB', 'soma': '547.7 MB'} 1
+```
+
+Os "0 amostras" são de um alvo mais curto que uma pausa do amostrador, como antes. **Observação:**
+o `size-report` detalha tabela a tabela só o schema `oltp` (`por_tabela(engine, schema="oltp")`), e
+nos outros dois bancos o "(sem tabelas com dados)" quer dizer nenhuma tabela do `oltp`. Para C2 o
+total por banco basta; a Execução Local passou a dizer isso. Um detalhe por schema no armazém fica
+para quem precisar dele.
+
+### 11.3 RVB5-03 — a coleta que falha
+
+`pipefail` na terceira etapa, e uma mensagem que diz o que faltou (`28d34c7`). O teste novo, com a
+coleta simulada saindo 2:
+
+```
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py -k coleta_dos_de_integracao_falha   # antes
+E       AssertionError: ── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+E         ── 2/3 pytest sem os testes de integração ──
+E         ── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+E         check-offline: as três etapas passaram
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py                                          # depois
+84 passed in 11.92s
+```
+
+E o caminho nominal, real, no *checkout* de trabalho (com o *manifest*, nada pula):
+
+```
+$ make check-offline
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+442 passed, 134 deselected in 150.86s (0:02:30)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+[as 13 linhas do inventário, iguais às da §10.1]
+check-offline: as três etapas passaram
+```
+
+### 11.4 RVB5-04 — o pacote depois da promoção (D60)
+
+O §7.5 copia o `aprovado` para o `data/recovery` do clone, tira o `RECOVERY_DIR` do ambiente e
+confere; só então o *checkout* antigo é liberado. Ensaiado com cópias do candidato num diretório de
+rascunho — `<antigo>` e `<clone>` —, com os alvos de verdade:
+
+```
+$ RECOVERY_DIR=<antigo>/data/recovery make recovery-promote
+[recovery] RECOVERY_DIR = <antigo>/data/recovery
+promovido: <antigo>/data/recovery/aprovado
+saida=0
+$ mkdir -p <clone>/data/recovery && cp -a <antigo>/data/recovery/aprovado <clone>/data/recovery/
+saida=0
+$ RECOVERY_DIR=<clone>/data/recovery make recovery-verify   # no clone: unset RECOVERY_DIR dá este mesmo caminho
+[recovery] RECOVERY_DIR = <clone>/data/recovery
+[recovery] conferindo <clone>/data/recovery/aprovado
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0
+<antigo>/data/recovery:
+aprovado
+
+<clone>/data/recovery:
+aprovado
+```
+
+Sem `RECOVERY_DIR` no ambiente, o padrão do `Makefile` é o `data/recovery` do próprio *checkout*
+(`RECOVERY_DIR ?= $(abspath data/recovery)`):
+
+```
+$ env -u RECOVERY_DIR make --eval 'mostra: ; @echo $(RECOVERY_DIR)' mostra
+/home/doug/Projetos/mvp_ed1/data/recovery
+```
+
+**A cópia da P5 como `RECOVERY_DIR`.** Ao escrever o recuo apareceu que a cópia da P5 não servia de
+`RECOVERY_DIR` — o pacote ficava na raiz dela, e o `RECOVERY_DIR` espera um `candidato/` ou um
+`aprovado/` dentro. A P5 passa a copiá-lo para `~/mvp_ed1-recovery-<corte>/candidato`:
+
+```
+$ mkdir <tmp>/mvp_ed1-recovery-20260924T234304Z && cp -a data/recovery/candidato <tmp>/mvp_ed1-recovery-20260924T234304Z/
+saida=0
+$ cd <tmp>/mvp_ed1-recovery-20260924T234304Z/candidato && sha256sum -c --quiet checksums.sha256
+saida=0
+$ RECOVERY_DIR=<tmp>/mvp_ed1-recovery-20260924T234304Z make recovery-verify
+[recovery] RECOVERY_DIR = <tmp>/mvp_ed1-recovery-20260924T234304Z
+[recovery] conferindo <tmp>/mvp_ed1-recovery-20260924T234304Z/candidato
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+saida=0
+```
+
+### 11.5 O `make check` da ponta
+
+Em `25ac22e`, depois de todas as correções (as linhas do dbt e o progresso do pytest omitidos):
+
+```
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+04:32:43  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+SKIPPED [1] tests/test_carga.py:51: substitui a origem pela carga reduzida; rode por `make test-carga`, que exporta MVP_TESTE_CARGA=1 num banco efêmero
+SKIPPED [1] tests/test_fato_incremental.py:105: escreve na fato de trabalho; rode `make test FATO=1` (MVP_TESTE_FATO=1)
+SKIPPED [1] tests/test_legado_deteccao.py:124: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:227: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:272: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:751: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:778: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:794: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+572 passed, 8 skipped in 259.22s (0:04:19)
+check: as quatro etapas passaram
+real	6m31,087s
+saida=0
+```
+
+### 11.6 O que continua sem verificação
+
+- os passos 2 e 6–9 da restauração num destino novo, e a fase 1 do recuo (§11.1);
+- o `leitura.alembic_current` que devolve as linhas `INFO` sem revisão nenhuma (§11.1) —
+  observação, não corrigida;
+- o detalhe por schema do `size-report` fora do `oltp` (§11.2) — observação;
+- **os alvos do `Makefile` não se apontam para um segundo projeto pelo ambiente:** toda receita que
+  carrega o `.env` troca o `COMPOSE_PROJECT_NAME` exportado pelo do arquivo — por isso as medições
+  da §11.1 chamam o Python direto. Não afeta o B5, que tem um projeto só; é premissa de quem quiser
+  isolar outro;
+- tudo o que a §4 já listava continua como estava.
+
 ---
 
 ## Achados da revisão
@@ -992,7 +1503,7 @@ Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar 
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | Aberto — resposta pendente. |
-| RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | Aberto — resposta pendente. |
-| RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | Aberto — resposta pendente. |
-| RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | Aberto — resposta pendente. |
+| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | **Corrigido** (`3788f34`, `0ffd346`, `25ac22e`). O §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make reset` até a linha 2 do §7.3; com o ambiente pronto —, cada uma com o que existe e o que o recuo pede antes do `recovery-restore`. Medir a fase 2 num destino novo, em projeto Compose à parte, achou que a restauração não passava nele: os `GRANT`s do dump da memória nomeiam papéis que só o `governance.garantir()` cria; o `restore-dumps` passa a criá-los antes do primeiro dump. Com o candidato real, os passos 1, 3, 4, 4b e 5 passam, com e sem migrações. Achado próprio: a conferência contra o banco sem o estado do pacote estourava em *traceback*; agora recusa numa linha. Passos 2 e 6–9 num destino novo não medidos (§11.1). |
+| RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | **Corrigido pela declaração** (`efb8fc1`; D59, do Owner em 25/09/2026). O plano (§3, B1) já mandava o medidor rodar o `size-report` ao fim e gravar o total por banco, e o código não fazia. Agora faz, depois do intervalo medido: o total de cada banco e a soma no registro e na linha da Capacidade; relatório que falha fica como não medido. A Execução Local diz o que o `size-report` detalha, e o §7.3, que cada `make medir` traz o tamanho. Testes vermelhos antes, verdes depois; medido de verdade (§11.2). |
+| RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | **Corrigido** (`28d34c7`): `pipefail` na terceira etapa e uma mensagem que diz o que faltou. O teste novo simula a coleta saindo 2: vermelho antes, verde depois; o caminho nominal real continua passando (§11.3). |
+| RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | **Corrigido** (`3788f34`; D60, do Owner em 25/09/2026). O §7.5 copia o `aprovado` para o `data/recovery` do clone — o caminho padrão da D46 no *checkout* de trabalho da D58 —, tira o `RECOVERY_DIR` do ambiente e confere com `make recovery-verify` no clone, antes de liberar o antigo; o B6 registra o caminho. A cópia da P5 passa a nascer como `RECOVERY_DIR`. Os dois ensaiados com cópias e os alvos de verdade (§11.4). |
