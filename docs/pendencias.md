@@ -83,6 +83,30 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 
 ## 2. Decisões já fechadas
 
+### D59 e D60 — decididas em 25/09/2026, na resposta à revisão do roteiro do B5
+
+Duas decisões tomadas para responder a achados da primeira rodada de revisão do roteiro
+(`REVISAO.md`, RVB5-02 e RVB5-04). Nenhuma troca ferramenta, camada ou modelagem; nenhum ADR.
+
+- **D59 — o `make medir` coleta o tamanho, como o B1 declarou.** O plano (§3) mandava o medidor
+  rodar, ao fim, o `make size-report` e registrar o total por banco, e a Execução Local dizia que ele
+  registrava tamanho; o código nunca fez, e o roteiro não produzia a dimensão que C2 pede. O medidor
+  passa a rodar o `size-report` depois de o intervalo e a amostragem fecharem, e grava o total de
+  cada banco e a soma no registro e na linha da Capacidade; relatório que falha fica como não
+  medido. *Descartada:* o roteiro chamar o `size-report` à parte, com o plano e a Execução Local
+  corrigidos para dizer que o medidor não mede tamanho — sem código antes do B5, mas com a
+  transcrição manual. *Custo aceito:* código e testes novos no B1, revisados na rodada seguinte, e
+  ~20 s depois de cada medição, que o `ANALYZE` do relatório custa.
+- **D60 — o pacote aprovado vai para o `data/recovery` do clone.** O `recovery-promote` só renomeia
+  o candidato para `aprovado` dentro do `RECOVERY_DIR` que o roteiro exporta, o do *checkout*
+  antigo, que o §7.5 deixa arquivar ou apagar. Antes de liberá-lo, o aprovado é copiado para o
+  `data/recovery` do clone — o caminho padrão da D46 no *checkout* de trabalho da D58 —, o
+  `RECOVERY_DIR` deixa de ser exportado e o `make recovery-verify` do clone o confere. *Descartada:*
+  um diretório fora dos *checkouts*, que sobrevive a apagar ou reclonar, mas pede o `export` em toda
+  sessão, porque o `Makefile` não lê o `RECOVERY_DIR` do `.env`. *Custo aceito:* o pacote mora num
+  diretório que um `git clean -x` ou um `rm` do *checkout* levaria — a cópia da P5, fora dos
+  *checkouts*, é a segunda.
+
 ### D57 e D58 — decididas em 24/09/2026, para o roteiro do B5
 
 Duas decisões de operação tomadas ao escrever o roteiro do B5 (revisão 8 do §7 do plano). Como as
