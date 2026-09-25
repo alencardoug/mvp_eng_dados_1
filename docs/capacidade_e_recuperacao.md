@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.12 |
-| Situação | Medições históricas até a Etapa 9 preservadas; reconstrução da D31 identificada na §2.7; custo de memória do tratamento do legado medido na §2.10. Recuperação da Etapa 12 ainda não entregue |
-| Última revisão | 18/09/2026 |
+| Versão | 2.13 |
+| Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12); o ponto de recuperação **entregue em 25/09/2026** e restaurado de ponta a ponta (§3) |
+| Última revisão | 25/09/2026 |
 
 ---
 
@@ -454,24 +454,86 @@ também o que o LLVM tentava compilar. A pendência **D42** foi fechada no mesmo
 [ADR-0047](adr/0047-materializar-o-cte-de-limpeza-do-legado.md): o CTE é `materialized` no
 PostgreSQL, e a contraprova (b) sobre as 40 tabelas caiu de 656 s para 47 s.
 
+### 2.12 O ciclo do zero, medido — B5, 25/09/2026
+
+Cada linha é um `make medir` no clone recém-preparado, sobre bancos, Airbyte e Airflow instalados do
+zero, na estação de trabalho do Owner — o que mais rodava nela não foi controlado, e o `MemAvailable`
+inclui tudo. Os extremos são **amostrados**, uma amostra a cada ~4,1 s (pausa de 2 s); a soma dos
+contêineres não inclui o Beam nem o produtor, que rodam no *host*. O tamanho é a soma dos três
+bancos pelo `make size-report`, depois do intervalo medido (D59). As quatro tentativas que falharam
+e as correções que as seguiram estão no diário do B5; aqui só as que passaram.
+
+| Linha do B5 | Alvo | De pé no início | Duração | `MemAvailable` mínimo | Contêineres, máximo | Amostras | Bancos, soma |
+|---|---|---|---:|---:|---:|---:|---:|
+| 1 | `up` | nada | 0m 07s | 8,0 GB | 0,1 GB | 2 | 22,0 MB |
+| 1 | `migrate` | bancos | 0m 02s | não medido | não medido | 0 | 24,9 MB |
+| 1 | `seed-data` | bancos | 0m 21s | 7,8 GB | 0,1 GB | 5 | 78,5 MB |
+| 1 | `seed-legacy` | bancos | 0m 04s | 7,9 GB | 0,2 GB | 1 | 84,1 MB |
+| 2 | `airbyte-up` — instalação nova, com as imagens baixadas | bancos | 12m 47s | 5,3 GB | 3,7 GB | 175 | 81,4 MB |
+| 2 | `sync-airbyte` — a primeira carga | Airbyte, bancos | 3m 18s | 2,4 GB | 5,3 GB | 48 | 152,2 MB |
+| 2 | `sync-legacy` — a primeira captura certificada | Airbyte, bancos | 2m 34s | 2,8 GB | 4,9 GB | 37 | 158,5 MB |
+| 3 | `CENARIO=streaming` — o *snapshot*, 13.700 eventos | bancos | 1m 12s | 5,5 GB | 1,4 GB | 17 | 165,3 MB |
+| 4 | `dbt-build` — o primeiro *build* completo | Airbyte, bancos | 1m 41s | 3,8 GB | 3,6 GB | 24 | 303,5 MB |
+| 4 | `check` | Airbyte, bancos | 6m 49s | 3,4 GB | 3,6 GB | 100 | 308,6 MB |
+| 5 | `dag-run` até `dag-wait` — as 13 tarefas | Airbyte, Airflow, bancos | 6m 41s | **1,1 GB** | **6,5 GB** | 95 | 325,1 MB |
+| 6 | `CENARIO=streaming LIMITE=200` | Airbyte, Airflow, bancos | 1m 24s | 2,8 GB | 4,8 GB | 20 | 325,9 MB |
+| 6 | `CENARIO=streaming LIMITE=2200` — 11 alertas | *streaming*, bancos | 0m 57s | 6,4 GB | 1,3 GB | 14 | 328,8 MB |
+| 7 | `sync-airbyte` — os eventos novos | Airbyte, bancos | 1m 37s | 3,0 GB | 4,7 GB | 23 | 332,0 MB |
+| 7 | `dbt-build` | Airbyte, bancos | 1m 41s | 3,6 GB | 3,7 GB | 24 | 334,5 MB |
+| 8 | `docs-generate` | Airbyte, bancos | 0m 22s | 3,9 GB | 3,7 GB | 5 | 334,6 MB |
+| 9 | `recovery-restore` — a sequência inteira (§3.4) | Airbyte, bancos | 16m 59s | 2,4 GB | 5,0 GB | 247 | 627,9 MB |
+
+"De pé no início" é o estado antes do preflight: nas linhas 3 e 6 ele pausou a outra família antes
+de subir o *streaming*. O `migrate` durou menos que a pausa do amostrador, e por isso não tem amostra.
+
+**O que os números dizem:**
+
+1. **O pico foi a DAG, e não a sincronização.** Airbyte, Airflow e os *pods* de *job* somaram 6,5 GB
+   nos contêineres, com 1,1 GB livres no *host*: o par que o preflight permite cabe, com pouca folga,
+   numa estação que começou o ciclo com 8,0 GB livres e nada de pé.
+2. **Uma instalação nova do Airbyte custa 12m 47s**, a maior parte baixando as imagens, porque o
+   `/var` do nó sai com ele no `make airbyte-down` (conferido no desmonte do B5). Retomar o *cluster*
+   pausado levou 1m 29s e 1m 49s nas linhas 4 e 7, fora do `medir`, pelo diário.
+3. **A restauração inteira custa 17 minutos**, com as duas sincronizações e o `check` como o grosso
+   dela. O armazém restaurado tem quase o dobro do ciclo novo — 628 MB contra 335 MB — porque traz a
+   memória de 43 capturas, e o do ciclo novo, de 3.
+
 ---
 
 ## 3. Ponto único de recuperação
 
-Após uma execução ponta a ponta aprovada, o projeto mantém **um único *snapshot* lógico *last known
-good***, em formato customizado e comprimido do `pg_dump`. Ele permite restaurar uma fonte degradada
-e reconstruir as demais camadas.
+O projeto mantém **um único pacote *last known good***: as duas fontes e a memória do armazém, em
+formato customizado e comprimido do `pg_dump`, com um manifesto que diz o que o estado restaurado tem
+de ser. Ele devolve as fontes e a memória, e a partir delas o resto é reconstruído e provado igual.
+
+**Entregue em 25/09/2026**, no B5: o candidato montado com o corte `2026-09-25T12:32:21Z` e o *commit*
+`7b0bea6`, restaurado de ponta a ponta num ambiente recém-instalado — os nove passos e os oráculos
+do §3.4, em 16m 59s (§2.12) — e promovido. O aprovado vive no `data/recovery/aprovado` do *checkout*
+de trabalho, o caminho padrão (D46, D60); uma segunda cópia fora dos *checkouts* é recomendada, e o
+roteiro do B5 fez uma.
 
 ### 3.1 Conteúdo do pacote
 
-- `source_db.dump`;
-- `legacy_db.dump`;
-- *checksums* dos arquivos;
-- `seed`, `as_of_date` e versão das migrações;
-- último `event_sequence` emitido;
-- *commit* Git correspondente ao código aprovado;
-- manifesto com contagens e tamanhos por tabela;
-- instruções testadas de restauração e de reconstrução do `warehouse_db`.
+- `source_db.dump` e `legacy_db.dump` — as duas fontes, inteiras;
+- `warehouse_memoria.dump` — a **memória do armazém**, o que nenhuma reconstrução reproduz (D49, D51):
+  `raw_legacy`, com as capturas retidas; `governance`, com os certificados e as versões; `snapshots`,
+  com o histórico SCD; e `quarantine`, com a auditoria dos registros rejeitados;
+- `manifesto.json`, no formato 2 dos oráculos: o corte e o *commit*; as contagens por tabela dos três
+  bancos, as revisões do Alembic, as versões de `governance` e o `max(event_sequence)` do livro; as
+  capturas certificadas e a partição por geração de cada tabela do bruto; a quarentena, fatia a
+  fatia, por contagem e *digest*; o *digest* canônico de cada *snapshot* SCD; e a memória de exclusões;
+- os artefatos de trabalho que o estado restaurado pede — os manifestos do legado em `data/legacy/` e
+  o cursor do produtor em `.stream/producer_state.json` —, com a lista dos que estavam ausentes no
+  corte, porque a ausência também volta;
+- `checksums.sha256` e `RESTAURAR.md`, as instruções de restauração gravadas no próprio pacote.
+
+No corte de 25/09/2026: 32 MB, dos quais 20,7 MB são a memória do armazém.
+
+**O que o pacote não traz**, e por quê: `raw`, `staging`, `trusted`, `analytics` e `consumption` são
+reconstruídos pelas sincronizações e pelo dbt e conferidos contra o manifesto; o cursor do CDC não
+entra (§3.2); o estado do Airbyte e do Airflow é reinstalado — o contador de *jobs* do Airbyte é
+refeito pela D50, e as gerações do bruto, pela D52 (§3.4). O próprio manifesto guarda essa lista no
+campo `limite`.
 
 ### 3.2 O cursor de CDC não está no pacote — e por quê
 
@@ -481,25 +543,67 @@ criaria duas verdades sobre a mesma posição.
 
 Há uma consequência operacional que não é óbvia: **restaurar `source_db` de um dump invalida o
 cursor do conector.** A posição de WAL gravada nos tópicos internos aponta para um ponto do log que
-o banco restaurado não tem. O procedimento correto após uma restauração é **descartar o estado do
-conector e deixá-lo refazer o *snapshot* inicial** — não tentar retomar de onde parou.
+o banco restaurado não tem. Por isso a sequência de restauração (§3.4) **descarta o estado do
+conector** — tópicos, *offsets* e o *slot* de replicação, enquanto a origem antiga ainda existe — e
+esvazia o destino quente antes de o conector refazer o *snapshot* inicial.
 
 Como o destino do *streaming* é idempotente por chave de evento
 ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)), refazer o *snapshot* não duplica
 eventos de **mesmo conteúdo**. Isso não remove eventos posteriores ao dump nem substitui conteúdo
-sob chave reutilizada numa regeração. Para reconstruir contra outra base, o destino quente também
-precisa ser esvaziado, com consumidores parados, antes do snapshot; o procedimento de desenvolvimento
-está em [Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming).
-Uma retomada do mesmo livro não deve ser confundida com essa reconstrução.
+sob chave reutilizada numa regeração — é por isso que o destino é esvaziado antes. O procedimento de
+desenvolvimento para regerar uma origem está em
+[Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming); ele não se
+confunde com uma restauração.
 
 ### 3.3 Regras
 
-- O `warehouse_db` **não** entra no pacote: é refeito por Airbyte, dbt e Airflow a partir das duas
-  fontes restauradas. Incluí-lo duplicaria armazenamento sem ganho.
-- O pacote **não é versionado no Git**.
-- Um novo *snapshot* só substitui o anterior depois que migrações, pipeline, testes,
-  reconciliações, *checksums* e uma **validação de restauração** forem concluídos.
-- Durante a troca pode haver espaço temporário para o anterior e o candidato; ao final, somente o
-  aprovado é retido.
-- A restauração **altera o estado dos bancos** e só é executada mediante decisão explícita do
-  responsável técnico.
+- O `warehouse_db` entra **só pela memória** (§3.1): o resto é refeito por Airbyte e dbt a partir
+  das fontes e da memória restauradas, e provado igual. Guardá-lo inteiro duplicaria o que se
+  reconstrói.
+- O pacote **não é versionado no Git**: vive em `data/recovery/`, ignorado, com o `RECOVERY_DIR`
+  absoluto e sobrescrevível (D46).
+- Um candidato só substitui o aprovado depois de uma **restauração validada** — os nove passos e os
+  oráculos do §3.4 — e da promoção (`make recovery-promote`). Durante a troca, o anterior e o
+  candidato coexistem; ao final, só o aprovado fica.
+- A restauração **altera o estado dos três bancos** e só roda com a autorização explícita do
+  responsável técnico: `RESTAURAR=1`, que não é o `FORCE` — os passos de subida recebem `FORCE=`
+  vazio, com o preflight obrigatório. A variável, porém, segue no ambiente até o `check` do passo 8:
+  quem roda a restauração de verdade dentro dele precisa tirá-la (medido no B5).
+
+### 3.4 A sequência de restauração
+
+`RESTAURAR=1 make recovery-restore` executa a sequência inteira, na ordem, e para na primeira falha:
+
+1. confere o pacote — *checksums*, o manifesto no formato atual, os três dumps listáveis;
+2. para a janela: nenhum trabalho em andamento, a DAG pausada;
+3. descarta o CDC enquanto a origem antiga ainda existe (§3.2);
+4. restaura os três dumps, cada um numa transação só — qualquer erro desfaz o dump inteiro —, sobre
+   um destino povoado ou recém-criado: os papéis do armazém, que os `GRANT`s da memória nomeiam, são
+   criados antes do primeiro dump;
+   - **4b.** re-baseia as gerações retidas do bruto para a faixa negativa, preservando a equivalência
+     de geração por tabela (D52): um Airbyte novo recomeça as gerações em 1, e sem isso a primeira
+     captura depois da restauração dividiria a geração com uma retida;
+5. confere o conteúdo restaurado contra o manifesto — contagens, Alembic, versões, corte do livro,
+   quarentena, SCD e capturas;
+6. devolve os artefatos de trabalho, e a ausência deles;
+7. refaz o *snapshot* do caminho quente;
+8. sobe o Airbyte e avança o contador de *jobs* para além da maior captura retida **antes** de
+   qualquer disparo (D50); sincroniza a carga principal antes da legada, para que a guarda de
+   identidade encontre o *job* novo na listagem; reconstrói com `dbt-rebuild` — **nunca**
+   `dbt-build RESET=1`, que derrubaria o histórico SCD que acabou de voltar — e roda o `check`;
+9. confere os oráculos explícitos: as fontes iguais ao manifesto, a memória contida e intacta, a
+   captura nova certificada acima da retida, a auditoria dela igual ao que a classificação rejeitou,
+   a memória de exclusões renascida igual e o livro da origem inteiro e igual nos dois caminhos.
+
+No B5 a sequência inteira passou num Airbyte e num armazém novos, depois de um desmonte completo;
+os passos 1, 3, 4, 4b e 5 foram medidos também num destino recém-criado por `make up`, com e sem as
+migrações das fontes.
+
+### 3.5 O que o pacote não garante
+
+- **O que aconteceu depois do corte.** A restauração devolve o estado do corte: sincronizações,
+  capturas e gerações posteriores a ele se perdem.
+- **A cópia única.** O aprovado vive no *checkout* de trabalho; um `rm` do diretório ou um
+  `git clean -x` o levam junto. A segunda cópia fora dele é o que protege disso — não da perda do
+  disco.
+- **A fase GCP.** O pacote é da fase local; o ponto de recuperação na nuvem é da Etapa 13.
