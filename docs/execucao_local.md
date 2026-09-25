@@ -10,7 +10,7 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.15 |
+| Versão | 1.16 |
 | Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
 | Última revisão | 25/09/2026 |
 
@@ -86,9 +86,9 @@ Airbyte e *streaming* são automáticas (seção 5).
 | 11 | `make stream-wait ATE_SEQ=<corte>` | Espera o livro quente alcançar a origem; o corte é o que `make stream-corte` imprime. Depois, `Ctrl-C` no `stream-run` | Etapa 12 |
 | 12 | `make airbyte-up` | Retoma o Airbyte; pausa o *streaming* | Etapa 5 · 12 |
 | 13 | `make dbt-build` | O primeiro *build* completo: modelos, testes de dados e reconciliações | Etapa 5 |
-| 14 | `make check` | Verificação completa em quatro etapas, parando na primeira falha: segredos e documentos, `dbt build` (modelos, testes de dados, reconciliações), classificação e linhagem derivadas em dia com os modelos, `pytest`; `FATO=1` e `RESET=1` passam adiante. Medido em 24/09/2026: 6 min 42 s, 563 testes | Etapa 11 |
+| 14 | `make check` | Verificação completa em quatro etapas, parando na primeira falha: segredos e documentos, `dbt build` (modelos, testes de dados, reconciliações), classificação e linhagem derivadas em dia com os modelos, `pytest`; `FATO=1` e `RESET=1` passam adiante. Tempo e memória medidos na [Capacidade §2.12](capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026) | Etapa 11 |
 | 15 | `make airflow-up`, `make dag-run`, `make dag-wait` | O fluxo pelo orquestrador, com o Airbyte de pé — o par permitido | Etapa 5 · 12 |
-| 16 | `make stream-produce` | Eventos novos no livro da origem, com o *streaming* de pé e o `stream-run` rodando; `LIMITE=`, `SEED=` | Etapa 7 |
+| 16 | `make stream-produce` | Eventos novos no livro da origem, com o *streaming* de pé e o `stream-run` rodando; `LIMITE=`, `SEED=`. Para exercitar o alerta, `LIMITE=2200` — com 200 nenhum saldo cruzou o limiar (B5) | Etapa 7 |
 | 17 | `make docs-generate`, `make dbt-docs` | Gera o catálogo; o segundo o serve | Etapa 5 · 12 |
 | 18 | `make size-report` | Tamanho de cada banco e a soma dos três; tabela a tabela, só o schema `oltp` da origem — nos outros dois, "(sem tabelas com dados)" quer dizer nenhuma tabela do `oltp`. Observação, não limite | Etapa 4 |
 
@@ -121,6 +121,11 @@ A mesma versão do código/configuração, `SEED` e `AS_OF` recria exatamente os
 primárias, porque o gerador as atribui e o `COPY` as escreve.
 
 ### 3.2 Regerar uma origem que já alimenta streaming
+
+**Não é uma restauração.** Para devolver o estado do pacote de recuperação, o caminho é a
+sequência de restauração ([Capacidade §3.4](capacidade_e_recuperacao.md#34-a-sequência-de-restauração)),
+que descarta o CDC, esvazia o destino quente e refaz o *snapshot* sozinha. O que segue é para
+regerar a origem, e nada dele restaura memória do armazém.
 
 **Manutenção destrutiva de desenvolvimento, não operação normal do livro imutável.** Regerar pode
 reutilizar `movement_id` com outro conteúdo e deixar eventos antigos sem correspondente. O destino
@@ -305,6 +310,12 @@ parada limpa custaria ~80 s em toda troca que pausa o Airbyte, e ficou decidido 
 que o `Makefile` cria antes de qualquer `up` e nenhum `down` remove: contêiner pausado nunca perde a
 rede. Antes, o `make down` dos bancos a levava — ver
 [a retomada que falha com `network … not found`](#retomar-o-airflow-ou-o-streaming-falha-com-network--not-found).
+
+**O que está de pé é lido pelos rótulos do Compose**, e não pelo nome dos contêineres:
+`docker/conteineres.sh` resolve cada serviço pelo projeto e pelo serviço, com os grupos `@bancos`,
+`@airflow` e `@streaming`, e o nome do projeto é o que o próprio Compose resolve. O trabalho do
+Airflow é consultado **por DAG**, contando as execuções `queued` e com prazo — execução enfileirada
+também é trabalho.
 
 **Duas salvaguardas, porque troca automática que erra custa trabalho perdido:**
 
@@ -595,6 +606,27 @@ mv airbyte/terraform.tfstate airbyte/terraform.tfstate.$(date +%Y%m%d%H%M)
 make airbyte-up && make airbyte-config AUTO=1
 ```
 
+**Conferido no B5, em 25/09/2026:** com os dois apartados, a instalação nova passou limpa, em
+12m 47s, e o `airbyte-config` criou tudo — um recurso por vez, porque as primeiras escritas de um
+Airbyte novo colidem na tabela de segredos dele se vierem juntas.
+
+**A regra da sequência do Airbyte.** Um Airbyte novo recomeça o contador de *jobs* em 1 e as
+gerações do bruto também. Sobre um armazém com capturas retidas, antes da primeira sincronização do
+legado:
+
+```bash
+make recovery-airbyte-jobs   # o contador passa da maior captura retida (D50)
+make recovery-rebase         # as gerações retidas vão para a faixa negativa (D52)
+make sync-airbyte            # antes do legado: a guarda precisa ver o job novo na listagem
+make sync-legacy
+```
+
+Sem o contador, a guarda de identidade recusa o disparo; sem o re-base, a certificação da captura
+acusa `inconsistent`, porque a geração nova divide o número com uma retida. A sequência de
+restauração faz os dois sozinha ([Capacidade §3.4](capacidade_e_recuperacao.md#34-a-sequência-de-restauração)),
+e é lá que foram medidos; depois de só reinstalar o Airbyte, eles vão à mão — esse caminho não foi
+medido fora da restauração.
+
 ### Depois de reiniciar a máquina, o Airbyte responde 401 e o `terraform` não aplica
 
 Sintoma: a API sobe e responde `/health`, mas toda chamada volta com
@@ -656,7 +688,8 @@ Duas causas, e as duas são comportamento correto:
    tópico de avisos sobre estoque de 2024 (Streaming §5).
 2. **Nada cruzou o limiar.** O alerta é borda, não nível: só a travessia emite. Confira com
    `make stream-alerts`, que resume aberturas e normalizações, e produza mais eventos com
-   `make stream-produce`.
+   `make stream-produce`. No B5, 200 eventos não cruzaram o limiar em saldo nenhum; 2.200
+   produziram 11 alertas.
 
 ### `make stream-down` sem `FORCE=1` deixa o slot de replicação para trás
 
