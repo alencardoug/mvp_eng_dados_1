@@ -126,7 +126,9 @@
 > preparo — `make check-offline`, `dbt deps` no `make install`, a Execução Local §2–§4 como roteiro, o
 > candidato do pacote refeito com o código final — e das decisões D57 (a rede sai à mão no desmonte) e
 > D58 (o clone vira o *checkout* de trabalho). Ao escrevê-lo, apareceu um defeito da revisão 3:
-> `RECOVERY_DIR` no `.env` do clone não chega ao `make`, e o roteiro passa a exportá-lo no *shell*. O
+> `RECOVERY_DIR` no `.env` do clone não chega ao `make`, e o roteiro passa a exportá-lo no *shell*.
+> Depois, o preparo do clone foi ensaiado num clone de verdade, sem subir nada (§7.2), e o ensaio
+> corrigiu o oráculo da linha 5: são cinco pulados, e não o um que a sonda da seleção offline via. O
 > roteiro vai à revisão do outro agente antes da autorização do B5.
 
 ---
@@ -1219,7 +1221,7 @@ Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 | P2 | Execução Local §2–§4 servem de roteiro | leitura contra este §7 | **[medido]** versão 1.13 (`561edc2`) |
 | P3 | `check-offline` e `dbt deps` existem | `make help` | **[medido]** `96c7a9f`, `6802d12` |
 | P4 | O candidato do pacote foi montado com o código que o B5 vai usar | `make recovery-pack`, depois `make recovery-verify CONTRA_O_BANCO=1`; o manifesto registra o `commit` | **[medido]** corte `2026-09-24T23:43:04Z`, `commit` `561edc2`, conferido contra os bancos. **Refazer** se o código mudar depois da revisão deste roteiro |
-| P5 | Uma cópia do candidato fora do repositório | `cp -a data/recovery/candidato ~/mvp_ed1-candidato-<corte>`; `sha256sum -c` no diretório copiado | **[planejado]** — depois do `make reset`, o pacote é a única cópia da memória do armazém (capturas, certificados, SCD, quarentena); a cópia custa ~31 MB |
+| P5 | Uma cópia do candidato fora do repositório | `cp -a data/recovery/candidato ~/mvp_ed1-candidato-<corte>`; depois `cd ~/mvp_ed1-candidato-<corte> && sha256sum -c checksums.sha256` | **[planejado]** — depois do `make reset`, o pacote é a única cópia da memória do armazém (capturas, certificados, SCD, quarentena); a cópia custa ~31 MB. O par de comandos foi ensaiado numa cópia descartável **[medido]**: os nove arquivos do `checksums.sha256` em `SUCESSO` |
 | P6 | A autorização do Owner | explícita, na conversa | **[planejado]** — e o passo 9 pede a segunda: `RESTAURAR=1` |
 | P7 | A estação enxuta | `grep MemAvailable /proc/meminfo` antes de cada linha | **[planejado]** — com o Airbyte de pé e a estação de trabalho aberta, sobram ~5,5 GB (24/09, medido); o Airflow custa ~1,4 GB (derivado, não medido isolado) e o pico de uma sincronização fica ~1,3 GB acima do Airbyte ocioso (4,95 GiB de pico medidos em 07/09, contra ~3,7 GB ocioso). Recusa do preflight é registrada e **não** contornada: o Owner libera memória, e só então `FORCE=1`, com a autorização dele (`CLAUDE.md` §5) |
 
@@ -1261,16 +1263,33 @@ com um alvo passado por `--eval`: sem nada, o valor é o `data/recovery` do *che
 | 2 | `make env`; depois, **no *shell* do clone**, `export RECOVERY_DIR=<checkout antigo>/data/recovery`, absoluto (D46) | `.env` com permissão 600 e senhas novas; cada alvo `recovery-*` imprime `[recovery] RECOVERY_DIR = <checkout antigo>/data/recovery` |
 | 3 | `make install` | `uv sync`; `dbt deps` com `dbt_utils` 1.4.1, `dbt_expectations` 0.10.10, `dbt_date` 0.21.0 |
 | 4 | `make tools` | `abctl` `v0.30.4` e Terraform `1.16.1` em `.tools/`; tempo registrado — é a primeira vez que o alvo roda do zero desde a Etapa 5 |
-| 5 | `make check-offline` — **antes de subir qualquer coisa** (RV12-2-04) | "check-offline: as três etapas passaram"; os pulados com motivo; os de integração listados por arquivo |
+| 5 | `make check-offline` — **antes de subir qualquer coisa** (RV12-2-04) | "check-offline: as três etapas passaram"; **cinco** pulados, todos com o motivo `sem dbt/target/manifest.json` — um de `test_acesso_macro.py`, quatro de `test_linhagem.py` —, porque o clone ainda não rodou `dbt-build`; os de integração listados por arquivo (134, em 13 arquivos) |
 
 **A seleção offline, varrida de novo em 24/09/2026 [medido].** Uma sonda — um *plugin* de *pytest*
 que nega e anota cada acesso: `Engine.connect`, `psycopg`, `dbt` por subprocesso, `docker` real fora
-do `compose config`, HTTP para as portas de serviço —, rodada numa *worktree* limpa do `HEAD`, sem
-`dbt/target` nem dados, com as variáveis de conexão presentes. Dos **441** testes selecionados, três
-acessos, de que dependem quatro testes — **os mesmos quatro** que a revisão 5 mediu com 169 (§16.6):
-o `test_consumo.py` inteiro e dois de `test_legacy_classification.py`, que ganharam a marca
-`integracao`. Um pulo limpo ficou, com motivo: `test_acesso_macro.py` sem o `manifest`. A prova que
-fecha continua sendo esta linha 5, num clone de verdade.
+do `compose config`, HTTP para as portas de serviço —, rodada numa *worktree* do `HEAD` com as
+variáveis de conexão presentes. Dos **441** testes selecionados, três acessos, de que dependem
+quatro testes — **os mesmos quatro** que a revisão 5 mediu com 169 (§16.6): o `test_consumo.py`
+inteiro e dois de `test_legacy_classification.py`, que ganharam a marca `integracao`. A *worktree*
+**não** era tão limpa quanto parecia: o `.venv` dela era um *link* para o do *checkout* antigo, cuja
+instalação editável aponta para o `src/` de lá — e o caminho que o pacote deriva do próprio
+`__file__` via o `dbt/target` do *checkout* antigo. Por isso a sonda viu um pulo só, o de
+`test_acesso_macro.py`, que deriva o caminho do arquivo de teste. A seleção de acessos vale; a
+contagem de pulados, não.
+
+**Ensaiada num clone de verdade em 24/09/2026 [medido].** As linhas 1–5 rodaram num clone do `HEAD`
+local (`8ecdcb6`), em diretório à parte, sem subir nada, com os bancos antigos de pé nas mesmas
+portas — as senhas novas do clone fariam qualquer acesso falhar, e falhar no *log* do banco (um
+controle positivo provou: `password authentication failed`, na linha `scram-sha-256` do
+`pg_hba.conf`). `make install` 10 s, com as três versões de pacote da trava; `make tools` 5 s;
+`make check-offline` 122 s, **435 passed, 5 skipped, 134 deselected** — os cinco pulos da linha 5,
+que a sonda não via. Na janela, nenhum evento de contêiner, rede ou volume; nenhuma falha de
+autenticação nos três bancos; o candidato intacto (`sha256sum -c`, e nada em `data/recovery` mais
+novo que o início). Um `make recovery-verify` no clone, com `RECOVERY_DIR` exportado, imprimiu o
+oráculo da linha 2 (`[recovery] RECOVERY_DIR = /home/doug/Projetos/mvp_ed1/data/recovery`) e
+conferiu o pacote — os três `pg_restore --list`, no contêiner do armazém **antigo**: o nome de
+projeto do clone é o mesmo, `mvp_ed1`, e no B5 esse contêiner já será o do clone. Não se ensaiou o
+`git clone` de `origin`: os *commits* do roteiro ainda não estavam publicados.
 
 ### 7.3 O ciclo — no clone, cada linha sob `make medir`
 
