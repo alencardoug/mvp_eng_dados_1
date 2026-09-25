@@ -116,11 +116,12 @@ clone e a sonda da seleção offline têm seções próprias, com as saídas lit
 `git stash push Makefile`, o teste novo presente:
 
 ```
-$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py -k pulados_com_motivo   # sem o -rs
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py -k pulados_com_motivo 2>&1 \
+    | grep -E 'assert|passed|failed' | tail -3                                  # sem o -rs
 >       assert chamadas == ["pytest -q -rs"], chamadas
 E       assert ['pytest -q'] == ['pytest -q -rs']
 1 failed, 82 deselected in 0.30s
-$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py                            # com ele
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_makefile.py 2>&1 | tail -1    # com ele
 83 passed in 10.53s
 ```
 
