@@ -146,6 +146,13 @@
 > estado do Terraform junto com o diretório de dados; e a P4 exige que nada rode entre o
 > `recovery-pack` e o desmonte. Os dois ajustes da rodada são do código: o fim do registro do
 > `medir` junto da duração (RVB5-2-02) e o teste dos papéis sem o `.env` (RVB5-2-03).
+>
+> **Revisão do roteiro encerrada — 25/09/2026.** A terceira rodada, curta, não teve achado. Sete
+> achados em três rodadas — 2 bloqueantes, 5 ajustes —, mais três próprios (os papéis do armazém
+> na restauração, a conferência que estourava sem o estado do pacote, o estado do Terraform), e as
+> decisões D59, D60 e D61. O dossiê saiu da árvore; o histórico está em
+> `git show 6065485:REVISAO.md`. **O B5 continua sem autorização**: ela é a P6, e o primeiro passo
+> depois dela é refazer o candidato (D61).
 
 ---
 
