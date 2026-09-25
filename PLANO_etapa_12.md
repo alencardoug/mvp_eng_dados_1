@@ -153,6 +153,15 @@
 > decisões D59, D60 e D61. O dossiê saiu da árvore; o histórico está em
 > `git show 6065485:REVISAO.md`. **O B5 continua sem autorização**: ela é a P6, e o primeiro passo
 > depois dela é refazer o candidato (D61).
+>
+> **B5 executado — 25/09/2026**, com as duas autorizações do Owner, no clone
+> `~/Projetos/mvp_eng_dados_1` (D58). As nove linhas do §7.3 e a recuperação inteira passaram; oito
+> desvios, cada um corrigido na origem com *commit* no clone e a linha refeita — quatro só aparecem
+> num ambiente novo (o `airbyte-config`, a espera do *streaming* duas vezes, o `dag-run`), dois são
+> de documento (o `LIMITE` da linha 6, as fronteiras da linha 4) e dois estavam quebrados em
+> qualquer ambiente (o `dbt-docs`, o teste da restauração sem autorização). O diário, com a linha da
+> Capacidade de cada comando, está em `data/medicoes/diario_b5.md` do clone, fora do Git, e vai
+> literal para o dossiê da revisão final. Próximo: B6.
 
 ---
 
