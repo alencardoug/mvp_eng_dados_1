@@ -81,7 +81,16 @@ def pendentes(ate_seq: int, *, destino: str | None = None) -> Faltantes:
     """
     relacao_destino = destino or cfg.carregar().destino.qualificado
     de_origem = _chaves(_motor(db.SOURCE), f"{SCHEMA_ORIGEM}.{TABELA_ORIGEM}", ate_seq)
-    do_livro = _chaves(_motor(db.WAREHOUSE), relacao_destino, ate_seq)
+    # Livro ausente é livro vazio: num armazém novo a tabela nasce quando o pipeline sobe
+    # (`sink.garantir_tabela`), segundos depois de a espera começar, e a primeira consulta morria
+    # em `UndefinedTable` (linha 3 do B5, 25/09/2026). Nada chegou ainda, e a espera continua até
+    # o livro aparecer ou o prazo vencer. A origem continua estrita: ela tem de existir.
+    try:
+        do_livro = _chaves(_motor(db.WAREHOUSE), relacao_destino, ate_seq)
+    except sa.exc.ProgrammingError as erro:
+        if type(erro.orig).__name__ != "UndefinedTable":
+            raise
+        do_livro = set()
     faltam = de_origem - do_livro
     return Faltantes(
         origem=len(de_origem),

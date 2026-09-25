@@ -800,3 +800,28 @@ def test_sem_destino_o_livro_e_o_da_configuracao(monkeypatch):
     espera.pendentes(99)
 
     assert lidas == ["oltp.inventory_movements", "raw.inventory_movements_stream"], lidas
+
+
+def test_livro_que_ainda_nao_existe_e_livro_vazio(monkeypatch):
+    """Achado na linha 3 do B5, refeita, em 25/09/2026: num armazém novo, a tabela do livro nasce
+    quando o pipeline sobe (`sink.garantir_tabela`), segundos depois de a espera começar, e a primeira
+    consulta morria em `UndefinedTable`. Nada chegou ainda: a espera continua. A origem continua
+    estrita — ela tem de existir."""
+    import psycopg
+    import sqlalchemy as sa
+
+    def chaves(_motor, relacao, _ate):
+        if relacao.startswith("raw."):
+            raise sa.exc.ProgrammingError(
+                f"select … from {relacao}", {},
+                psycopg.errors.UndefinedTable(f'relation "{relacao}" does not exist'),
+            )
+        return {"a", "b"}
+
+    monkeypatch.setattr(espera, "_motor", lambda _p: None)
+    monkeypatch.setattr(espera, "_chaves", chaves)
+
+    f = espera.pendentes(99)
+
+    assert (f.origem, f.livro, f.faltam) == (2, 0, 2)
+    assert not f.alcancado
