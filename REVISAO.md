@@ -1501,6 +1501,174 @@ saida=0
 
 ---
 
+## 12. Parecer da segunda rodada do B5 — 25/09/2026
+
+**Veredito: RVB5-01 parcialmente atendido; RVB5-02, RVB5-03 e RVB5-04 atendidos quanto aos
+defeitos originais.** O recuo da fase 1 ainda impede fechar o roteiro. A rodada completa cobre
+`00de1e5..96613ac`, inclusive o código e as evidências novos da §11. Os três achados desta rodada
+estão na tabela ao fim: um bloqueante, que detalha o restante do RVB5-01, e dois ajustes.
+
+Não executei B5, restauração, rebase, promoção ou alteração dos serviços e dos dados de trabalho;
+não usei `FORCE=1`. As sondas são isoladas, com executáveis/conexões simulados e arquivos em
+`/tmp`; do candidato real, li somente o manifesto. O ensaio em PostgreSQL novo da §11.1 é
+evidência do autor, não uma execução repetida nesta rodada. B2/B3 continuam para a revisão final.
+
+### 12.1 Conferência das respostas
+
+| Achado anterior | Conferência desta rodada |
+|---|---|
+| RVB5-01 | **Parcial.** As fases 2 e 3 agora dizem como preparar bancos, migrações, Airbyte e conexões antes de restaurar. O código cria os papéis antes de qualquer dump e a conferência recusa tabelas ausentes (§12.5). A fase 1 ainda propõe voltar com um Airbyte novo sobre o bruto antigo apenas com D50: falta tratar a geração reiniciada, conforme a própria D52 (§12.2; RVB5-2-01). |
+| RVB5-02 | **Atendido quanto à coleta.** O medidor chama o relatório, grava os três bancos e a soma, e representa falha como não medido; testes e sonda conferem. A inserção do relatório introduziu uma divergência entre `fim` e a duração (§12.3; RVB5-2-02). |
+| RVB5-03 | **Atendido.** `pipefail` impede sucesso após falha da coleta; o teste que injeta essa falha passou na suíte da §12.4. |
+| RVB5-04 | **Atendido no roteiro.** P5 agora tem a estrutura de um `RECOVERY_DIR`; §7.5 copia o aprovado para o clone, remove a variável exportada e exige a conferência desse destino antes de liberar o antigo. A leitura do Makefile e de `Destino` confirma a resolução do caminho. O ensaio com cópias e os alvos reais está na §11.4; não foi necessário repeti-lo. |
+
+### 12.2 A fase 1 ainda deixa o contador de gerações colidir
+
+A fase 1 do §7.4 agora trata explicitamente de Airbyte **novo** com os bancos antigos intactos.
+`recovery-airbyte-jobs` só avança a sequência de jobs; não altera
+`raw_legacy._airbyte_generation_id`. A leitura do candidato confirma que há geração 1 retida:
+
+```text
+ESTADO DO CANDIDATO (LEITURA DO MANIFESTO)
+maior snapshot: 43
+brands/geracoes: {'classes': 27, 'maxima': 28, 'minima': 1, 'nulas': 0}
+```
+
+A leitura foi `json.loads(Path('data/recovery/candidato/manifesto.json').read_text())`, nos
+campos `oraculo_capturas.maior_snapshot` e `oraculo_capturas.geracoes_por_tabela.brands`.
+
+A contraprova abaixo usa a guarda e o veredito reais, com dados sintéticos: mesmo depois de um
+job principal 44 tornar a listagem compatível com a captura retida 43, o job seguinte 45 na
+geração 1 divide a faixa com o antigo job 9. A contagem de intrusas reproduz a condição de
+`captura.medir_recebido`: mesma geração, outro `sync_id`. É uma sonda da regra, não uma
+reinstalação ou sincronização real.
+
+```python
+from unittest.mock import patch
+from mvp_ed1.legacy import captura, identidade
+from mvp_ed1.recovery import rebase
+
+with patch.object(identidade.captura, 'certificadas', return_value=[43]):
+    identidade.exigir(None, lambda: {'data': [{'jobId': 44}]})
+print('guarda de identidade: liberou com job principal 44 > captura 43')
+original = captura.Medida(3, 'conteudo-igual')
+retained = [(9, 1), (43, 28)]
+new_job = (45, 1)
+def verdict(rows):
+    intruders = sum(job != new_job[0] and generation == new_job[1] for job, generation in rows)
+    observed = captura.Recebido(3, 'conteudo-igual', (new_job[1],), intruders)
+    return intruders, captura.decidir(original, original, observed)
+print('sem rebase (intrusas, veredito):', verdict(retained))
+plan = rebase.plano(generation for job, generation in retained)
+print('com rebase (intrusas, veredito):', verdict([(job, plan[generation]) for job, generation in retained]))
+```
+
+Saída pelo `.venv/bin/python`, código 0:
+
+```text
+guarda de identidade: liberou com job principal 44 > captura 43
+sem rebase (intrusas, veredito): (1, 'inconsistent')
+com rebase (intrusas, veredito): (0, 'complete')
+```
+
+O conteúdo e seu hash permanecem iguais no exemplo. A D52 já explica essa colisão no §6 do plano;
+ela não deixa de existir porque os bancos sobreviveram ao desmonte. A fase 1 também precisa
+nomear a recriação das conexões e a ordem dos disparos: o alvo de subida não configura o
+Airbyte, e D50, sozinha, não cria o job que a guarda consulta na listagem.
+
+### 12.3 O tamanho ficou fora da duração, mas dentro do instante final
+
+Usei `_medir`, `_registro` e `MAKEFILE_COM_TAMANHO` de `tests/test_medicao.py`, carregados por
+`importlib.util.spec_from_file_location`, em `tempfile.mkdtemp(prefix='rvb5_r2_')`.
+O Docker é simulado; o alvo dorme 1 s e o relatório dorme 4 s. A invocação foi
+`result = m._medir(tmp, 'trabalho', makefile=m.MAKEFILE_COM_TAMANHO)`.
+
+Saída, código 0:
+
+```text
+MEDIDOR COM RELATORIO SIMULADO DE 4 S
+saida: 0
+{"inicio": "2026-09-25T04:52:13Z", "fim": "2026-09-25T04:52:18Z", "duracao_involucro_s": 1, "tamanho": {"SOURCE_DB": "62.5 MB", "LEGACY_DB": "13.3 MB", "WAREHOUSE_DB": "470.1 MB", "soma": "545.9 MB"}}
+fim - inicio (s): 5
+rascunho: /tmp/rvb5_r2_jwzwcz2k
+```
+
+A diferença foi calculada por `datetime.fromisoformat(fim) - datetime.fromisoformat(inicio)`.
+`_finalizar` congela a duração antes do relatório, mas `_escrever` ainda calcula `fim` com
+`_agora` depois dele. O teste novo confere só a duração; não confere a coerência dos dois
+extremos. É preciso conservar o instante de fim do intervalo medido, distinguindo-o do fim da
+coleta posterior se esse segundo instante também for registrado.
+
+### 12.4 Testes e a dependência de ambiente do teste novo
+
+Sem carregar o `.env`, a execução direta terminou com código 1:
+
+```text
+$ .venv/bin/pytest -q -rs tests/test_makefile.py tests/test_medicao.py tests/test_recovery.py
+FAILED tests/test_recovery.py::test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump
+mvp_ed1.recovery.pacote.PacoteRecusado: SOURCE_DB_USER ausente do ambiente. Use os alvos do Makefile, que carregam o .env.
+1 failed, 195 passed in 57.93s
+```
+
+O progresso e parte do traceback foram omitidos. O teste simula o motor, os papéis e os dumps,
+mas deixa `_env` ler seis variáveis externas. O controle com valores **fictícios**, sem senha e
+sem acesso a banco, passou (código 0):
+
+```text
+$ env SOURCE_DB_USER=sonda SOURCE_DB_NAME=sonda LEGACY_DB_USER=sonda LEGACY_DB_NAME=sonda WAREHOUSE_DB_USER=sonda WAREHOUSE_DB_NAME=sonda .venv/bin/pytest -q -rs tests/test_recovery.py::test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump
+1 passed in 0.07s
+```
+
+O teste deve fornecer esses valores ou simular `_env` na própria fixture. Carregar o ambiente
+pelo Makefile contorna essa dependência; não transforma a execução direta acima em aprovação.
+
+O fluxo documentado, que carrega o `.env`, passou. Executei `make check-offline` para conferir
+essa distinção e a combinação das mudanças; saída com código 0 (progresso e as 13 linhas do
+inventário, iguais às da §10.1, omitidos):
+
+```text
+$ make check-offline
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+446 passed, 134 deselected in 145.01s (0:02:25)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+```
+
+Após escrever o parecer, `make docs-check` devolveu o mesmo resultado de coerência acima e
+`git diff --check` terminou sem saída; ambos com código 0. Só `REVISAO.md` foi alterado.
+
+### 12.5 Papéis antes dos dumps e recusa da conferência
+
+Sondas adicionais, em processo, sem banco: `governance.garantir_papeis(MagicMock())`, conferindo
+os SQLs passados a `engine.begin().__enter__().execute`; e
+`cli.comando_restore_dumps` com `garantir_papeis` levantando
+`RuntimeError('papeis recusados')`, caminho/motor simulados e `_pg_restore` observado por mock.
+
+Para a conferência, usei `_leituras`, `ESTADO_DO_PACOTE` e `MANIFESTO` de
+`tests/test_recovery.py`, injetando `ProgrammingError` primeiro em `contagens` e depois em
+`oraculo_da_quarentena`. Nos dois casos, `_conferir_contra_o_banco` devolveu a recusa sem
+traceback. Saída das sondas, código 0:
+
+```text
+GARANTIA DOS PAPEIS (CONEXAO SIMULADA)
+comandos de criacao: 5
+comentarios: 5
+comandos sobre tabelas ou schemas: 0
+falha simulada: papeis recusados
+dumps executados: 0
+
+CONFERENCIA CONTRA ESTADO AUSENTE (LEITURA SIMULADA)
+contagens: ['a leitura dos bancos falhou — relation "tabela_da_sonda" does not exist: eles não têm o estado que o manifesto descreve']
+oraculo_da_quarentena: ['a leitura dos bancos falhou — relation "tabela_da_sonda" does not exist: eles não têm o estado que o manifesto descreve']
+```
+
+Isso confirma a separação entre papéis e migrações e a ordem da recusa, sem afirmar que uma
+restauração real foi executada nesta rodada.
+
+---
+
+
 ## Achados da revisão
 
 Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar a revisão.
@@ -1511,3 +1679,6 @@ Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar 
 | RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | **Corrigido pela declaração** (`efb8fc1`; D59, do Owner em 25/09/2026). O plano (§3, B1) já mandava o medidor rodar o `size-report` ao fim e gravar o total por banco, e o código não fazia. Agora faz, depois do intervalo medido: o total de cada banco e a soma no registro e na linha da Capacidade; relatório que falha fica como não medido. A Execução Local diz o que o `size-report` detalha, e o §7.3, que cada `make medir` traz o tamanho. Testes vermelhos antes, verdes depois; medido de verdade (§11.2). |
 | RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | **Corrigido** (`28d34c7`): `pipefail` na terceira etapa e uma mensagem que diz o que faltou. O teste novo simula a coleta saindo 2: vermelho antes, verde depois; o caminho nominal real continua passando (§11.3). |
 | RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | **Corrigido** (`3788f34`; D60, do Owner em 25/09/2026). O §7.5 copia o `aprovado` para o `data/recovery` do clone — o caminho padrão da D46 no *checkout* de trabalho da D58 —, tira o `RECOVERY_DIR` do ambiente e confere com `make recovery-verify` no clone, antes de liberar o antigo; o B6 registra o caminho. A cópia da P5 passa a nascer como `RECOVERY_DIR`. Os dois ensaiados com cópias e os alvos de verdade (§11.4). |
+| RVB5-2-01 | `PLANO_etapa_12.md:1348`, fase 1 do recuo | **O Airbyte novo volta sobre o bruto antigo sem tratar a geração reiniciada.** D50 só avança os jobs; o candidato ainda retém geração 1 em `brands`. Mesmo com a guarda de identidade satisfeita e conteúdo correto, a sonda produziu `inconsistent` por intrusas; com o rebase, `complete` (§12.2). Completar a sequência da fase 1, incluindo configuração/conexões, proteção das gerações conforme D52 e ordem dos disparos, ou encaminhá-la a um procedimento de restauração que cumpra essas condições. **RVB5-01 permanece parcial**; subir o ambiente com D50 apenas não resolve o recuo. | `bloqueante` | Aberto — resposta pendente. |
+| RVB5-2-02 | `docker/medir.sh:201` e `_finalizar`, linhas 305–312 | **O instante final inclui a coleta que a duração exclui.** Com alvo de 1 s e relatório de 4 s, o JSON registra duração 1, mas `fim − inicio = 5` (§12.3). Esses campos deixam de delimitar o mesmo intervalo e comprometem a leitura do diário da medição. Capturar o fim junto da duração, antes do relatório, e conferir essa igualdade no teste; se houver instante de conclusão da coleta, identificá-lo separadamente. | `ajuste` | Aberto — resposta pendente. |
+| RVB5-2-03 | `tests/test_recovery.py:658` | **O teste novo de ordem dos papéis depende de ambiente externo apesar de simular os acessos.** A execução direta da suíte falha por `SOURCE_DB_USER` ausente; com as seis variáveis fictícias, o mesmo teste passa (§12.4). Fornecer essas entradas no teste ou simular `_env`, mantendo a prova independente do `.env` e sem transformá-la em teste de integração. | `ajuste` | Aberto — resposta pendente. |
