@@ -792,11 +792,207 @@ sys	0m13,085s
 
 ---
 
+## 10. Parecer da primeira rodada do B5 — 25/09/2026
+
+**Veredito: o roteiro ainda precisa de correção antes de executar B5.** Um bloqueante e três
+ajustes, na tabela ao fim. Conferido o intervalo `a4b04fc..1393b5c`, com o dossiê em `00de1e5`.
+O preparo passou nas verificações abaixo; isso não prova o ciclo destrutivo nem elimina as
+lacunas do roteiro.
+
+Não executei o desmonte, o ciclo, uma restauração ou uma promoção do pacote real; não usei
+`FORCE=1`. As sondas usam diretórios em `/tmp`, executáveis simulados e substituição de chamadas
+em processo. A leitura do candidato na §10.2 confere seus arquivos, mas não o altera. B2/B3,
+inclusive `bb783f4`, continuam para a revisão final. Não reabri a revisão encerrada de B0/B1/B4:
+o código desses blocos foi consultado para conferir as promessas novas do roteiro.
+
+### 10.1 Verificações do preparo
+
+Comandos no *checkout* de trabalho, ambos com código de saída 0:
+
+```text
+$ .venv/bin/pytest -q -rs tests/test_makefile.py
+83 passed in 11.75s
+
+$ make check-offline
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+441 passed, 134 deselected in 139.49s (0:02:19)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+      7 tests/test_acesso.py
+     13 tests/test_captura_legado.py
+      3 tests/test_carga.py
+      3 tests/test_classificacao.py
+      2 tests/test_consumo.py
+      1 tests/test_fato_incremental.py
+     12 tests/test_legacy_classification.py
+      7 tests/test_legado_contraprovas.py
+     22 tests/test_legado_deteccao.py
+     55 tests/test_legado_remocao.py
+      4 tests/test_migracao_legado.py
+      3 tests/test_reconciliacao_raw.py
+      2 tests/test_retencao.py
+check-offline: as três etapas passaram
+```
+
+As linhas de progresso foram omitidas. Aqui já existe `dbt/target/manifest.json`: os cinco testes
+que pulam no clone novo rodaram. Não repeti o ensaio de instalação e ferramentas da §8 nem
+executei testes de integração; os resultados acima não substituem a prova do clone do B5.
+
+### 10.2 Recuo antes dos bancos, tamanhos e falha da coleta
+
+Sonda executada da raiz. `_medir` chama o `docker/medir.sh` real com Docker simulado e um Makefile
+temporário; `_make` usa uma cópia do Makefile real com seus executáveis simulados. A conferência
+do pacote usa o código real, mas a única chamada de subprocesso permitida devolve um inventário
+vazio: nenhum comando chega ao Docker. O alvo `sonda` só imprime a variável `RESTAURAR`; não é
+uma restauração.
+
+```bash
+.venv/bin/python - <<'PY'
+import contextlib
+import importlib.util
+import io
+import os
+import pathlib
+import subprocess
+import tempfile
+from unittest.mock import patch
+
+root = pathlib.Path.cwd()
+tmp = pathlib.Path(tempfile.mkdtemp(prefix='revisao_b5_'))
+def helper(name):
+    spec = importlib.util.spec_from_file_location(name, root / 'tests' / f'{name}.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+m = helper('test_medicao')
+case = tmp / 'medicao'
+case.mkdir()
+with patch.dict(os.environ, {'RESTAURAR': '1'}):
+    result = m._medir(case, 'sonda', makefile='.PHONY: sonda size-report\nsonda:\n\t@echo RESTAURAR=$(RESTAURAR)\nsize-report:\n\t@touch tamanho_coletado\n')
+record = m._registro(case)
+print('MEDICAO SIMULADA')
+print('saida=', result.returncode, sep='')
+print(next(line for line in result.stdout.splitlines() if line.startswith('RESTAURAR=')))
+print('size-report chamado:', (case / 'trabalho/tamanho_coletado').exists())
+print('chaves JSON:', ', '.join(record))
+
+from mvp_ed1.recovery import cli
+calls = []
+def empty_inventory(args, **kwargs):
+    assert args == [str(root / 'docker/conteineres.sh'), 'resolver', 'warehouse_db'], args
+    calls.append('resolver warehouse_db -> vazio; saida=0')
+    return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+output = io.StringIO()
+with patch.object(cli.subprocess, 'run', side_effect=empty_inventory), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+    code = cli.main(['--dir', str(root / 'data/recovery'), 'verify'])
+print('\nVERIFY COM INVENTARIO VAZIO SIMULADO')
+print(output.getvalue(), end='')
+print('saida=', code, sep='')
+print('chamadas:', calls)
+
+m = helper('test_makefile')
+case = tmp / 'coleta'
+case.mkdir()
+pytest = m.REGISTRADOR + 'case " $* " in *" --co "*) echo "sonda: coleta recusada" >&2; exit 2;; esac\n'
+result, calls = m._make(case, 'check-offline', simulados={'.venv/bin/pytest': pytest})
+print('\nCOLETA COM FALHA SIMULADA')
+print(result.stdout, end='')
+print(result.stderr, end='')
+print('saida=', result.returncode, sep='')
+print('chamadas:', calls)
+print('rascunho:', tmp)
+PY
+```
+
+Saída (código do processo da sonda: 0; os códigos dos comandos sondados estão discriminados):
+
+```text
+MEDICAO SIMULADA
+saida=0
+RESTAURAR=1
+size-report chamado: False
+chaves JSON: alvo, ate, inicio, fim, duracao_involucro_s, codigo_de_saida, interrompido, encerramento, parametros, estacao, amostragem, limite
+
+VERIFY COM INVENTARIO VAZIO SIMULADO
+[recovery] conferindo /home/doug/Projetos/mvp_ed1/data/recovery/candidato
+RECUSADO — não resolvi o contêiner do serviço 'warehouse_db' neste projeto. Rode `make up`.
+saida=2
+chamadas: ['resolver warehouse_db -> vazio; saida=0']
+
+COLETA COM FALHA SIMULADA
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+── 2/3 pytest sem os testes de integração ──
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+sonda: coleta recusada
+saida=0
+chamadas: ['python -m mvp_ed1.secrets_review', 'python -m mvp_ed1.docs_check', 'pytest -q -rs -m not integracao', 'pytest -q --co -m integracao']
+rascunho: /tmp/revisao_b5_a406yy7w
+```
+
+A herança de `RESTAURAR=1` pelo medidor funcionou nesta composição isolada; não é um achado.
+A recusa sem armazém é o comportamento correto do verificador. O defeito está na promessa de
+recuo do §7.4: `recovery-restore` começa por esse verificador e não sobe os bancos. Tampouco
+executa `airbyte-config`; o caminho até a restauração precisa considerar uma interrupção antes
+de a base e as conexões estarem preparadas.
+
+O medidor não chamou `size-report` nem escreveu tamanho no JSON. Nenhuma das nove linhas do
+§7.3 pede essa coleta separadamente, embora C2 exija tamanho por cenário e a Execução Local §3
+atribua essa coleta ao `make medir`.
+
+A falha da coleta foi **injetada**, não ocorreu no `check-offline` real da §10.1. Ela demonstra
+que o encadeamento `pytest | sed | sort | uniq` perde o erro do pytest: a receita usa o estado do
+último comando, sem `pipefail`, e chega à mensagem de sucesso sem produzir o inventário exigido.
+
+### 10.3 Destino depois da promoção
+
+Sonda do `promover` real, exclusivamente com um arquivo fictício em `/tmp`:
+
+```bash
+.venv/bin/python - <<'PY'
+import pathlib
+import tempfile
+from mvp_ed1.recovery.pacote import Destino, promover
+base = pathlib.Path(tempfile.mkdtemp(prefix='revisao_b5_promocao_'))
+old = base / 'antigo/data/recovery'
+new = base / 'clone/data/recovery'
+(old / 'candidato').mkdir(parents=True)
+(old / 'candidato/arquivo-da-sonda').write_text('somente sonda\n')
+approved = promover(Destino(old))
+print('promovido:', approved.relative_to(base))
+print('pacote no checkout antigo:', (old / 'aprovado/arquivo-da-sonda').exists())
+print('pacote no clone:', new.exists())
+print('rascunho:', base)
+PY
+```
+
+Saída, código 0:
+
+```text
+promovido: antigo/data/recovery/aprovado
+pacote no checkout antigo: True
+pacote no clone: False
+rascunho: /tmp/revisao_b5_promocao_vo35lue7
+```
+
+O §7.2 exporta justamente o diretório antigo e `recovery-promote` o passa ao `promover`.
+A cópia externa da P5 permanece uma salvaguarda: não se afirma perda de todas as cópias.
+Falta, porém, a passagem para um destino que continue acessível depois do arquivamento ou da
+exclusão do *checkout* antigo permitidos pelo §7.5. A D58 continua valendo; o ajuste é completar
+esse passo de operação e o caminho a registrar no B6.
+
+---
+
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar a revisão.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | Aberto — resposta pendente. |
+| RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | Aberto — resposta pendente. |
+| RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | Aberto — resposta pendente. |
+| RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | Aberto — resposta pendente. |
