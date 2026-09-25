@@ -1668,6 +1668,181 @@ restauração real foi executada nesta rodada.
 
 ---
 
+## 13. Resposta à segunda rodada do B5 — 25/09/2026
+
+Os três achados reproduzidos antes de qualquer correção, e os três corrigidos, sem decisão nova do
+Owner: a fase 1 do recuo passa a usar um procedimento que já existe, e os dois ajustes são do
+código. O RVB5-01, que a rodada deu por parcial, tem o restante no RVB5-2-01.
+
+```
+8662a67 test: o teste da ordem dos papéis não lê o .env
+66d457e fix: o fim do registro do medir é o do intervalo medido
+44da9b7 docs: a fase 1 do recuo do B5 volta pela sequência de restauração
+42cf195 docs: registra a revisão 10 do roteiro do B5 e a segunda rodada nas Pendências
+```
+
+**A rodada seguinte revisa `96613ac..` a ponta**, este registro incluído. O candidato continua de
+`561edc2`, como a P4 manda até a última rodada.
+
+### 13.1 RVB5-2-01 — a fase 1 do recuo pela sequência de restauração
+
+**Reprodução.** A sonda da §12.2, como veio, pelo `.venv/bin/python`, e a leitura do manifesto do
+candidato:
+
+```
+$ .venv/bin/python - <<'EOF'   # a sonda da §12.2, literal
+[…]
+EOF
+guarda de identidade: liberou com job principal 44 > captura 43
+sem rebase (intrusas, veredito): (1, 'inconsistent')
+com rebase (intrusas, veredito): (0, 'complete')
+$ python3 -c "…json.loads(pathlib.Path('data/recovery/candidato/manifesto.json').read_text())…"
+maior snapshot: 43
+brands: {'classes': 27, 'maxima': 28, 'minima': 1, 'nulas': 0}
+tabelas com geração mínima >= 0: 40 de 40
+```
+
+Nenhuma das 40 tabelas do bruto retido está re-baseada no candidato — o re-base é da restauração,
+passo 4b. Um Airbyte novo sobre esses bancos, com só a D50, repetiria a geração 1.
+
+**A correção** (`44da9b7`): em vez de uma sequência nova à mão, a fase 1 passa pelo
+`recovery-restore` no *checkout* antigo, que já faz o que a rodada pede, nesta ordem:
+
+```
+$ grep -n '── 4/9\|── 4b/9\|recovery-rebase$\|── 8/9\|airbyte-up FORCE=\|recovery-airbyte-jobs$\|sync-airbyte RESET=1\|sync-legacy JOB_EM' Makefile
+592:	@echo "── 4/9 pg_restore das duas fontes e da memória do armazém ──"
+594:	@echo "── 4b/9 re-base das gerações retidas (D52) ──"
+595:	@$(MAKE) --no-print-directory recovery-rebase
+602:	@echo "── 8/9 reconstruindo sem apagar o que acabou de voltar ──"
+603:	@$(MAKE) --no-print-directory airbyte-up FORCE=
+607:	@$(MAKE) --no-print-directory recovery-airbyte-jobs
+608:	@$(MAKE) --no-print-directory sync-airbyte RESET=1
+611:	@$(MAKE) --no-print-directory sync-legacy JOB_EM="$(RECOVERY_JOB)"
+```
+
+O re-base antes de qualquer carga nova (D52), o contador (D50) e o `sync-airbyte` antes do
+`sync-legacy`, para a listagem que a guarda lê já ter o job novo. As conexões vêm antes da
+sequência: se a linha 4 do desmonte rodou, `make airbyte-up` e `make airbyte-config AUTO=1`. O
+*streaming* desmontado volta pelos passos 3 e 7, e o Airflow, por `make airflow-up`. Devolver os
+bancos ao corte não perde nada porque a P4 passou a exigir que nada rode entre o `recovery-pack` e
+o desmonte.
+
+**O estado do Terraform.** Escrever a fase 1 levantou uma premissa que ninguém tinha conferido: no
+*checkout* antigo, o `airbyte-config` roda sobre um `terraform.tfstate` que nomeia as conexões do
+Airbyte que o desmonte removeu. O histórico não mostra uma reinstalação atravessada com o estado
+velho — o estado e o *backup* são de 05/09 e do mesmo *workspace*:
+
+```
+$ ls -la --time-style=long-iso airbyte/terraform.tfstate*
+-rw-rw-r-- 1 doug doug 50320 2026-09-05 20:47 airbyte/terraform.tfstate
+-rw-rw-r-- 1 doug doug 26338 2026-09-05 20:46 airbyte/terraform.tfstate.backup
+$ (os recursos de cada arquivo, pelo Python: tipo, chave, id e workspace, 8 caracteres)
+airbyte/terraform.tfstate serial 23 lineage 4847f85b
+   airbyte_connection legacy 58e564f7 ws 0a62c752
+   airbyte_connection retail 0a884e8c ws 0a62c752
+   airbyte_destination legacy 1235f911 ws 0a62c752
+   airbyte_destination retail ade663bc ws 0a62c752
+   airbyte_source legacy bac144fe ws 0a62c752
+   airbyte_source retail eae5fe4b ws 0a62c752
+airbyte/terraform.tfstate.backup serial 13 lineage 4847f85b
+   airbyte_connection  bf4c0dfb ws 0a62c752
+   airbyte_destination  42d1a594 ws 0a62c752
+   airbyte_source  06ae6e14 ws 0a62c752
+```
+
+Que o provedor recriaria as conexões a partir do estado velho **não foi verificado**. Em vez de
+depender disso, a linha 4 do desmonte aparta o estado junto com o diretório de dados — mover, não
+apagar —, e o `airbyte-config` da fase 1 cria tudo no Airbyte novo, como o do clone faz na linha 2.
+A reinstalação da Execução Local §6, que tinha a mesma premissa, ganhou o mesmo passo (v1.15).
+
+**Não medido:** a fase 1 de ponta a ponta. Ela é a sequência da linha 9 sobre bancos povoados,
+precedida do `airbyte-up` e do `airbyte-config` da linha 2 — o B5 mede os dois no clone, e o
+Airbyte não se isola num segundo projeto para medir antes.
+
+### 13.2 RVB5-2-02 — o fim do registro do `medir`
+
+O teste do tamanho ganhou a conferência `fim − início = duração` (`66d457e`). Vermelho antes, com o
+mesmo número do parecer:
+
+```
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_medicao.py -k fora_do_intervalo
+E       assert 5.0 == 1
+E        +  where 5.0 = <built-in method total_seconds of datetime.timedelta object at 0x…>()
+```
+
+A correção captura o fim com a duração, antes do relatório, e escreve os dois instantes a partir
+das mesmas épocas que a duração, para que duas leituras do relógio não caiam em segundos
+diferentes. Verde, e de verdade — com um relatório que levou 13 s depois do alvo:
+
+```
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_medicao.py
+33 passed in 45.54s
+$ make medir ALVO=migrate-status
+[medir] migrate-status — início 2026-09-25T10:45:28Z; estação: 3,2 GB livres, de pé: Airbyte,bancos
+[medir] tamanho, fora do intervalo medido: make size-report
+[medir] registro: /home/doug/Projetos/mvp_ed1/data/medicoes/2026-09-25T104542Z_migrate_status.json
+| migrate-status | Airbyte,bancos | 0m 01s | não medido | não medido | 0 amostras (pausa de 2 s) | 546.6 MB |
+$ python3 -c "…fromisoformat(fim) − fromisoformat(inicio)…"
+inicio 2026-09-25T10:45:28Z fim 2026-09-25T10:45:29Z duracao 1 fim-inicio 1.0 tamanho 546.6 MB
+```
+
+Não se registrou o instante do fim da coleta: a rodada o pedia só "se houver", e o nome do arquivo
+já carrega o instante em que o registro foi escrito.
+
+### 13.3 RVB5-2-03 — o teste dos papéis sem o `.env`
+
+Reproduzido sem o `.env` — nenhuma variável `*_DB_*` no ambiente —, e a correção (`8662a67`)
+simula o `_env` no próprio teste:
+
+```
+$ env | grep -c '_DB_'
+0
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_recovery.py tests/test_makefile.py tests/test_medicao.py   # antes
+E           mvp_ed1.recovery.pacote.PacoteRecusado: SOURCE_DB_USER ausente do ambiente. Use os alvos do Makefile, que carregam o .env.
+FAILED tests/test_recovery.py::test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump - …
+1 failed, 195 passed in 55.76s
+$ .venv/bin/pytest -q -p no:cacheprovider tests/test_recovery.py tests/test_makefile.py tests/test_medicao.py   # depois
+196 passed in 56.09s
+```
+
+### 13.4 O `make check` da ponta
+
+Em `44da9b7`, depois das três correções — o que veio depois é só texto (as linhas do dbt e o
+progresso do pytest omitidos):
+
+```
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 107 documentos, 981 links de arquivo, 137 âncoras, 588 citações de ADR — nada quebrado
+── 2/4 dbt build: modelos, testes de dados e reconciliações ──
+10:51:12  Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+── 4/4 pytest: código, contratos e integração ──
+SKIPPED [1] tests/test_carga.py:51: substitui a origem pela carga reduzida; rode por `make test-carga`, que exporta MVP_TESTE_CARGA=1 num banco efêmero
+SKIPPED [1] tests/test_fato_incremental.py:105: escreve na fato de trabalho; rode `make test FATO=1` (MVP_TESTE_FATO=1)
+SKIPPED [1] tests/test_legado_deteccao.py:124: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:227: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:272: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:751: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:778: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+SKIPPED [1] tests/test_legado_deteccao.py:794: a captura 43 não é o lote 3f9e5088c722 do manifesto (2 tabelas divergem: ['campaigns', 'customers']); sincronize o lote corrente antes de comparar vereditos
+572 passed, 8 skipped in 264.96s (0:04:24)
+check: as quatro etapas passaram
+real	6m44,192s
+saida=0
+```
+
+### 13.5 O que continua sem verificação
+
+- a fase 1 do recuo de ponta a ponta (§13.1);
+- o comportamento do provedor do Airbyte diante de um estado do Terraform velho — evitado, não
+  medido (§13.1);
+- o que a §11.6 listava continua como estava.
+
+---
+
 
 ## Achados da revisão
 
@@ -1675,10 +1850,10 @@ Um achado por linha. A coluna *Situação* fica para a resposta de quem aplicar 
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | **Corrigido** (`3788f34`, `0ffd346`, `25ac22e`). O §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make reset` até a linha 2 do §7.3; com o ambiente pronto —, cada uma com o que existe e o que o recuo pede antes do `recovery-restore`. Medir a fase 2 num destino novo, em projeto Compose à parte, achou que a restauração não passava nele: os `GRANT`s do dump da memória nomeiam papéis que só o `governance.garantir()` cria; o `restore-dumps` passa a criá-los antes do primeiro dump. Com o candidato real, os passos 1, 3, 4, 4b e 5 passam, com e sem migrações. Achado próprio: a conferência contra o banco sem o estado do pacote estourava em *traceback*; agora recusa numa linha. Passos 2 e 6–9 num destino novo não medidos (§11.1). |
+| RVB5-01 | `PLANO_etapa_12.md` §7.4, recuo (linhas 1323–1326); `Makefile`, `recovery-restore` | **O recuo anunciado “a qualquer momento” não cobre uma parada antes de preparar o destino.** Depois do desmonte, sem o novo armazém, o primeiro passo da restauração já recusa: `recovery-verify` precisa do contêiner para listar os dumps. A sonda da §10.2 devolveu 2 com inventário vazio. O alvo também não cria os bancos nem configura as conexões do Airbyte. Descrever o recuo por fase, com diretório, pré-requisitos, comandos de preparação e pontos de parada; distinguir a restauração da linha 9, com ambiente pronto, da recuperação de uma interrupção no preparo. | `bloqueante` | **Corrigido** (`3788f34`, `0ffd346`, `25ac22e`). O §7.4 passa a ter o recuo por fase — antes do `make reset`; do `make reset` até a linha 2 do §7.3; com o ambiente pronto —, cada uma com o que existe e o que o recuo pede antes do `recovery-restore`. Medir a fase 2 num destino novo, em projeto Compose à parte, achou que a restauração não passava nele: os `GRANT`s do dump da memória nomeiam papéis que só o `governance.garantir()` cria; o `restore-dumps` passa a criá-los antes do primeiro dump. Com o candidato real, os passos 1, 3, 4, 4b e 5 passam, com e sem migrações. Achado próprio: a conferência contra o banco sem o estado do pacote estourava em *traceback*; agora recusa numa linha. Passos 2 e 6–9 num destino novo não medidos (§11.1). A segunda rodada o deu por parcial; o restante, a fase 1, é o RVB5-2-01. |
 | RVB5-02 | `PLANO_etapa_12.md` §7.3; `docs/execucao_local.md` §3, linha 95 | **Falta coletar os tamanhos prometidos para C2.** `make medir` registra tempo e memória; não chama `size-report` e seu JSON não contém tamanhos (§10.2). As nove linhas do ciclo tampouco chamam o relatório. Assim, seguir o roteiro não produz a dimensão “tamanho por cenário” para a Capacidade §2.12. Incluir a coleta e seu registro nos pontos pertinentes do ciclo e corrigir a descrição do medidor na Execução Local. | `ajuste` | **Corrigido pela declaração** (`efb8fc1`; D59, do Owner em 25/09/2026). O plano (§3, B1) já mandava o medidor rodar o `size-report` ao fim e gravar o total por banco, e o código não fazia. Agora faz, depois do intervalo medido: o total de cada banco e a soma no registro e na linha da Capacidade; relatório que falha fica como não medido. A Execução Local diz o que o `size-report` detalha, e o §7.3, que cada `make medir` traz o tamanho. Testes vermelhos antes, verdes depois; medido de verdade (§11.2). |
 | RVB5-03 | `Makefile:713`, terceira etapa de `check-offline` | **Falha no inventário de testes excluídos termina como sucesso.** Com `pytest --co` saindo 2, o encadeamento termina em `uniq`, o make sai 0 e imprime “as três etapas passaram” (§10.2). Preservar o erro da coleta e interromper antes dessa mensagem; conferir o caminho de falha além do caminho nominal já coberto. | `ajuste` | **Corrigido** (`28d34c7`): `pipefail` na terceira etapa e uma mensagem que diz o que faltou. O teste novo simula a coleta saindo 2: vermelho antes, verde depois; o caminho nominal real continua passando (§11.3). |
 | RVB5-04 | `PLANO_etapa_12.md` §7.5, liberação do checkout antigo (linhas 1331–1333) | **Promover não transfere o pacote para fora do checkout antigo.** Com o `RECOVERY_DIR` prescrito, a promoção só renomeia `antigo/data/recovery/candidato` para `antigo/data/recovery/aprovado` (§10.3). Arquivar ou apagar o diretório logo depois deixa o caminho de recuperação sem destino. A cópia da P5 evita a perda de todas as cópias, mas não é incorporada ao procedimento como novo local do pacote. Antes de liberar o checkout antigo, definir e conferir o destino durável, o `RECOVERY_DIR` correspondente e o caminho que o B6 vai registrar. | `ajuste` | **Corrigido** (`3788f34`; D60, do Owner em 25/09/2026). O §7.5 copia o `aprovado` para o `data/recovery` do clone — o caminho padrão da D46 no *checkout* de trabalho da D58 —, tira o `RECOVERY_DIR` do ambiente e confere com `make recovery-verify` no clone, antes de liberar o antigo; o B6 registra o caminho. A cópia da P5 passa a nascer como `RECOVERY_DIR`. Os dois ensaiados com cópias e os alvos de verdade (§11.4). |
-| RVB5-2-01 | `PLANO_etapa_12.md:1348`, fase 1 do recuo | **O Airbyte novo volta sobre o bruto antigo sem tratar a geração reiniciada.** D50 só avança os jobs; o candidato ainda retém geração 1 em `brands`. Mesmo com a guarda de identidade satisfeita e conteúdo correto, a sonda produziu `inconsistent` por intrusas; com o rebase, `complete` (§12.2). Completar a sequência da fase 1, incluindo configuração/conexões, proteção das gerações conforme D52 e ordem dos disparos, ou encaminhá-la a um procedimento de restauração que cumpra essas condições. **RVB5-01 permanece parcial**; subir o ambiente com D50 apenas não resolve o recuo. | `bloqueante` | Aberto — resposta pendente. |
-| RVB5-2-02 | `docker/medir.sh:201` e `_finalizar`, linhas 305–312 | **O instante final inclui a coleta que a duração exclui.** Com alvo de 1 s e relatório de 4 s, o JSON registra duração 1, mas `fim − inicio = 5` (§12.3). Esses campos deixam de delimitar o mesmo intervalo e comprometem a leitura do diário da medição. Capturar o fim junto da duração, antes do relatório, e conferir essa igualdade no teste; se houver instante de conclusão da coleta, identificá-lo separadamente. | `ajuste` | Aberto — resposta pendente. |
-| RVB5-2-03 | `tests/test_recovery.py:658` | **O teste novo de ordem dos papéis depende de ambiente externo apesar de simular os acessos.** A execução direta da suíte falha por `SOURCE_DB_USER` ausente; com as seis variáveis fictícias, o mesmo teste passa (§12.4). Fornecer essas entradas no teste ou simular `_env`, mantendo a prova independente do `.env` e sem transformá-la em teste de integração. | `ajuste` | Aberto — resposta pendente. |
+| RVB5-2-01 | `PLANO_etapa_12.md:1348`, fase 1 do recuo | **O Airbyte novo volta sobre o bruto antigo sem tratar a geração reiniciada.** D50 só avança os jobs; o candidato ainda retém geração 1 em `brands`. Mesmo com a guarda de identidade satisfeita e conteúdo correto, a sonda produziu `inconsistent` por intrusas; com o rebase, `complete` (§12.2). Completar a sequência da fase 1, incluindo configuração/conexões, proteção das gerações conforme D52 e ordem dos disparos, ou encaminhá-la a um procedimento de restauração que cumpra essas condições. **RVB5-01 permanece parcial**; subir o ambiente com D50 apenas não resolve o recuo. | `bloqueante` | **Corrigido** (`44da9b7`). A fase 1 do §7.4 passa pelo `recovery-restore` no *checkout* antigo — o re-base da D52 (passo 4b), o contador da D50 e o `sync-airbyte` antes do `sync-legacy` —, com `airbyte-up` e `airbyte-config` antes quando o Airbyte já saiu; a P4 exige que nada rode entre o `recovery-pack` e o desmonte. Achado próprio: o `airbyte-config` da fase 1 rodaria sobre o estado do Terraform do Airbyte removido, comportamento não verificado; a linha 4 do desmonte e a reinstalação da Execução Local §6 passam a apartá-lo. A fase 1 de ponta a ponta não foi medida (§13.1). |
+| RVB5-2-02 | `docker/medir.sh:201` e `_finalizar`, linhas 305–312 | **O instante final inclui a coleta que a duração exclui.** Com alvo de 1 s e relatório de 4 s, o JSON registra duração 1, mas `fim − inicio = 5` (§12.3). Esses campos deixam de delimitar o mesmo intervalo e comprometem a leitura do diário da medição. Capturar o fim junto da duração, antes do relatório, e conferir essa igualdade no teste; se houver instante de conclusão da coleta, identificá-lo separadamente. | `ajuste` | **Corrigido** (`66d457e`): o fim capturado com a duração, antes do relatório, e os dois instantes saídos das mesmas épocas que ela. O teste confere `fim − início = duração`: vermelho antes (5 × 1), verde depois; medido de verdade (§13.2). |
+| RVB5-2-03 | `tests/test_recovery.py:658` | **O teste novo de ordem dos papéis depende de ambiente externo apesar de simular os acessos.** A execução direta da suíte falha por `SOURCE_DB_USER` ausente; com as seis variáveis fictícias, o mesmo teste passa (§12.4). Fornecer essas entradas no teste ou simular `_env`, mantendo a prova independente do `.env` e sem transformá-la em teste de integração. | `ajuste` | **Corrigido** (`8662a67`): o teste simula o `_env`. Sem o `.env`, os três arquivos passam (196); antes, 1 falhava (§13.3). |
