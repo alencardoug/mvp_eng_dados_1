@@ -147,3 +147,26 @@ selecionada ou como "anterior certificada".**
   linha de `governance.legacy_captures` no mapa de paridade; [Governança de Dados](../governanca_de_dados.md)
   — o primeiro conjunto do log de execução materializado; [Execução Local](../execucao_local.md) —
   `make sync-legacy` passa a certificar; [Modelo de Dados](../modelo_de_dados.md) §6 — a tabela.
+- **Consequência de 19/09/2026, completada em 20/09/2026 — a identidade num Airbyte novo (D50;
+  RV12-3-04 e RV12-4-03 da revisão do plano da Etapa 12).** `snapshot_id` é o `job_id`, e um Airbyte
+  reinstalado recomeça o contador em 1, abaixo das capturas retidas pelo pacote de recuperação. A
+  guarda de identidade é **pré-condição de disparar o *job***, em todo ponto de entrada da conexão
+  legada — a fase 1 da captura, o `sync` da CLI sem `--certificar-legado` e o `reset` —, porque
+  recusar depois do *append* não desfaz a mistura; em `decidir` ela fica como **rede**: recusa o
+  certificado da captura com `sync_id ≤ max(snapshot_id)` já certificado, e não protege o bruto
+  retroativamente. Numa instalação nova, a sequência de *jobs* avança para além da maior captura
+  retida antes da primeira sincronização (`make recovery-airbyte-jobs`). A identidade decidida aqui
+  não muda; a identidade composta foi descartada. *Medido no B5, em 25/09/2026:* num Airbyte novo,
+  "maior job 5 … captura retida 43" e "sequência avançada para 43: o próximo job nasce como 44" antes
+  do disparo; as capturas seguintes, certificadas, foram a 46 e, na restauração refeita, a 49.
+- **Consequência de 19/09/2026, completada em 20/09/2026 — as gerações num Airbyte novo (D52;
+  RV12-4-01).** A certificação recusa como `inconsistent` a captura cuja geração contenha linha de
+  outro `sync_id`, e um Airbyte novo recomeça a geração em 1 sobre as gerações retidas. A restauração
+  re-baseia para a faixa negativa o `_airbyte_generation_id` das linhas retidas de `raw_legacy`, antes
+  da primeira sincronização, **preservando a equivalência de geração por tabela**: negar as positivas
+  e manter as negativas fundiria as faixas no segundo ciclo e faria recusar uma captura correta, sem
+  que o *hash* mudasse. Nenhum certificado guarda a geração, e o contrato deste ADR não muda. *Medido
+  no B5, em 25/09/2026:* a restauração inteira num Airbyte novo re-baseou as 40 tabelas com a partição
+  igual à do manifesto e certificou a captura 49 acima da retida 43. O mesmo vale para reinstalar o
+  Airbyte sobre um armazém com capturas retidas, fora da restauração ([Execução Local
+  §6](../execucao_local.md#make-airbyte-up-falha-com-permission-denied-no-pg_version)).
