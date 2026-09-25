@@ -9,7 +9,7 @@
 # O que não vive aqui: a política de tratamento, que é D48 — senha de
 # contêiner local se regenera e se registra, sem reescrever histórico; chave de
 # nuvem ou token externo se revoga **e** se reescreve, e só pela mão do Owner.
-# Ver docs/pendencias.md §2 e, a partir de B6, o dono documental definitivo.
+# A política é da Governança de Dados §9 (D48); este arquivo é o registro.
 #
 # Cada entrada é identificada por (commit, caminho, chave) — é o que a
 # varredura compara. Linhas diferentes da mesma chave no mesmo blob são a

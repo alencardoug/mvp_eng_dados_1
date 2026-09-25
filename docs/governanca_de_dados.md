@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.4 |
+| Versão | 2.5 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 18/09/2026 |
+| Última revisão | 25/09/2026 |
 
 ---
 
@@ -246,6 +246,10 @@ ambiente para provar.
 camadas declare uma, no vocabulário, e igual à desta tabela (contraprova: `quarantine` declarada
 `rebuildable` falha).
 
+**O respaldo da retenção `permanent` é o pacote de recuperação**, entregue em 25/09/2026: a memória do
+armazém entra nele, e a restauração a devolve conferida — ver
+[Capacidade §3](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação).
+
 Como todo dado é sintético e reconstruível, a retenção neste MVP é **exercício de disciplina**, não
 obrigação legal. A estrutura, porém, é a mesma que se aplicaria a dados reais.
 
@@ -260,6 +264,17 @@ obrigação legal. A estrutura, porém, é a mesma que se aplicaria a dados reai
   `.env.example` sem valor, nenhum valor de chave `PASSWORD|SECRET|KEY|TOKEN` do `.env` em arquivo
   rastreado, nenhuma forma genérica de credencial, e nenhum arquivo rastreado que o `.gitignore`
   também ignore;
+- **o histórico também é varrido**, por `make secrets-history` (`secrets_review --historico`): fora do
+  `make check`, porque o histórico só cresce, e dentro da definição de pronto e do dossiê de revisão.
+  A detecção é por **forma**, não por valor — atribuições nas sintaxes ENV, YAML e JSON, credencial
+  embutida em URL e as formas genéricas —, porque depois de uma rotação o valor antigo não é mais
+  conhecido. Molde é propriedade do valor, e os moldes aceitos estão declarados no código; *blob*
+  pulado é listado por nome, porque pulado não é verificado. O veredito é "nada **não tratado**",
+  nunca "nada encontrado";
+- **segredo achado no histórico (D48):** senha de contêiner local se regenera e se registra em
+  [`segredos_tratados.yml`](segredos_tratados.yml), com o tratamento e o motivo, sem reescrever o
+  histórico; chave de nuvem ou token externo se revoga **e** se reescreve, só pela mão do Owner. O
+  registro é dono dos achados; esta seção, da política. Em 25/09/2026: 7 achados, todos registrados;
 - um segredo exposto por engano é considerado comprometido: deve ser rotacionado, não apenas
   removido do histórico.
 
