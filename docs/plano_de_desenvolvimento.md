@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.5 |
-| Etapa atual | **Etapa 11 — Consolidação de governança e qualidade**, aceita em 18/09/2026 (**M0** a **M4** concluídos); próxima: Etapa 12, fechamento da fase local (**M5**) |
-| Última revisão | 18/09/2026 (Etapa 11 aceita) |
+| Versão | 3.6 |
+| Etapa atual | **Etapa 12 — Fechamento da fase local**: os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; aguarda a revisão final e o aceite do Owner, que fecham o **M5** (**M0** a **M4** concluídos) |
+| Última revisão | 25/09/2026 (Etapa 12 fechada, aguardando a revisão final e o aceite) |
 
 ---
 
@@ -292,13 +292,27 @@ agente no mesmo dia — sete achados, todos aplicados e confirmados; o registro 
 
 ### Etapa 12 — Fechamento da fase local · **M5**
 
+*Os seis critérios abaixo foram medidos em 25/09/2026, num ciclo do zero, e a
+[definição de pronto](../CLAUDE.md#7-definição-de-pronto) foi aplicada no mesmo dia: migrações do
+zero nos três bancos, o fluxo de ponta a ponta pela DAG e pelo *streaming*, `make check` verde, a
+reconciliação entre as camadas e entre os dois caminhos do estoque, catálogo e linhagem em dia
+(`make catalog` não escreveu nada), nenhum campo novo — a etapa não tocou modelo — e a revisão de
+segredos no repositório e no histórico. O ciclo achou oito desvios, cada um corrigido na origem e a
+linha refeita; quatro só aparecem num ambiente novo, porque no *checkout* antigo tudo já existia.
+Nenhum componente novo, logo nenhum ADR novo: as decisões da etapa, D45 a D61, são de operação ou
+consequência de ADRs aceitos — nenhuma troca ferramenta, camada ou modelagem — e estão nas
+[pendências](pendencias.md#2-decisões-já-fechadas), com a pergunta sobre a §9 da Governança que fica
+para o aceite; o [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) recebeu nas
+*Consequências* a guarda da identidade e o re-base das gerações. **Aguarda a revisão final por outro agente e o
+aceite do Owner**; a *tag* `v1.0.0` (D47) marca o *commit* de fechamento.*
+
 | | |
 |---|---|
 | **Objetivo** | Provar que o repositório entrega o que promete, do zero. |
 | **Pré-requisito** | Etapa 11 |
 | **Entregas** | **E11** |
 | **Artefatos** | [Execução Local](execucao_local.md) completa e conferida · `make check` · pacote do [ponto de recuperação](capacidade_e_recuperacao.md#3-ponto-único-de-recuperação) · versão marcada no Git |
-| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo · execução completa de **cada cenário no seu subconjunto de ambiente** ([Execução Local §5](execucao_local.md#5-executando-por-partes)), com tamanho, tempo e pico de memória medidos e registrados — sem *batch* e *streaming* simultâneos ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) · cobertura integral conferida · restauração do ponto de recuperação testada, incluindo o *re-snapshot* do conector de CDC · documentação coerente com o código · nenhum segredo no repositório nem no histórico |
+| **Critérios de conclusão** | Todos os critérios de sucesso do Termo verificados em ambiente limpo ✓ (25/09/2026: clone novo, com `.env` novo, depois de desmontadas as três composições e o *cluster* do Airbyte — a opção (a) da D45; cada critério do [Termo §6](../Abertura_de_projeto.md#6-critérios-de-sucesso) com a saída de um comando: as 13 tarefas da DAG `success`, as 16 views consultadas por `tests/test_consumo.py`, o catálogo servido com `200`, `(head)` nas migrações das duas origens e as duas versões do armazém, `make check` verde com `PASS=905` e 579 testes Python, os 14 testes de fronteira, `sensitivity --check` e `lineage --check`; a máquina que nunca viu o projeto fica para a fase seguinte, pela D45) · execução completa de **cada cenário no seu subconjunto de ambiente** ([Execução Local §5](execucao_local.md#5-executando-por-partes)), com tamanho, tempo e pico de memória medidos e registrados — sem *batch* e *streaming* simultâneos ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) ✓ (25/09/2026: os cinco cenários da §5 em dezessete medições, cada uma com o que estava de pé, a duração, o `MemAvailable` mínimo, a soma máxima dos contêineres e o tamanho dos três bancos — [Capacidade §2.12](capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026); o preflight pausou a outra família a cada troca, e o pico foi a DAG, 6,5 GB nos contêineres com 1,1 GB livres) · cobertura integral conferida ✓ (25/09/2026: `tests/test_cobertura.py` no `check` do ciclo — as 40 tabelas populadas e todo valor de enumeração presente —, as 40 tabelas da origem carregada com linhas no `size-report` do `check`, e a origem legada com os 24 de 24 códigos de falha injetáveis) · restauração do ponto de recuperação testada, incluindo o *re-snapshot* do conector de CDC ✓ (25/09/2026: `RESTAURAR=1 make recovery-restore` sobre o ambiente povoado do ciclo, a [sequência inteira](capacidade_e_recuperacao.md#34-a-sequência-de-restauração) em 16 min 59 s — o CDC descartado e o *snapshot* novo, o re-base das gerações, o contador de *jobs* acima da captura retida, a captura nova certificada, o *rebuild* e o `check` verdes — e a conferência final: fontes iguais ao manifesto, memória contida e intacta, memória de exclusões renascida igual, livro da origem igual nos dois caminhos; o pacote aprovado no `data/recovery` do *checkout*, conferido) · documentação coerente com o código ✓ (25/09/2026: a [Execução Local](execucao_local.md) seguida linha a linha no ciclo, com os dois desvios de documento corrigidos e o documento conferido contra ele; `docs-check` em cada `check` — links, âncoras e citações de ADR, nada quebrado) · nenhum segredo no repositório nem no histórico ✓ (25/09/2026: nada nos arquivos rastreados, a cada `check`; no histórico inteiro, `make secrets-history` sem nada não tratado — 7 achados, todos [registrados](segredos_tratados.yml) pela política da D48, [Governança §9](governanca_de_dados.md#9-tratamento-de-segredos)) |
 | **Riscos tratados** | **R6**, **R7**, **R10**, **R11** |
 | **Conceitos** | Reprodutibilidade verificada · versionamento semântico · recuperação testada · auditoria de entrega |
 

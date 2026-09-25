@@ -10,14 +10,50 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5), aberta em 18/09/2026: plano na **revisão 7**, revisão do plano **encerrada** em 20/09/2026 ([§19](../PLANO_etapa_12.md#19-parecer-da-revisão-7--sexta-rodada-20092026)); D45–D52 decididas; **B0–B4 entregues** (20/09) e a primeira rodada de revisão do código (`REVISAO.md`, 17 achados) **aplicada em 21/09/2026**, a segunda (5 achados RVE2, mais 2 próprios) e a terceira (2 achados RVE3, mais 2 próprios) **em 23/09/2026**, com medição própria de cada achado; D53 e D54, levantadas na verificação da terceira, **decididas e implementadas em 24/09/2026**, e D55 e D56, levantadas ao exercitá-las, decididas no mesmo dia; a quarta (1 ajuste, RVE4-01, mais 1 próprio) e a quinta (1 ajuste, RVE5-01) aplicadas, e a sexta, sem achado, **encerrou a revisão da entrega B0/B1/B4 em 24/09/2026** — 26 achados em seis rodadas, 15 bloqueantes e 11 ajustes; **B5 executado em 25/09/2026**, autorizado pelo Owner, no clone `~/Projetos/mvp_eng_dados_1`, que passou a ser o *checkout* de trabalho (D58): o desmonte, o clone, o ciclo em nove linhas e a recuperação inteira (C4), com a restauração autorizada à parte; oito desvios, todos corrigidos na origem e as linhas refeitas — o diário em `data/medicoes/diario_b5.md`, fora do Git; o pacote aprovado no `data/recovery` do clone (D60). Próximo: B6, o fechamento |
-| Aprovações pendentes | 0 |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5): os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; **aguardando a revisão final por outro agente e o seu aceite** |
+| Aprovações pendentes | 1 (aceite da Etapa 12) |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
-| Última revisão | 24/09/2026 |
+| Última revisão | 25/09/2026 |
 
 ---
 
 ## 1. Esperando você
+
+### Aceite da Etapa 12
+
+**Pedido:** aceitar a Etapa 12 como concluída — ou devolver com achados —, depois da revisão final
+por outro agente. Os seis critérios estão marcados no
+[plano](plano_de_desenvolvimento.md#etapa-12--fechamento-da-fase-local--m5), cada um com data e
+medição, e a definição de pronto do `CLAUDE.md` foi aplicada em 25/09/2026. O aceite fecha o
+**M5**: o *commit* de fechamento tira do repositório o plano transitório da etapa e o dossiê, e
+recebe a *tag* `v1.0.0` (D47); o *push* dos dois é seu.
+
+**O caminho até aqui.** O plano transitório (`PLANO_etapa_12.md`) passou por seis rodadas de
+revisão, encerradas em 20/09/2026, com D45–D52 decididas na abertura. B0–B4 foram entregues em
+20/09, e a revisão de B0, B1 e B4 correu em seis rodadas até 24/09/2026 — 26 achados, 15
+bloqueantes e 11 ajustes, todos aplicados —, com D53–D56 decididas no caminho. O roteiro
+do B5 passou por três rodadas em 25/09/2026 — sete achados, a terceira sem achado —, com D57–D61. O
+B5 rodou no mesmo dia, autorizado por você, no clone `~/Projetos/mvp_eng_dados_1`, que passou a ser
+o *checkout* de trabalho (D58): o desmonte, o clone, o ciclo em nove linhas e a recuperação
+inteira, com a restauração autorizada à parte; oito desvios, todos corrigidos na origem e as linhas
+refeitas. O diário está em `data/medicoes/diario_b5.md`, fora do Git, e vai literal para o dossiê;
+o pacote aprovado, no `data/recovery` do clone (D60), com a cópia da P5 fora dos *checkouts*.
+
+**O que a revisão final cobre.** B2 (a varredura do histórico) e B3 (a coerência dos documentos),
+que ficaram para ela; o código que o B5 corrigiu; e o B6. O mapa do que revisar por inteiro
+(declarativo) e por amostragem (derivado) é do dossiê, `REVISAO.md`.
+
+**Uma decisão embutida no aceite.** A [Governança
+§10](governanca_de_dados.md#10-revisão-desta-política) exige a sua decisão explícita **e ADR** para
+alteração na política. A §9 ganhou em 25/09/2026 duas linhas sem ADR: a varredura do histórico
+(`make secrets-history`), que verifica sobre o histórico a regra que já existia — segredo nunca
+versionado —, e a D48, decidida por você em 18/09/2026, que detalha a rotação que a §9 já exigia. É
+a leitura que se aplicou à automação da revisão em 17/09/2026, aceita com a Etapa 11. Aceitar a
+etapa é ratificar que as duas aplicam a política sem alterá-la; se a D48 for alteração, o ADR vem
+antes do fechamento.
+
+*Efeito de não decidir:* o M5 não fecha, e a Etapa 13 não começa — o pré-requisito dela é o M5 e a
+sua autorização explícita.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -489,8 +525,8 @@ nos
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
 **M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 10
 foram entregues — o modelo dimensional está completo, as 16 perguntas de negócio têm view e a
-segunda origem atravessa o fluxo inteiro —, e a próxima é a **Etapa 11 — Consolidação de governança
-e qualidade**.
+segunda origem atravessa o fluxo inteiro —, e a Etapa 11, que consolidou governança e qualidade,
+foi aceita em 18/09/2026 (§1.1).
 
 O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
 [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a
@@ -587,6 +623,13 @@ medido; se um dia importar, a decisão é do Owner e pede ADR.
 ---
 
 ## 6. Do lado do assistente
+
+**Etapa 12 (18–25/09/2026):** o ponto único de recuperação — pacote, verificação, re-base das
+gerações, restauração em nove passos e promoção —, a medição por `make medir`, a troca automática
+entre ambientes pesados com a guarda de trabalho em andamento, a varredura do histórico e a
+coerência dos documentos; o ciclo do zero executado e medido, e os documentos atualizados com o que
+ele mediu. Do meu lado resta o dossiê da revisão final e, depois do seu aceite, o *commit* de
+fechamento com a *tag* — o *push* é seu.
 
 **Etapa 11 (17–18/09/2026):** `make check` como comando único com *fail fast*; classificação de
 4.161 de 4.161 colunas derivada dos modelos por linhagem; retenção declarada por objeto; cinco

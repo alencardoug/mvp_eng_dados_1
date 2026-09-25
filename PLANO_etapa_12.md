@@ -162,6 +162,14 @@
 > qualquer ambiente (o `dbt-docs`, o teste da restauração sem autorização). O diário, com a linha da
 > Capacidade de cada comando, está em `data/medicoes/diario_b5.md` do clone, fora do Git, e vai
 > literal para o dossiê da revisão final. Próximo: B6.
+>
+> **B6 — 25/09/2026, mesma data.** Itens 1 a 5 do §8: a Capacidade com a §2.12 medida e a §3
+> reescrita; a Execução Local conferida contra o diário; as consequências da D50 e da D52 no
+> ADR-0044; a Governança com a política dos segredos do histórico e o respaldo da retenção; o plano,
+> os riscos, as pendências e o README com o que o B5 mediu, e a definição de pronto aplicada. Uma
+> decisão ficou para o aceite, nas pendências: a §9 da Governança ganhou duas linhas sem ADR, e a
+> §10 pede ADR para alteração na política. Próximo: o dossiê da revisão final (item 7); a *tag*
+> (item 6) vai no *commit* de fechamento, depois do aceite, com este arquivo saindo dele.
 
 ---
 

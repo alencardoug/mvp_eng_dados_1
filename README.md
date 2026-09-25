@@ -31,20 +31,20 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.5 — Etapa 11 aceita em 18/09/2026; próxima é a Etapa 12 (M5) |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.6 — Etapa 12 com os seis critérios medidos em 25/09/2026, aguardando a revisão final e o aceite (M5) |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.3 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.12 — toda fronteira com teste |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.12 — DAG do fechamento da Etapa 11 medida |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.13 — o ciclo do zero medido e o ponto de recuperação entregue |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.5 — acesso por papel implementado e testado; a varredura do histórico e a política D48 na §9 |
 | [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (D48) | 7 achados, todos tratados em 25/09/2026 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 1 pendente em 24/09/2026: a D43 (adiada para a fase GCP) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 2 pendentes em 25/09/2026: o aceite da Etapa 12 e a D43 (adiada para a fase GCP) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 47 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
@@ -78,6 +78,20 @@ PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo.
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
+
+**Etapa 12 — Fechamento da fase local: os seis critérios medidos em 25/09/2026, num ciclo do zero,
+e a definição de pronto aplicada; aguarda a revisão final por outro agente e o aceite do Owner, que
+fecham o M5 com a *tag* `v1.0.0`.** Um clone novo do repositório, com `.env` novo, percorreu a
+[Execução Local](docs/execucao_local.md) linha a linha sobre bancos, Airbyte e Airflow desmontados e
+instalados do zero — cada cenário no seu subconjunto de ambiente, sem *batch* e *streaming* juntos —,
+com duração, pico de memória e tamanho medidos em cada linha
+([Capacidade §2.12](docs/capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026)): o
+pico foi a DAG, 6,5 GB nos contêineres com 1,1 GB livres. O ciclo achou oito desvios, todos
+corrigidos na origem e as linhas refeitas; quatro só aparecem num ambiente novo. O **ponto único de
+recuperação** existe e foi provado: o pacote — as fontes e a memória do armazém — restaurado sobre o
+ambiente povoado em 17 minutos, com o *re-snapshot* do CDC e a conferência final igual ao manifesto
+([Capacidade §3](docs/capacidade_e_recuperacao.md#3-ponto-único-de-recuperação)). `make check` verde
+com `PASS=905` e 579 testes Python; o histórico inteiro sem segredo não tratado.
 
 **Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos entre 17 e
 18/09/2026, a definição de pronto aplicada e a etapa aceita pelo Owner em 18/09/2026, depois de
@@ -166,17 +180,9 @@ reconcilia com as remessas entregues em `trusted`. Volumes, tempos e comparaçã
 em [Capacidade §2.7](docs/capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026), sem substituir
 as medições históricas.
 
-O ponto de partida da operação é [Execução Local](docs/execucao_local.md):
-
-```bash
-make env && make install && make up && make migrate && make seed-data
-make tools && make airbyte-up && make airbyte-config && make airflow-up && make dag-run
-```
-
-E o caminho quente, que sobe separado do frio de propósito — os dois não convivem, nem na validação
-final, que é por partes (risco **R11**, [ADR-0046](docs/adr/0046-validar-a-fase-local-por-partes.md)):
-
-```bash
-make stream-up && make stream-run          # o pipeline fica em primeiro plano
-make stream-produce && make stream-alerts  # em outro terminal
-```
+O ponto de partida da operação é a [Execução Local](docs/execucao_local.md): o preparo de um clone
+novo na §2 e o ciclo completo na §3, na ordem que o ciclo do zero de 25/09/2026 conferiu — o
+*snapshot* do *streaming* antes do primeiro *build*. O caminho quente sobe separado do frio de
+propósito: os dois não convivem, nem na validação final, que é por partes (risco **R11**,
+[ADR-0046](docs/adr/0046-validar-a-fase-local-por-partes.md)), e a troca entre eles é automática
+([Execução Local §5](docs/execucao_local.md#5-executando-por-partes)).
