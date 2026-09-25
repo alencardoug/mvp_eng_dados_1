@@ -787,3 +787,16 @@ def test_o_oraculo_e_de_chaves_e_nao_de_contagem(tmp_path, monkeypatch):
     assert not f.alcancado
     assert f.faltam == 1 and f.exemplos == ["c"]
     assert f.intrusas == 1
+
+
+def test_sem_destino_o_livro_e_o_da_configuracao(monkeypatch):
+    """Achado na linha 3 do B5, em 25/09/2026: sem `destino=` — como o `stream-wait` chama —, o
+    padrão lia `destino.relacao`, que a configuração não tem, e a espera morria em `AttributeError`.
+    O teste acima passava o destino à mão, e o caminho padrão nunca tinha rodado."""
+    lidas: list[str] = []
+    monkeypatch.setattr(espera, "_motor", lambda _p: None)
+    monkeypatch.setattr(espera, "_chaves", lambda _motor, relacao, _ate: lidas.append(relacao) or set())
+
+    espera.pendentes(99)
+
+    assert lidas == ["oltp.inventory_movements", "raw.inventory_movements_stream"], lidas

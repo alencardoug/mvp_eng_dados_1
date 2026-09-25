@@ -79,7 +79,7 @@ def pendentes(ate_seq: int, *, destino: str | None = None) -> Faltantes:
     de **continência**; entra no registro porque um livro restaurado de outro
     ciclo é exatamente onde isso apareceria.
     """
-    relacao_destino = destino or cfg.carregar().destino.relacao
+    relacao_destino = destino or cfg.carregar().destino.qualificado
     de_origem = _chaves(_motor(db.SOURCE), f"{SCHEMA_ORIGEM}.{TABELA_ORIGEM}", ate_seq)
     do_livro = _chaves(_motor(db.WAREHOUSE), relacao_destino, ate_seq)
     faltam = de_origem - do_livro
