@@ -1341,13 +1341,15 @@ coluna — e o relatório que ele mostra.
 | 3 | *Streaming* — o *snapshot* | `make medir CENARIO=streaming` | + *streaming* (pausa o Airbyte) | o livro quente igual à origem — a chave e as 16 colunas de `COLUNAS_DO_EVENTO`, e o saldo por armazém e SKU, os quatro zeros; o Beam encerrado pelo SIGINT (`encerramento: limpo`) |
 | 4 | Transformação | `make airbyte-up` (pausa o *streaming*) → `make medir ALVO=dbt-build` → `make medir ALVO=check` | + Airbyte | o primeiro *build* completo: `PASS=`, `caminhos_de_ingestao_reconciliam`, as oito fronteiras; `N passed`, com cada pulado e o motivo |
 | 5 | Orquestração | `make airflow-up` → `make medir ALVO=dag-run ATE=dag-wait` → `make dag-status` | + Airflow (o par permitido) | as 13 tarefas `success`; o tempo da DAG; a captura seguinte certificada, identidade do `jobId` devolvido |
-| 6 | *Streaming* — eventos novos | `make medir CENARIO=streaming LIMITE=200` → `make stream-alerts` | + *streaming* (Airbyte e Airflow pausados pelo preflight) | os 200 eventos novos chegam — o corte é lido **depois** do produtor —; o alerta emitido; o Beam encerrado |
+| 6 | *Streaming* — eventos novos | `make medir CENARIO=streaming LIMITE=2200` → `make stream-alerts` | + *streaming* (Airbyte e Airflow pausados pelo preflight) | os 2.200 eventos novos chegam — o corte é lido **depois** do produtor —; alertas emitidos, mais de zero; o Beam encerrado |
 | 7 | Reconciliação dos caminhos | `make airbyte-up` → `make medir ALVO=sync-airbyte` → `make medir ALVO=dbt-build` | + Airbyte | os dois caminhos iguais com os eventos novos |
 | 8 | Catálogo | `make medir ALVO=docs-generate` → `make catalog` → `make dbt-docs`, que serve na 8080 — a porta padrão do `dbt docs serve` — e bloqueia; noutro terminal, `curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/`; `Ctrl-C` encerra o servidor | bancos | o tempo; `make catalog` diz `0 arquivo(s) escrito(s)` e `§3 do dicionário já em dia`, e `git status --short` continua vazio — o catálogo que o clone regenera é o versionado (medido no *checkout* antigo em 24/09/2026, em 44 s); `200` do `curl` no diário |
 | 9 | Recuperação | `RESTAURAR=1 make medir ALVO=recovery-restore` → `make recovery-promote` | conforme o passo | **C4 inteira**, pelos nove passos do alvo: o pacote conferido; a janela parada e a DAG pausada; o CDC descartado; o `pg_restore` em destino **povoado**; o re-base das gerações (D52), com a equivalência por tabela (RV12-4-01); o conteúdo contra o manifesto; os artefatos devolvidos, com a ausência (RVE2-05); o *snapshot* novo; `airbyte-up`, a guarda D50 **antes do disparo**, o contador avançado além da 43, `sync-airbyte RESET=1`, `sync-legacy` com o `jobId` gravado (RVE2-01); `dbt-rebuild` e `check`; e os oráculos do passo 9 — capturas, SCD pelo *digest* canônico, a quarentena contendo a do manifesto com multiplicidade (RV12-4-02) e o acréscimo da captura nova conferido à parte |
 
-O `LIMITE=200` da linha 6 é parâmetro do roteiro, **[planejado]**: basta que os eventos novos sejam
-distinguíveis do *snapshot*.
+O `LIMITE=2200` da linha 6 é o do cenário medido que emite alertas ([Streaming §7.2](docs/streaming.md#72-revalidação-da-d31):
+154 alertas com esse `LIMITE`). O roteiro dizia 200, escolhido só para os eventos novos se distinguirem
+do *snapshot*; no B5, em 25/09/2026, os 200 chegaram e nenhum saldo cruzou o limiar — zero alertas —,
+e o oráculo do alerta não se cumpria com ele.
 
 ### 7.4 Pontos de parada e recuo
 
