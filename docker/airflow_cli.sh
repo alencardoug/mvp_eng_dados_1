@@ -78,20 +78,56 @@ airflow_forma_da_lista() {
 MEDICOES_DIR="${MEDIR_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/data/medicoes}"
 ARQUIVO_ULTIMO_RUN="$MEDICOES_DIR/ultimo_run_id"
 
+# A DAG está na enumeração, e despausada? Escreve "sim", ou nada. Interpreta
+# o JSON de verdade, depois de descartar o ruído de log, como a espera faz.
+airflow_despausada() {  # $1 = dag_id; na entrada, a resposta de `dags list -o json`
+	local python
+	python="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.venv/bin/python"
+	[ -x "$python" ] || python=python3
+	airflow_limpar_log | "$python" -c '
+import json, sys
+try:
+    itens = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+# O Airflow 3.2.2 escreve `is_paused` como texto — "True"/"False" —, não como
+# booleano: a comparação é pelo texto, e aceita os dois.
+if isinstance(itens, list) and any(
+    isinstance(item, dict) and item.get("dag_id") == sys.argv[1]
+    and str(item.get("is_paused")).strip().lower() == "false"
+    for item in itens
+):
+    print("sim")
+' "$1"
+}
+
 airflow_disparar() {  # $1 = dag_id
-	local dag="$1" bruto run i
+	local dag="$1" bruto run i despausada=""
 	# DAG nasce pausada, e execução enfileirada em DAG pausada fica `queued`
 	# para sempre — o disparo "funciona" e não faz nada. Logo depois de um
-	# `airflow-up` ela ainda não existe no banco de metadados.
+	# `airflow-up` ela ainda não existe no banco de metadados, e o `unpause` de
+	# uma DAG que o processador não registrou diz "No paused DAGs were found" e
+	# sai 0 (Airflow 3.2.2, `set_is_paused`). O código de saída não prova nada:
+	# a prova é a DAG vista despausada na enumeração (B5, linha 5, 25/09/2026).
 	for i in $(seq 1 30); do
-		airflow_cli dags unpause "$dag" >/dev/null 2>&1 && break
+		airflow_cli dags unpause "$dag" >/dev/null 2>&1
+		if [ "$(airflow_cli dags list -o json | airflow_despausada "$dag")" = sim ]; then
+			despausada=1
+			break
+		fi
 		sleep 2
 	done
+	[ -n "$despausada" ] || {
+		echo "ERRO: não vi '$dag' despausada no Airflow — nada foi disparado." >&2
+		return 1
+	}
 	bruto=$(airflow_cli dags trigger "$dag" -o json) || {
 		echo "ERRO: o disparo de '$dag' não respondeu." >&2
 		return 1
 	}
-	run=$(airflow_campo "$bruto" run_id)
+	# O Airflow 3.2.2 devolve o identificador como `dag_run_id`
+	# (`local_client.trigger_dag`); a enumeração das execuções é que diz `run_id`.
+	run=$(airflow_campo "$bruto" dag_run_id)
 	[ -z "$run" ] && { echo "ERRO: disparei '$dag' e não li o run_id de volta." >&2; return 1; }
 	mkdir -p "$MEDICOES_DIR" && printf '%s\n' "$run" > "$ARQUIVO_ULTIMO_RUN"
 	printf '%s\n' "$run"

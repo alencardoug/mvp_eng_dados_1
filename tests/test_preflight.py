@@ -991,6 +991,74 @@ airflow_aguardar_run fluxo_batch rve-10 0
     assert "rve-10 terminou: success" in r.stdout
 
 
+#: O que o Airflow 3.2.2 da imagem fixada devolve — lido no código instalado e observado no B5, em
+#: 25/09/2026: o `dags trigger -o json` traz `dag_run_id`, e não `run_id`, depois de linhas de log;
+#: o `dags unpause` de uma DAG que o processador ainda não registrou diz "No paused DAGs were found"
+#: e sai 0, sem despausar nada; e a `dags list -o json` escreve `is_paused` como texto, "True"/"False".
+LOG_DO_AIRFLOW = "2026-09-25T13:37:34.991339Z [info     ] setup plugin alembic.autogenerate.schemas"
+DISPARO_322 = (
+    '[{"conf": {}, "dag_id": "fluxo_batch", "dag_run_id": "manual__2026-09-25T13:36:32.252432+00:00",'
+    ' "logical_date": null, "run_type": "manual", "state": "queued"}]'
+)
+
+
+def _disparar(tmp_path: pathlib.Path, *, registrada_na_consulta: int | None) -> subprocess.CompletedProcess[str]:
+    """`airflow_disparar` com o transporte trocado: a DAG aparece despausada na `dags list` a partir da
+    consulta `registrada_na_consulta` (1, 2, …), ou nunca (`None`). O `sleep` não dorme."""
+    # `is_paused` vem como **texto** — "True"/"False" —, não como booleano (observado no B5).
+    lista_ativa = '[{"dag_id": "fluxo_batch", "fileloc": "/opt/mvp_ed1/airflow/dags/fluxo_batch.py", "is_paused": "False"}]'
+    registrada = registrada_na_consulta if registrada_na_consulta is not None else 10**6
+    comando = f"""
+. {AIRFLOW_CLI_SH}
+sleep() {{ :; }}
+airflow_cli() {{
+    echo "$*" >> {tmp_path}/chamadas
+    case "$*" in
+        'dags unpause'*) echo "No paused DAGs were found" ;;
+        'dags list'*)
+            # Num arquivo, e não numa variável: a consulta roda num encadeamento, num subshell.
+            consultas=$(( $(cat {tmp_path}/consultas 2>/dev/null || echo 0) + 1 ))
+            echo "$consultas" > {tmp_path}/consultas
+            echo '{LOG_DO_AIRFLOW}'
+            if [ "$consultas" -ge {registrada} ]; then echo '{lista_ativa}'; else echo '[]'; fi ;;
+        'dags trigger'*) echo '{LOG_DO_AIRFLOW}'; echo '{DISPARO_322}' ;;
+    esac
+}}
+airflow_disparar fluxo_batch
+"""
+    ambiente = os.environ | {"MEDIR_DIR": str(tmp_path / "medicoes")}
+    return subprocess.run(["bash", "-c", comando], capture_output=True, text=True, timeout=60, env=ambiente)
+
+
+def test_disparar_le_o_dag_run_id_do_airflow_322(tmp_path):
+    """B5, linha 5: o `dag-run` disparava e dizia "não li o run_id de volta" — o campo é `dag_run_id`."""
+    r = _disparar(tmp_path, registrada_na_consulta=1)
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == "manual__2026-09-25T13:36:32.252432+00:00"
+    assert (tmp_path / "medicoes" / "ultimo_run_id").read_text().strip() == r.stdout.strip()
+
+
+def test_disparar_so_dispara_depois_de_ver_a_dag_despausada(tmp_path):
+    """B5, linha 5: logo depois do `airflow-up`, o `unpause` saía 0 sem a DAG registrada, o laço
+    parava, e o disparo seguinte nascia numa DAG pausada — `queued` para sempre."""
+    r = _disparar(tmp_path, registrada_na_consulta=3)
+
+    chamadas = (tmp_path / "chamadas").read_text().splitlines()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert [c.split()[1] for c in chamadas].count("list") == 3, chamadas
+    assert chamadas[-1].startswith("dags trigger"), "o disparo vem depois da DAG vista despausada"
+
+
+def test_disparar_recusa_sem_ver_a_dag_despausada(tmp_path):
+    r = _disparar(tmp_path, registrada_na_consulta=None)
+
+    chamadas = (tmp_path / "chamadas").read_text().splitlines()
+    assert r.returncode != 0
+    assert "despausada" in r.stderr, r.stderr
+    assert not any(c.startswith("dags trigger") for c in chamadas), "nada foi disparado"
+
+
 def _pausar(tmp_path: pathlib.Path, no_ar: list[str], **kw) -> subprocess.CompletedProcess[str]:
     binario = _bin_falso(tmp_path) if not (tmp_path / "bin").exists() else tmp_path / "bin"
     estado = tmp_path / "de_pe"
