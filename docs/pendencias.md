@@ -83,6 +83,16 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 
 ## 2. Decisões já fechadas
 
+### D61 — decidida em 25/09/2026, ao encerrar a revisão do roteiro do B5
+
+- **D61 — o candidato do pacote é refeito na véspera do B5.** A P4 mandava refazê-lo depois da
+  revisão do roteiro, com a ponta revisada, e passou a exigir que nada rode entre o
+  `recovery-pack` e o desmonte, porque o recuo da fase 1 devolve os bancos ao corte. Refeito na
+  véspera, como o primeiro passo depois da autorização do B5, o corte fica colado no desmonte, e o
+  ambiente fica livre até lá. A cópia da P5 é a do candidato refeito. *Descartada:* refazê-lo ao
+  fechar a revisão — ficaria pronto, mas qualquer sincronização, DAG ou geração até o B5 o
+  invalidaria. *Custo aceito:* o B5 começa com um passo a mais, de alguns minutos.
+
 ### D59 e D60 — decididas em 25/09/2026, na resposta à revisão do roteiro do B5
 
 Duas decisões tomadas para responder a achados da primeira rodada de revisão do roteiro
