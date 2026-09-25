@@ -130,6 +130,14 @@
 > Depois, o preparo do clone foi ensaiado num clone de verdade, sem subir nada (§7.2), e o ensaio
 > corrigiu o oráculo da linha 5: são cinco pulados, e não o um que a sonda da seleção offline via. O
 > roteiro vai à revisão do outro agente antes da autorização do B5.
+>
+> **Revisão 9 — 25/09/2026.** A primeira rodada de revisão do roteiro (`REVISAO.md` §10: um
+> bloqueante e três ajustes) aplicada. O recuo passa a ser por fase, com o que cada uma pede antes
+> do `recovery-restore` (RVB5-01, §7.4) — e medi-lo num destino novo achou que a restauração não
+> passava nele: os papéis do armazém, que agora o `restore-dumps` cria antes do primeiro dump. O
+> `make medir` passa a coletar o tamanho, como o B1 declarou (D59, RVB5-02); o `check-offline`
+> falha quando a coleta falha (RVB5-03); o pacote aprovado passa para o clone antes de o *checkout*
+> antigo ser liberado (D60, RVB5-04, §7.5); e a cópia da P5 nasce como um `RECOVERY_DIR`.
 
 ---
 
@@ -1213,6 +1221,10 @@ Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 > refeito —; o roteiro incorpora as decisões D53 a D58; cada passo diz de qual diretório roda, com
 > que comando e qual saída vale como oráculo; e há pontos de parada, recuo e diário declarados.
 > Regime: **[medido]** tem saída por trás; **[planejado]** é intenção.
+>
+> **Revisão 9 — 25/09/2026**, depois da primeira rodada de revisão do roteiro: o recuo por fase
+> (§7.4), o tamanho pelo `medir` (§7.3), o pacote aprovado no clone (§7.5) e a P5 como
+> `RECOVERY_DIR`. O que mudou e por quê está no cabeçalho do plano, na revisão 9.
 
 ### 7.0 Pré-condições, conferidas uma a uma
 
@@ -1222,7 +1234,7 @@ Beam real encerrando pelo SIGINT, e `restore-artefatos` no clone.
 | P2 | Execução Local §2–§4 servem de roteiro | leitura contra este §7 | **[medido]** versão 1.13 (`561edc2`) |
 | P3 | `check-offline` e `dbt deps` existem | `make help` | **[medido]** `96c7a9f`, `6802d12` |
 | P4 | O candidato do pacote foi montado com o código que o B5 vai usar | `make recovery-pack`, depois `make recovery-verify CONTRA_O_BANCO=1`; o manifesto registra o `commit` | **[medido]** corte `2026-09-24T23:43:04Z`, `commit` `561edc2`, conferido contra os bancos. **Refazer depois da revisão deste roteiro**, com a ponta revisada: já há código depois de `561edc2` (o `-rs` do `make test`, `c9435d2`), e a revisão pode trazer mais. Nada compara o `commit` na restauração — ele é a procedência do pacote, e a do candidato promovido no passo 9 deve ser a ponta que o B5 clonou |
-| P5 | Uma cópia do candidato fora do repositório | `cp -a data/recovery/candidato ~/mvp_ed1-candidato-<corte>`; depois `cd ~/mvp_ed1-candidato-<corte> && sha256sum -c checksums.sha256` | **[planejado]** — depois do `make reset`, o pacote é a única cópia da memória do armazém (capturas, certificados, SCD, quarentena); a cópia custa ~31 MB. O par de comandos foi ensaiado numa cópia descartável **[medido]**: os nove arquivos do `checksums.sha256` em `SUCESSO` |
+| P5 | Uma cópia do candidato fora do repositório, que sirva de `RECOVERY_DIR` | `mkdir ~/mvp_ed1-recovery-<corte> && cp -a data/recovery/candidato ~/mvp_ed1-recovery-<corte>/`; depois `cd ~/mvp_ed1-recovery-<corte>/candidato && sha256sum -c checksums.sha256` | **[planejado]** — depois do `make reset`, o pacote é a única cópia da memória do armazém (capturas, certificados, SCD, quarentena); a cópia custa ~31 MB. O diretório é um `RECOVERY_DIR` pronto — `export RECOVERY_DIR=~/mvp_ed1-recovery-<corte>` —, e é o recuo se o *checkout* antigo se perder (§7.4). **[medido]** numa cópia descartável, em 25/09/2026: os nove arquivos do `checksums.sha256` conferem, e o `make recovery-verify` com esse `RECOVERY_DIR` confere o candidato |
 | P6 | A autorização do Owner | explícita, na conversa | **[planejado]** — e o passo 9 pede a segunda: `RESTAURAR=1` |
 | P7 | A estação enxuta | `grep MemAvailable /proc/meminfo` antes de cada linha | **[planejado]** — com o Airbyte de pé e a estação de trabalho aberta, sobram ~5,5 GB (24/09, medido); o Airflow custa ~1,4 GB (derivado, não medido isolado) e o pico de uma sincronização fica ~1,3 GB acima do Airbyte ocioso (4,95 GiB de pico medidos em 07/09, contra ~3,7 GB ocioso). Recusa do preflight é registrada e **não** contornada: o Owner libera memória, e só então `FORCE=1`, com a autorização dele (`CLAUDE.md` §5) |
 
@@ -1296,7 +1308,9 @@ projeto do clone é o mesmo, `mvp_ed1`, e no B5 esse contêiner já será o do c
 
 A ordem é a da Execução Local §3: o *snapshot* do *streaming* vem antes do primeiro `dbt-build`
 completo (RV12-04). As trocas entre as famílias são do preflight (D53, D54); **R11** vale o tempo
-todo.
+todo. Cada `make medir` registra também, depois do intervalo medido, o tamanho de cada banco e a
+soma (D59, RVB5-02): o diário leva a linha da Capacidade que ele imprime — a soma na última
+coluna — e o relatório que ele mostra.
 
 | # | Cenário | Comandos | De pé | Oráculo |
 |---|---|---|---|---|
@@ -1321,18 +1335,53 @@ distinguíveis do *snapshot*.
   recomeça do §7.1. **Desvios = 0 ao fechar** (§7.6) quer dizer nenhum desvio sem correção.
 - **Recusa do preflight não é contornada.** Fica no diário; o Owner libera memória e a linha é
   refeita; `FORCE=1` só com a autorização dele.
-- **O recuo é o pacote.** Depois do §7.1, a memória do armazém só existe no candidato — e na cópia
-  da P5. A qualquer momento, `RESTAURAR=1 make recovery-restore` a devolve: é a linha 9, e é por isso
-  que ela existe. Se a própria restauração falhar, as fontes se regeram pelo gerador, mas a memória —
-  capturas, certificados, SCD, quarentena — só volta de uma cópia do pacote.
 - **O B5 não é repetido sem o Owner.** Recomeçar do §7.1 derruba de novo tudo o que o clone subiu.
+
+**O recuo é o pacote, e o pacote só se restaura num ambiente que o receba (RVB5-01).** Depois do
+§7.1, a memória do armazém só existe no candidato e na cópia da P5. O `recovery-restore` confere o
+pacote dentro do contêiner do armazém (passo 1), restaura por `docker exec` nos três bancos (passo
+4) e sincroniza pelas conexões do Airbyte (passo 8): ele não sobe banco nem configura conexão. O
+recuo depende de onde o B5 parou:
+
+| Fase | Onde o B5 parou | O que existe | O recuo |
+|---|---|---|---|
+| 1 | §7.1, linhas 1–4, antes do `make reset` | os três bancos antigos, intactos; o candidato; a cópia da P5 | nada a restaurar: parar, registrar no diário, e o Owner decide se o B5 segue. O que o desmonte já tirou volta pelos alvos de subida do *checkout* antigo — o Airbyte **novo**, porque o diretório de dados foi apartado, com a D50 antes da primeira sincronização (`make recovery-airbyte-jobs`) **[planejado]** |
+| 2 | do `make reset` até a linha 2 do §7.3 terminar | só o pacote — o candidato no *checkout* antigo e a cópia da P5 —, e o clone, se o §7.2 já rodou | no clone — com o §7.2 inteiro antes, se ainda não rodou —, com `RECOVERY_DIR` exportado: `make up` → `make migrate` → `make migrate-legacy` → `make airbyte-up` → `make airbyte-config AUTO=1` → `RESTAURAR=1 make recovery-restore`. É a ordem das linhas 1–2 do ciclo, sem as cargas nem as sincronizações. As migrações não são da restauração, que passa sem elas: são do `airbyte-config`, cujas conexões declaram as tabelas pelo nome (`airbyte/streams.yml`). Sem o *checkout* antigo, o `RECOVERY_DIR` é o da cópia da P5 |
+| 3 | da linha 3 do §7.3 em diante | o ambiente pronto | `RESTAURAR=1 make recovery-restore`, direto — é a linha 9 |
+
+**[medido] em 25/09/2026**, num projeto Compose à parte (`rvb5_ensaio`, portas 25432–25434,
+derrubado ao fim, sem sobra), com o candidato real, e o `mvp_ed1` conferido pelo `recovery-verify
+CONTRA_O_BANCO=1` antes e depois: num destino recém-criado pelo `make up`, os passos 1, 3, 4, 4b e
+5 da sequência passam — a conferência do pacote, `drop-slots` e `reset-sink` sem nada a remover,
+`restore-dumps`, `rebase` e `verify --contra-o-banco` —, com e sem as migrações das origens. Antes
+de `0ffd346`, o passo 4 não passava: o dump da memória traz os `GRANT`s dos papéis do armazém, que
+num armazém novo ainda não existem (`role "ingestor" does not exist`), e a transação desfazia a
+restauração dele inteira; hoje o `restore-dumps` os cria antes do primeiro dump. Os passos 2 e 6–9
+num destino novo não foram medidos: sobem o *streaming* e o Airbyte, que não se isolam num segundo
+projeto, e o 6 escreve no *checkout*.
+
+**Se a própria restauração falhar**, as fontes se regeram pelo gerador, mas a memória — capturas,
+certificados, SCD, quarentena — só volta de uma cópia do pacote.
 
 ### 7.5 Depois do B5
 
-O clone segue como o *checkout* de trabalho (D58): o B6 e a Etapa 13 continuam nele. O *checkout*
-antigo fica parado, com o pacote, até o `make recovery-promote`; o Owner o arquiva ou apaga quando
-quiser. Cada linha do §7.3 vira uma linha da **Capacidade §2.12**, com o estado da estação, o
-intervalo e o número de amostras.
+O clone segue como o *checkout* de trabalho (D58): o B6 e a Etapa 13 continuam nele. **O pacote
+aprovado passa para o clone antes de o *checkout* antigo ser liberado (D60, RVB5-04).** O
+`make recovery-promote` da linha 9 só renomeia `candidato/` para `aprovado/` dentro do
+`RECOVERY_DIR` exportado, o do *checkout* antigo. Depois dele, no clone:
+
+| # | Comando | Oráculo |
+|---|---|---|
+| 1 | `mkdir -p data/recovery && cp -a <checkout antigo>/data/recovery/aprovado data/recovery/` | — |
+| 2 | `unset RECOVERY_DIR`, depois `make recovery-verify` | `[recovery] RECOVERY_DIR = <clone>/data/recovery` e `[recovery] conferindo <clone>/data/recovery/aprovado`; checksums, manifesto e os três dumps conferidos |
+
+Só então o Owner arquiva ou apaga o *checkout* antigo; a cópia da P5 continua fora dos dois, como
+a segunda. O B6 registra `<clone>/data/recovery/aprovado` como o lugar do pacote. **[medido] em
+25/09/2026** com cópias do candidato num diretório de rascunho: o `recovery-promote` de verdade, a
+cópia, e o `recovery-verify` achando o `aprovado/` no `data/recovery` do clone.
+
+Cada linha do §7.3 vira uma linha da **Capacidade §2.12**, com o estado da estação, o intervalo, o
+número de amostras e o tamanho de cada banco (D59).
 
 ### 7.6 Os critérios do Termo, mapeados
 
