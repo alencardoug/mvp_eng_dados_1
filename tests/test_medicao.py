@@ -263,6 +263,52 @@ def test_medicao_registra_duracao_codigo_e_a_linha_da_tabela(tmp_path):
     assert "uma a cada" in linha[0] and "(pausa de 1 s)" in linha[0], linha[0]
 
 
+#: Um `size-report` que escreve como o gerador escreve — os totais que o medidor lê e uma linha de
+#: detalhe que ele só deixa passar — e demora 4 s, para que se veja se ficou fora do intervalo.
+MAKEFILE_COM_TAMANHO = (
+    "trabalho:\n\t@sleep 1\n"
+    "size-report:\n"
+    "\t@sleep 4\n"
+    "\t@printf '\\nSOURCE_DB           62.5 MB\\n  TOTAL                          252,955      51.2 MB\\n'\n"
+    "\t@printf '\\nLEGACY_DB           13.3 MB\\n  (sem tabelas com dados)\\n'\n"
+    "\t@printf '\\nWAREHOUSE_DB       470.1 MB\\n  (sem tabelas com dados)\\n'\n"
+    "\t@printf '\\nsoma dos três bancos: 545.9 MB\\nTamanho é observação, não limite (ADR-0014).\\n'\n"
+)
+
+
+def test_medicao_registra_o_tamanho_fora_do_intervalo_medido(tmp_path):
+    """D59 — o que o B1 declarou e o medidor nunca fez (RVB5-02): ao fim, o `make size-report` e o
+    total por banco. Depois do intervalo: os 4 s do relatório não entram na duração do alvo."""
+    r = _medir(tmp_path, "trabalho", makefile=MAKEFILE_COM_TAMANHO)
+
+    assert r.returncode == 0, r.stderr
+    registro = _registro(tmp_path)
+    assert registro["tamanho"] == {
+        "SOURCE_DB": "62.5 MB", "LEGACY_DB": "13.3 MB", "WAREHOUSE_DB": "470.1 MB", "soma": "545.9 MB",
+    }
+    assert registro["duracao_involucro_s"] < 4, "o relatório ficou dentro do intervalo medido"
+    assert "252,955" in r.stdout, "o relatório inteiro sai no terminal, que é o que o diário copia"
+    linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
+    assert len(linha) == 1 and linha[0].endswith("| 545.9 MB |"), linha
+
+
+def test_medicao_sem_o_relatorio_de_tamanho_nao_inventa_zero(tmp_path):
+    """Relatório que falhou vai `null`, com o aviso (RVE2-02) — e não muda o código da medição, que é o
+    do alvo."""
+    r = _medir(
+        tmp_path, "trabalho",
+        makefile="trabalho:\n\t@true\nsize-report:\n\t@echo 'armazém fora do ar' >&2; exit 1\n",
+    )
+
+    assert r.returncode == 0, r.stderr
+    registro = _registro(tmp_path)
+    assert registro["tamanho"] is None
+    assert registro["codigo_de_saida"] == 0
+    assert "armazém fora do ar" in r.stdout and "o tamanho vai como não medido" in r.stdout, r.stdout
+    linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
+    assert len(linha) == 1 and linha[0].endswith("| não medido |"), linha
+
+
 def _docker_com_stats(tmp_path: pathlib.Path, stats: str) -> None:
     """Troca o `docker` simulado: `ps` diz o Airbyte de pé, `stats` faz o que o caso pede."""
     (tmp_path / "bin" / "docker").write_text(
@@ -450,7 +496,8 @@ def test_interrupcao_deixa_o_registro_com_a_marca(tmp_path):
     import signal
     import time
 
-    makefile = "alvo:\n\t@touch pronto; sleep 2\n"
+    # O `size-report` deixa rastro: interrompida, a medição não coleta tamanho (D59).
+    makefile = "alvo:\n\t@touch pronto; sleep 2\nsize-report:\n\t@touch tamanho_coletado\n"
     ambiente, trabalho = _ambiente(tmp_path, makefile=makefile)
     processo = subprocess.Popen(
         [str(MEDIR), "alvo"],
@@ -472,6 +519,7 @@ def test_interrupcao_deixa_o_registro_com_a_marca(tmp_path):
     assert registro["interrompido"] is True
     assert registro["codigo_de_saida"] == 130
     assert "[medir] interrompido" in saida
+    assert registro["tamanho"] is None and not (trabalho / "tamanho_coletado").exists()
 
 
 # ── O modo de cenário: processo concorrente sob guarda ──────────────────────

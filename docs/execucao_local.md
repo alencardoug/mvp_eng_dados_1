@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.13 |
+| Versão | 1.14 |
 | Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
-| Última revisão | 24/09/2026 |
+| Última revisão | 25/09/2026 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -90,10 +90,11 @@ Airbyte e *streaming* são automáticas (seção 5).
 | 15 | `make airflow-up`, `make dag-run`, `make dag-wait` | O fluxo pelo orquestrador, com o Airbyte de pé — o par permitido | Etapa 5 · 12 |
 | 16 | `make stream-produce` | Eventos novos no livro da origem, com o *streaming* de pé e o `stream-run` rodando; `LIMITE=`, `SEED=` | Etapa 7 |
 | 17 | `make docs-generate`, `make dbt-docs` | Gera o catálogo; o segundo o serve | Etapa 5 · 12 |
-| 18 | `make size-report` | Relatório de tamanho por banco, schema, tabela e índice — observação, não limite | Etapa 4 |
+| 18 | `make size-report` | Tamanho de cada banco e a soma dos três; tabela a tabela, só o schema `oltp` da origem — nos outros dois, "(sem tabelas com dados)" quer dizer nenhuma tabela do `oltp`. Observação, não limite | Etapa 4 |
 
-Qualquer linha pode rodar sob `make medir ALVO=<alvo>`, que registra duração, memória e tamanho; é
-assim que a capacidade é medida (seção 4).
+Qualquer linha pode rodar sob `make medir ALVO=<alvo>`, que registra duração e memória do alvo e,
+depois do intervalo medido, o tamanho de cada banco pelo `make size-report` (D59); é assim que a
+capacidade é medida (seção 4).
 
 ### 3.1 Parâmetros do gerador
 
@@ -233,7 +234,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make check-offline` | Segredos, documentos e a suíte sem os testes de integração — o que se confere sem nada de pé | Etapa 12 |
 | `make docs-check` | Confere links, âncoras e citações de ADR nos documentos rastreados | Etapa 12 |
 | `make secrets-history` | Varre **todo** o histórico do *git* por forma de credencial, sem depender do `.env` | Etapa 12 |
-| `make medir` | Mede um alvo: `ALVO=` e, para quem só dispara, `ATE=<alvo de espera>`; ou `CENARIO=streaming [LIMITE=n]` | Etapa 12 |
+| `make medir` | Mede um alvo: `ALVO=` e, para quem só dispara, `ATE=<alvo de espera>`; ou `CENARIO=streaming [LIMITE=n]`. Ao fim, fora do intervalo, o `size-report` e o total por banco | Etapa 12 |
 | `make dag-wait` | Espera a execução da DAG terminar; `RUN_ID=` (padrão: a última disparada), `PRAZO=` | Etapa 12 |
 | `make stream-corte` | Imprime o `max(event_sequence)` da origem — o fim de uma medição | Etapa 12 |
 | `make stream-wait` | Espera o livro quente alcançar `ATE_SEQ=`; `PID=` vigia o *pipeline*, `PRAZO=` | Etapa 12 |

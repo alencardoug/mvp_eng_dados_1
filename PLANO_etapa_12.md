@@ -513,7 +513,8 @@ por banco/tabela; tempos vêm de `time` à mão ou do Airflow. `dag-run` só **d
   o produtor**, que rodam no *host* — os dois números são registrados lado a lado por isso;
 - registra o estado da estação no início (`MemAvailable`, o que está de pé segundo o preflight,
   `/proc/loadavg` como observação);
-- ao fim, `make size-report` e o total por banco;
+- ao fim, `make size-report` e o total por banco — **implementado só em 25/09/2026** (D59): até lá
+  o medidor não coletava tamanho nenhum, e o roteiro do B5 não produzia o que C2 pede (RVB5-02);
 - escreve `data/medicoes/<data>_<alvo>.json` e imprime a linha da tabela da Capacidade.
 
 Três alvos de espera novos, usados por B5 e pela documentação:

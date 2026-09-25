@@ -34,6 +34,12 @@
 # real de 23/09/2026 isso deu 3.271 MB contra 4.004 MB. E ele escreve `%.1f`
 # com vírgula, que no JSON é erro de sintaxe. A vírgula que o humano lê na
 # tabela é posta à mão, no fim — não depende da máquina.
+#
+# **O tamanho vem depois do intervalo (D59).** Ao fim, o `make size-report` e o
+# total por banco, como o B1 declarou — e só depois de a duração e a amostragem
+# fecharem, para que os segundos do relatório não entrem na medida do alvo. Até
+# 25/09/2026 o medidor não coletava tamanho nenhum, e o roteiro do B5 não
+# produzia a dimensão que C2 pede (RVB5-02).
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -137,6 +143,39 @@ _de_pe() {
 	printf '%s' "$(IFS=,; echo "${lista[*]}")"
 }
 
+# ── Tamanho ─────────────────────────────────────────────────────────────────
+# O relatório inteiro sai no terminal — é o que o diário do B5 copia —, e o
+# registro guarda o total de cada banco e a soma como o relatório os escreve,
+# com a mesma unidade que a Capacidade lê. Relatório que falhou, ou em que os
+# totais não aparecem, não é zero: fica vazio, e o registro diz `null`.
+TAMANHO=""
+_coletar_tamanho() {
+	local saida
+	echo "[medir] tamanho, fora do intervalo medido: make size-report"
+	if ! saida=$(make --no-print-directory size-report 2>&1); then
+		printf '%s\n' "$saida"
+		echo "[medir] ATENÇÃO: o size-report falhou — o tamanho vai como não medido."
+		return
+	fi
+	printf '%s\n' "$saida"
+	TAMANHO=$(printf '%s\n' "$saida" | LC_ALL=C awk '
+		/^(SOURCE_DB|LEGACY_DB|WAREHOUSE_DB) / { printf "%s=%s %s\n", $1, $2, $3 }
+		/^soma dos três bancos: / { printf "soma=%s %s\n", $5, $6 }')
+	[ -n "$TAMANHO" ] || echo "[medir] ATENÇÃO: não reconheci os totais no size-report — o tamanho vai como não medido."
+}
+
+_tamanho_json() {
+	[ -z "$TAMANHO" ] && { printf 'null'; return; }
+	local chave valor separador=""
+	printf '{'
+	while IFS='=' read -r chave valor; do
+		[ -z "$chave" ] && continue
+		printf '%s"%s": "%s"' "$separador" "$chave" "$(_json_escapar "$valor")"
+		separador=", "
+	done <<< "$TAMANHO"
+	printf '}'
+}
+
 # ── Registro ────────────────────────────────────────────────────────────────
 _json_escapar() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 _numero_ou_null() { case "$1" in ''|NA|null) printf 'null' ;; *) printf '%d' "$1" ;; esac; }
@@ -177,6 +216,7 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 			esac
 		done < <(agregar "$AMOSTRAS")
 		printf '},\n'
+		printf '  "tamanho": %s,\n' "$(_tamanho_json)"
 		printf '  "limite": "a soma dos contêineres não inclui o Beam nem o produtor, que rodam no host; os extremos são amostrados, e o período entre amostras é periodo_medio_s — intervalo_s é só a pausa"\n'
 		printf '}\n'
 	} > "$1"
@@ -215,9 +255,11 @@ _linha_da_tabela() {
 	if [ -n "$nota" ]; then
 		echo "[medir] ATENÇÃO: leitura que falhou não é zero — o registro diz quantas faltaram${nota}."
 	fi
-	printf '| %s | %s | %dm %02ds | %s | %s | %s amostras%s (pausa de %s s)%s |\n' \
+	local soma
+	soma=$(printf '%s\n' "$TAMANHO" | sed -n 's/^soma=//p')
+	printf '| %s | %s | %dm %02ds | %s | %s | %s amostras%s (pausa de %s s)%s | %s |\n' \
 		"$ALVO" "$DE_PE" "$((DURACAO / 60))" "$((DURACAO % 60))" \
-		"$(_gb "$disp")" "$(_gb "$cont")" "${n:-0}" "$cadencia" "$INTERVALO" "$nota"
+		"$(_gb "$disp")" "$(_gb "$cont")" "${n:-0}" "$cadencia" "$INTERVALO" "$nota" "${soma:-não medido}"
 }
 
 # ── Execução ────────────────────────────────────────────────────────────────
@@ -263,6 +305,9 @@ _encerrar_filhos() {
 _finalizar() {
 	DURACAO=$(( $(_epoch) - INICIO_EPOCH ))
 	kill "$AMOSTRADOR" 2>/dev/null; wait "$AMOSTRADOR" 2>/dev/null
+	# Interrompida, a medição sai sem mais nada: vinte segundos de relatório
+	# depois de um Ctrl-C não são o que quem interrompeu pediu.
+	[ "$INTERROMPIDO" = true ] || _coletar_tamanho
 	ARQUIVO="$(_nome_do_registro)"
 	_escrever "$ARQUIVO"
 	echo "[medir] registro: $ARQUIVO"
