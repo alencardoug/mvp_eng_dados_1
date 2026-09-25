@@ -860,3 +860,18 @@ def test_install_traz_os_pacotes_dbt_da_trava(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert chamadas[:2] == ["uv sync", "dbt deps"], chamadas
     assert "cd dbt && DBT_PROFILES_DIR=. ../.venv/bin/dbt deps" in r.stdout, r.stdout
+
+
+# ── B5, linha 2: o airbyte-config num Airbyte recém-instalado ───────────────
+
+
+def test_airbyte_config_aplica_um_recurso_por_vez(tmp_path):
+    """Num Airbyte recém-instalado, a tabela de segredos nasce na primeira escrita, por `CREATE TABLE
+    IF NOT EXISTS`, que o PostgreSQL não serializa: no B5, em 25/09/2026, o Terraform criou quatro
+    recursos ao mesmo tempo, duas criações colidiram (`duplicate key … pg_type_typname_nsp_index`) e o
+    Airbyte devolveu 500. Um recurso por vez."""
+    r, chamadas = _make(tmp_path, "airbyte-config", "AUTO=1")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    aplicacoes = [c for c in chamadas if c.startswith("terraform") and " apply" in c]
+    assert aplicacoes and all("-parallelism=1" in c.split() for c in aplicacoes), chamadas

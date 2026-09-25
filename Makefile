@@ -405,6 +405,11 @@ airbyte-credentials: require-abctl ## Mostra as credenciais do Airbyte local
 	@$(ABCTL) local credentials
 
 airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão a partir do Terraform
+	@# `-parallelism=1`: num Airbyte recém-instalado a tabela de segredos nasce na
+	@# primeira escrita, por `CREATE TABLE IF NOT EXISTS`, que o PostgreSQL não
+	@# serializa. No B5, em 25/09/2026, quatro criações simultâneas colidiram
+	@# (`duplicate key … pg_type_typname_nsp_index`) e o Airbyte devolveu 500. Seis
+	@# recursos, um por vez, custam segundos.
 	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
 		export TF_VAR_airbyte_client_id="$$AIRBYTE_CLIENT_ID"; \
 		export TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET"; \
@@ -412,7 +417,7 @@ airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão 
 		export TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" TF_VAR_source_db_password="$$SOURCE_DB_PASSWORD"; \
 		export TF_VAR_legacy_db_name="$$LEGACY_DB_NAME" TF_VAR_legacy_db_user="$$LEGACY_DB_USER" TF_VAR_legacy_db_password="$$LEGACY_DB_PASSWORD" TF_VAR_legacy_db_port="$$LEGACY_DB_PORT"; \
 		export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"; \
-		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false $(if $(filter 1,$(AUTO)),-auto-approve)
+		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false -parallelism=1 $(if $(filter 1,$(AUTO)),-auto-approve)
 
 sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 descarta o cursor antes
 	@$(CREDENCIAIS); \
