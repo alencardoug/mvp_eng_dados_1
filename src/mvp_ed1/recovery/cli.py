@@ -29,6 +29,8 @@ import subprocess
 import sys
 from typing import Any
 
+from sqlalchemy.exc import ProgrammingError
+
 from mvp_ed1 import governance
 from mvp_ed1.recovery import leitura, oraculos, pacote, rebase
 
@@ -339,6 +341,15 @@ def _conferir_contra_o_banco(manifesto: pacote.Manifesto) -> list[str]:
         # restore não traz — renasce no `dbt-rebuild` do passo 8, e num clone
         # o que existe aqui é a do build anterior.
         problemas += _conferir_capturas_e_geracoes(dados, armazem, depois_da_carga_nova=False)
+    except ProgrammingError as erro:
+        # Bancos sem o estado do pacote — recém-criados, ou com a restauração desfeita — não têm as
+        # tabelas que o manifesto descreve, e a leitura estourava em *traceback* em vez de recusar
+        # (achado ao medir o RVB5-01 num destino novo, 25/09/2026). A recusa é a mesma; o
+        # diagnóstico, uma linha — e sem apontar o banco: a tabela que falta pode ser de qualquer um.
+        causa = str(getattr(erro, "orig", erro)).strip().splitlines()[0]
+        problemas.append(
+            f"a leitura dos bancos falhou — {causa}: eles não têm o estado que o manifesto descreve"
+        )
     finally:
         for motor in (origem, legado, armazem):
             motor.dispose()

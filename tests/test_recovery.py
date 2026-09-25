@@ -756,6 +756,27 @@ def test_o_passo_5_recusa_o_estado_que_a_revisao_viu_passar():
     )
 
 
+def test_o_passo_5_recusa_o_armazem_sem_a_memoria_em_vez_de_estourar():
+    """Achado ao medir o RVB5-01: num armazém sem a memória — recém-criado, ou com a restauração
+    desfeita — a leitura da quarentena estourava em *traceback* (`UndefinedTable`). Continua recusando,
+    mas com o diagnóstico numa linha, como os outros problemas."""
+    import sqlalchemy.exc
+
+    def sem_quarentena(engine):
+        raise sqlalchemy.exc.ProgrammingError(
+            "select * from quarantine.rejected_legacy_records", {},
+            Exception('relation "quarantine.rejected_legacy_records" does not exist\nLINE 1: ...'),
+        )
+
+    with _leituras(ESTADO_DO_PACOTE | {"oraculo_da_quarentena": sem_quarentena}):
+        problemas = cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO)))
+
+    assert problemas == [
+        'a leitura dos bancos falhou — relation "quarantine.rejected_legacy_records" does not exist: '
+        "eles não têm o estado que o manifesto descreve"
+    ], problemas
+
+
 def test_o_passo_5_aceita_o_mesmo_estado_do_pacote_antes_e_depois_do_rebase():
     with _leituras(ESTADO_DO_PACOTE):
         assert cli._conferir_contra_o_banco(pacote.Manifesto(copy.deepcopy(MANIFESTO))) == []
