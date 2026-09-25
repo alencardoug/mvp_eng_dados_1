@@ -660,7 +660,10 @@ def test_restore_dumps_garante_os_papeis_antes_de_qualquer_dump(tmp_path):
     os papéis ainda não existem — o `pg_restore` recusava e desfazia o dump inteiro (medido num destino
     novo em 25/09/2026). Os papéis vêm antes do primeiro dump: sem eles, nada é tocado."""
     ordem: list[str] = []
+    # O `_env` também simulado: sem ele o teste lia seis variáveis do `.env` e falhava fora do
+    # `make` (RVB5-2-03), embora nada aqui chegue a banco.
     with patch.object(cli, "_pasta_do_pacote", return_value=tmp_path), \
+            patch.object(cli, "_env", side_effect=lambda nome: f"<{nome}>"), \
             patch.object(cli, "_motor", return_value="motor-do-armazem"), \
             patch.object(cli.governance, "garantir_papeis", side_effect=lambda motor: ordem.append(f"papéis em {motor}")), \
             patch.object(cli, "_pg_restore", side_effect=lambda servico, *a: ordem.append(servico)), \
