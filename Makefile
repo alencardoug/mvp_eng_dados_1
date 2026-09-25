@@ -710,7 +710,11 @@ check-offline: require-env require-venv ## O que se confere sem nada de pé: seg
 	@echo "── 2/3 pytest sem os testes de integração ──"
 	@set -a; . ./.env; set +a; MVP_TESTE_FATO=0 .venv/bin/pytest -q -rs -m "not integracao"
 	@echo "── 3/3 o que ficou de fora: os de integração, que rodam no make check ──"
-	@.venv/bin/pytest -q --co -m integracao | sed -n 's/::.*//p' | sort | uniq -c
+	@# `pipefail`: sem ele o código do encadeamento é o do `uniq`, e uma coleta
+	@# que falhava terminava em "as três etapas passaram" sem o inventário (RVB5-03).
+	@set -o pipefail; .venv/bin/pytest -q --co -m integracao | sed -n 's/::.*//p' | sort | uniq -c || { \
+		echo "ERRO: a coleta dos testes de integração falhou — sem o inventário do que ficou de fora,"; \
+		echo "  o check-offline não passa."; exit 1; }
 	@echo "check-offline: as três etapas passaram"
 
 test-carga: require-env require-venv ## Teste de carga da origem num banco efêmero, criado e derrubado aqui

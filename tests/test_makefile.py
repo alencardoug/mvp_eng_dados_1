@@ -806,6 +806,17 @@ def test_check_offline_nao_sobe_nem_consulta_nada(tmp_path):
     assert not any(c.split()[0] in {"dbt", "alembic", "docker", "abctl", "terraform"} for c in chamadas), chamadas
 
 
+def test_check_offline_falha_quando_a_coleta_dos_de_integracao_falha(tmp_path):
+    """RVB5-03: a terceira etapa é um encadeamento, e sem `pipefail` o código era o do `uniq` — a
+    coleta que saía 2 terminava em "as três etapas passaram", sem o inventário do que ficou de fora."""
+    coleta_que_falha = REGISTRADOR + 'case " $* " in *" --co "*) echo "coleta recusada" >&2; exit 2;; esac\n'
+    r, chamadas = _make(tmp_path, "check-offline", simulados={".venv/bin/pytest": coleta_que_falha})
+
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert "pytest -q --co -m integracao" in chamadas, chamadas
+    assert "as três etapas passaram" not in r.stdout, r.stdout
+
+
 def test_o_pytest_do_check_lista_os_pulados_com_motivo(tmp_path):
     """O `check` chama o `make test`, e o Termo pede a lista de pulados com motivo (plano, §7.6).
     Até 24/09/2026 só o `check-offline` a imprimia: o `-q` sozinho diz quantos, não quais."""
