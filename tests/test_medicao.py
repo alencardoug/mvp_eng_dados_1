@@ -13,6 +13,7 @@ do `PATH`; a espera do livro roda contra um contador injetado, com relógio e
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import pathlib
@@ -287,6 +288,10 @@ def test_medicao_registra_o_tamanho_fora_do_intervalo_medido(tmp_path):
         "SOURCE_DB": "62.5 MB", "LEGACY_DB": "13.3 MB", "WAREHOUSE_DB": "470.1 MB", "soma": "545.9 MB",
     }
     assert registro["duracao_involucro_s"] < 4, "o relatório ficou dentro do intervalo medido"
+    # RVB5-2-02: o fim é o do intervalo medido, não o da coleta — com o relatório de 4 s, o `fim`
+    # escrito depois dele fazia `fim − início` dar 5 para uma duração de 1.
+    inicio, fim = (datetime.datetime.fromisoformat(registro[c].replace("Z", "+00:00")) for c in ("inicio", "fim"))
+    assert (fim - inicio).total_seconds() == registro["duracao_involucro_s"], registro
     assert "252,955" in r.stdout, "o relatório inteiro sai no terminal, que é o que o diário copia"
     linha = [l for l in r.stdout.splitlines() if l.startswith("| trabalho |")]
     assert len(linha) == 1 and linha[0].endswith("| 545.9 MB |"), linha

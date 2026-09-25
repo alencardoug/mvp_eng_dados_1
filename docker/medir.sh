@@ -50,8 +50,10 @@ INTERVALO="${MEDIR_INTERVALO:-2}"
 DESTINO="${MEDIR_DIR:-$RAIZ/data/medicoes}"
 PRAZO_ENCERRAMENTO="${MEDIR_PRAZO_ENCERRAMENTO:-60}"
 
-_agora() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 _epoch() { date +%s; }
+# O instante do registro sai da mesma época que a duração: duas leituras do relógio
+# podiam cair em segundos diferentes, e `fim − início` deixaria de ser a duração.
+_iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
 
 # **Leitura que falha é `NA`, nunca zero (RVE2-02).** As duas leituras abaixo
 # somavam a entrada vazia — `docker stats` que não respondeu, `/proc/meminfo`
@@ -198,7 +200,7 @@ _escrever() {  # $1 = arquivo, resto vem das variáveis do processo
 		printf '  "alvo": "%s",\n' "$(_json_escapar "$ALVO")"
 		printf '  "ate": %s,\n' "$ate_json"
 		printf '  "inicio": "%s",\n' "$INICIO_ISO"
-		printf '  "fim": "%s",\n' "$(_agora)"
+		printf '  "fim": "%s",\n' "$FIM_ISO"
 		printf '  "duracao_involucro_s": %d,\n' "$DURACAO"
 		printf '  "codigo_de_saida": %d,\n' "$CODIGO"
 		printf '  "interrompido": %s,\n' "$INTERROMPIDO"
@@ -303,7 +305,11 @@ _encerrar_filhos() {
 # medição é interrompida — antes, o trap saía com 130 e nenhum JSON, e uma
 # medição abortada não deixava rastro nem de ter começado (RVE-12).
 _finalizar() {
-	DURACAO=$(( $(_epoch) - INICIO_EPOCH ))
+	# O fim do intervalo medido, junto da duração e antes do relatório de tamanho —
+	# escrito depois dele, o `fim` incluía a coleta que a duração exclui (RVB5-2-02).
+	FIM_EPOCH=$(_epoch)
+	DURACAO=$(( FIM_EPOCH - INICIO_EPOCH ))
+	FIM_ISO=$(_iso "$FIM_EPOCH")
 	kill "$AMOSTRADOR" 2>/dev/null; wait "$AMOSTRADOR" 2>/dev/null
 	# Interrompida, a medição sai sem mais nada: vinte segundos de relatório
 	# depois de um Ctrl-C não são o que quem interrompeu pediu.
@@ -388,8 +394,8 @@ fi
 INTERROMPIDO=false
 CODIGO=0
 CORTE=""
-INICIO_ISO="$(_agora)"
 INICIO_EPOCH="$(_epoch)"
+INICIO_ISO="$(_iso "$INICIO_EPOCH")"
 MEM_INICIAL="$(_mem_disponivel)"
 DE_PE="$(_de_pe)"
 AMOSTRAS="$(mktemp)"
