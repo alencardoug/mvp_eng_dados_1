@@ -1681,8 +1681,10 @@ código. O RVB5-01, que a rodada deu por parcial, tem o restante no RVB5-2-01.
 42cf195 docs: registra a revisão 10 do roteiro do B5 e a segunda rodada nas Pendências
 ```
 
-**A rodada seguinte revisa `96613ac..` a ponta**, este registro incluído. O candidato continua de
-`561edc2`, como a P4 manda até a última rodada.
+**A terceira rodada é curta, por decisão do Owner em 25/09/2026, e revisa `96613ac..` a ponta**,
+este registro incluído: os três achados e o texto novo — a fase 1 do §7.4, o estado do Terraform
+apartado na linha 4 do §7.1 e na Execução Local §6, e a P4 —, sem reabrir o que a segunda rodada
+já conferiu. O candidato continua de `561edc2`, como a P4 manda até a última rodada.
 
 ### 13.1 RVB5-2-01 — a fase 1 do recuo pela sequência de restauração
 
