@@ -1003,9 +1003,13 @@ efb8fc1 feat: o medir coleta o tamanho dos bancos depois do intervalo medido
 25ac22e fix: a conferência contra o banco recusa sem estourar quando falta o estado do pacote
 ```
 
-**A próxima rodada revisa `00de1e5..` a ponta** — este registro incluído. O candidato do pacote é
-de `561edc2` e **não** foi refeito: o código da restauração mudou (`0ffd346`, `25ac22e`), e a P4
-manda refazê-lo uma vez, depois da última rodada, com a ponta revisada.
+**A segunda rodada é completa, por decisão do Owner em 25/09/2026, e revisa `00de1e5..` a
+ponta** — este registro incluído. Além de confirmar os quatro achados, pede revisão o que nasceu
+da resposta e ninguém além do autor viu: os papéis antes do primeiro dump (`0ffd346`), que mudam
+a linha 9 e o recuo; o tamanho no `medir` (`efb8fc1`), que muda toda medição do B5; a recusa da
+conferência (`25ac22e`); e o §7.4 e o §7.5 reescritos. O candidato do pacote é de `561edc2` e
+**não** foi refeito: o código da restauração mudou, e a P4 manda refazê-lo uma vez, depois da
+última rodada, com a ponta revisada.
 
 ### 11.1 RVB5-01 — o recuo por fase, e a restauração num destino novo
 
