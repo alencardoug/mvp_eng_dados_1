@@ -10,7 +10,7 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.14 |
+| Versão | 1.15 |
 | Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
 | Última revisão | 25/09/2026 |
 
@@ -584,10 +584,14 @@ O diretório guarda o banco de metadados do Airbyte: conexões, fontes, destinos
 As três primeiras são recriáveis por `make airbyte-config`, porque o [ADR-0004](adr/0004-terraform-como-iac.md)
 pôs a configuração do Airbyte no Terraform justamente para isto. O histórico de jobs se perde, e não é estado do projeto.
 
-**Solução:** mover o diretório de lado — mover, não apagar — e reinstalar.
+**Solução:** mover o diretório de lado — mover, não apagar — e reinstalar. O estado do Terraform
+sai de lado junto: ele nomeia as fontes, os destinos e as conexões do Airbyte que se foi, e sem ele
+o `airbyte-config` cria tudo no novo, como num clone. Que o provedor recriaria sozinho a partir do
+estado velho não foi verificado.
 
 ```bash
 mv ~/.airbyte/abctl/data ~/.airbyte/abctl/data.$(date +%Y%m%d%H%M)
+mv airbyte/terraform.tfstate airbyte/terraform.tfstate.$(date +%Y%m%d%H%M)
 make airbyte-up && make airbyte-config AUTO=1
 ```
 
