@@ -862,6 +862,19 @@ def test_install_traz_os_pacotes_dbt_da_trava(tmp_path):
     assert "cd dbt && DBT_PROFILES_DIR=. ../.venv/bin/dbt deps" in r.stdout, r.stdout
 
 
+# ── B5, linha 8: o dbt-docs gera e serve ─────────────────────────────────────
+
+
+def test_dbt_docs_gera_e_serve(tmp_path):
+    """No B5, em 25/09/2026, o `dbt-docs` gerava e caía antes de servir: `$(DBT)` carrega o `.env` e
+    entra em `dbt/`, e a receita o usava duas vezes na mesma linha — a segunda procurava `./.env` e
+    `dbt/` de dentro de `dbt/`."""
+    r, chamadas = _make(tmp_path, "dbt-docs")
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert chamadas == ["dbt docs generate", "dbt docs serve"], chamadas
+
+
 # ── B5, linha 2: o airbyte-config num Airbyte recém-instalado ───────────────
 
 

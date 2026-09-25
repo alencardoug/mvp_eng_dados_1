@@ -662,8 +662,11 @@ secrets-history: require-venv ## Varre TODO o histórico por forma de credencial
 docs-generate: require-env require-venv ## Só gera o catálogo — tem fim, e por isso é o que se mede
 	@$(DBT) docs generate
 
-dbt-docs: require-env require-venv ## Gera e serve o catálogo com dicionário, linhagem e glossário
-	@$(DBT) docs generate && $(DBT) docs serve
+dbt-docs: require-env require-venv docs-generate ## Gera e serve o catálogo com dicionário, linhagem e glossário
+	@# O gerar é o `docs-generate`; aqui só se serve. `$(DBT)` entra em `dbt/`, e
+	@# usá-lo duas vezes na mesma linha fazia a segunda procurar `./.env` e `dbt/`
+	@# de dentro de `dbt/` — o catálogo saía, e o servidor não subia (B5, 25/09/2026).
+	@$(DBT) docs serve
 
 test: require-venv ## Testes de código Python (pytest); CARGA=1 roda a carga em banco efêmero; FATO=1 inclui o teste que escreve na fato
 	@# Dois interruptores, de propósito. `CARGA=1` substitui a origem pela carga
