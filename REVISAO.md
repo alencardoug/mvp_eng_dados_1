@@ -980,6 +980,197 @@ proibições são os da §6, sem mudança; a senha do Airflow, se lida, não ent
 
 ---
 
+## 10. Resposta à terceira rodada — 04/10/2026
+
+Os três ajustes e a observação reproduzidos antes de qualquer correção, pela sonda R3 do parecer,
+extraída literal deste dossiê: as quinze linhas idênticas às do parecer. Um *commit* por achado:
+
+```
+7bc2113 fix: a regra do `{var}` de f-string não absorve o gabarito `{{`
+235a2ca fix: o código em linha do docs-check é lido da esquerda para a direita
+1cfb207 fix: o guarda das composições lê a senha em opção com e sem aspas
+4f74ff9 docs: declara o limite da linha de configuração com Python sem espaços
+```
+
+Os testes novos rodaram contra o código anterior antes do *commit*: os dois gabaritos, em JSON e
+YAML, deram 4 vermelhos; o teste do código em linha, com os três casos novos, vermelho. Os controles
+do guarda usam o ajudante que a correção criou e não rodam no código anterior; o "antes" deles é a
+sonda R3_G, abaixo.
+
+### 10.1 Antes de mudar
+
+Todo valor de atribuição ou URL que começa com `{`, no histórico inteiro, com o que a regra
+de uma chave só (`^\{(?!\{)[^{}]*\}`) faria:
+
+```
+  7  '{SEGREDO_JWT}'              referência_completa=False  f-string_nova=True
+  7  '{SENHA}'                    referência_completa=False  f-string_nova=True
+  4  '{SENHA}\\\\n'               referência_completa=False  f-string_nova=True
+ 42  '{SENHA}\\n'                 referência_completa=False  f-string_nova=True
+  4  '{TOKEN_GITHUB}\\\\n'        referência_completa=False  f-string_nova=True
+  7  '{TOKEN_GITHUB}\\n'          referência_completa=False  f-string_nova=True
+  2  '{password}'                 referência_completa=False  f-string_nova=True
+  7  '{senha}'                    referência_completa=False  f-string_nova=True
+ 10  '{usuario}'                  referência_completa=False  f-string_nova=True
+  1  '{{'                         referência_completa=True  f-string_nova=False
+```
+
+Todo `{var}` continua excusado, e o único `{{` é referência completa. Depois da correção, a
+varredura continua igual:
+
+```
+revisão de segredos: nada encontrado nos arquivos rastreados
+revisão do histórico: nada não tratado (11 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Do lado dos documentos, os links que `ler` devolve com a varredura nova, comparados com os da
+expressão anterior em cada `.md` rastreado: `documentos com links diferentes: 0 de 108`.
+
+### 10.2 As sondas, refeitas na ponta
+
+R3 do parecer, literal, em `4f74ff9`. As linhas `R3_S` e `R3_D` saem; a parte `R3_G` para com
+`NameError: name '_credenciais_literais' is not defined`, porque ela extrai só a função do teste, e
+a regra agora mora num ajudante:
+
+```
+R3_S jinja_completa {"antes": 0, "depois": 0, "motivo": "referência — `$VAR`, `$1`, `${…}`, `$(…)`, `$$VAR` do Make, `{{ … }}` de gabarito"}
+R3_S jinja_um_fecho {"antes": 0, "depois": 1, "motivo": null}
+R3_S jinja_mais_literal {"antes": 0, "depois": 1, "motivo": null}
+R3_S f_string_mais_literal_limite {"antes": 0, "depois": 0, "motivo": "interpolação — `{var}` de f-string"}
+R3_S python_sem_espacos {"antes": 1, "depois": 1}
+R3_S python_com_espacos {"antes": 1, "depois": 0}
+R3_S env_par_literal {"antes": 1, "depois": 1}
+R3_D codigo_normal {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": [], "links": 0}
+R3_D duas_barras {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": [], "links": 0}
+R3_D codigo_entre_partes {"antes": [], "depois": [], "links": 0}
+```
+
+A parte R3_G, adaptada para extrair também o ajudante e as expressões — o resto como no parecer;
+`antes` é `1bddee9`, `depois` a árvore em `1cfb207`:
+
+```python
+import ast
+import pathlib
+import re
+import subprocess
+import tempfile
+
+import pytest
+
+NOMES = {"COMPOSICAO_ATRIBUICAO", "COMPOSICAO_URL", "COMPOSICAO_OPCAO", "_credenciais_literais",
+         "test_nenhuma_composicao_embute_credencial"}
+
+
+def guarda(fonte):
+    """A função real do guarda e o que ela usa, extraídos do teste."""
+    arvore = ast.parse(fonte)
+    partes = []
+    for no in arvore.body:
+        nome = getattr(no, "name", None) or (isinstance(no, ast.Assign) and no.targets[0].id)
+        if nome in NOMES:
+            partes.append(ast.get_source_segment(fonte, no))
+    return "\n\n".join(partes)
+
+
+k = "pass" + "word"
+for rotulo, ref in (("antes", "1bddee9"), ("depois", None)):
+    fonte = (pathlib.Path("tests/test_secrets_review.py").read_text() if ref is None else
+             subprocess.check_output(["git", "show", f"{ref}:tests/test_secrets_review.py"], text=True))
+    corpo = guarda(fonte)
+    for nome, argumento in {
+        "sem_aspas": " admin",
+        "aspas_duplas": ' "admin"',
+        "aspas_simples": " 'admin'",
+        "igual_com_aspas": '="admin"',
+        "referencia": " ${SENHA}",
+    }.items():
+        with tempfile.TemporaryDirectory(prefix="compose-e12-r3-") as tmp:
+            p = pathlib.Path(tmp)
+            (p / "docker").mkdir()
+            (p / "tests").mkdir()
+            (p / "docker/docker-compose.airflow.yml").write_text(
+                "services:\n  exemplo:\n    command: airflow users create --" + k + argumento + "\n")
+            ns = {"pathlib": pathlib, "re": re, "pytest": pytest, "__file__": str(p / "tests/test_secrets_review.py")}
+            exec(corpo, ns)
+            try:
+                ns["test_nenhuma_composicao_embute_credencial"]()
+                print("R3_G", rotulo, nome, "PASS (sem acusar)")
+            except AssertionError as erro:
+                print("R3_G", rotulo, nome, "FAIL", str(erro))
+```
+
+```
+R3_G antes sem_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G antes aspas_duplas PASS (sem acusar)
+R3_G antes aspas_simples PASS (sem acusar)
+R3_G antes igual_com_aspas PASS (sem acusar)
+R3_G antes referencia PASS (sem acusar)
+R3_G depois sem_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois aspas_duplas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois aspas_simples FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois igual_com_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois referencia PASS (sem acusar)
+```
+
+R2-A/B/C, literal, segue com as saídas da §9.2:
+
+```
+R2_A usuario_literal antes= 0 depois= 1
+R2_A identificador_python antes= 0 depois= 0
+R2_A grupo_literal antes= 0 depois= 1
+R2_A referencia_completa antes= 0 depois= 0
+R2_A referencia_incompleta antes= 0 depois= 1
+R2_A shell_posicional_url antes= 0 depois= 0
+R2_B controle {"exit": 0, "problemas": []}
+R2_B aprovacao_em_codigo {"exit": 0, "problemas": []}
+R2_B fecho_indentado {"exit": 1, "problemas": ["- link quebrado — docs/pendencias.md: sumiu.md"]}
+R2_C {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 0, "adrs": 0}}
+```
+
+Três contraprovas próprias da varredura de código em linha — duas crases dentro de código de uma,
+o colchete escapado antes de um link, e a barra no fim da linha — num repositório de rascunho,
+como as do parecer:
+
+```
+crase_dupla_dentro_de_simples {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+colchete_escapado_limite {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+barra_no_fim_da_linha {"quebrados": [], "links": 0}
+```
+
+A primeira está certa: o código é `a``b`, e o link depois dele existe. A segunda é limite anterior a
+esta rodada: no GFM, `\[` é colchete literal e não abre link, e a varredura ainda o lê como link —
+o erro é acusar, não esconder, e o repositório não usa a forma. A terceira só confere que a barra
+solta não quebra a leitura.
+
+### 10.3 A ponta inteira
+
+`make check` em `4f74ff9`, saída 0 (trechos):
+
+```
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+docs-check: 108 documentos, 1035 links de arquivo, 160 âncoras, 658 citações de ADR — nada quebrado
+Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+637 passed, 8 skipped in 264.31s (0:04:24)
+check: as quatro etapas passaram
+```
+
+Os 637 são os 626 da §9.3, os 4 dos gabaritos e os 7 controles do guarda; os oito pulados são os
+mesmos, com o mesmo motivo.
+
+### 10.4 O que NÃO foi verificado
+
+- O colchete escapado (`\[`) antes de um link ainda é lido como link (§10.2), e o escape dos outros
+  sinais de link também não é lido; a direção do erro é acusar.
+- O guarda das composições lê a árvore atual e só as composições; a varredura do histórico continua
+  sem ler a opção de linha de comando (§9.5).
+- A sonda R3 literal deixou de rodar inteira; a parte R3_G está adaptada acima, sem outra mudança.
+- Nenhum ambiente subiu nesta rodada; nada da §9.4 nem da §9.5 foi medido de novo.
+
+---
+
 ## Achados da revisão
 
 **Parecer de 03/10/2026 — Codex. Devolver para ajustes antes do aceite:** dois bloqueantes,
@@ -1601,7 +1792,7 @@ Artefatos temporários: `/tmp/revisao-e12-r3-1bddee9/`.
 | RVF12-2-04 | `.claude/skills/adr/verificar.py:74`, `decisoes`; `main:203` | **Blocos de código ainda entram na contagem de aprovações.** Reproduzir R2-B, `aprovacao_em_codigo`: só acrescentar um título `### Exemplo` em cerca ao estado correto faz a saída mudar de **0 para 1**, exigindo uma aprovação inexistente e acusando que o README conta 1 com 2 pendentes. `sem_codigo` só é usado na varredura de links/ADRs; `decisoes` recebe os textos inteiros. Proponho excluir exemplos também antes de extrair seções, títulos e contadores. | **ajuste** | Aberto; regressão na contagem nova, além da citação em código que o teste já cobre. — **Resposta, 03/10/2026: corrigido.** `8283886`: o texto sem código é calculado uma vez e serve aos links, às citações de ADR e às seções, títulos e contadores das decisões. R2-B `aprovacao_em_codigo`: saída 0; cenário novo com aprovação e decisão só em bloco de código. |
 | RVF12-2-05 | `src/mvp_ed1/docs_check.py:141`, `ler`, links em títulos | **Exemplo de link em código em linha virou link real.** Reproduzir R2-C: título que mostra a sintaxe de link entre crases; saída **`README.md:1: sumiu.md — arquivo não existe`**, 1 link. Antes havia 0 links. Pelo [GFM, código em linha tem precedência sobre links](https://github.github.com/gfm/#code-spans); esse texto não cria ponteiro. Proponho conferir os links renderizáveis do título respeitando código em linha, preservando sua contribuição ao texto da âncora. | **ajuste** | Aberto; falso positivo novo na resposta a RVF12-04. — **Resposta, 03/10/2026: corrigido.** `6be1f54`: o código em linha sai antes da busca de link em toda linha, não só no título — a sequência de crases fecha só noutra do mesmo comprimento, crase escapada não abre, e link cujo texto é código continua link. O texto da âncora não muda. R2-C: 0 quebrados, 0 links; as contagens do repositório não mudaram. |
 | RVF12-2-06 | `.claude/skills/adr/verificar.py:160`, `CERCA`/`sem_codigo`; regra compartilhada com `docs_check` | **A cerca indentada faz o verificador novo ocultar um link quebrado fora do bloco.** Reproduzir R2-B, `fecho_indentado`: abertura normal, três crases com quatro espaços como conteúdo, fechamento normal e depois um link inexistente. Saída nova **0, `Integridade conferida`**, sem problemas; o verificador anterior saía **1** com `link quebrado — docs/pendencias.md: sumiu.md`. No [GFM o fechamento admite até três espaços](https://github.github.com/gfm/#fenced-code-blocks), fora de contexto de lista; o `\s*` aceita quatro, fecha cedo e reabre na cerca verdadeira, escondendo o link. Proponho respeitar a indentação e o contexto de lista, com controle do texto depois do fechamento. | **ajuste** | Aberto; a liberdade de indentação já existia no `docs_check`, mas sua cópia para o verificador de ADR introduziu esta regressão no intervalo. — **Resposta, 03/10/2026: corrigido.** `42e2ce9`: a cerca abre e fecha com até três espaços além da coluna em que o conteúdo do item de lista começa, zero fora de lista; linha com menos recuo que o item encerra o item e o bloco. Vale nas duas cópias, e um teste confere que elas dão o mesmo texto nos casos de recuo e nos 108 documentos. R2-B `fecho_indentado`: saída 1, `link quebrado — docs/pendencias.md: sumiu.md`. Limites declarados na §9.5. |
-| RVF12-3-01 | `src/mvp_ed1/secrets_review.py:127`, `PLACEHOLDER_RULES`; `placeholder:222`; RVF12-2-01 | **A exceção de f-string neutraliza a exigência nova para gabaritos.** Reproduzir R3, `jinja_um_fecho` e `jinja_mais_literal`: JSON com um só fechamento de `{{`, ou com literal depois do gabarito completo. Ambos dão **0 antes e 0 depois**, motivo **`interpolação — {var} de f-string`**, enquanto `jinja_completa` dá 0 pela regra de referência. O primeiro não completa o gabarito; o segundo não alcança o fim do valor. É lacuna remanescente da resposta, além da exceção de `{var}` declarada na §9.5. Proponho impedir que a regra de uma chave absorva o prefixo de duas chaves, preservando a exceção dos blobs de teste da §9.1, e cobrir esses dois controles. | **ajuste** | Aberto; contraprova sintética, sem segredo real adicional encontrado. |
-| RVF12-3-02 | `src/mvp_ed1/docs_check.py:64`, `CODIGO_EM_LINHA`; `ler:218`; RVF12-2-05 | **O tratamento de código em linha ainda cria falsos links.** Reproduzir R3, `codigo_entre_partes`: colchetes, trecho de código e parêntese com destino, em sequência. Saída **antes: `[]`; depois: `README.md:1: sumiu.md — arquivo não existe`, 1 link**. A substituição por vazio junta partes que não formavam link: regressão do intervalo. Em `duas_barras`, um link de exemplo dentro de código também é acusado (**1 link**): a segunda barra está escapada, mas o lookbehind trata a crase como escapada. Proponho preservar a separação sintática ao ignorar código e considerar a paridade das barras na abertura, mantendo os controles do link cujo texto é código. | **ajuste** | Aberto; falsos positivos em Markdown sintético de uma linha, fora dos limites declarados da §9.5. |
-| RVF12-3-03 | `tests/test_secrets_review.py:486`, `em_opcao`; `test_nenhuma_composicao_embute_credencial`; Airflow §9.4 | **O guarda novo dispensa senha literal entre aspas em opção de CLI.** Reproduzir R3_G com a função real sobre o rascunho: sem aspas dá **`FAIL ... senha literal em opção de linha de comando`**; aspas duplas, simples e `=` com aspas dão **`PASS (sem acusar)`**. O padrão exclui a aspa inicial e não captura o valor. A composição atual foi limpa, mas a proteção anunciada para essa forma é parcial. Proponho cobrir também argumentos entre aspas, preservando referências ao ambiente, e incluir os controles no guarda. | **ajuste** | Aberto; só composições fictícias foram alteradas. Não há demonstração de senha literal restante na composição atual. |
-| RVF12-3-04 | `src/mvp_ed1/secrets_review.py:103`, `CONFIG_LINE_PATTERN`; `_literal`; RVF12-2-02 | **Python sem espaços continua classificado como ENV literal.** Reproduzir R3_S, `python_sem_espacos` e `python_com_espacos`: as duas entradas compilam como Python e atribuem o mesmo identificador; a primeira dá **1 antes e 1 depois**, a segunda **1 antes e 0 depois**. O controle ENV literal permanece em 1. É a ambiguidade da heurística indicada pelo Owner, não regressão nova. Proponho explicitar esse falso positivo junto dos limites: “par só entre literais” não vale para toda formatação de Python. A correção dos casos com espaços e argumentos nomeados permanece sustentada. | **observação** | Limite confirmado em entrada sintética; nenhuma mudança de parser ou ampliação de escopo proposta nesta rodada. |
+| RVF12-3-01 | `src/mvp_ed1/secrets_review.py:127`, `PLACEHOLDER_RULES`; `placeholder:222`; RVF12-2-01 | **A exceção de f-string neutraliza a exigência nova para gabaritos.** Reproduzir R3, `jinja_um_fecho` e `jinja_mais_literal`: JSON com um só fechamento de `{{`, ou com literal depois do gabarito completo. Ambos dão **0 antes e 0 depois**, motivo **`interpolação — {var} de f-string`**, enquanto `jinja_completa` dá 0 pela regra de referência. O primeiro não completa o gabarito; o segundo não alcança o fim do valor. É lacuna remanescente da resposta, além da exceção de `{var}` declarada na §9.5. Proponho impedir que a regra de uma chave absorva o prefixo de duas chaves, preservando a exceção dos blobs de teste da §9.1, e cobrir esses dois controles. | **ajuste** | Aberto; contraprova sintética, sem segredo real adicional encontrado. — **Resposta, 04/10/2026: corrigido.** `7bc2113`: a regra do `{var}` exige uma chave só (`^\{(?!\{)[^{}]*\}`), e o `{{` responde só à `REFERENCE_RULE`. R3 `jinja_um_fecho` e `jinja_mais_literal`: 1 achado cada; `jinja_completa` segue 0; os dois controles entraram no teste da referência, em JSON e YAML. No histórico, todo `{var}` continua excusado e a varredura segue em 11 (§10.1). O limite do `{var}` seguido de literal continua declarado. |
+| RVF12-3-02 | `src/mvp_ed1/docs_check.py:64`, `CODIGO_EM_LINHA`; `ler:218`; RVF12-2-05 | **O tratamento de código em linha ainda cria falsos links.** Reproduzir R3, `codigo_entre_partes`: colchetes, trecho de código e parêntese com destino, em sequência. Saída **antes: `[]`; depois: `README.md:1: sumiu.md — arquivo não existe`, 1 link**. A substituição por vazio junta partes que não formavam link: regressão do intervalo. Em `duas_barras`, um link de exemplo dentro de código também é acusado (**1 link**): a segunda barra está escapada, mas o lookbehind trata a crase como escapada. Proponho preservar a separação sintática ao ignorar código e considerar a paridade das barras na abertura, mantendo os controles do link cujo texto é código. | **ajuste** | Aberto; falsos positivos em Markdown sintético de uma linha, fora dos limites declarados da §9.5. — **Resposta, 04/10/2026: corrigido.** `235a2ca`: a expressão deu lugar a uma varredura da esquerda para a direita — fora do código a barra escapa o caractere seguinte, a sequência de crases fecha só noutra do mesmo comprimento, dentro do código a barra é literal, e o código vira um espaço. R3 `codigo_entre_partes` e `duas_barras`: 0 links; os dois casos e um controle (barra dentro do código não impede o fecho) entraram no teste. Nos 108 documentos os links lidos são os mesmos. Limite que ficou, anterior à rodada: `\[` antes de link ainda é lido como link (§10.4). |
+| RVF12-3-03 | `tests/test_secrets_review.py:486`, `em_opcao`; `test_nenhuma_composicao_embute_credencial`; Airflow §9.4 | **O guarda novo dispensa senha literal entre aspas em opção de CLI.** Reproduzir R3_G com a função real sobre o rascunho: sem aspas dá **`FAIL ... senha literal em opção de linha de comando`**; aspas duplas, simples e `=` com aspas dão **`PASS (sem acusar)`**. O padrão exclui a aspa inicial e não captura o valor. A composição atual foi limpa, mas a proteção anunciada para essa forma é parcial. Proponho cobrir também argumentos entre aspas, preservando referências ao ambiente, e incluir os controles no guarda. | **ajuste** | Aberto; só composições fictícias foram alteradas. Não há demonstração de senha literal restante na composição atual. — **Resposta, 04/10/2026: corrigido.** `1cfb207`: a opção aceita espaço ou `=` e aspa opcional; referência ao ambiente passa, e `--password-file` não é a opção. A regra saiu para um ajudante, com sete controles na suíte. R3_G, adaptada para extrair o ajudante (§10.2): os quatro literais acusados, a referência não. |
+| RVF12-3-04 | `src/mvp_ed1/secrets_review.py:103`, `CONFIG_LINE_PATTERN`; `_literal`; RVF12-2-02 | **Python sem espaços continua classificado como ENV literal.** Reproduzir R3_S, `python_sem_espacos` e `python_com_espacos`: as duas entradas compilam como Python e atribuem o mesmo identificador; a primeira dá **1 antes e 1 depois**, a segunda **1 antes e 0 depois**. O controle ENV literal permanece em 1. É a ambiguidade da heurística indicada pelo Owner, não regressão nova. Proponho explicitar esse falso positivo junto dos limites: “par só entre literais” não vale para toda formatação de Python. A correção dos casos com espaços e argumentos nomeados permanece sustentada. | **observação** | Limite confirmado em entrada sintética; nenhuma mudança de parser ou ampliação de escopo proposta nesta rodada. — **Resposta, 04/10/2026: declarado.** `4f74ff9`: o comentário do `CONFIG_LINE_PATTERN`, dono dos limites dessa heurística, passa a declarar os dois lados — `.env` com espaços não é literal, e Python sem espaços com a chave abrindo a linha é lido como ENV, acusado como antes da revisão final. Nenhuma mudança de comportamento. |
