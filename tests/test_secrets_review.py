@@ -428,6 +428,18 @@ def test_identificador_repetido_no_codigo_nao_e_par_de_fabrica(texto):
     assert secrets_review.detectar(texto.format(u="u" + "ser", s="pass" + "word")) == []
 
 
+def test_identificador_no_ultimo_argumento_nomeado_e_referencia():
+    """O `)` que fecha a chamada não faz do identificador um valor.
+
+    Achado próprio na resposta ao RVF12-2-02, anterior à revisão final: a regra
+    da palavra aceitava `}`, `]`, `,` e `;` colados ao identificador, mas não o
+    parêntese, e `connect(…=db_password)` era acusado.
+    """
+    senha = "pass" + "word"
+    assert secrets_review.detectar(f"connect({senha}=db_password)") == []
+    assert secrets_review.detectar(f"connect(user=db_user, {senha}=db_user)") == []
+
+
 @pytest.mark.parametrize(
     "texto",
     [

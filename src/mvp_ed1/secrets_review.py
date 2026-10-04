@@ -171,9 +171,11 @@ REFERENCE_RULE = (
 #: Ela não excusa a senha **igual ao usuário**: foi assim que `airflow`/`airflow`
 #: ficou na composição do Airflow até 0b89b3d sem a varredura ver (RVF12-01).
 #: Por isso vive fora de `PLACEHOLDER_RULES` — referência repetida continua
-#: molde (`{usuario}:{usuario}` num f-string), palavra repetida não.
+#: molde (`{usuario}:{usuario}` num f-string), palavra repetida não. O `)`
+#: final é o de quem fecha a chamada no último argumento nomeado,
+#: `connect(…=db_password)`: até 03/10/2026 ele fazia do identificador um valor.
 WORD_RULE = (
-    re.compile(r"^[A-Za-z][A-Za-z_.\-]*[}\],;]?$"),
+    re.compile(r"^[A-Za-z][A-Za-z_.\-]*[}\]),;]?$"),
     "palavra única sem dígito — identificador ou molde, não valor gerado",
 )
 
