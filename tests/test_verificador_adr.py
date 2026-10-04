@@ -169,6 +169,10 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
             {"esperando": "### D43 — a guarda\n\nA saída colada:\n\n```\nREADME.md:1: ADR-9999 — não existe\n```\n"},
             id="adr-inexistente-so-em-bloco-de-codigo",
         ),
+        pytest.param(
+            {"esperando": "### D43 — a guarda\n\nTexto.\n\n```markdown\n### Exemplo\n\n### D57 — exemplo\n```\n"},
+            id="aprovacao-e-decisao-so-em-bloco-de-codigo",
+        ),
     ],
 )
 def test_contadores_certos_passam(tmp_path, trocas):

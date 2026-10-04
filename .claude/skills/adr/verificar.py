@@ -182,26 +182,30 @@ def sem_codigo(texto: str) -> str:
 def main() -> int:
     docs = [p for p in sorted(ROOT.rglob("*.md")) if not IGNORADOS & set(p.parts)]
     texts = {p: p.read_text(encoding="utf-8") for p in docs}
+    # Tudo o que se confere é lido fora de bloco de código, como no `docs_check`:
+    # links, ADRs citados e os títulos e contadores das decisões. Até 03/10/2026
+    # só os dois primeiros, e um `### Exemplo` cercado virava aprovação (RVF12-2-04).
+    limpos = {p: sem_codigo(t) for p, t in texts.items()}
     problemas: list[str] = []
 
-    # links relativos resolvem — fora de bloco de código, como no `docs_check`
-    for path, text in ((p, sem_codigo(t)) for p, t in texts.items()):
+    # links relativos resolvem
+    for path, text in limpos.items():
         for m in re.finditer(r"\]\((?!https?:|#)([^)\s]+)\)", text):
             target = m.group(1).split("#")[0]
             if target and not (path.parent / target).resolve().exists():
                 problemas.append(f"link quebrado — {rel(path)}: {target}")
 
-    # ADRs citados existem — também fora de bloco de código
+    # ADRs citados existem
     adr_numbers = {f.name[:4] for f in (ROOT / "docs/adr").glob("0*.md")}
-    for path, text in texts.items():
-        for n in sorted(set(re.findall(r"ADR-(\d{4})", sem_codigo(text)))):
+    for path, text in limpos.items():
+        for n in sorted(set(re.findall(r"ADR-(\d{4})", text))):
             if n not in adr_numbers and n != "NNNN":
                 problemas.append(f"ADR inexistente — {rel(path)}: ADR-{n}")
 
     # decisões pendentes: resolvidas que ficaram, e os contadores dos dois conjuntos
     n_adr = len(adr_numbers) - 1  # 0000-template não conta
     achados, do_registro, esperando, aprovacoes = decisoes(
-        texts[ROOT / "docs/adr/README.md"], texts[ROOT / "docs/pendencias.md"], texts[ROOT / "README.md"], n_adr
+        limpos[ROOT / "docs/adr/README.md"], limpos[ROOT / "docs/pendencias.md"], limpos[ROOT / "README.md"], n_adr
     )
     problemas += achados
 
