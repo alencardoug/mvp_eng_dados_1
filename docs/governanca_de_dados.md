@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.5 |
+| Versão | 2.6 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 25/09/2026 |
+| Última revisão | 03/10/2026 — o tratamento do segredo achado no histórico passa a ser o ADR-0048 |
 
 ---
 
@@ -267,14 +267,16 @@ obrigação legal. A estrutura, porém, é a mesma que se aplicaria a dados reai
 - **o histórico também é varrido**, por `make secrets-history` (`secrets_review --historico`): fora do
   `make check`, porque o histórico só cresce, e dentro da definição de pronto e do dossiê de revisão.
   A detecção é por **forma**, não por valor — atribuições nas sintaxes ENV, YAML e JSON, credencial
-  embutida em URL e as formas genéricas —, porque depois de uma rotação o valor antigo não é mais
-  conhecido. Molde é propriedade do valor, e os moldes aceitos estão declarados no código; *blob*
-  pulado é listado por nome, porque pulado não é verificado. O veredito é "nada **não tratado**",
-  nunca "nada encontrado";
-- **segredo achado no histórico (D48):** senha de contêiner local se regenera e se registra em
-  [`segredos_tratados.yml`](segredos_tratados.yml), com o tratamento e o motivo, sem reescrever o
-  histórico; chave de nuvem ou token externo se revoga **e** se reescreve, só pela mão do Owner. O
-  registro é dono dos achados; esta seção, da política. Em 25/09/2026: 7 achados, todos registrados;
+  embutida em URL, a senha igual ao usuário e as formas genéricas —, porque depois de uma rotação o
+  valor antigo não é mais conhecido. Molde é propriedade do valor inteiro, e os moldes aceitos estão
+  declarados no código, com os seus limites; *blob* pulado é listado por nome, porque pulado não é
+  verificado. O veredito é "nada **não tratado**", nunca "nada encontrado";
+- **segredo achado no histórico
+  ([ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md)):** senha de
+  contêiner local se regenera e se registra em [`segredos_tratados.yml`](segredos_tratados.yml), com
+  o tratamento e o motivo, sem reescrever o histórico; chave de nuvem ou token externo se revoga
+  **e** se reescreve, só pela mão do Owner. O registro é dono dos achados; esta seção, da política.
+  Em 03/10/2026: 11 achados, todos registrados;
 - um segredo exposto por engano é considerado comprometido: deve ser rotacionado, não apenas
   removido do histórico.
 

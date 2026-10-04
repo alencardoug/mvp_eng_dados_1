@@ -8,9 +8,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 1.4 |
+| Versão | 1.5 |
 | Responsável | Owner principal |
-| Última revisão | 25/09/2026 — revisão de fim da Etapa 12: nenhum risco novo; R6, R7, R10 e R11 com tratamento ampliado pelo que a etapa mediu |
+| Última revisão | 03/10/2026 — revisão final da Etapa 12: R7 com a política no ADR-0048 e o limite da detecção que a revisão expôs. Antes, 25/09/2026 — revisão de fim da Etapa 12: nenhum risco novo; R6, R7, R10 e R11 com tratamento ampliado pelo que a etapa mediu |
 
 Um risco só sai desta tabela quando deixa de existir — não quando deixa de incomodar. Riscos
 novos entram a qualquer momento; a revisão obrigatória acontece ao final de cada etapa.
@@ -34,7 +34,7 @@ novos entram a qualquer momento; a revisão obrigatória acontece ao final de ca
 |---|---|---|---|
 | **R4** | Governança tratada como etapa final | Alto | Catálogo, linhagem e classificação desde a primeira tabela; atualizar o dicionário é critério de conclusão de etapa. Desde a Etapa 11 (18/09/2026) as três são **cobradas a cada `make check`**: classificação 100 % derivada dos modelos, linhagem por coluna gerada e conferida contra o SQL, acesso por papel assumido e executado |
 | **R5** | Dados sintéticos irrealistas | Médio | Distribuições revisadas, invariantes de negócio testadas, recalibração após medição |
-| **R7** | Segredos versionados por engano | Muito alto | `.gitignore` + `.env.example` sem valores + revisão em toda entrega — a primeira etapa do `make check` desde 17/09/2026, e os papéis de acesso são grupos sem login, sem senha nova no `.env`. Desde a Etapa 12, também o **histórico inteiro**, na definição de pronto (`make secrets-history`, 20/09/2026), com cada achado já tratado no [registro](segredos_tratados.yml) pela política da D48 ([Governança §9](governanca_de_dados.md#9-tratamento-de-segredos)) |
+| **R7** | Segredos versionados por engano | Muito alto | `.gitignore` + `.env.example` sem valores + revisão em toda entrega — a primeira etapa do `make check` desde 17/09/2026, e os papéis de acesso são grupos sem login, sem senha nova no `.env`. Desde a Etapa 12, também o **histórico inteiro**, na definição de pronto (`make secrets-history`, 20/09/2026), com cada achado já tratado no [registro](segredos_tratados.yml) pela política do [ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md) ([Governança §9](governanca_de_dados.md#9-tratamento-de-segredos)). A detecção é por forma e tem limites declarados: a senha de fábrica do Airflow, igual ao usuário, escapou dela até a revisão final da Etapa 12, e é achada desde 03/10/2026 |
 
 ## Riscos técnicos e de ambiente
 

@@ -1,4 +1,4 @@
-# Achados históricos já resolvidos — o registro que D48 exige.
+# Achados históricos já resolvidos — o registro que o ADR-0048 (D48) exige.
 #
 # O que vive aqui: cada ocorrência de forma de credencial que a varredura
 # histórica (`python -m mvp_ed1.secrets_review --historico`) encontra e que já
@@ -6,10 +6,9 @@
 # **não tratado**", nunca "nada encontrado": segredo que já entrou no histórico
 # continua lá para sempre, e reescrever o histórico é decisão do Owner.
 #
-# O que não vive aqui: a política de tratamento, que é D48 — senha de
-# contêiner local se regenera e se registra, sem reescrever histórico; chave de
-# nuvem ou token externo se revoga **e** se reescreve, e só pela mão do Owner.
-# A política é da Governança de Dados §9 (D48); este arquivo é o registro.
+# O que não vive aqui: a política de tratamento — o ADR-0048,
+# docs/adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md,
+# aplicado na Governança de Dados §9. Este arquivo é o registro.
 #
 # Cada entrada é identificada por (commit, caminho, chave) — é o que a
 # varredura compara. Linhas diferentes da mesma chave no mesmo blob são a

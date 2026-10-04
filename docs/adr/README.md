@@ -84,6 +84,7 @@ decisão.
 | [0045](0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md) | Detectar a exclusão física do legado no bruto retido, sem marca dimensional | Aceita | D39 |
 | [0046](0046-validar-a-fase-local-por-partes.md) | Validar a fase local por partes, sem exigir *batch* e *streaming* simultâneos | Aceita | D36 |
 | [0047](0047-materializar-o-cte-de-limpeza-do-legado.md) | Materializar o CTE de limpeza dos modelos do legado no PostgreSQL | Aceita | D42 |
+| [0048](0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md) | Tratar segredo achado no histórico pelo tipo da credencial | Aceita | D48 |
 
 ---
 

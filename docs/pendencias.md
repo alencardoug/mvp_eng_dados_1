@@ -13,7 +13,7 @@
 | Etapa atual | Etapa 12 — Fechamento da fase local (M5): os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; **aguardando a revisão final por outro agente e o seu aceite** |
 | Aprovações pendentes | 1 (aceite da Etapa 12) |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
-| Última revisão | 25/09/2026 |
+| Última revisão | 03/10/2026 |
 
 ---
 
@@ -43,14 +43,13 @@ o pacote aprovado, no `data/recovery` do clone (D60), com a cópia da P5 fora do
 que ficaram para ela; o código que o B5 corrigiu; e o B6. O mapa do que revisar por inteiro
 (declarativo) e por amostragem (derivado) é do dossiê, `REVISAO.md`.
 
-**Uma decisão embutida no aceite.** A [Governança
+**A decisão que estava embutida no aceite está resolvida.** A [Governança
 §10](governanca_de_dados.md#10-revisão-desta-política) exige a sua decisão explícita **e ADR** para
-alteração na política. A §9 ganhou em 25/09/2026 duas linhas sem ADR: a varredura do histórico
-(`make secrets-history`), que verifica sobre o histórico a regra que já existia — segredo nunca
-versionado —, e a D48, decidida por você em 18/09/2026, que detalha a rotação que a §9 já exigia. É
-a leitura que se aplicou à automação da revisão em 17/09/2026, aceita com a Etapa 11. Aceitar a
-etapa é ratificar que as duas aplicam a política sem alterá-la; se a D48 for alteração, o ADR vem
-antes do fechamento.
+alteração na política, e a §9 tinha ganho em 25/09/2026 duas linhas sem ADR: a varredura do
+histórico e a D48. A revisão final leu a varredura como aplicação da regra que já existia, e a D48
+como alteração — ela distingue credencial local de externa, torna o registro obrigatório e, para a
+externa, exige reescrever o histórico (RVF12-02). Você decidiu em 03/10/2026 pelo ADR: a D48 é o
+[ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md).
 
 *Efeito de não decidir:* o M5 não fecha, e a Etapa 13 não começa — o pré-requisito dela é o M5 e a
 sua autorização explícita.
@@ -238,7 +237,8 @@ ferramenta, camada ou modelagem; nenhum ADR.
 Oito decisões de execução do fechamento da fase local, tomadas sobre o plano transitório da
 Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas) — as quatro últimas nas três
 rodadas de revisão do plano. Nenhuma troca ferramenta,
-camada ou modelagem; nenhum ADR.
+camada ou modelagem. Nenhuma teve ADR na abertura; a D48 ganhou o seu em 03/10/2026, porque altera
+a política de segredos da Governança.
 
 - **D45 — "ambiente limpo" é (c):** clone novo, `.env` novo, `make airbyte-down` e `make reset`
   nesta máquina; "máquina que nunca viu o projeto" fica registrada como contrapartida da fase
@@ -249,7 +249,9 @@ camada ou modelagem; nenhum ADR.
   `v2.0.0`.
 - **D48 — segredo achado no histórico:** senha de contêiner local se regenera e se registra, sem
   reescrever histórico; chave de nuvem ou token externo se revoga **e** se reescreve, só pela
-  mão do Owner (hoje não existe nenhuma).
+  mão do Owner (hoje não existe nenhuma). Formalizada no
+  [ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md) em 03/10/2026,
+  pela revisão final da etapa (RVF12-02).
 - **D49 — o pacote de recuperação guarda as fontes e a memória do armazém** (`raw_legacy`,
   `governance`, `snapshots`): decidida sobre o achado RV12-01 da revisão do plano — a
   [Capacidade §3.3](capacidade_e_recuperacao.md#33-regras) dizia "warehouse fora" e foi escrita

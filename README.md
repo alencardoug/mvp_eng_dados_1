@@ -39,21 +39,21 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.12 — toda fronteira com teste |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.13 — o ciclo do zero medido e o ponto de recuperação entregue |
-| [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.5 — acesso por papel implementado e testado; a varredura do histórico e a política D48 na §9 |
-| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (D48) | 11 achados, todos tratados em 03/10/2026 |
+| [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
+| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 11 achados, todos tratados em 03/10/2026 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 2 pendentes em 25/09/2026: o aceite da Etapa 12 e a D43 (adiada para a fase GCP) |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 47 aceitos, 1 pendente (D43, adiada) |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 48 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
-| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
+| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048 |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.16 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 
 ## Decisões já tomadas
 
-**47 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**48 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -73,7 +73,9 @@ e só captura certificada é elegível · **a exclusão física do legado é det
 entre capturas certificadas, sem marca nas dimensões — a cascata e o `delete+insert` já retiram do
 datamart o que dependia do registro · **a fase local é validada por partes**, sem exigir *batch* e
 *streaming* simultâneos — a concorrência entre os dois é medida na fase GCP · **o CTE de limpeza do legado é materializado no
-PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo.
+PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo · **segredo achado no
+histórico é tratado pelo tipo da credencial** — a local se regenera e se registra, sem reescrever
+o histórico; a de nuvem se revoga e se reescreve, pela mão do Owner.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
