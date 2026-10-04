@@ -735,8 +735,8 @@ critérios 2, 3 e 4, o B5 e os logs. O ambiente e as proibições são os da §6
 Os seis ajustes reproduzidos antes de qualquer correção, pela sonda R2-A/B/C do parecer, extraída
 literal deste dossiê: as seis saídas idênticas às do parecer. Seis *commits* de correção, um por
 assunto — RVF12-2-01 e RVF12-2-03 são a mesma regra e entraram juntos —, e dois achados próprios:
-um corrigido (`3b81cc3`), outro levado ao Owner (§9.4). A situação de cada achado está na tabela,
-ao fim.
+o parêntese do último argumento nomeado (`3b81cc3`) e o usuário web do Airflow, levado ao Owner,
+que decidiu corrigir (§9.4, `e828acd`). A situação de cada achado está na tabela, ao fim.
 
 ```
 29d2424 fix: a referência a variável precisa estar completa e alcançar o fim do valor
@@ -745,6 +745,7 @@ ao fim.
 8283886 fix: o verificador de ADR conta decisões e aprovações fora de bloco de código
 6be1f54 fix: o docs-check não confere link dentro de código em linha
 42e2ce9 fix: o recuo da cerca de código conta contra a coluna do item de lista
+e828acd fix: o Airflow deixa de prometer a senha de fábrica que nunca valeu
 ```
 
 Cada teste novo rodou contra o código anterior antes do *commit*, e ficou vermelho onde devia:
@@ -874,9 +875,15 @@ check: as quatro etapas passaram
 
 Os oito pulados são os da §8.3, com o mesmo motivo impresso. Os três arquivos de teste tocados
 coletam 88 testes; o parecer coletou 60 neles (os 62 da validação dele, menos os dois do
-`Makefile`): 28 novos.
+`Makefile`): 28 novos. Depois da correção do Airflow, `make check` em `e828acd`, saída 0, com as
+mesmas linhas das etapas 1 a 3 e o teste novo do `airflow-up`:
 
-### 9.4 Achado próprio, levado ao Owner: o usuário web do Airflow
+```
+626 passed, 8 skipped in 264.95s (0:04:24)
+check: as quatro etapas passaram
+```
+
+### 9.4 Achado próprio, decidido pelo Owner: o usuário web do Airflow
 
 O `airflow_init` da composição traz `airflow users create --username admin --password admin` desde
 `4ff3be9`, e o `make airflow-up` imprime "admin / admin". A varredura não vê essa forma — opção de
@@ -897,23 +904,70 @@ linhas mais recuadas, o `bash` executa `users create` só com usuário e senha, 
 falha. Se rodasse, criaria um usuário do FAB que o `SimpleAuthManager` — o padrão do Airflow 3 —
 não consulta: o `admin:admin` da configuração é usuário e **papel**, e a senha é gerada pelo próprio
 gerenciador quando o *api-server* sobe e impressa no log dele (o valor não é reproduzido aqui). E a
-instrução do `make airflow-up` é falsa. Nenhuma credencial de fábrica chegou a valer, mas há uma
-escrita na composição e uma instrução errada no `Makefile`. Não foi corrigido nesta resposta: a
-mudança na composição só se confere subindo o Airflow, o que esta rodada não autoriza, e a forma de
-autenticar é escolha do Owner.
+instrução do `make airflow-up` é falsa. Nenhuma credencial de fábrica chegou a valer, mas havia uma
+escrita na composição e uma instrução errada no `Makefile`.
+
+**O Owner decidiu limpar e corrigir, sem mudar a forma de autenticar** (03/10/2026); a alternativa
+de pôr a senha do `admin` no `.env` ficou de fora. Em `e828acd`: o `airflow_init` passa a ser só
+`db migrate` — que agora falha alto, sem o `|| true` —, o `airflow-up` aponta o arquivo em que o
+Airflow grava a senha, e o guarda das composições (`test_nenhuma_composicao_embute_credencial`)
+acusa também senha literal em opção de linha de comando. Os dois testes ficaram vermelhos no código
+anterior. Conferido numa subida real, autorizada pelo Owner, pelo alvo guardado e sem `FORCE`; o
+estado de partida era o Airbyte e os bancos de pé, o Airflow parado:
+
+```
+$ make preflight ALVO=airflow
+[preflight] RAM disponível agora: 3,4 GB
+[preflight] Já de pé: Airbyte (cluster kind)
+[preflight] 'airflow' custa ~1,4 GB — sobraria 2,0 GB
+[preflight] OK
+$ make airflow-up            # 24 s, saída 0
+$ docker inspect mvp_ed1-airflow_init-1 --format 'cmd={{json .Config.Cmd}} exit={{.State.ExitCode}} criado={{.Created}}'
+cmd=["db","migrate"] exit=0 criado=2026-10-04T02:40:59.365714581Z
+$ docker logs mvp_ed1-airflow_init-1 2>&1 | grep -v "alembic\|plugin" | grep -i -E "error|migrat|done|users create" | tail -4
+2026-10-04T02:41:14.257009Z [info     ] Migrating the Airflow database [airflow.utils.db] loc=db.py:1179
+2026-10-04T02:41:17.007344Z [info     ] Database migration done!       [airflow.cli.commands.db_command] loc=db_command.py:152
+```
+
+O login, com a senha lida do arquivo e passada ao `POST /auth/token` sem ser impressa, e o par de
+fábrica como controle:
+
+```
+senha lida: 16 caracteres
+admin + senha do arquivo: HTTP 201
+admin + admin (controle): HTTP 401
+```
+
+A subida real mostrou duas coisas que o texto não sabia. **O `airflow-up` volta antes de o
+api-server responder:** a primeira leitura não achou o arquivo, que o api-server gravou às
+02:41:42, 23 s depois de o alvo terminar — a composição não declara verificação de saúde para ele.
+A mensagem diz isso:
+
+```
+Airflow em http://localhost:8081 — usuário admin. A senha é gerada pelo Airflow quando o api-server
+termina de subir, uns 20 s depois daqui, e se lê com:
+  docker exec mvp_ed1-airflow_apiserver-1 cat /opt/airflow/simple_auth_manager_passwords.json.generated
+```
+
+E **a segunda subida, sem mudança na composição, recriou os quatro contêineres**, e o arquivo foi
+gravado de novo (02:43:11): a senha muda a cada recriação, e a mensagem aponta a da vez. A causa da
+recriação não foi investigada. `make dag-status` mostrou como última execução a do B5, de
+25/09 — nada foi disparado. No fim, `make airflow-pause` devolveu o Airflow ao estado parado.
 
 ### 9.5 O que NÃO foi verificado
 
 - **Limites declarados do detector, novos:** a chave que fecha um mapeamento YAML em linha completa
   uma referência aberta dentro dele; `{var}` de *f-string* seguido de literal (`{a}Ab9Z7q1`) segue
   excusado; num `.env`, `chave = valor` com espaços não é linha de configuração; a opção de linha de
-  comando (`--password valor`) não é lida (§9.4). Os da §8.4 continuam.
+  comando (`--password valor`) não é lida pela varredura — o guarda das composições a acusa desde
+  `e828acd`, só na árvore atual e só nas composições. Os da §8.4 continuam.
 - **Limites declarados da regra de cerca:** tab, citação (`>`), item que abre com a própria cerca,
   bloco indentado sem cerca e continuação de parágrafo sem recuo — nesta última o erro é acusar um
   exemplo, não esconder. Código em linha que atravessa linhas não é lido como tal.
 - A regra de recuo foi conferida contra a especificação do GFM, não contra uma página renderizada.
-- Nenhum ciclo, restauração, instalação ou subida de ambiente; nada do que a §8.4 deixou como não
-  medido foi medido aqui.
+- Nenhum ciclo, restauração ou instalação; a única subida foi a do Airflow, na §9.4. Nada do que a
+  §8.4 deixou como não medido foi medido aqui.
+- A interface do Airflow não foi aberta num navegador: o login foi conferido pela API que ela usa.
 
 ---
 
