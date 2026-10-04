@@ -98,8 +98,12 @@ USER_PATTERN = re.compile(
 #: É só nela que um valor **sem aspas** é literal. `usuario = db_user` (Python,
 #: HCL) e `connect(user=db_user, …)` são referência a variável — e até
 #: 03/10/2026 usuário e senha atribuídos ao mesmo identificador viravam senha
-#: de fábrica (RVF12-2-02). **Limite declarado:** `chave = valor` com espaços num
-#: `.env` não é lido como literal; `make env` escreve sem espaços.
+#: de fábrica (RVF12-2-02). **Limites declarados**, os dois lados da mesma
+#: heurística: `chave = valor` com espaços num `.env` não é lido como literal
+#: (`make env` escreve sem espaços); e Python escrito sem espaços em volta do
+#: `=`, com a chave abrindo a linha, é lido como ENV — usuário e senha
+#: atribuídos ao mesmo identificador assim continuam acusados, como antes da
+#: revisão final (RVF12-3-04). "Par só entre literais" depende da formatação.
 CONFIG_LINE_PATTERN = re.compile(
     r"""(?x)^\s*(?:-\s+)?(?:export\s+)?["']?[\w.-]+["']?(?:\s*:\s+|=)[^\s"',\#]+\s*(?:\#.*)?$"""
 )
