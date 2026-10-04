@@ -31,7 +31,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.7 — Etapa 12 com os seis critérios medidos em 25/09/2026 e a revisão final respondida em 03/10/2026, aguardando o aceite (M5) |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.8 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`) |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
@@ -44,7 +44,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 2 pendentes em 03/10/2026: o aceite da Etapa 12 e a D43 (adiada para a fase GCP) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 1 pendente em 04/10/2026: a D43 (adiada para a fase GCP) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 48 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
@@ -81,10 +81,13 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
 ## Status
 
+**A fase local está concluída: o M5 fechou em 04/10/2026, com a *tag* `v1.0.0`.** A Etapa 13 —
+replicação no GCP com Terraform, o M6 — não começou; o pré-requisito é a autorização explícita do
+Owner.
+
 **Etapa 12 — Fechamento da fase local: os seis critérios medidos em 25/09/2026, num ciclo do zero,
-e a definição de pronto aplicada; a revisão final por outro agente, em 03/10/2026, devolveu dois
-bloqueantes, oito ajustes e uma observação, todos tratados no mesmo dia; aguarda a decisão do Owner
-— uma rodada curta sobre a resposta, ou o aceite, que fecha o M5 com a *tag* `v1.0.0`.** Um clone novo do repositório, com `.env` novo, percorreu a
+a definição de pronto aplicada e a etapa aceita pelo Owner em 04/10/2026, depois de quatro rodadas
+de revisão final por outro agente (onze achados, seis, quatro e nenhum, todos tratados).** Um clone novo do repositório, com `.env` novo, percorreu a
 [Execução Local](docs/execucao_local.md) linha a linha sobre bancos, Airbyte e Airflow desmontados e
 instalados do zero — cada cenário no seu subconjunto de ambiente, sem *batch* e *streaming* juntos —,
 com duração e tamanho medidos em cada linha, e o pico de memória em todas menos a do `migrate`, que
@@ -95,7 +98,8 @@ corrigidos na origem e as linhas refeitas; quatro só aparecem num ambiente novo
 recuperação** existe e foi provado: o pacote — as fontes e a memória do armazém — restaurado sobre o
 ambiente povoado em 17 minutos, com o *re-snapshot* do CDC e a conferência final igual ao manifesto
 ([Capacidade §3](docs/capacidade_e_recuperacao.md#3-ponto-único-de-recuperação)). `make check` verde
-com `PASS=905` e 579 testes Python; o histórico inteiro sem segredo não tratado.
+no fechamento, em 04/10/2026, com `PASS=905` e 637 testes Python; o histórico inteiro sem segredo
+não tratado.
 
 **Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos entre 17 e
 18/09/2026, a definição de pronto aplicada e a etapa aceita pelo Owner em 18/09/2026, depois de

@@ -10,53 +10,14 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5): os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; a revisão final por outro agente, em 03/10/2026, teve os onze achados tratados no mesmo dia; **aguardando a sua decisão — uma rodada curta sobre a resposta, ou o aceite** |
-| Aprovações pendentes | 1 (aceite da Etapa 12) |
+| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
+| Aprovações pendentes | 0 |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
-| Última revisão | 03/10/2026 |
+| Última revisão | 04/10/2026 |
 
 ---
 
 ## 1. Esperando você
-
-### Aceite da Etapa 12
-
-**Pedido:** aceitar a Etapa 12 como concluída — ou devolver com achados —, depois da revisão final
-por outro agente. Os seis critérios estão marcados no
-[plano](plano_de_desenvolvimento.md#etapa-12--fechamento-da-fase-local--m5), cada um com data e
-medição, e a definição de pronto do `CLAUDE.md` foi aplicada em 25/09/2026. O aceite fecha o
-**M5**: o *commit* de fechamento tira do repositório o plano transitório da etapa e o dossiê, e
-recebe a *tag* `v1.0.0` (D47); o *push* dos dois é seu.
-
-**O caminho até aqui.** O plano transitório (`PLANO_etapa_12.md`) passou por seis rodadas de
-revisão, encerradas em 20/09/2026, com D45–D52 decididas na abertura. B0–B4 foram entregues em
-20/09, e a revisão de B0, B1 e B4 correu em seis rodadas até 24/09/2026 — 26 achados, 15
-bloqueantes e 11 ajustes, todos aplicados —, com D53–D56 decididas no caminho. O roteiro
-do B5 passou por três rodadas em 25/09/2026 — sete achados, a terceira sem achado —, com D57–D61. O
-B5 rodou no mesmo dia, autorizado por você, no clone `~/Projetos/mvp_eng_dados_1`, que passou a ser
-o *checkout* de trabalho (D58): o desmonte, o clone, o ciclo em nove linhas e a recuperação
-inteira, com a restauração autorizada à parte; oito desvios, todos corrigidos na origem e as linhas
-refeitas. O diário está em `data/medicoes/diario_b5.md`, fora do Git, e vai literal para o dossiê;
-o pacote aprovado, no `data/recovery` do clone (D60), com a cópia da P5 fora dos *checkouts*.
-
-**O que a revisão final cobre.** B2 (a varredura do histórico) e B3 (a coerência dos documentos),
-que ficaram para ela; o código que o B5 corrigiu; e o B6. O mapa do que revisar por inteiro
-(declarativo) e por amostragem (derivado) é do dossiê, `REVISAO.md`. **O parecer veio em
-03/10/2026** — dois bloqueantes, oito ajustes e uma observação, nenhum reabrindo o que o B5 provou —,
-e os onze foram tratados no mesmo dia, com duas decisões suas (o ADR-0048 e o *chart* do Airbyte
-fixado); a resposta está na §8 do dossiê. Antes do aceite, a sua decisão: devolver a ponta ao
-revisor numa rodada curta, ou aceitar.
-
-**A decisão que estava embutida no aceite está resolvida.** A [Governança
-§10](governanca_de_dados.md#10-revisão-desta-política) exige a sua decisão explícita **e ADR** para
-alteração na política, e a §9 tinha ganho em 25/09/2026 duas linhas sem ADR: a varredura do
-histórico e a D48. A revisão final leu a varredura como aplicação da regra que já existia, e a D48
-como alteração — ela distingue credencial local de externa, torna o registro obrigatório e, para a
-externa, exige reescrever o histórico (RVF12-02). Você decidiu em 03/10/2026 pelo ADR: a D48 é o
-[ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md).
-
-*Efeito de não decidir:* o M5 não fecha, e a Etapa 13 não começa — o pré-requisito dela é o M5 e a
-sua autorização explícita.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -118,6 +79,25 @@ leitura da tabela da [Governança §7](governanca_de_dados.md#7-regras-de-acesso
 `raw.inventory_movements_stream`, sem `create` no schema; `governance` é escrito pela ingestão e
 lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `snapshots`.
 
+**A Etapa 12 foi aceita em 04/10/2026, e com ela o M5**: a fase local está concluída, e o *commit*
+de fechamento leva a *tag* `v1.0.0` (D47). Os seis critérios foram medidos em 25/09/2026, num ciclo
+do zero ([plano, Etapa 12](plano_de_desenvolvimento.md#etapa-12--fechamento-da-fase-local--m5)), e
+a definição de pronto aplicada no mesmo dia. O caminho: o plano transitório passou por seis rodadas
+de revisão até 20/09/2026, com D45–D52 decididas na abertura; a revisão de B0, B1 e B4, por seis
+rodadas até 24/09 — 26 achados, 15 bloqueantes e 11 ajustes —, com D53–D56 no caminho; o roteiro do
+B5, por três rodadas em 25/09 — sete achados —, com D57–D61; e o B5 rodou no mesmo dia, autorizado
+por você, no clone `~/Projetos/mvp_eng_dados_1`, que passou a ser o *checkout* de trabalho (D58),
+com oito desvios corrigidos na origem. A **revisão final** por outro agente (Codex) cobriu B2, B3, o
+código que o B5 corrigiu e o B6, em quatro rodadas entre 03 e 04/10/2026: onze achados na primeira
+— dois bloqueantes, a senha de fábrica do Airflow fora do registro e a D48 sem ADR —, seis ajustes
+na segunda, três ajustes e uma observação na terceira, nenhum achado na quarta; todos tratados,
+cada um reproduzido antes, e três achados próprios no caminho. Três decisões suas saíram dela: o
+[ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md), que formaliza
+a D48; o *chart* do Airbyte fixado em 2.3.0; e a limpeza do usuário web do Airflow, cuja senha de
+fábrica nunca chegou a valer. O plano transitório e o dossiê da revisão final saíram do repositório
+no *commit* de fechamento e estão no histórico em `46d8243` (`PLANO_etapa_12.md` e `REVISAO.md`); o
+diário do B5 está em `data/medicoes/diario_b5.md`, fora do Git.
+
 ---
 
 ## 2. Decisões já fechadas
@@ -135,7 +115,8 @@ lido pelo dbt e pelo `auditor`; `transformer` escreve também `consumption` e `s
 ### D59 e D60 — decididas em 25/09/2026, na resposta à revisão do roteiro do B5
 
 Duas decisões tomadas para responder a achados da primeira rodada de revisão do roteiro
-(`REVISAO.md`, RVB5-02 e RVB5-04). Nenhuma troca ferramenta, camada ou modelagem; nenhum ADR.
+(RVB5-02 e RVB5-04, no dossiê `REVISAO.md`, no histórico em `6065485`). Nenhuma troca ferramenta,
+camada ou modelagem; nenhum ADR.
 
 - **D59 — o `make medir` coleta o tamanho, como o B1 declarou.** O plano (§3) mandava o medidor
   rodar, ao fim, o `make size-report` e registrar o total por banco, e a Execução Local dizia que ele
@@ -239,7 +220,8 @@ ferramenta, camada ou modelagem; nenhum ADR.
 ### D45 a D52 — decididas entre 18 e 19/09/2026, na abertura da Etapa 12
 
 Oito decisões de execução do fechamento da fase local, tomadas sobre o plano transitório da
-Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas) — as quatro últimas nas três
+Etapa 12 (`PLANO_etapa_12.md`, §10, com as alternativas descartadas, no histórico em `46d8243`) —
+as quatro últimas nas três
 rodadas de revisão do plano. Nenhuma troca ferramenta,
 camada ou modelagem. Nenhuma teve ADR na abertura; a D48 ganhou o seu em 03/10/2026, porque altera
 a política de segredos da Governança.
@@ -529,10 +511,11 @@ nos
 [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md). Todas por interrogatório com alternativas.
 
 Os marcos **M0** (Termo aprovado), **M1** (decisões registradas), **M2** (ambiente reproduzível),
-**M3** (primeiro fluxo completo) e **M4** (*streaming* em operação) estão fechados. As Etapas 3 a 10
-foram entregues — o modelo dimensional está completo, as 16 perguntas de negócio têm view e a
-segunda origem atravessa o fluxo inteiro —, e a Etapa 11, que consolidou governança e qualidade,
-foi aceita em 18/09/2026 (§1.1).
+**M3** (primeiro fluxo completo), **M4** (*streaming* em operação) e **M5** (fase local concluída,
+em 04/10/2026) estão fechados. As Etapas 3 a 10 foram entregues — o modelo dimensional está
+completo, as 16 perguntas de negócio têm view e a segunda origem atravessa o fluxo inteiro —, a
+Etapa 11, que consolidou governança e qualidade, foi aceita em 18/09/2026, e a Etapa 12, que provou
+o repositório do zero, em 04/10/2026 (§1.1).
 
 O único número que o projeto ainda carregava rotulado como **não medido** — o *allowed lateness* do
 [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) — foi medido na Etapa 7, e a
@@ -630,12 +613,12 @@ medido; se um dia importar, a decisão é do Owner e pede ADR.
 
 ## 6. Do lado do assistente
 
-**Etapa 12 (18–25/09/2026):** o ponto único de recuperação — pacote, verificação, re-base das
+**Etapa 12 (18/09–04/10/2026):** o ponto único de recuperação — pacote, verificação, re-base das
 gerações, restauração em nove passos e promoção —, a medição por `make medir`, a troca automática
 entre ambientes pesados com a guarda de trabalho em andamento, a varredura do histórico e a
-coerência dos documentos; o ciclo do zero executado e medido, e os documentos atualizados com o que
-ele mediu. Do meu lado resta o dossiê da revisão final e, depois do seu aceite, o *commit* de
-fechamento com a *tag* — o *push* é seu.
+coerência dos documentos; o ciclo do zero executado e medido, os documentos atualizados com o que
+ele mediu, e as quatro rodadas da revisão final respondidas. O *commit* de fechamento leva a *tag*
+`v1.0.0`; o *push* dos dois é seu. Nada mais está do meu lado na fase local.
 
 **Etapa 11 (17–18/09/2026):** `make check` como comando único com *fail fast*; classificação de
 4.161 de 4.161 colunas derivada dos modelos por linhagem; retenção declarada por objeto; cinco

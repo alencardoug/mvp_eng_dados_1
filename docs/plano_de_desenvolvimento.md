@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.7 |
-| Etapa atual | **Etapa 12 — Fechamento da fase local**: os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; a revisão final, de 03/10/2026, respondida no mesmo dia; aguarda a decisão do Owner — uma rodada curta ou o aceite, que fecha o **M5** (**M0** a **M4** concluídos) |
-| Última revisão | 03/10/2026 (resposta à revisão final da Etapa 12: o critério 6 com a medição nova e o ADR-0048; o critério 2 com a ressalva do `migrate`) |
+| Versão | 3.8 |
+| Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, não iniciada: o pré-requisito é a autorização explícita do Owner. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos) |
+| Última revisão | 04/10/2026 (aceite da Etapa 12 e fechamento do M5, depois de quatro rodadas de revisão final) |
 
 ---
 
@@ -47,7 +47,7 @@
 | **M2** | Ambiente local sobe do zero com um comando | Etapa 2 — **04/09/2026** |
 | **M3** | Primeiro fluxo completo origem → consumo | Etapa 5 — **04/09/2026** |
 | **M4** | Streaming em operação, com o *batch* intacto | Etapa 7 — **04/09/2026** |
-| **M5** | Fase local concluída, testada e reproduzível | Etapa 12 |
+| **M5** | Fase local concluída, testada e reproduzível | Etapa 12 — **04/10/2026** |
 | **M6** | Fluxo replicado no GCP por Terraform | Etapa 13 |
 
 ```mermaid
@@ -299,12 +299,16 @@ reconciliação entre as camadas e entre os dois caminhos do estoque, catálogo 
 (`make catalog` não escreveu nada), nenhum campo novo — a etapa não tocou modelo — e a revisão de
 segredos no repositório e no histórico. O ciclo achou oito desvios, cada um corrigido na origem e a
 linha refeita; quatro só aparecem num ambiente novo, porque no *checkout* antigo tudo já existia.
-Nenhum componente novo, logo nenhum ADR novo: as decisões da etapa, D45 a D61, são de operação ou
-consequência de ADRs aceitos — nenhuma troca ferramenta, camada ou modelagem — e estão nas
-[pendências](pendencias.md#2-decisões-já-fechadas), com a pergunta sobre a §9 da Governança que fica
-para o aceite; o [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) recebeu nas
-*Consequências* a guarda da identidade e o re-base das gerações. **Aguarda a revisão final por outro agente e o
-aceite do Owner**; a *tag* `v1.0.0` (D47) marca o *commit* de fechamento.*
+Nenhum componente novo. As decisões da etapa, D45 a D61, são de operação ou consequência de ADRs
+aceitos — nenhuma troca ferramenta, camada ou modelagem — e estão nas
+[pendências](pendencias.md#2-decisões-já-fechadas); uma delas, a D48, altera a política de segredos
+e virou o [ADR-0048](adr/0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md) na
+revisão final. O [ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md) recebeu nas
+*Consequências* a guarda da identidade e o re-base das gerações. **Aceita pelo Owner em 04/10/2026,
+fechando o M5**, depois da revisão final por outro agente em quatro rodadas, de 03 a 04/10/2026 —
+onze achados, seis, quatro e nenhum, todos tratados; o registro está nas
+[pendências](pendencias.md#11-decididas-e-implementadas). A *tag* `v1.0.0` (D47) marca o *commit*
+de fechamento.*
 
 | | |
 |---|---|
