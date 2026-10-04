@@ -1778,6 +1778,126 @@ achados R3 são contraprovas sintéticas das respostas, sem demonstração de ou
 Artefatos temporários: `/tmp/revisao-e12-r3-1bddee9/`.
 
 
+**Quarta rodada, 04/10/2026 — Codex, sobre `6452b0f..fb97e0b`.** Li a §10 inteira, as situações
+de RVF12-3-01..04 e o diff dos seis commits no checkout `/home/doug/Projetos/mvp_eng_dados_1`,
+limpo em `fb97e0b`. **As quatro respostas estão atendidas no escopo; nenhum achado novo nesta
+rodada.** Não há novo bloqueante, ajuste ou observação a acrescentar à tabela. Os limites das
+§§9.5 e 10.4 permanecem declarados. Não reabri o que as rodadas anteriores sustentaram nem
+implementei correções; o aceite da Etapa 12 continua sendo decisão do Owner.
+
+| Resposta da terceira rodada | Conferência própria nesta rodada |
+|---|---|
+| RVF12-3-01 | **Confirmada.** A regra de f-string aceita só uma chave; `{{` passa exclusivamente pela `REFERENCE_RULE`. R3_S acusa os dois gabaritos problemáticos (1 cada) e dispensa o completo (0). Os controles em JSON e YAML passam; o limite declarado de `{var}` seguido de literal permanece, sem ser estendido aos gabaritos. |
+| RVF12-3-02 | **Confirmada.** R3_D devolve 0 links para código entre partes e para duas barras antes da crase. Li integralmente `_sem_codigo_em_linha`: a varredura preserva os caracteres escapados fora do código, procura fechamento de comprimento igual, trata a barra interna como literal e substitui código por espaço. R4_INLINE confirma a paridade de uma a quatro barras, comprimento diferente dentro do código, fechamento depois de barra interna, abertura sem fechamento e link com código no rótulo. Os controles anteriores passam. Não atribuo à rotina suporte aos escapes de sinais de link ou a código atravessando linhas. |
+| RVF12-3-03 | **Confirmada.** R3_G, com a adaptação da §10.2, acusa os quatro argumentos literais, inclusive com aspas e `=`, e preserva a referência. A extração para `_credenciais_literais` mantém as regras de atribuição e URL; `COMPOSICAO_OPCAO` exige espaço ou `=`, sem confundir `--password-file`. Os sete controles passam. O guarda continua restrito às composições atuais. |
+| RVF12-3-04 | **Confirmada como documentação do limite.** O diff de `4f74ff9` só acrescenta comentário ao dono da heurística. R3_S mantém 1 para Python sem espaços, 0 com espaços e 1 para o par ENV literal. O falso positivo ficou explicitamente declarado, sem mudança de comportamento. |
+
+**Validação própria em `fb97e0b`, antes deste parecer.** Todos os comandos abaixo saíram 0.
+Os testes do Makefile usam rascunhos, executáveis simulados e `docker compose config`;
+nenhum ambiente foi iniciado. Não executei `make check`, que escreve no armazém, nem alvos
+proibidos pela §6.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -rs -p no:cacheprovider \
+  tests/test_secrets_review.py tests/test_docs_check.py tests/test_verificador_adr.py tests/test_makefile.py
+PYTHONDONTWRITEBYTECODE=1 python3 .claude/skills/adr/verificar.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m mvp_ed1.docs_check
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m mvp_ed1.secrets_review --historico
+```
+
+```text
+186 passed in 23.13s
+ADRs aceitos: 48  ·  esperando ADR: 1  ·  esperando o Owner: 1 decisão(ões) e 1 aprovação(ões)  ·  Dnn citados: 61
+
+Integridade conferida: links, ADRs citados, decisões pendentes e contadores.
+docs-check: 108 documentos, 1035 links de arquivo, 160 âncoras, 658 citações de ADR — nada quebrado
+revisão do histórico: nada não tratado (11 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Do histórico, foi colada a última linha; as onze anteriores identificam as ocorrências tratadas.
+**Sondas próprias reproduzíveis:** o comando extrai R3_S/D literal do parecer anterior, até o
+trecho do guarda, e R3_G adaptada da §10.2. Não atribuo sucesso à R3_G antiga, que não inclui o
+ajudante. `antes` permanece `ebc84ae` em S/D e `1bddee9` em G; `depois` é esta ponta.
+R4_INLINE só escreve Markdown sintético em repositórios temporários.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+from pathlib import Path
+import json
+import subprocess
+import sys
+import tempfile
+from mvp_ed1 import docs_check
+
+texto = Path('REVISAO.md').read_text()
+r3 = texto[texto.index('**Sonda adicional R3, reproduzível'):].split('```bash\n', 1)[1].split('\n```', 1)[0]
+sd = r3.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0].split('# Executa a função real do guarda', 1)[0]
+sec = texto[texto.index('### 10.2'):texto.index('### 10.3')]
+g = sec.split('```python\n', 1)[1].split('\n```', 1)[0]
+for script in (sd, g):
+    r = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, check=True)
+    print(r.stdout, end='')
+
+x = '[' + 'x' + ']' + '(' + 'sumiu.md' + ')'
+casos = {nome: chr(92) * n + '`' + x + '`' for nome, n in
+         [('uma_barra', 1), ('duas_barras', 2), ('tres_barras', 3), ('quatro_barras', 4)]}
+casos.update({
+    'comprimento_diferente_dentro': '`a``b` ' + x,
+    'barra_interna_fecha': '`a' + chr(92) + '`' + x,
+    'sem_fecho': '``ab ' + x,
+    'rotulo_em_codigo': '[' + '`x`' + ']' + '(' + 'sumiu.md' + ')',
+})
+for nome, linha in casos.items():
+    with tempfile.TemporaryDirectory(prefix='docs-e12-r4-') as tmp:
+        raiz = Path(tmp)
+        subprocess.run(['git', 'init', '-q'], cwd=raiz, check=True)
+        (raiz / 'README.md').write_text(linha + '\n')
+        subprocess.run(['git', 'add', 'README.md'], cwd=raiz, check=True)
+        quebrados, contagem = docs_check.verificar(raiz)
+        print('R4_INLINE', nome, json.dumps({'quebrados': [str(q) for q in quebrados],
+                                          'links': contagem['links']}, ensure_ascii=False))
+PY
+```
+
+Saída literal, comando com saída 0. Em R3_G, `FAIL` é o guarda acusando o literal, resultado
+esperado; `PASS` é a referência aceita:
+
+```text
+R3_S jinja_completa {"antes": 0, "depois": 0, "motivo": "referência — `$VAR`, `$1`, `${…}`, `$(…)`, `$$VAR` do Make, `{{ … }}` de gabarito"}
+R3_S jinja_um_fecho {"antes": 0, "depois": 1, "motivo": null}
+R3_S jinja_mais_literal {"antes": 0, "depois": 1, "motivo": null}
+R3_S f_string_mais_literal_limite {"antes": 0, "depois": 0, "motivo": "interpolação — `{var}` de f-string"}
+R3_S python_sem_espacos {"antes": 1, "depois": 1}
+R3_S python_com_espacos {"antes": 1, "depois": 0}
+R3_S env_par_literal {"antes": 1, "depois": 1}
+R3_D codigo_normal {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": [], "links": 0}
+R3_D duas_barras {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": [], "links": 0}
+R3_D codigo_entre_partes {"antes": [], "depois": [], "links": 0}
+R3_G antes sem_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G antes aspas_duplas PASS (sem acusar)
+R3_G antes aspas_simples PASS (sem acusar)
+R3_G antes igual_com_aspas PASS (sem acusar)
+R3_G antes referencia PASS (sem acusar)
+R3_G depois sem_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois aspas_duplas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois aspas_simples FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois igual_com_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G depois referencia PASS (sem acusar)
+R4_INLINE uma_barra {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R4_INLINE duas_barras {"quebrados": [], "links": 0}
+R4_INLINE tres_barras {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R4_INLINE quatro_barras {"quebrados": [], "links": 0}
+R4_INLINE comprimento_diferente_dentro {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R4_INLINE barra_interna_fecha {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R4_INLINE sem_fecho {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R4_INLINE rotulo_em_codigo {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+```
+
+**Não medidos nesta rodada:** ciclo completo, restauração, instalação, subida ou login do Airflow,
+prontidão e causa da recriação dos contêineres. Nada das §§9.4, 9.5 e 10.4 foi convertido em nova
+medição operacional. Artefatos temporários: `/tmp/revisao-e12-r4-fb97e0b/`.
+
+
 **Achados — cada linha inclui reprodução, saída observada e encaminhamento proposto.**
 
 | # | Onde | Achado | Veredito | Situação |
