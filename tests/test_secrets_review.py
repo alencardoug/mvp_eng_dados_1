@@ -12,6 +12,7 @@ casaria.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import subprocess
@@ -311,6 +312,77 @@ def test_env_no_historico_e_aviso_mesmo_sem_achado(repositorio):
     assert any(".env já foi adicionado ao histórico" in a for a in avisos), avisos
 
 
+# ── Os moldes não excusam literal (revisão final da Etapa 12) ───────────────
+
+
+@pytest.mark.parametrize("simbolo", ["x", "$", "(", "[", "{{"])
+def test_literal_entre_aspas_com_simbolo_no_meio_e_achado(simbolo):
+    """RVF12-03: `$`, `(` e `[` no meio de um valor JSON não fazem dele referência.
+
+    É a contraprova do revisor, com `{{` junto — a regra de interpolação também
+    deixou de valer em qualquer posição. `x` é o controle, que sempre foi achado.
+    """
+    chave = "pass" + "word"
+    valor = "Ab9" + simbolo + "Z7q1"
+    achados = secrets_review.detectar(json.dumps({chave: valor}))
+    assert [(a.chave, a.valor) for a in achados] == [(chave, valor)]
+
+
+def test_referencias_e_expressoes_continuam_moldes():
+    """O aperto não pode devolver os 24 falsos achados que as regras evitam.
+
+    Uma linha por forma que a sonda do histórico achou excusada pelas regras
+    antigas: Make, Compose, Python, o `sed` do Makefile e o Terraform.
+    """
+    texto = "\n".join(
+        [
+            "PGPASSWORD=$$AIRBYTE_CLIENT_SECRET",
+            'password: "${DB_PASSWORD}"',
+            "secret: ${AIRFLOW_JWT_SECRET:?defina no .env}",
+            'password = quote_plus(os.environ["WAREHOUSE_DB_PASSWORD"])',
+            "token = airbyte.token()",
+            r"s/.*Client-Secret: \(\S*\).*/AIRBYTE_CLIENT_SECRET=\1/p",
+            r"POSTGRES_PASSWORD: (?!\$)\S+",
+            "password = var.source_db_password",
+        ]
+    )
+    assert secrets_review.detectar(texto) == []
+
+
+def test_senha_igual_ao_usuario_e_achada_mesmo_curta_e_sem_digito():
+    """RVF12-01: o par de fábrica que ficou na composição do Airflow até 0b89b3d.
+
+    Sozinho, o valor é excusado — palavra única sem dígito, e abaixo do
+    comprimento mínimo. Repetindo o usuário, na URL ou numa atribuição do mesmo
+    texto, ele é credencial. Referência repetida continua molde: `{u}:{u}` num
+    f-string e `${U}:${U}` numa composição não são par de fábrica.
+    """
+    usuario = "air" + "flow"
+    chave = "POSTGRES_" + "PASSWORD"
+    composicao = "\n".join(
+        [
+            f"CONN: postgresql+psycopg2://{usuario}:{usuario}@airflow_db:5432/{usuario}",
+            f"POSTGRES_USER: {usuario}",
+            f"{chave}: {usuario}",
+        ]
+    )
+    assert secrets_review.placeholder(usuario) is not None
+
+    achados = secrets_review.detectar(composicao)
+    assert [(a.linha, a.forma, a.valor) for a in achados] == [
+        (1, "URL", usuario),
+        (3, "atribuição", usuario),
+    ]
+
+    moldes = "\n".join(
+        [
+            "url = f'postgresql://{usuario}:{usuario}@localhost/banco'",
+            "CONN: postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_USER}@airflow_db/airflow",
+        ]
+    )
+    assert secrets_review.detectar(moldes) == []
+
+
 # ── As composições tiram credencial do ambiente, não do próprio arquivo ─────
 
 
@@ -322,10 +394,11 @@ def test_nenhuma_composicao_embute_credencial():
     à rede do Compose e nunca exposto — e ainda assim uma credencial fora do
     `.env`, que é uma exceção não declarada à regra.
 
-    A varredura por forma **não** pega esse caso: `airflow` é palavra única sem
-    dígito, e a regra que excusa `var.password` e `$SENHA` excusa essa também.
-    Este teste existe justamente por isso — o detector genérico não cobre, e
-    uma regressão voltaria calada.
+    Até 03/10/2026 a varredura por forma não pegava esse caso: `airflow` é
+    palavra única sem dígito, e a regra que excusa `var.password` e `$SENHA`
+    excusava essa também. A senha igual ao usuário passou a ser achada sempre
+    (RVF12-01); este guarda continua, porque cobre o que o detector não cobre —
+    usuário literal, e senha literal **diferente** do usuário e só com letras.
     """
     raiz = pathlib.Path(__file__).resolve().parent.parent
     composicoes = sorted((raiz / "docker").glob("docker-compose*.yml"))

@@ -48,7 +48,8 @@ from dataclasses import dataclass
 #: e aparecem legitimamente em compose, Terraform e documentação.
 SECRET_KEY_PATTERN = re.compile(r"PASSWORD|SECRET|KEY|TOKEN|CREDENTIAL")
 
-#: Abaixo disto uma coincidência textual não diz nada.
+#: Abaixo disto uma coincidência textual não diz nada — nem o valor de uma
+#: atribuição, salvo quando ele repete o usuário (`detectar`).
 MIN_SECRET_LENGTH = 8
 
 #: Formas que denunciam credencial independentemente do `.env`.
@@ -69,13 +70,26 @@ BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".ico", ".woff", ".w
 #: chave é aceita antes do separador, a caixa é ignorada, e o valor para na
 #: aspa ou na vírgula — sem isso, `{"password": "x", "user": "y"}` viraria um
 #: valor só, que é como a contraprova da segunda rodada passou despercebida.
+#: A aspa que **abre** o valor é capturada: valor entre aspas é literal de
+#: texto, e expressão não existe ali (`placeholder`). O comprimento mínimo fica
+#: em `detectar`, não aqui, porque a senha igual ao usuário não o respeita.
 ASSIGNMENT_PATTERN = re.compile(
     r"""(?ix)
     ["']?(?P<chave>[a-z0-9_.-]*
         (?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)
         [a-z0-9_.-]*)["']?
     \s*[=:]\s*
-    ["']?(?P<valor>[^\s"',]{8,})
+    (?P<aspa>["']?)(?P<valor>[^\s"',]+)
+    """
+)
+
+#: Atribuição de usuário, nas mesmas três sintaxes — `POSTGRES_USER: airflow`,
+#: `"username": "mvp"`. Só valores com cara de nome: referência não é usuário.
+USER_PATTERN = re.compile(
+    r"""(?ix)
+    ["']?[a-z0-9_.-]*user(?:name)?["']?
+    \s*[=:]\s*
+    ["']?(?P<valor>[a-z0-9_.-]+)(?=["',\s]|$)
     """
 )
 
@@ -91,22 +105,22 @@ URL_CREDENTIAL_PATTERN = re.compile(r"://(?P<chave>[^/:@\s]+):(?P<valor>[^@\s]+)
 #: `password` — `password = quote_plus(...)` em `db.py`, `var.source_db_password`
 #: no Terraform, `$$AIRBYTE_CLIENT_SECRET` no Makefile. Medido: sem estas
 #: regras, o repositório devolve 24 achados e **nenhum** é um segredo.
+#
+#: **Referência é o valor inteiro, não um caractere dele** (RVF12-03). Até
+#: 03/10/2026 `$`, `(` e `[` em qualquer posição excusavam o valor, e uma senha
+#: JSON entre aspas com `$` no meio passava como referência a variável. As
+#: regras de referência agora ancoram no início, e a de expressão vive à parte.
 PLACEHOLDER_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^$"), "vazio — é o que `.env.example` declara"),
     (re.compile(r"^<[^>]*>"), "marcador `<…>`"),
-    (re.compile(r"\$"), "referência a variável — `$VAR`, `${…}`, `$$VAR` do Make"),
-    (re.compile(r"^\{[^}]*\}|\{\{"), "interpolação — `{var}` de f-string, `{{ … }}` de gabarito"),
+    (
+        re.compile(r"^\$\$?[{(A-Za-z_]"),
+        "referência a variável — `$VAR`, `${…}`, `$(…)`, `$$VAR` do Make",
+    ),
+    (re.compile(r"^\{[^}]*\}|^\{\{"), "interpolação — `{var}` de f-string, `{{ … }}` de gabarito"),
     (
         re.compile(r"^(var|local|data|module|each|self)\."),
         "referência do Terraform ou atributo de objeto",
-    ),
-    (
-        re.compile(r"[(\[]"),
-        "expressão, não literal — chamada de função ou indexação",
-    ),
-    (
-        re.compile(r"^[A-Za-z][A-Za-z_.\-]*[}\],;]?$"),
-        "palavra única sem dígito — identificador ou molde, não valor gerado",
     ),
     (re.compile(r"(?i)^change[_-]?me"), "molde literal `changeme`"),
     (re.compile(r"(?i)example|exemplo"), "molde literal `example`"),
@@ -115,11 +129,36 @@ PLACEHOLDER_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(?i)^(null|none|nil|true|false)$"), "literal da linguagem, não credencial"),
 )
 
-#: **Limite declarado da última regra:** uma senha escrita à mão só com letras
+#: **Limite declarado desta regra:** uma senha escrita à mão só com letras
 #: (`correcthorsebattery`) é excusada por ela. Vale aqui porque `make env`
 #: sorteia valores com dígitos, e porque as formas conhecidas (`GENERIC_PATTERNS`)
 #: e a comparação com os valores do `.env` cobrem o resto — mas é uma escolha,
 #: não uma cobertura, e está escrita para ser revista quando deixar de valer.
+#: Ela não excusa a senha **igual ao usuário**: foi assim que `airflow`/`airflow`
+#: ficou na composição do Airflow até 0b89b3d sem a varredura ver (RVF12-01).
+#: Por isso vive fora de `PLACEHOLDER_RULES` — referência repetida continua
+#: molde (`{usuario}:{usuario}` num f-string), palavra repetida não.
+WORD_RULE = (
+    re.compile(r"^[A-Za-z][A-Za-z_.\-]*[}\],;]?$"),
+    "palavra única sem dígito — identificador ou molde, não valor gerado",
+)
+
+#: Expressão só existe **fora** de literal de texto: `quote_plus(...)` em
+#: `db.py`, `airbyte.token()`, o grupo `\(\S*\)` do `sed` no Makefile, o `(?!…)`
+#: de uma regex citada num documento. Entre aspas ou numa URL, `Ab9(Z7q1` é
+#: literal — e é entre aspas, no JSON dos conectores, que uma credencial gerada
+#: aparece. **Limite declarado:** valor sem aspa que comece como chamada
+#: (`Ab9(…`) é tomado por código; `make env` sorteia só `A-Za-z0-9`.
+EXPRESSION_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"^[A-Za-z_][\w.]*[(\[]"),
+        "expressão, não literal — chamada de função ou indexação",
+    ),
+    (
+        re.compile(r"^\\?[(\[]"),
+        "expressão, não literal — grupo ou classe de expressão regular",
+    ),
+)
 
 #: Blob maior que isto não é lido — e entra na lista de pulados, por nome.
 MAX_BLOB_BYTES = 5 * 1024 * 1024
@@ -129,9 +168,19 @@ MAX_BLOB_BYTES = 5 * 1024 * 1024
 TRATADOS_PATH = pathlib.Path("docs/segredos_tratados.yml")
 
 
-def placeholder(valor: str) -> str | None:
-    """O motivo de `valor` ser molde, ou `None` se ele é um valor de verdade."""
-    for padrao, motivo in PLACEHOLDER_RULES:
+def placeholder(valor: str, *, literal: bool = False, igual_ao_usuario: bool = False) -> str | None:
+    """O motivo de `valor` ser molde, ou `None` se ele é um valor de verdade.
+
+    `literal` diz que o valor está num literal de texto — entre aspas ou numa
+    URL —, onde não há expressão a excusar. `igual_ao_usuario` tira a regra da
+    palavra sem dígito: o par de fábrica não é identificador.
+    """
+    regras = PLACEHOLDER_RULES
+    if not literal:
+        regras += EXPRESSION_RULES
+    if not igual_ao_usuario:
+        regras += (WORD_RULE,)
+    for padrao, motivo in regras:
         if padrao.search(valor):
             return motivo
     return None
@@ -171,17 +220,27 @@ def detectar(texto: str) -> list[Achado]:
     """As formas de credencial num texto, sem saber valor nenhum de antemão.
 
     O caminho e o commit ficam vazios aqui: quem chama sabe onde leu.
+
+    Senha igual ao usuário — o par de fábrica, `airflow`/`airflow` — não tem
+    comprimento mínimo nem passa pela regra da palavra sem dígito; referência
+    repetida continua molde. O usuário vem da mesma URL ou de qualquer
+    atribuição de usuário do mesmo texto.
     """
+    usuarios = {casado.group("valor") for casado in USER_PATTERN.finditer(texto)}
     achados: list[Achado] = []
     for numero, linha in enumerate(texto.splitlines(), start=1):
         for casado in ASSIGNMENT_PATTERN.finditer(linha):
             valor = casado.group("valor")
-            if placeholder(valor) is not None:
+            igual = valor in usuarios
+            if (not igual and len(valor) < MIN_SECRET_LENGTH) or placeholder(
+                valor, literal=bool(casado.group("aspa")), igual_ao_usuario=igual
+            ) is not None:
                 continue
             achados.append(Achado("", numero, casado.group("chave"), valor, "atribuição"))
         for casado in URL_CREDENTIAL_PATTERN.finditer(linha):
             valor = casado.group("valor")
-            if placeholder(valor) is not None:
+            igual = valor == casado.group("chave")
+            if placeholder(valor, literal=True, igual_ao_usuario=igual) is not None:
                 continue
             achados.append(
                 Achado("", numero, f"credencial de {casado.group('chave')}", valor, "URL")
