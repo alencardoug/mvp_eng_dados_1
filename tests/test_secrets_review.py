@@ -411,6 +411,40 @@ def test_senha_igual_ao_usuario_e_achada_mesmo_curta_e_sem_digito():
     assert secrets_review.detectar(moldes) == []
 
 
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "{u} = db_user\n{s} = db_user\n",
+        "connect(\n    {u}=db_user,\n    {s}=db_user,\n)\n",
+    ],
+    ids=["atribuicao_python", "argumentos_nomeados"],
+)
+def test_identificador_repetido_no_codigo_nao_e_par_de_fabrica(texto):
+    """RVF12-2-02: usuário e senha atribuídos à mesma variável são referência.
+
+    O par de fábrica só existe entre literais — entre aspas, ou numa linha de
+    configuração YAML ou ENV, como a composição do Airflow até 0b89b3d.
+    """
+    assert secrets_review.detectar(texto.format(u="u" + "ser", s="pass" + "word")) == []
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        '{{"username": "reader", "{s}": "reader"}}',
+        '{u} = "reader"\n{s} = "reader"\n',
+        "POSTGRES_USER=reader\nPOSTGRES_{S}=reader\n",
+        "environment:\n  - POSTGRES_USER=reader\n  - POSTGRES_{S}=reader\n",
+    ],
+    ids=["json", "python_entre_aspas", "env", "lista_da_composicao"],
+)
+def test_par_de_fabrica_entre_literais_continua_achado(texto):
+    """O controle positivo do RVF12-2-02: a distinção não pode perder o literal."""
+    senha = "pass" + "word"
+    achados = secrets_review.detectar(texto.format(u="u" + "ser", s=senha, S=senha.upper()))
+    assert [a.valor for a in achados] == ["reader"]
+
+
 # ── As composições tiram credencial do ambiente, não do próprio arquivo ─────
 
 

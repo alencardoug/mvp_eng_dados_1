@@ -89,8 +89,19 @@ USER_PATTERN = re.compile(
     r"""(?ix)
     ["']?[a-z0-9_.-]*user(?:name)?["']?
     \s*[=:]\s*
-    ["']?(?P<valor>[a-z0-9_.-]+)(?=["',\s]|$)
+    (?P<aspa>["']?)(?P<valor>[a-z0-9_.-]+)(?=["',\s]|$)
     """
+)
+
+#: Linha de configuração — `CHAVE: valor` do YAML ou `CHAVE=valor` do ENV, com
+#: `- ` de lista ou `export` na frente: a chave abre a linha e o valor a fecha.
+#: É só nela que um valor **sem aspas** é literal. `usuario = db_user` (Python,
+#: HCL) e `connect(user=db_user, …)` são referência a variável — e até
+#: 03/10/2026 usuário e senha atribuídos ao mesmo identificador viravam senha
+#: de fábrica (RVF12-2-02). **Limite declarado:** `chave = valor` com espaços num
+#: `.env` não é lido como literal; `make env` escreve sem espaços.
+CONFIG_LINE_PATTERN = re.compile(
+    r"""(?x)^\s*(?:-\s+)?(?:export\s+)?["']?[\w.-]+["']?(?:\s*:\s+|=)[^\s"',\#]+\s*(?:\#.*)?$"""
 )
 
 #: Credencial embutida em URL: `postgresql://usuario:senha@host/banco`.
@@ -250,6 +261,11 @@ class Achado:
         return f"{onde}{self.caminho}:{self.linha}  {self.chave}={mascarar(self.valor)}  [{self.forma}]"
 
 
+def _literal(linha: str, casado: re.Match[str]) -> bool:
+    """O valor de uma atribuição é literal: entre aspas, ou numa linha de configuração."""
+    return bool(casado.group("aspa")) or CONFIG_LINE_PATTERN.match(linha) is not None
+
+
 def detectar(texto: str) -> list[Achado]:
     """As formas de credencial num texto, sem saber valor nenhum de antemão.
 
@@ -258,14 +274,21 @@ def detectar(texto: str) -> list[Achado]:
     Senha igual ao usuário — o par de fábrica, `airflow`/`airflow` — não tem
     comprimento mínimo nem passa pela regra da palavra sem dígito; referência
     repetida continua molde. O usuário vem da mesma URL ou de qualquer
-    atribuição de usuário do mesmo texto.
+    atribuição de usuário do mesmo texto, e os dois lados do par precisam ser
+    literais — entre aspas ou numa linha de configuração (`CONFIG_LINE_PATTERN`).
     """
-    usuarios = {casado.group("valor") for casado in USER_PATTERN.finditer(texto)}
+    linhas = texto.splitlines()
+    usuarios = {
+        casado.group("valor")
+        for linha in linhas
+        for casado in USER_PATTERN.finditer(linha)
+        if _literal(linha, casado)
+    }
     achados: list[Achado] = []
-    for numero, linha in enumerate(texto.splitlines(), start=1):
+    for numero, linha in enumerate(linhas, start=1):
         for casado in ASSIGNMENT_PATTERN.finditer(linha):
             valor = casado.group("valor")
-            igual = valor in usuarios
+            igual = valor in usuarios and _literal(linha, casado)
             if (not igual and len(valor) < MIN_SECRET_LENGTH) or placeholder(
                 valor,
                 literal=bool(casado.group("aspa")),
