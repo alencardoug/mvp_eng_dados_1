@@ -14,6 +14,25 @@ Faker → PostgreSQL → Airbyte → dbt → datamart → consumption     (batch
         legado defeituoso → snapshot → limpeza → quarentena     (segunda origem)
 ```
 
+## Em resumo
+
+| | |
+|---|---|
+| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026. A fase GCP está planejada e não começou |
+| **Stack** | PostgreSQL · Airbyte (em Kubernetes local) · dbt · Airflow · Debezium sobre Kafka Connect · Redpanda · Apache Beam · Terraform · Docker · Python com SQLAlchemy e Alembic |
+| **Escopo** | 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
+| **Qualidade** | `make check` com 905 nós do dbt (700 testes de dados) e 637 testes Python; reconciliação em toda fronteira entre camadas; 4.161 de 4.161 colunas classificadas por sensibilidade |
+| **Processo** | 48 ADRs; 33 dias e 306 *commits* do primeiro *commit* à `v1.0.0`; as Etapas 10 a 12 revisadas por um segundo agente, em rodadas até não restar achado |
+| **Reprodutível** | O ciclo inteiro refeito num clone novo e medido passo a passo, e um ponto único de recuperação restaurado de ponta a ponta |
+
+## Para estudar o projeto
+
+A [trilha de estudo da fase local](CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html) segue um
+pedido e um movimento de estoque por todas as camadas e traz laboratórios de cada ferramenta, com as
+saídas reais de uma execução em 04/10/2026. É um HTML autocontido: baixe o arquivo e abra no
+navegador, porque o GitHub mostra o código-fonte em vez da página. **Não é documento do projeto** e
+fica fora do mapa abaixo: em divergência, vale o documento.
+
 ## Fases
 
 1. **Local (pré-GCP)** — duas origens transacionais, geração determinística de dados, ingestão,
@@ -32,10 +51,10 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
 | [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.8 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`) |
-| [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.1 |
-| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.6 — inventário e diagrama **gerados** |
+| [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
+| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.8 — inventário e diagrama **gerados** |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
-| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.3 |
+| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.8 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.12 — toda fronteira com teste |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.14 — o ciclo do zero medido e o ponto de recuperação entregue |
@@ -85,112 +104,24 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 replicação no GCP com Terraform, o M6 — não começou; o pré-requisito é a autorização explícita do
 Owner.
 
-**Etapa 12 — Fechamento da fase local: os seis critérios medidos em 25/09/2026, num ciclo do zero,
-a definição de pronto aplicada e a etapa aceita pelo Owner em 04/10/2026, depois de quatro rodadas
-de revisão final por outro agente (onze achados, seis, quatro e nenhum, todos tratados).** Um clone novo do repositório, com `.env` novo, percorreu a
-[Execução Local](docs/execucao_local.md) linha a linha sobre bancos, Airbyte e Airflow desmontados e
-instalados do zero — cada cenário no seu subconjunto de ambiente, sem *batch* e *streaming* juntos —,
-com duração e tamanho medidos em cada linha, e o pico de memória em todas menos a do `migrate`, que
-durou 2 s e terminou antes da primeira amostra
-([Capacidade §2.12](docs/capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026)): o
-pico foi a DAG, 6,5 GB nos contêineres com 1,1 GB livres. O ciclo achou oito desvios, todos
-corrigidos na origem e as linhas refeitas; quatro só aparecem num ambiente novo. O **ponto único de
-recuperação** existe e foi provado: o pacote — as fontes e a memória do armazém — restaurado sobre o
-ambiente povoado em 17 minutos, com o *re-snapshot* do CDC e a conferência final igual ao manifesto
-([Capacidade §3](docs/capacidade_e_recuperacao.md#3-ponto-único-de-recuperação)). `make check` verde
-no fechamento, em 04/10/2026, com `PASS=905` e 637 testes Python; o histórico inteiro sem segredo
-não tratado.
+O fechamento (Etapa 12) refez o ciclo inteiro num clone novo do repositório, com `.env` novo, sobre
+bancos, Airbyte e Airflow instalados do zero, cada cenário no seu subconjunto de ambiente — sem
+*batch* e *streaming* juntos ([ADR-0046](docs/adr/0046-validar-a-fase-local-por-partes.md)). Cada
+passo tem duração, memória e tamanho medidos
+([Capacidade §2.12](docs/capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026)), e o
+ciclo achou oito desvios, todos corrigidos na origem. O **ponto único de recuperação** — as fontes e a
+memória do armazém num pacote com manifesto — foi restaurado sobre o ambiente povoado em 17 minutos,
+com o *re-snapshot* do CDC ([Capacidade §3](docs/capacidade_e_recuperacao.md#3-ponto-único-de-recuperação)).
+No aceite, depois de quatro rodadas de revisão final por outro agente: `make check` verde com
+`PASS=905` e 637 testes Python, e o histórico inteiro sem segredo não tratado.
 
-**Etapa 11 — Consolidação de governança e qualidade: os seis critérios satisfeitos entre 17 e
-18/09/2026, a definição de pronto aplicada e a etapa aceita pelo Owner em 18/09/2026, depois de
-três rodadas de revisão por outro agente (sete achados, todos aplicados e confirmados).** Um comando de
-verificação com *fail fast* (`make check`: segredos → `dbt build` → classificação e linhagem
-derivadas → `pytest`); **4.161 de 4.161** colunas classificadas por derivação dos modelos; retenção
-declarada em todo objeto; **cinco papéis de acesso** sem login, com a concessão declarada por camada
-no dbt e provada por 1.390 leituras assumindo cada papel — `analyst` lê as 16 views e nada mais;
-**linhagem por coluna** do consumo até as fontes, gerada do SQL compilado e conferida a cada
-`make check` (2.983 de 2.983 colunas fecham numa origem); e **reconciliação automática nas oito
-fronteiras** da Qualidade §7, que no primeiro fechamento expôs três estados de uma origem
-regenerada discordando entre si — corrigidos no mesmo dia pelo procedimento documentado. Medido em
-18/09/2026: `make check` verde com `PASS=905` e 291 testes Python; DAG `fluxo_batch` de ponta a
-ponta com 13 tarefas em 7 min 58 s, captura **43** certificada; migrações do zero nos três bancos.
+Os marcos de M0 a M5, os critérios de cada etapa e o que foi medido em cada uma estão no
+[Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md); o que está aberto, nas
+[Pendências do Owner](docs/pendencias.md). O ponto de partida da operação é a
+[Execução Local](docs/execucao_local.md).
 
-**Etapa 10 — Corte 6: origem legada, reaberta em 07/09/2026 e aceita em 17/09/2026 após sete
-rodadas de revisão; a condição do aceite — o bloco de sincronizações da D44 — foi executada e medida
-no mesmo dia.** Foi declarada
-concluída em 06/09 e duas revisões por outro agente mostraram que não estava. O empilhamento em
-`trusted`, ausente na primeira revisão, existe desde 07/09 e teve a identidade por origem conferida
-no SQL pela terceira. Esta, de 08/09, deixou treze achados abertos; nove foram fechados com
-contraprova — validação de data, reversibilidade de codificação, ambiguidade monetária, recuperação
-do valor injetado, identidade do vínculo com a auditoria, guarda de configuração da impressão
-digital, avaliação real das views, e dois na troca automática de ambientes. Os que continuavam abertos —
-**R09, R10, R12, R13, R14 e R26** — foram implementados em 14–15/09/2026 sob um plano revisado três
-vezes pelo outro agente: cada captura do legado é **certificada por conteúdo** em duas fases
-([ADR-0044](docs/adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)); a **exclusão física** é
-detectada no bruto retido entre capturas certificadas
-([ADR-0045](docs/adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)); o schema legado
-entrou no **Alembic**; o manifesto tem **veredito esperado de toda ocorrência** e a captura é
-conferida por hash antes de comparar; e a identidade da captura passou a ser o *job* do Airbyte,
-porque a geração se mostrou por *stream*. **Medido em 15/09/2026:** 12.747 vereditos iguais ao
-oráculo; oito capturas certificadas (jobs 28–36), uma recusada de propósito (39/40 tabelas);
-remoção, inclusão, redução, persistência e reaparecimento medidos entre capturas reais;
-`make dbt-build` completo com `PASS=891 ERROR=0`; DAG `fluxo_batch` com 12 tarefas em 13 min,
-certificando a captura dentro dela; `make test FATO=1` com 180 passed. **Aceita pelo Owner em 17/09/2026**, sob a condição da
-[D44](docs/pendencias.md#d44--decidida-em-16092026-implementada-e-medida-em-17092026), satisfeita no
-mesmo dia: origem recarregada, capturas **38** (lote íntegro, 12.747 vereditos conferidos de novo) e
-**39** (mutada) certificadas, `PASS=891` nos dois *builds*, `campaigns/4` provada `mantida` com a chave
-escrita `'0x4'`, e o diário de mutações refeito no formato novo. A sétima rodada de revisão (17/09)
-não trouxe achado. O R25 foi implementado em 08/09 pelo
-[ADR-0042](docs/adr/0042-reconciliar-a-captura-legada-na-fato-incremental.md) e provado por
-reprocessamento, não por reconstrução; a revisão dessa entrega (08/09) confirmou o mecanismo em
-sondas isoladas, e os quatro achados dela foram fechados em 14/09. **Estado do armazém medido em
-17/09/2026:** captura selecionada **39** (`make dbt-build` do bloco da D44, `PASS=891` em 12 min 39 s;
-antes dela, a 36 era o *job* da DAG de 15/09), tratamento na versão 9 desde o *build* completo da noite de
-15/09 (`PASS=891` em 12 min 15 s; a 9 vem do
-[ADR-0047](docs/adr/0047-materializar-o-cte-de-limpeza-do-legado.md), sem regra nova, e a quarentena
-guarda as auditorias v8 e v9 lado a lado, iguais linha a linha),
-16 das 16 views publicadas, fato com 16.403 linhas (15.900 `retail` + 503 `legacy`); `make dbt-build`
-completo com `PASS=891 ERROR=0`. As observações anteriores — 2 das 16 views e tratamento na versão 5
-em 08/09; captura 16 e versão 7 em 14/09 — descrevem o banco **antes** das reconstruções seguintes.
-Termo aprovado (**M0**), decisões em ADR (**M1**), ambiente
-subindo do zero com um comando (**M2**), **fluxo completo origem → consumo** em operação (**M3**) e
-**streaming em operação com o *batch* intacto** (**M4**).
-
-Seis cortes verticais entregues — comercial, financeiro e estoque, o caminho quente, entrega e
-logística, relacionamento e a **origem legada**. O modelo dimensional está completo: 10 fatos e 15
-dimensões, e as 16 perguntas de negócio têm view com `contract: enforced`. O armazém tem **36 fluxos
-de ingestão em lote** da origem principal, o **CDC de `inventory_movements`** e **40 do legado**, e o
-`dbt build` passa com **863 objetos, `WARN=0` e `ERROR=0`** (medido em 08/09/2026).
-
-**A segunda origem atravessa da captura até o modelo dimensional.** São 12.747 ocorrências
-capturadas: **81,9% aceitas, 17,9% rejeitadas** em quarentena com motivo e **0,2% corrigidas**, com
-valor original, resultado e regra registrados. Das 10.467 aptas, **10.233 são empilhadas** em
-`trusted` ao lado da origem principal — as outras 234 estão em quatro tabelas que o legado tem e a
-origem principal não, e por isso não têm com que se unir. A equação
-`extraídos = aceitos + corrigidos + rejeitados` é conferida a cada *build*, e agora também
-`empilhados = aceitos + corrigidos`, tabela por tabela. Os modelos de limpeza encontram os **106
-achados** injetados em 88 ocorrências — medidos contra o manifesto, que a transformação nunca lê.
-
-A procedência viaja junto: `source_system` é coluna em toda tabela empilhada, entra na chave
-substituta das dimensões e qualifica cada junção. "Quantos registros vieram do legado?" é uma
-cláusula `WHERE` — 74 clientes em `dim_customer`, 264 itens em `fact_sales_order_item`. A DAG `fluxo_batch` roda **dez
-tarefas** de ponta a ponta em **5 min 20 s**, com as duas capturas em paralelo.
-
-O mesmo livro de estoque chega por **dois caminhos independentes** — Debezium sobre Kafka Connect e
-carga completa do Airbyte —, com sobreposição total e de propósito. A revalidação comparou
-**chaves e payloads**, saldo por armazém/SKU, duplicatas no transporte, alertas e fato incremental
-contra reconstrução completa. Detalhes do corte atual em
-[Streaming §7.2](docs/streaming.md#72-revalidação-da-d31).
-
-A geração corrigida preservou a cobertura das 40 tabelas e dos pedidos divididos. A nova
-[invariante 13](docs/modelo_de_dados.md#4-invariantes-de-negócio) impede caixas vazias, e P13
-reconcilia com as remessas entregues em `trusted`. Volumes, tempos e comparação anterior/posterior
-em [Capacidade §2.7](docs/capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026), sem substituir
-as medições históricas.
-
-O ponto de partida da operação é a [Execução Local](docs/execucao_local.md): o preparo de um clone
-novo na §2 e o ciclo completo na §3, na ordem que o ciclo do zero de 25/09/2026 conferiu — o
-*snapshot* do *streaming* antes do primeiro *build*. O caminho quente sobe separado do frio de
-propósito: os dois não convivem, nem na validação final, que é por partes (risco **R11**,
-[ADR-0046](docs/adr/0046-validar-a-fase-local-por-partes.md)), e a troca entre eles é automática
-([Execução Local §5](docs/execucao_local.md#5-executando-por-partes)).
+**Depois do M5 (04/10/2026).** A validação do material de estudo, que rodou cada laboratório na
+máquina, levantou quatro decisões para o Owner, registradas nas Pendências: a contagem dupla no saldo
+do alerta do *streaming* (D62), o medidor do *streaming* que encerra antes de o ramo de alerta drenar
+(D63), a chave Fernet do Airflow gerada inválida (D64) e itens vendidos antes do lançamento do produto
+no dado sintético (D65). Nada no código foi alterado.
