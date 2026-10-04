@@ -1169,6 +1169,13 @@ mesmos, com o mesmo motivo.
 - A sonda R3 literal deixou de rodar inteira; a parte R3_G está adaptada acima, sem outra mudança.
 - Nenhum ambiente subiu nesta rodada; nada da §9.4 nem da §9.5 foi medido de novo.
 
+**A quarta rodada é mínima, por decisão do Owner em 04/10/2026, e revisa `6452b0f..` a ponta**, este
+registro incluído: a resposta a RVF12-3-01..04 — a regra do `{var}` com uma chave só, a varredura
+de código em linha do `docs_check` (`_sem_codigo_em_linha`), o guarda das composições com o
+ajudante e os controles, e o limite declarado do `CONFIG_LINE_PATTERN`. Não reabre o que as rodadas
+anteriores já sustentaram. O ambiente e as proibições são os da §6, sem mudança; esta rodada não
+precisa de ambiente nenhum de pé além do que já está.
+
 ---
 
 ## Achados da revisão
