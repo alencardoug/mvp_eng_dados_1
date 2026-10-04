@@ -51,3 +51,39 @@ tratados:
     tratamento: nenhum — valor fictício, nunca usado em lugar nenhum
     motivo: >-
       A mesma fixture, na forma YAML, no commit anterior.
+  - commit: 4ff3be951074c4d3719dcebba85971316534b141
+    caminho: docker/docker-compose.airflow.yml
+    chave: credencial de airflow
+    tratamento: >-
+      rotacionada — saiu da composição para o .env em 0b89b3d (20/09/2026),
+      com ALTER ROLE no banco de então; o banco de metadados atual nasceu no B5
+      (volume mvp_ed1_airflow_db_data criado em 25/09/2026 10:35:44 -03:00) com
+      a senha sorteada por `make env`, diferente desta (conferido em 03/10/2026)
+    motivo: >-
+      Senha igual ao usuário — o par de fábrica do banco de metadados do Airflow,
+      na URL de conexão, desde a Etapa 5. Interno à rede do Compose e nunca
+      exposto. Credencial local: pela D48 regenera-se e registra-se, sem
+      reescrever o histórico. Achada por inspeção em 0b89b3d; a varredura
+      passou a achá-la em 03/10/2026, depois da revisão final da Etapa 12
+      (RVF12-01).
+  - commit: 4ff3be951074c4d3719dcebba85971316534b141
+    caminho: docker/docker-compose.airflow.yml
+    chave: POSTGRES_PASSWORD
+    tratamento: >-
+      rotacionada — a mesma rotação da credencial de airflow deste commit
+    motivo: >-
+      A mesma senha, no POSTGRES_PASSWORD do contêiner do banco de metadados.
+  - commit: ea91a49809808f62dbb9dd4d2ab67f038d86049e
+    caminho: docker/docker-compose.airflow.yml
+    chave: credencial de airflow
+    tratamento: >-
+      rotacionada — a mesma rotação da credencial de airflow de 4ff3be9
+    motivo: >-
+      A mesma credencial, na versão seguinte da composição.
+  - commit: ea91a49809808f62dbb9dd4d2ab67f038d86049e
+    caminho: docker/docker-compose.airflow.yml
+    chave: POSTGRES_PASSWORD
+    tratamento: >-
+      rotacionada — a mesma rotação da credencial de airflow de 4ff3be9
+    motivo: >-
+      A mesma senha, no POSTGRES_PASSWORD da versão seguinte da composição.
