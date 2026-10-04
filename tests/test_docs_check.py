@@ -155,6 +155,37 @@ def test_titulo_dentro_de_bloco_de_codigo_nao_conta(repositorio):
     assert quebrados[0].motivo == "título não existe em docs/alvo.md"
 
 
+@pytest.mark.parametrize(
+    "bloco",
+    [
+        pytest.param("````markdown\n```python\n# Falso\n```\n````\n", id="quatro-crases-com-tres-dentro"),
+        pytest.param("~~~markdown\n```\n# Falso\n```\n~~~\n", id="tis-com-crases-dentro"),
+        pytest.param("```\n# Falso\n``` texto\n```\n", id="cerca-com-texto-nao-fecha"),
+    ],
+)
+def test_cerca_so_fecha_com_o_mesmo_caractere_e_comprimento(repositorio, bloco):
+    """RVF12-06: dentro de quatro crases, três crases são conteúdo.
+
+    Até 03/10/2026 qualquer cerca alternava o estado: o `# Falso` do exemplo
+    virava título, e o link para `#falso` passava. O texto depois do bloco é
+    lido de novo — o título real dali em diante conta.
+    """
+    _escrever(repositorio, "README.md", bloco + "\n# Real\n\n[falso](#falso) [real](#real)\n")
+
+    quebrados, _ = docs_check.verificar(repositorio)
+
+    assert [q.alvo for q in quebrados] == ["#falso"]
+
+
+def test_crase_na_linha_nao_abre_cerca(repositorio):
+    """``` `x` ``` é código em linha: depois dele, o título continua sendo título."""
+    _escrever(repositorio, "README.md", "``` `x` ```\n\n# Real\n\n[real](#real)\n")
+
+    quebrados, _ = docs_check.verificar(repositorio)
+
+    assert quebrados == []
+
+
 def test_link_dentro_de_bloco_de_codigo_nao_e_conferido(repositorio):
     """Exemplo em bloco de código é exemplo, não ponteiro."""
     _escrever(

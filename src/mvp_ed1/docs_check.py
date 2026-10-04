@@ -35,8 +35,9 @@ import unicodedata
 from dataclasses import dataclass
 from urllib.parse import unquote
 
-#: Cerca de bloco de código: ``` ou ~~~, com ou sem linguagem.
-CERCA = re.compile(r"^\s*(```|~~~)")
+#: Cerca de bloco de código: três ou mais crases ou tis, com ou sem linguagem.
+#: A indentação é livre, porque este repositório tem blocos dentro de listas.
+CERCA = re.compile(r"^\s*(?P<cerca>`{3,}|~{3,})(?P<resto>.*)$")
 
 #: Título ATX. Setext (`====` embaixo) não é usado neste repositório.
 TITULO = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -111,14 +112,30 @@ class Documento:
 
 
 def _fora_de_codigo(texto: str):
-    """Rende `(numero, linha)` pulando o que está dentro de cerca de código."""
-    dentro = False
+    """Rende `(numero, linha)` pulando o que está dentro de cerca de código.
+
+    A regra do GFM: o bloco fecha só numa cerca do **mesmo** caractere, de
+    comprimento igual ou maior, sem nada depois. Dentro de uma cerca de quatro
+    crases, três crases são conteúdo — é assim que se mostra um bloco de código
+    num exemplo de Markdown. Até 03/10/2026 qualquer cerca alternava o estado,
+    e um `# título` de exemplo virava âncora (RVF12-06). Crase na linha de
+    abertura de uma cerca de crases é código em linha, não cerca.
+    """
+    aberta: str | None = None
     for numero, linha in enumerate(texto.splitlines(), start=1):
-        if CERCA.match(linha):
-            dentro = not dentro
-            continue
-        if not dentro:
+        cerca = CERCA.match(linha)
+        if aberta is None:
+            if cerca and not (cerca["cerca"][0] == "`" and "`" in cerca["resto"]):
+                aberta = cerca["cerca"]
+                continue
             yield numero, linha
+        elif (
+            cerca
+            and cerca["cerca"][0] == aberta[0]
+            and len(cerca["cerca"]) >= len(aberta)
+            and not cerca["resto"].strip()
+        ):
+            aberta = None
 
 
 def ler(caminho: pathlib.Path, relativo: str) -> Documento:
