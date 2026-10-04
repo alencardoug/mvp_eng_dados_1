@@ -136,7 +136,8 @@ def ler(caminho: pathlib.Path, relativo: str) -> Documento:
             repeticao = vistos.get(base, 0)
             ancoras.add(base if repeticao == 0 else f"{base}-{repeticao}")
             vistos[base] = repeticao + 1
-            continue
+            # O título também é texto: link e citação de ADR nele valem como em
+            # qualquer linha. Até 03/10/2026 o `continue` aqui os pulava (RVF12-04).
 
         definicao = DEFINICAO.match(linha)
         if definicao:

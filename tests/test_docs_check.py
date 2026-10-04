@@ -173,6 +173,23 @@ def test_adr_citada_precisa_existir(repositorio):
     assert [(q.alvo, q.motivo) for q in quebrados] == [("ADR-0099", "não existe em docs/adr/")]
 
 
+def test_link_e_adr_no_titulo_sao_conferidos(repositorio):
+    """RVF12-04: o título gera âncora **e** é texto — o que ele cita é conferido.
+
+    Até 03/10/2026 o leitor registrava a âncora e pulava a linha, e um título
+    com link para arquivo inexistente ou com ADR inexistente passava.
+    """
+    _escrever(repositorio, "README.md", "# Ver o [alvo](sumiu.md)\n\n## Segundo o ADR-0099\n")
+
+    quebrados, contagem = docs_check.verificar(repositorio)
+
+    assert [(q.linha, q.alvo, q.motivo) for q in quebrados] == [
+        (1, "sumiu.md", "arquivo não existe"),
+        (3, "ADR-0099", "não existe em docs/adr/"),
+    ]
+    assert (contagem["links"], contagem["adrs"]) == (1, 1)
+
+
 def test_link_externo_nao_e_conferido(repositorio):
     _escrever(repositorio, "README.md", "[fora](https://exemplo.invalido/pagina)\n")
 
