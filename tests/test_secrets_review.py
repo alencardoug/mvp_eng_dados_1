@@ -486,23 +486,51 @@ def test_nenhuma_composicao_embute_credencial():
     composicoes = sorted((raiz / "docker").glob("docker-compose*.yml"))
     assert composicoes, "nenhuma composição encontrada"
 
-    atribuicoes = re.compile(r"(?i)^\s*(POSTGRES_PASSWORD|POSTGRES_USER)\s*:\s*(?P<valor>\S+)")
-    em_url = re.compile(r"://(?P<credencial>[^/:@\s]+:[^@\s]+)@")
-    em_opcao = re.compile(r"--password[=\s]+(?P<valor>[^\s\"']+)")
-
     culpados: list[str] = []
     for composicao in composicoes:
-        for numero, linha in enumerate(
-            composicao.read_text(encoding="utf-8").splitlines(), start=1
-        ):
-            atribuicao = atribuicoes.match(linha)
-            if atribuicao and "${" not in atribuicao.group("valor"):
-                culpados.append(f"{composicao.name}:{numero}: valor literal em {linha.strip()}")
-            url = em_url.search(linha)
-            if url and "${" not in url.group("credencial"):
-                culpados.append(f"{composicao.name}:{numero}: credencial literal na URL")
-            opcao = em_opcao.search(linha)
-            if opcao and not opcao.group("valor").startswith("$"):
-                culpados.append(f"{composicao.name}:{numero}: senha literal em opção de linha de comando")
+        culpados += _credenciais_literais(composicao.name, composicao.read_text(encoding="utf-8"))
 
     assert culpados == [], "\n".join(culpados)
+
+
+COMPOSICAO_ATRIBUICAO = re.compile(r"(?i)^\s*(POSTGRES_PASSWORD|POSTGRES_USER)\s*:\s*(?P<valor>\S+)")
+COMPOSICAO_URL = re.compile(r"://(?P<credencial>[^/:@\s]+:[^@\s]+)@")
+#: A opção de linha de comando, com espaço ou `=`, com ou sem aspas. Até
+#: 04/10/2026 a aspa de abertura fazia o valor sumir da leitura (RVF12-3-03).
+COMPOSICAO_OPCAO = re.compile(r"--password(?:=|\s+)[\"']?(?P<valor>[^\s\"']*)")
+
+
+def _credenciais_literais(nome: str, texto: str) -> list[str]:
+    """O que o guarda das composições acusa num arquivo — referência ao ambiente passa."""
+    culpados: list[str] = []
+    for numero, linha in enumerate(texto.splitlines(), start=1):
+        atribuicao = COMPOSICAO_ATRIBUICAO.match(linha)
+        if atribuicao and "${" not in atribuicao.group("valor"):
+            culpados.append(f"{nome}:{numero}: valor literal em {linha.strip()}")
+        url = COMPOSICAO_URL.search(linha)
+        if url and "${" not in url.group("credencial"):
+            culpados.append(f"{nome}:{numero}: credencial literal na URL")
+        opcao = COMPOSICAO_OPCAO.search(linha)
+        if opcao and not opcao.group("valor").startswith("$"):
+            culpados.append(f"{nome}:{numero}: senha literal em opção de linha de comando")
+    return culpados
+
+
+@pytest.mark.parametrize(
+    "argumento, acusa",
+    [
+        (" admin", True),
+        (' "admin"', True),
+        (" 'admin'", True),
+        ('="admin"', True),
+        (" ${SENHA}", False),
+        (' "${SENHA}"', False),
+        ("-file /run/secrets/senha", False),
+    ],
+    ids=["sem-aspas", "aspas-duplas", "aspas-simples", "igual-com-aspas", "referencia",
+         "referencia-entre-aspas", "outra-opcao"],
+)
+def test_guarda_das_composicoes_le_a_opcao_com_e_sem_aspas(argumento, acusa):
+    """RVF12-3-03: os controles da opção de linha de comando, na regra do guarda."""
+    texto = "services:\n  exemplo:\n    command: airflow users create --" + "pass" + "word" + argumento + "\n"
+    assert bool(_credenciais_literais("exemplo.yml", texto)) is acusa
