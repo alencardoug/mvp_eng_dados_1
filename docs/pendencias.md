@@ -12,12 +12,97 @@
 |---|---|
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
+| Decisões pendentes | 5 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D43, adiada de propósito para a fase GCP) |
 | Última revisão | 04/10/2026 |
 
 ---
 
 ## 1. Esperando você
+
+As quatro primeiras nasceram da validação do material de estudo da fase local, em 04/10/2026, que
+rodou cada laboratório na máquina. Nada foi alterado no código; as saídas estão em
+`data/medicoes/material_estudo/` (fora do Git), e o relato inteiro, na §15 de
+[`CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md`](../CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md),
+onde aparecem como achados A a D.
+
+### D62 — o saldo do alerta conta duas vezes o que o próprio pipeline gravou antes da semente
+
+**Pergunta:** como corrigir o corte da semente em `AcumularSaldoEAlertar`
+(`src/mvp_ed1/streaming/pipeline.py`)?
+
+**Medido em 04/10/2026.** O `setup` semeia o saldo com o que está no destino "antes de esta
+instância começar", mas no executor local ele só roda quando o primeiro painel chega ao estágio de
+alerta — e o estágio de gravação da mesma execução já escreveu eventos. O evento 15930 (−29, armazém 1
+/ variante 79) foi gravado às 05:42:06.282 por esta execução; a semente veio às 05:42:06.547. No livro,
+o par foi de 56 a 27; o alerta disse 27 → −2: o −29 entrou na semente e voltou pelo fluxo. O destino,
+a fato e a view `skus_below_reorder_point` não são afetados; o saldo do alerta é.
+
+*Opções:* **(a)** capturar o instante de início na construção do *pipeline* e passá-lo ao `DoFn`,
+de modo que a semente corte por ele e não pelo `setup` — recomendada: cumpre o que a docstring já
+promete, sem mudar a semântica; **(b)** semear pelo *offset* confirmado do grupo no instante da
+subida, em vez do relógio.
+
+*Efeito de não decidir:* alertas podem sair errados, falsos ou perdidos, sempre que eventos chegam
+ao destino antes do primeiro painel de alerta — o que acontece em toda subida com produção concorrente.
+
+### D63 — o medidor do *streaming* encerra o Beam antes de o ramo de alerta drenar
+
+**Pergunta:** o que `make medir CENARIO=streaming` deve esperar antes do SIGINT, e a restauração deve
+reposicionar o *offset* do grupo do Beam?
+
+**Medido em 04/10/2026.** O medidor espera o destino alcançar o corte (`stream-wait`, ramo 1) e
+encerra o Beam; os alertas saem do ramo 2, que só recebe painéis quando o *watermark* fecha as
+janelas. Com `LIMITE=2200`, zero alertas e nenhuma linha "saldo semeado" no *log*, contra cerca de
+60 aberturas que um oráculo por janela, em SQL, previa. Repetido com 200 eventos e 90 s de espera: 8
+alertas logo em seguida, e 14 alguns minutos mais tarde. O *offset* confirmado do grupo `mvp_ed1_beam` era 6009, num tópico
+cujo *log* começa em 13700 — estado deixado pela restauração de 25/09 —, e o Beam releu 13.700
+mensagens antes das novas. O "11 alertas" da linha 6 do B5 também dependeu de tempo.
+
+*Opções:* **(a)** esperar, com prazo, um sinal do ramo de alerta (o *watermark* passar do maior tempo
+de evento produzido, ou o contador `alertas_emitidos` estabilizar) e, na restauração, reposicionar o
+grupo no início do *log* ao refazer o *snapshot* — recomendada; **(b)** uma espera fixa depois do
+`stream-wait`; **(c)** só documentar que o medidor não mede alertas.
+
+*Efeito de não decidir:* a contagem de alertas de uma medição não é reproduzível, e o oráculo de
+alerta do roteiro pode passar ou falhar por tempo.
+
+### D64 — a chave Fernet do Airflow gerada pelo projeto é inválida
+
+**Pergunta:** corrigir a geração da `AIRFLOW_FERNET_KEY` e trocar a chave desta máquina?
+
+**Medido em 04/10/2026.** `airflow connections add` e `airflow variables set` falham com
+`Could not create Fernet object: Fernet key must be 32 url-safe base64-encoded bytes`. O `Makefile`
+gera a chave com 32 caracteres alfanuméricos, em `make env` (linha 172) e em `airflow-up` (linha 466);
+o Airflow exige 32 bytes em base64 seguro para URL (44 caracteres). Nunca apareceu porque nada no
+projeto grava Connection nem Variable.
+
+*Opções:* **(a)** gerar nos dois lugares com `head -c 32 /dev/urandom | base64 | tr '+/' '-_'`, sem
+pré-requisito novo, com teste em `test_makefile.py`, e trocar a chave desta máquina recriando os
+contêineres do Airflow — sem dado cifrado a perder, porque nada foi gravado — recomendada; **(b)**
+só documentar a limitação.
+
+*Efeito de não decidir:* nenhum no fluxo atual; qualquer uso futuro de Connections ou Variables
+falha.
+
+### D65 — 3.130 de 7.500 itens do varejo vendidos antes do lançamento do produto
+
+**Pergunta:** o gerador passa a respeitar `launched_at` ≤ data da venda, com uma invariante nova, ou
+isso fica registrado como limitação do dado sintético?
+
+**Medido em 04/10/2026,** em `analytics.fact_sales_order_item` × `dim_product`, `source_system =
+'retail'`: 3.130 de 7.500 itens com `placed_at` anterior a `launched_at`. O pedido ORD-0000037,
+de 2025-07-01, vendeu o `SKU-0000048`, lançado em 2026-08-20. Nenhuma das 13
+[invariantes](modelo_de_dados.md#4-invariantes-de-negócio) cobre lançamento × venda — a 10 trata do
+ciclo do pedido.
+
+*Opções:* **(a)** registrar como limitação conhecida e corrigir na próxima regeração planejada da
+origem — recomendada: corrigir agora exige o procedimento da
+[Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming) e um ciclo
+novo, por um efeito que nenhuma pergunta de negócio usa; **(b)** corrigir o gerador, acrescentar a
+invariante 14 e regerar agora.
+
+*Efeito de não decidir:* nenhum teste falha; uma análise de "dias desde o lançamento" daria valores
+negativos.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -608,6 +693,14 @@ a `'0x8'` seria `mantida` no intervalo e, ao mesmo tempo, deixaria todos os filh
 acontece no bruto real (PKs inteiras e UUIDs limpos) e o bloco da D44 escolheu uma testemunha sem
 filhos por isso. Fica registrado como divergência entre duas noções de identidade, não como defeito
 medido; se um dia importar, a decisão é do Owner e pede ADR.
+
+**Quatro tabelas da origem fora da ingestão, sem motivo escrito (04/10/2026).** `customer_contacts`,
+`customer_preferences`, `price_lists` e `product_prices` não estão em
+[`airbyte/streams.yml`](../airbyte/streams.yml): são 36 de 40 tabelas, e o
+[Dicionário §3](dicionario_de_dados.md#3-linhagem) registra o número, mas nenhum documento diz por
+quê. Não verificado se é escolha (nenhuma pergunta de negócio as lê, como o ADR-0035 decidiu para as
+dimensões) ou omissão. No mesmo arquivo, o comentário de `support_agents` diz "42 linhas"; a origem
+tem 6, medido no mesmo dia. Achado E da validação do material de estudo.
 
 ---
 

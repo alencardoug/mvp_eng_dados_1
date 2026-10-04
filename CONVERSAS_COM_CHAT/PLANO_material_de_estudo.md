@@ -633,3 +633,7 @@ da origem ao destino quente em ~7 s, as duplicatas consumidas e os quatro *diges
 - **D — o achado lateral da §12** (vendas antes do lançamento do produto) continua de pé.
 - **E — observação:** 4 tabelas da origem (`customer_contacts`, `customer_preferences`,
   `price_lists`, `product_prices`) não estão no `airbyte/streams.yml`, e nenhum documento diz por quê.
+
+**Registro nas Pendências, por decisão do Owner (04/10/2026):** B → **D62**, C → **D63**, A → **D64**,
+D → **D65**, em "Esperando você", por ordem de urgência; E como observação na §5 de
+[docs/pendencias.md](../docs/pendencias.md).
