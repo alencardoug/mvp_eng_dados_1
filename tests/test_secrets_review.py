@@ -352,14 +352,19 @@ def test_referencias_e_expressoes_continuam_moldes():
     assert secrets_review.detectar(texto) == []
 
 
-@pytest.mark.parametrize("valor", ["${Ab9Z7q1", "$(Ab9Z7q1", "{{Ab9Z7q1", "${A}Ab9Z7q1", "$1Ab9Z7q1"])
+@pytest.mark.parametrize(
+    "valor",
+    ["${Ab9Z7q1", "$(Ab9Z7q1", "{{Ab9Z7q1", "{{Ab9Z7q1}", "${A}Ab9Z7q1", "{{A}}Ab9Z7q1", "$1Ab9Z7q1"],
+)
 @pytest.mark.parametrize("sintaxe", ["json", "yaml"])
 def test_referencia_incompleta_ou_seguida_de_literal_e_achada(valor, sintaxe):
     """RVF12-2-01: referência é forma completa que alcança o fim do valor.
 
     `${` sem a chave que fecha não é referência — e a chave que fecha o objeto
     JSON em volta não pode completá-la. Referência seguida de literal também
-    não é molde: o que sobra depois dela é texto que alguém escreveu.
+    não é molde: o que sobra depois dela é texto que alguém escreveu. O
+    gabarito com um fecho só e o seguido de literal são do RVF12-3-01: a regra
+    do `{var}` de f-string os excusava pelo prefixo.
     """
     chave = "pass" + "word"
     texto = json.dumps({chave: valor}) if sintaxe == "json" else f"{chave}: {valor}"

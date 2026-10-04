@@ -124,7 +124,10 @@ URL_CREDENTIAL_PATTERN = re.compile(r"://(?P<chave>[^/:@\s]+):(?P<valor>[^@\s]+)
 PLACEHOLDER_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^$"), "vazio — é o que `.env.example` declara"),
     (re.compile(r"^<[^>]*>"), "marcador `<…>`"),
-    (re.compile(r"^\{[^}]*\}"), "interpolação — `{var}` de f-string"),
+    # Uma chave só: `{{` é gabarito, e o gabarito responde à `REFERENCE_RULE`.
+    # Até 04/10/2026 esta regra casava o prefixo de `{{Ab9}` e de `{{A}}Ab9`, e
+    # o gabarito malformado ou seguido de literal passava (RVF12-3-01).
+    (re.compile(r"^\{(?!\{)[^{}]*\}"), "interpolação — `{var}` de f-string"),
     (
         re.compile(r"^(var|local|data|module|each|self)\."),
         "referência do Terraform ou atributo de objeto",
