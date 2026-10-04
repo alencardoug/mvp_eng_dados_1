@@ -86,7 +86,8 @@ e a definição de pronto aplicada; aguarda a revisão final por outro agente e 
 fecham o M5 com a *tag* `v1.0.0`.** Um clone novo do repositório, com `.env` novo, percorreu a
 [Execução Local](docs/execucao_local.md) linha a linha sobre bancos, Airbyte e Airflow desmontados e
 instalados do zero — cada cenário no seu subconjunto de ambiente, sem *batch* e *streaming* juntos —,
-com duração, pico de memória e tamanho medidos em cada linha
+com duração e tamanho medidos em cada linha, e o pico de memória em todas menos a do `migrate`, que
+durou 2 s e terminou antes da primeira amostra
 ([Capacidade §2.12](docs/capacidade_e_recuperacao.md#212-o-ciclo-do-zero-medido--b5-25092026)): o
 pico foi a DAG, 6,5 GB nos contêineres com 1,1 GB livres. O ciclo achou oito desvios, todos
 corrigidos na origem e as linhas refeitas; quatro só aparecem num ambiente novo. O **ponto único de
