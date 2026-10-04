@@ -472,7 +472,10 @@ def test_nenhuma_composicao_embute_credencial():
     palavra única sem dígito, e a regra que excusa `var.password` e `$SENHA`
     excusava essa também. A senha igual ao usuário passou a ser achada sempre
     (RVF12-01); este guarda continua, porque cobre o que o detector não cobre —
-    usuário literal, e senha literal **diferente** do usuário e só com letras.
+    usuário literal, senha literal **diferente** do usuário e só com letras, e
+    a senha passada como opção de linha de comando: até 03/10/2026 o
+    `airflow_init` trazia um `users create` com senha de fábrica (§9.4 da
+    revisão final), forma que a varredura não lê.
     """
     raiz = pathlib.Path(__file__).resolve().parent.parent
     composicoes = sorted((raiz / "docker").glob("docker-compose*.yml"))
@@ -480,6 +483,7 @@ def test_nenhuma_composicao_embute_credencial():
 
     atribuicoes = re.compile(r"(?i)^\s*(POSTGRES_PASSWORD|POSTGRES_USER)\s*:\s*(?P<valor>\S+)")
     em_url = re.compile(r"://(?P<credencial>[^/:@\s]+:[^@\s]+)@")
+    em_opcao = re.compile(r"--password[=\s]+(?P<valor>[^\s\"']+)")
 
     culpados: list[str] = []
     for composicao in composicoes:
@@ -492,5 +496,8 @@ def test_nenhuma_composicao_embute_credencial():
             url = em_url.search(linha)
             if url and "${" not in url.group("credencial"):
                 culpados.append(f"{composicao.name}:{numero}: credencial literal na URL")
+            opcao = em_opcao.search(linha)
+            if opcao and not opcao.group("valor").startswith("$"):
+                culpados.append(f"{composicao.name}:{numero}: senha literal em opção de linha de comando")
 
     assert culpados == [], "\n".join(culpados)

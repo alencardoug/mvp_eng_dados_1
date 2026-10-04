@@ -94,13 +94,15 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Só a migração. O login da interface é do SimpleAuthManager, o padrão do
+  # Airflow 3: usuário `admin`, senha gerada por ele no primeiro início do
+  # api-server — `make airflow-up` diz onde lê-la. Até 03/10/2026 havia aqui um
+  # `users create` com senha de fábrica que nunca rodou (o bloco dobrado partia
+  # o comando, e um `|| true` engolia a falha, a da migração inclusive) e que
+  # criaria um usuário que esse gerenciador não consulta.
   airflow_init:
     <<: *airflow-comum
-    command: >
-      bash -c "airflow db migrate &&
-               airflow users create --username admin --password admin
-                 --firstname Data --lastname Custodian --role Admin
-                 --email admin@example.com || true"
+    command: db migrate
     restart: "no"
 
   airflow_apiserver:

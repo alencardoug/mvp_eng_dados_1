@@ -470,7 +470,9 @@ airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, tr
 		AIRBYTE_CLIENT_ID="$$AIRBYTE_CLIENT_ID" AIRBYTE_CLIENT_SECRET="$$AIRBYTE_CLIENT_SECRET" \
 		$(COMPOSE_AIRFLOW) up -d --build --wait airflow_apiserver airflow_scheduler airflow_dag_processor
 	@echo ""
-	@echo "Airflow em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2) — admin / admin."
+	@echo "Airflow em http://localhost:$$(grep ^AIRFLOW_PORT .env | cut -d= -f2) — usuário admin. A senha é gerada pelo Airflow quando o api-server"
+	@echo "termina de subir, uns 20 s depois daqui, e se lê com:"
+	@echo "  docker exec $$($(CONTEINERES) resolver airflow_apiserver | head -1) cat /opt/airflow/simple_auth_manager_passwords.json.generated"
 
 airflow-down: require-env ## Derruba o Airflow; FORCE=1 apaga também o histórico de execuções
 	@$(COMPOSE_AIRFLOW) down $(if $(filter 1,$(FORCE)),-v)

@@ -434,6 +434,18 @@ def test_todo_alvo_que_liga_ambiente_pesado_passa_pelo_preflight():
     assert sem_guarda == [], "liga ambiente pesado sem passar pelo preflight antes: " + ", ".join(sem_guarda)
 
 
+def test_airflow_up_aponta_a_senha_que_o_airflow_gera():
+    """§9.4 da revisão final da Etapa 12: o `airflow-up` dizia "admin / admin".
+
+    Essa senha nunca valeu — o login é do SimpleAuthManager, que gera a senha no
+    primeiro início do api-server. A receita aponta o arquivo em que ela fica.
+    """
+    receita = " ".join(_receitas((RAIZ / "Makefile").read_text(encoding="utf-8"))["airflow-up"])
+
+    assert "admin / admin" not in receita
+    assert "/opt/airflow/simple_auth_manager_passwords.json.generated" in receita
+
+
 #: `conteineres.sh` que resolve um contêiner em qualquer grupo e registra o resto.
 CONTEINERES_COM_UM = (
     '#!/usr/bin/env bash\necho "conteineres.sh $*" >> "$SIM_LOG"\n'
