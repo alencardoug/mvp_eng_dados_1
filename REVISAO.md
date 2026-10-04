@@ -721,9 +721,12 @@ Integridade conferida: links, ADRs citados, decisões pendentes e contadores.
 - Nada do que o parecer deixou como não medido foi medido aqui: nenhum ciclo, restauração ou
   instalação nova.
 
-**O que o Owner decide agora:** se passa a ponta a uma rodada curta de revisão — escopo sugerido,
-`d8ebe5a..` a ponta, os onze achados e o ADR-0048, sem reabrir o que o parecer já sustentou — ou se
-fecha com o aceite.
+**A segunda rodada é curta, por decisão do Owner em 03/10/2026, e revisa `d8ebe5a..` a ponta**,
+este registro incluído: a resposta a cada um dos onze achados, o código novo que ela trouxe — o
+detector de segredos (`USER_PATTERN`, `WORD_RULE`, `EXPRESSION_RULES`, o contexto de literal), o
+`docs_check` (título, sufixo, cerca) e o verificador de ADR (aprovações, bloco de código) —, o
+ADR-0048 com a sua transação, e o *chart* fixado. Não reabre o que o parecer já sustentou: os
+critérios 2, 3 e 4, o B5 e os logs. O ambiente e as proibições são os da §6, sem mudança.
 
 ---
 
