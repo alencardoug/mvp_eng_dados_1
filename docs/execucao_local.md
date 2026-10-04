@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.16 |
+| Versão | 1.17 |
 | Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
-| Última revisão | 25/09/2026 |
+| Última revisão | 03/10/2026 — resposta à revisão final da Etapa 12 |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
@@ -660,12 +660,16 @@ Quando o *pod* chegar a `Succeeded`, reinicie `server`, `worker`, `workload-laun
 `workload-api-server` e `cron` (`kubectl rollout restart deploy/...`) e refaça a configuração com
 `make airbyte-config AUTO=1`.
 
-**Duas armadilhas no caminho de volta.** O `terraform apply` cria fonte e destino em paralelo, e os
-dois inicializam a tabela `secrets` ao mesmo tempo — um dos dois morre com `duplicate key value
-violates unique constraint "pg_type_typname_nsp_index"`. Rodar de novo resolve, porque a tabela já
-existe. E a conexão recriada nasce **sem cursor**: a sincronização seguinte relê tudo. Isso é
-inofensivo por construção — o `dedup_history` casa versões pela chave e o `staging` deduplica o
-`append` (ADR-0015) —, mas leva o tempo de uma carga completa, não o de um incremental.
+**Uma armadilha no caminho de volta.** A conexão recriada nasce **sem cursor**: a sincronização
+seguinte relê tudo. Isso é inofensivo por construção — o `dedup_history` casa versões pela chave e o
+`staging` deduplica o `append` (ADR-0015) —, mas leva o tempo de uma carga completa, não o de um
+incremental.
+
+Havia uma segunda até o B5: o `terraform apply` criava fonte e destino em paralelo, os dois
+inicializavam a tabela `secrets` ao mesmo tempo, e um morria com `duplicate key value violates unique
+constraint "pg_type_typname_nsp_index"` — rodar de novo resolvia. Desde `45395e3` (25/09/2026) o
+`make airbyte-config` aplica um recurso por vez (`-parallelism=1`), e a colisão não se repete; se
+aparecer, o `terraform apply` foi chamado por fora do alvo.
 
 ### O `pipeline` Beam morre sozinho depois de exatos cinco minutos
 
