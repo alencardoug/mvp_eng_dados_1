@@ -344,9 +344,37 @@ def test_referencias_e_expressoes_continuam_moldes():
             r"s/.*Client-Secret: \(\S*\).*/AIRBYTE_CLIENT_SECRET=\1/p",
             r"POSTGRES_PASSWORD: (?!\$)\S+",
             "password = var.source_db_password",
+            'echo "SOURCE_DB_PASSWORD=$$(pw)"; \\',
+            'token_url     = "${trimsuffix(var.airbyte_server_url, "/")}/applications/token"',
+            "password: \"{{ env_var('DBT_PASSWORD') }}\"",
         ]
     )
     assert secrets_review.detectar(texto) == []
+
+
+@pytest.mark.parametrize("valor", ["${Ab9Z7q1", "$(Ab9Z7q1", "{{Ab9Z7q1", "${A}Ab9Z7q1", "$1Ab9Z7q1"])
+@pytest.mark.parametrize("sintaxe", ["json", "yaml"])
+def test_referencia_incompleta_ou_seguida_de_literal_e_achada(valor, sintaxe):
+    """RVF12-2-01: referência é forma completa que alcança o fim do valor.
+
+    `${` sem a chave que fecha não é referência — e a chave que fecha o objeto
+    JSON em volta não pode completá-la. Referência seguida de literal também
+    não é molde: o que sobra depois dela é texto que alguém escreveu.
+    """
+    chave = "pass" + "word"
+    texto = json.dumps({chave: valor}) if sintaxe == "json" else f"{chave}: {valor}"
+    achados = secrets_review.detectar(texto)
+    assert [(a.chave, a.valor) for a in achados] == [(chave, valor)]
+
+
+def test_parametro_posicional_do_shell_e_referencia():
+    """RVF12-2-03: `$1` na URL de um script é o parâmetro, não a senha.
+
+    A regra anterior só aceitava letra, sublinhado, chave ou parêntese depois
+    do `$`, e a URL virava credencial literal.
+    """
+    url = 'url="postgresql' + "://" + "reader:" + "$1" + '@localhost/db"'
+    assert secrets_review.detectar(url) == []
 
 
 def test_senha_igual_ao_usuario_e_achada_mesmo_curta_e_sem_digito():

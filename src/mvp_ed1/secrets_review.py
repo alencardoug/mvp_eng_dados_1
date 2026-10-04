@@ -113,11 +113,7 @@ URL_CREDENTIAL_PATTERN = re.compile(r"://(?P<chave>[^/:@\s]+):(?P<valor>[^@\s]+)
 PLACEHOLDER_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^$"), "vazio — é o que `.env.example` declara"),
     (re.compile(r"^<[^>]*>"), "marcador `<…>`"),
-    (
-        re.compile(r"^\$\$?[{(A-Za-z_]"),
-        "referência a variável — `$VAR`, `${…}`, `$(…)`, `$$VAR` do Make",
-    ),
-    (re.compile(r"^\{[^}]*\}|^\{\{"), "interpolação — `{var}` de f-string, `{{ … }}` de gabarito"),
+    (re.compile(r"^\{[^}]*\}"), "interpolação — `{var}` de f-string"),
     (
         re.compile(r"^(var|local|data|module|each|self)\."),
         "referência do Terraform ou atributo de objeto",
@@ -127,6 +123,33 @@ PLACEHOLDER_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(?i)^x{3,}$"), "molde `xxx…`"),
     (re.compile(r"^\*+$"), "valor já mascarado `***`"),
     (re.compile(r"(?i)^(null|none|nil|true|false)$"), "literal da linguagem, não credencial"),
+)
+
+#: Referência a variável ou gabarito: `$VAR`, `$1`, `${…}`, `$(…)`, as formas
+#: `$$` do Make e o `{{ … }}` de gabarito. **A forma tem de estar completa e
+#: alcançar o fim do valor** (RVF12-2-01): até 03/10/2026 bastava o prefixo, e
+#: `${Ab9Z7q1`, sem a chave que fecha, passava por referência. Ela é lida no
+#: resto da linha, e não só no valor, porque o valor para no espaço e na vírgula
+#: e a referência não: `${AIRFLOW_DB_PASSWORD:?defina …}` e
+#: `"${trimsuffix(var.url, "/")}/token"` fecham depois do corte. Aspa dentro da
+#: referência só entra com par — senão um valor JSON que abre `${` e não fecha
+#: se fecharia na chave do objeto. `$1` é o parâmetro posicional do shell (RVF12-2-03);
+#: `$1Ab9` continua literal. Medido no histórico em 03/10/2026: as 575
+#: ocorrências que o prefixo `$` excusava, e a única do `{{`, são formas
+#: completas que alcançam o fim do valor.
+REFERENCE_RULE = (
+    re.compile(
+        r"""(?x)
+        \$\$?(?:
+            \{ (?: [^}"'\n] | "[^"\n]*" | '[^'\n]*' )* \}      # ${…}
+          | \( (?: [^)"'\n] | "[^"\n]*" | '[^'\n]*' )* \)      # $(…)
+          | [A-Za-z_]\w*                                      # $VAR
+          | \d                                                # $1
+        )
+        | \{\{ (?: [^}"'\n] | "[^"\n]*" | '[^'\n]*' )* \}\}    # {{ … }}
+        """
+    ),
+    "referência — `$VAR`, `$1`, `${…}`, `$(…)`, `$$VAR` do Make, `{{ … }}` de gabarito",
 )
 
 #: **Limite declarado desta regra:** uma senha escrita à mão só com letras
@@ -168,13 +191,24 @@ MAX_BLOB_BYTES = 5 * 1024 * 1024
 TRATADOS_PATH = pathlib.Path("docs/segredos_tratados.yml")
 
 
-def placeholder(valor: str, *, literal: bool = False, igual_ao_usuario: bool = False) -> str | None:
+def placeholder(
+    valor: str,
+    *,
+    literal: bool = False,
+    igual_ao_usuario: bool = False,
+    contexto: str | None = None,
+) -> str | None:
     """O motivo de `valor` ser molde, ou `None` se ele é um valor de verdade.
 
     `literal` diz que o valor está num literal de texto — entre aspas ou numa
     URL —, onde não há expressão a excusar. `igual_ao_usuario` tira a regra da
-    palavra sem dígito: o par de fábrica não é identificador.
+    palavra sem dígito: o par de fábrica não é identificador. `contexto` é o
+    resto da linha a partir do valor, onde a referência é lida; sem ele, só o
+    próprio valor.
     """
+    referencia = REFERENCE_RULE[0].match(valor if contexto is None else contexto)
+    if referencia and referencia.end() >= len(valor):
+        return REFERENCE_RULE[1]
     regras = PLACEHOLDER_RULES
     if not literal:
         regras += EXPRESSION_RULES
@@ -233,14 +267,19 @@ def detectar(texto: str) -> list[Achado]:
             valor = casado.group("valor")
             igual = valor in usuarios
             if (not igual and len(valor) < MIN_SECRET_LENGTH) or placeholder(
-                valor, literal=bool(casado.group("aspa")), igual_ao_usuario=igual
+                valor,
+                literal=bool(casado.group("aspa")),
+                igual_ao_usuario=igual,
+                contexto=linha[casado.start("valor"):],
             ) is not None:
                 continue
             achados.append(Achado("", numero, casado.group("chave"), valor, "atribuição"))
         for casado in URL_CREDENTIAL_PATTERN.finditer(linha):
             valor = casado.group("valor")
             igual = valor == casado.group("chave")
-            if placeholder(valor, literal=True, igual_ao_usuario=igual) is not None:
+            if placeholder(
+                valor, literal=True, igual_ao_usuario=igual, contexto=linha[casado.start("valor"):]
+            ) is not None:
                 continue
             achados.append(
                 Achado("", numero, f"credencial de {casado.group('chave')}", valor, "URL")
