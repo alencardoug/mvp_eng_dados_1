@@ -118,6 +118,24 @@ def test_titulo_repetido_ganha_sufixo(repositorio):
     assert [q.alvo for q in quebrados] == ["docs/adr/0007-uma-decisao.md#contexto-2"]
 
 
+def test_sufixo_nao_repete_ancora_ja_emitida(repositorio):
+    """RVF12-05: `X`, `X`, `X-1` geram `x`, `x-1` e `x-1-1`, como o `github-slugger`.
+
+    A segunda já ocupou `x-1`; a terceira, cujo *slug* também é `x-1`, ganha
+    sufixo. Até 03/10/2026 só a base era contada, e `#x-1-1` era acusada.
+    """
+    _escrever(
+        repositorio,
+        "README.md",
+        "# X\n\n# X\n\n# X-1\n\n[1](#x) [2](#x-1) [3](#x-1-1) [4](#x-2)\n",
+    )
+
+    quebrados, contagem = docs_check.verificar(repositorio)
+
+    assert contagem["ancoras"] == 4
+    assert [q.alvo for q in quebrados] == ["#x-2"]
+
+
 def test_titulo_dentro_de_bloco_de_codigo_nao_conta(repositorio):
     """`# Isto é um comentário de shell`, não um título.
 

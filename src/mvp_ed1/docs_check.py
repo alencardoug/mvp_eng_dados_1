@@ -100,7 +100,7 @@ class Quebrado:
 class Documento:
     caminho: pathlib.Path
     relativo: str
-    #: slug → quantas vezes o título apareceu (o GitHub sufixa a partir da 2ª)
+    #: as âncoras que os títulos geram, já com o sufixo dos repetidos
     ancoras: set[str]
     #: rótulo de referência → alvo
     definicoes: dict[str, str]
@@ -123,6 +123,7 @@ def _fora_de_codigo(texto: str):
 
 def ler(caminho: pathlib.Path, relativo: str) -> Documento:
     texto = caminho.read_text(encoding="utf-8")
+    #: âncora já emitida → último sufixo usado a partir dela
     vistos: dict[str, int] = {}
     ancoras: set[str] = set()
     definicoes: dict[str, str] = {}
@@ -132,10 +133,17 @@ def ler(caminho: pathlib.Path, relativo: str) -> Documento:
     for numero, linha in _fora_de_codigo(texto):
         titulo = TITULO.match(linha)
         if titulo:
+            # O algoritmo do `github-slugger`: toda âncora emitida fica
+            # reservada, inclusive as sufixadas. `X`, `X`, `X-1` dão `x`,
+            # `x-1` e `x-1-1` — a terceira não pode repetir a segunda. Até
+            # 03/10/2026 só a base contava, e `#x-1-1` era acusada (RVF12-05).
             base = slug(titulo.group(2))
-            repeticao = vistos.get(base, 0)
-            ancoras.add(base if repeticao == 0 else f"{base}-{repeticao}")
-            vistos[base] = repeticao + 1
+            ancora = base
+            while ancora in vistos:
+                vistos[base] += 1
+                ancora = f"{base}-{vistos[base]}"
+            vistos[ancora] = 0
+            ancoras.add(ancora)
             # O título também é texto: link e citação de ADR nele valem como em
             # qualquer linha. Até 03/10/2026 o `continue` aqui os pulava (RVF12-04).
 
