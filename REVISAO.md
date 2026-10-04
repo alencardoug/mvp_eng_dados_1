@@ -587,9 +587,276 @@ Decisões que poderiam ter ido para o outro lado, com o motivo de terem ido para
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+**Parecer de 03/10/2026 — Codex. Devolver para ajustes antes do aceite:** dois bloqueantes,
+oito ajustes e uma observação na tabela ao fim. A execução do B5 está documentada e os seus
+resultados operacionais conferem; isso ainda não sustenta os seis critérios sem ressalvas.
+Os bloqueantes dizem respeito ao registro do segredo histórico conhecido e à formalização da D48.
+O segundo é um parecer de governança submetido ao Owner, não uma decisão tomada pelo revisor.
+
+Revisão sobre `04e1aa5`, no checkout `/home/doug/Projetos/mvp_eng_dados_1`, inicialmente limpo.
+Escopo: `7b0bea6..807a904`, mais `6453bb5`, `0b89b3d` e `bb783f4`. Dossiê lido inteiro antes das
+sondas; declarações do escopo lidas integralmente, testes por amostragem. B0/B1/B4 e o roteiro já
+revisados não foram reabertos. Somente este parecer foi escrito no repositório.
+
+**Resposta aos seis critérios, na ordem do plano:**
+
+| Critério | Parecer e evidência |
+|---|---|
+| 1. Todos os critérios do Termo em ambiente limpo | **Parcial.** Os logs do B5 sustentam o produto e a execução na modalidade autorizada pela D45: 13 tarefas `success`, `PASS=905`, 579 testes Python, migrações e reconciliações. Nesta revisão as 16 views responderam, os dois caminhos reconciliaram e o catálogo foi inspecionado por amostragem. A parte documental e a de governança dependem dos achados abaixo; não ratifico o ✓ agregado enquanto elas estiverem abertas. |
+| 2. Cada cenário com tamanho, tempo e memória | **Sustentado para o ciclo observado.** As 17 linhas da Capacidade foram confrontadas com os logs: `CAPACIDADE_LINHAS_CONFERIDAS 17 / 17`. O pico da DAG, 6,5 GB nos contêineres e 1,1 GB disponíveis, confere. `migrate` tem zero amostras e memória **não medida**; a ressalva precisa acompanhar os resumos (RVF12-11). Nenhuma variância ou instalação sem caches foi inferida. |
+| 3. Cobertura integral | **Sustentado pelas evidências do B5.** O `check` do ciclo contém os testes de cobertura; a geração legada registrou 24/24 códigos injetáveis. Agora foram lidas 40 tabelas de cada origem, todas não vazias: 252.955 linhas na principal e 12.744 na legada restaurada, com cada contagem igual à do manifesto. Os 12.747 do ciclo limpo e os 12.744 do pacote mutado são estados distintos, não uma divergência omitida. |
+| 4. Recuperação, incluindo novo snapshot CDC | **Sustentado pelo B5 e pela integridade atual do pacote.** O log da linha 9 refeita termina com a sequência inteira aprovada, em 16m 59s; `make recovery-verify` passou nesta revisão. A captura 49 tem 40 tabelas `complete`; o livro restaurado tem 13.700 eventos e os quatro zeros. Restauração nova não foi executada. Segundo ciclo com gerações negativas e pilha completa em destino vazio continuam **não medidos ao vivo**, como a §4 declara. |
+| 5. Documentação coerente com código | **Requer ajustes.** `docs-check` passa, mas as contraprovas de B3 encontram lacunas, o verificador de ADR reprova o estado atual, a Capacidade confunde identificador com quantidade e a Execução Local ainda descreve criação paralela depois da correção que a serializou. |
+| 6. Nenhum segredo no repositório/histórico | **Não encerrável com a evidência apresentada.** A varredura devolveu os mesmos sete achados de fixtures, todos tratados, porém omite a credencial histórica real do Airflow, reconhecida no próprio `0b89b3d` e ausente do registro D48. Isso não demonstra uma credencial ainda ativa; demonstra um caso conhecido fora do controle que sustenta o ✓. |
+
+**Validações executadas nesta revisão.** Os processos de banco foram acessados com
+`default_transaction_read_only=on`; a própria sessão respondeu `transaction_read_only=on` nos três
+bancos. Não executei `make check`, pois ele chama `dbt-build` e escreve no armazém. Não executei
+restauração, sincronização, produção de eventos nem disparo de DAG. As chamadas de Airflow e
+Terraform dos testes abaixo usam transporte/executáveis simulados em diretórios temporários.
+O teste de `d0cbd75`, que chama `recovery-restore`, foi inspecionado, mas não executado, em respeito
+à proibição desta revisão. O tratamento específico de `UndefinedTable`, o destino `qualificado`,
+a confirmação da DAG despausada, `dag_run_id`, `-parallelism=1` e a dependência `docs-generate`
+estão coerentes com as formas observadas no B5.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -rs -p no:cacheprovider \
+  tests/test_secrets_review.py tests/test_docs_check.py tests/test_verificador_adr.py \
+  tests/test_makefile.py::test_dbt_docs_gera_e_serve \
+  tests/test_makefile.py::test_airbyte_config_aplica_um_recurso_por_vez \
+  tests/test_medicao.py::test_sem_destino_o_livro_e_o_da_configuracao \
+  tests/test_medicao.py::test_livro_que_ainda_nao_existe_e_livro_vazio \
+  tests/test_preflight.py::test_disparar_le_o_dag_run_id_do_airflow_322 \
+  tests/test_preflight.py::test_disparar_so_dispara_depois_de_ver_a_dag_despausada \
+  tests/test_preflight.py::test_disparar_recusa_sem_ver_a_dag_despausada
+```
+
+```text
+49 passed in 15.10s
+
+$ make docs-check
+docs-check: 107 documentos, 1016 links de arquivo, 156 âncoras, 591 citações de ADR — nada quebrado
+
+$ make secrets-history
+revisão do histórico: nada não tratado (7 achado(s), todos registrados; 0 blob(s) pulado(s))
+
+$ make recovery-verify
+[recovery] RECOVERY_DIR = /home/doug/Projetos/mvp_eng_dados_1/data/recovery
+[recovery] conferindo /home/doug/Projetos/mvp_eng_dados_1/data/recovery/aprovado
+recovery-verify: checksums conferem, manifesto completo e no formato atual, os três dumps se listam. Listar o pacote não é restaurá-lo — isso é a linha 9 de B5.
+
+$ .venv/bin/python -m mvp_ed1.models.sensitivity --check
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+
+$ .venv/bin/python -m mvp_ed1.models.lineage --check
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+
+$ python3 .claude/skills/adr/verificar.py
+ADRs aceitos: 47  ·  esperando ADR: 1  ·  esperando o Owner: 1  ·  Dnn citados: 61
+
+PROBLEMAS:
+ - README desatualizado — a linha Pendências do Owner conta 2, e 'Esperando você' tem 1 (D43)
+```
+
+Saídas acima colhidas antes de acrescentar este parecer; o verificador de ADR saiu **1**, os demais
+comandos saíram **0**. `sensitivity` também emitiu os mesmos três avisos sobre o alias `c` já
+explicados na §3. As primeiras conexões ao Docker/PostgreSQL foram bloqueadas pelo sandbox;
+as sondas foram repetidas com a permissão de acesso local e concluíram. Não restou sonda de banco
+classificada como sucesso por inferência de disponibilidade.
+
+**Contraprova reproduzível S1 — B2, B3 e manifesto.** Execute da raiz do checkout de trabalho.
+Os exemplos de Markdown são montados em partes para que este dossiê não crie links quebrados
+ou citações fictícias no próprio verificador. Só os repositórios temporários são escritos; o
+valor da credencial histórica não é impresso.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+import json
+import os
+import pathlib
+import re
+import subprocess
+import tempfile
+from mvp_ed1 import docs_check, secrets_review
+
+root = pathlib.Path.cwd()
+def git(*args, cwd=root):
+    return subprocess.check_output(['git', *args], cwd=cwd, text=True)
+
+old = git('show', '0b89b3d^:docker/docker-compose.airflow.yml')
+urls = list(secrets_review.URL_CREDENTIAL_PATTERN.finditer(old))
+print('AIRFLOW_HISTORICO', {
+    'urls_com_credencial_literal': sum('$' not in m['valor'] for m in urls),
+    'atribuicoes_postgres_password_literais': len(re.findall(r'^\s+POSTGRES_PASSWORD: (?!\$)\S+', old, re.M)),
+    'achados_detector': len(secrets_review.detectar(old)),
+    'registros_airflow': sum(k[1] == 'docker/docker-compose.airflow.yml' for k in secrets_review._tratados(root)),
+    'senha_env_diferente_da_historica': all(secrets_review.read_env(root / '.env').get('AIRFLOW_DB_PASSWORD') != m['valor'] for m in urls),
+})
+for name, value in [('controle', 'Ab9xZ7q1'), ('dolar', 'Ab9$Z7q1'), ('parentese', 'Ab9(Z7q1'), ('colchete', 'Ab9[Z7q1')]:
+    text = json.dumps({'password': value})
+    print('LITERAL_SINTETICO', name, 'achados=', len(secrets_review.detectar(text)), 'motivo=', secrets_review.placeholder(value))
+
+def link(label, target):
+    return '[' + label + ']' + '(' + target + ')'
+cases = {
+    'link_no_titulo': '# Ver ' + link('alvo', 'sumiu.md') + '\n',
+    'adr_no_titulo': '# ADR-' + '9999\n',
+    'colisao_de_slug': '# X\n# X\n# X-1\n\n' + link('terceiro', '#x-1-1') + '\n',
+    'cerca_interna': '````markdown\n```python\n# Falso\n```\n````\n\n' + link('falso', '#falso') + '\n',
+}
+for name, content in cases.items():
+    with tempfile.TemporaryDirectory(prefix='docs-e12-') as d:
+        p=pathlib.Path(d)
+        git('init', '-q', cwd=p)
+        (p/'README.md').write_text(content)
+        git('add', 'README.md', cwd=p)
+        broken, counts = docs_check.verificar(p)
+        print('DOCS_SINTETICO', name, json.dumps({'quebrados': [str(x) for x in broken], 'contagem': counts}, ensure_ascii=False))
+
+m=json.loads((root/'data/recovery/aprovado/manifesto.json').read_text())
+print('PACOTE',json.dumps({'capturas_certificadas': len(m['oraculo_capturas']['certificadas']),
+    'maior_snapshot':m['oraculo_capturas']['maior_snapshot'],
+    'quarentena_fatias':len(m['oraculo_quarentena']), 'scd':len(m['oraculo_scd']),
+    'max_event_sequence':m['max_event_sequence'], 'particoes':len(m['oraculo_particao'])},ensure_ascii=False))
+PY
+```
+
+Saída literal:
+
+```text
+AIRFLOW_HISTORICO {'urls_com_credencial_literal': 1, 'atribuicoes_postgres_password_literais': 1, 'achados_detector': 0, 'registros_airflow': 0, 'senha_env_diferente_da_historica': True}
+LITERAL_SINTETICO controle achados= 1 motivo= None
+LITERAL_SINTETICO dolar achados= 0 motivo= referência a variável — `$VAR`, `${…}`, `$$VAR` do Make
+LITERAL_SINTETICO parentese achados= 0 motivo= expressão, não literal — chamada de função ou indexação
+LITERAL_SINTETICO colchete achados= 0 motivo= expressão, não literal — chamada de função ou indexação
+DOCS_SINTETICO link_no_titulo {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 0, "adrs": 0}}
+DOCS_SINTETICO adr_no_titulo {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 0, "adrs": 0}}
+DOCS_SINTETICO colisao_de_slug {"quebrados": ["README.md:5: #x-1-1 — título não existe neste arquivo"], "contagem": {"documentos": 1, "links": 0, "ancoras": 1, "adrs": 0}}
+DOCS_SINTETICO cerca_interna {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 1, "adrs": 0}}
+PACOTE {"capturas_certificadas": 11, "maior_snapshot": 43, "quarentena_fatias": 21, "scd": 4, "max_event_sequence": 13700, "particoes": 40}
+```
+
+**Sonda S2 — quantas capturas o bruto guarda.** A distinção importa: 11 certificados no pacote
+não são todo o bruto. A consulta abaixo percorre as 40 tabelas, em leitura, e mede os `sync_id`
+distintos; o resultado também refuta a quantidade 43 sem confundir bruto com certificado.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+import os
+from pathlib import Path
+import sqlalchemy as sa
+from mvp_ed1 import db, secrets_review
+os.environ.update(secrets_review.read_env(Path('.env')))
+e = sa.create_engine(db.database_url(db.WAREHOUSE), connect_args={
+    'options': '-c default_transaction_read_only=on -c statement_timeout=60000'})
+with e.connect() as c:
+    names = c.exec_driver_sql("select table_name from information_schema.tables where table_schema='raw_legacy'").scalars().all()
+    ids = set()
+    for t in names:
+        ids.update(c.exec_driver_sql(f'SELECT DISTINCT (_airbyte_meta::jsonb ->> \'sync_id\')::bigint FROM raw_legacy."{t}"').scalars().all())
+    print('raw_legacy_sync_ids', sorted(x for x in ids if x is not None))
+    print('raw_legacy_quantidade_sync_ids', len(ids - {None}))
+    print('raw_legacy_retidos_do_pacote', len((ids - {None}) - {49}))
+e.dispose()
+PY
+```
+
+```text
+raw_legacy_sync_ids [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 34, 35, 36, 38, 39, 43, 49]
+raw_legacy_quantidade_sync_ids 29
+raw_legacy_retidos_do_pacote 28
+```
+
+**Conferência do B6 e sondas do produto.** Foram confrontadas as 17 linhas da tabela da Capacidade
+com as linhas emitidas pelo medidor nos logs do clone, não só com o diário. Na amostra de números
+do plano e README conferem 13 tarefas, 16 views, 905 resultados dbt, 579 testes Python e 14 testes
+de fronteira; na Execução Local, 12m 47s, 200 e 2.200 eventos, 11 alertas e o limiar 25; nas duas
+consequências do ADR-0044, jobs 5, 43, 44, 46 e 49. As menções afetadas nos riscos, Governança e
+pendências foram confrontadas com essas mesmas saídas. Os sete achados automáticos são sete
+ocorrências agrupadas em cinco entradas YAML, conforme a identidade declarada pelo registro.
+
+O arquivo do ADR-0044 preserva byte a byte o prefixo que existia em `7b0bea6`, acrescentando apenas
+23 linhas: `ADR0044_texto_anterior_preservado True linhas_acrescentadas 23`. Nenhuma medição antiga
+do ADR foi reescrita.
+
+Logs usados, todos no checkout de trabalho: `data/medicoes/b5/`, em especial
+`20260925T132812Z_73_l4_check.log`, `20260925T135141Z_73_l5_dag_status.log`,
+`20260925T135631Z_73_l6_stream_alerts_2200.log`, `20260925T140242Z_73_l7_quatro_zeros.log` e
+`20260925T154755Z_73_l9_recovery_restore_refeito.log`. Deles foram lidas, entre outras, as saídas:
+
+```text
+579 passed, 4 skipped in 271.12s (0:04:31)
+tópico mvp.alerts.inventory_low_stock: 11 alertas
+  aberturas (cruzaram o limiar de 25 para baixo): 4
+  normalizações (voltaram acima): 7
+  correções de evento atrasado: 0
+corte 16100
+so_no_lote 0
+so_no_fluxo 0
+payloads_diferentes 0
+saldos_diferentes 0
+linhas_lote 16100
+linhas_fluxo 16100
+soma_lote 702104
+soma_fluxo 702104
+579 passed, 8 skipped in 269.31s (0:04:29)
+conferir-restauracao: fontes iguais ao manifesto, memória contida e intacta, identidade nova acima da retida, auditoria dela igual ao que a classificação rejeitou, memória de exclusões renascida igual, livro da origem inteiro e igual nos dois caminhos.
+recovery-restore: a sequência inteira passou. 'make recovery-promote' aprova o pacote.
+```
+
+Nesta revisão, consultas `SELECT count(*)` por tabela das fontes, leitura de
+`governance.legacy_captures` e `SELECT count(md5(to_jsonb(s)::text)) FROM consumption.<view> s`
+por cada uma das 16 views produziram:
+
+```text
+source_db transaction_read_only= on
+source_db tabelas= 40 linhas= 252955 vazias= [] contagens_iguais_manifesto= True
+livro_origem (13700, 13700)
+legacy_db transaction_read_only= on
+legacy_db tabelas= 40 linhas= 12744 vazias= [] contagens_iguais_manifesto= True
+warehouse_db transaction_read_only= on
+brands (-27, 4, 27, 28)
+views_consumo 16
+```
+
+A consulta de capturas devolveu, para a nova, `(49, 'complete', 40)`. As 16 avaliações completas
+das views terminaram sem erro. `leitura.comparar_caminhos(engine, 13700)`, com o mesmo motor
+somente de leitura, devolveu:
+
+```text
+{"corte": 13700, "linhas_fluxo": 13700, "linhas_lote": 13700, "payloads_diferentes": 0, "saldos_diferentes": 0, "so_no_fluxo": 0, "so_no_lote": 0, "soma_fluxo": 701841, "soma_lote": 701841}
+```
+
+O catálogo foi servido a partir dos arquivos existentes em `dbt/target`, por servidor HTTP local
+temporário, e aberto no Chrome sem interface. `/`, `manifest.json` e `catalog.json` responderam
+`200`; o DOM mostrou o título `monthly_revenue_by_channel_and_category`, a descrição da P01,
+o texto expandido de receita líquida e suas colunas. A captura de tela com `?g_v=1` mostrou o grafo
+renderizado. Para reproduzir esta inspeção, servir `dbt/target` com
+`python3 -m http.server 8080 --bind 127.0.0.1 --directory dbt/target` e abrir
+`http://127.0.0.1:8080/#!/model/model.mvp_ed1.monthly_revenue_by_channel_and_category?g_v=1`;
+remover `?g_v=1` permite inspecionar a descrição. O servidor temporário foi encerrado. Isso amplia
+a prova de `200` do B5 por amostragem; não é revisão visual integral das 199 relações. Os artefatos
+temporários desta revisão estão em `/tmp/revisao-final-e12-gBC8aG/` e não entram no commit.
+
+Permanecem **não medidos nesta revisão**: novo ciclo completo ou restauração, instalação sem
+caches, variância de recursos, segundo ciclo real do re-base, restauração da pilha completa em
+destino vazio e quantidade esperada de alertas por oráculo independente. O B5 mediu a emissão de
+11 alertas, suficiente para o oráculo explícito da linha 6, que pede mais de zero; não provou que
+11 era a quantidade correta para aquele corte. Essas limitações não foram convertidas em novos
+resultados nem usadas para reabrir o que já estava aceito no roteiro.
+
+**Achados — cada linha inclui reprodução, saída observada e encaminhamento proposto.**
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
-
+| RVF12-01 | `docs/segredos_tratados.yml`; `src/mvp_ed1/secrets_review.py`, `detectar`; critério 6 do plano | **O histórico real do Airflow ficou fora do registro D48.** Reproduzir S1, caso `AIRFLOW_HISTORICO`, e ler `git show --format=full 0b89b3d`: o commit reconhece a senha usada no banco de metadados e relata sua rotação. Saída da sonda: **1 URL literal, 1 atribuição literal, 0 achados, 0 registros do Airflow**; o valor do `.env` atual é diferente. `make secrets-history` sai 0 com apenas as sete fixtures. O limite de detecção foi declarado, mas não dispensa registrar um caso que já foi encontrado por inspeção. Proponho registrar o tratamento desse caso e cobrir a composição histórica com um controle que não o dispense; então repetir a varredura. Não há aqui demonstração de senha ainda ativa. | **bloqueante** | Aberto; o ✓ de ausência de segredo histórico não está integralmente respaldado pelo controle/registro apresentado. |
+| RVF12-02 | `docs/governanca_de_dados.md` §9–§10; `docs/pendencias.md`, aceite; plano, Etapa 12 | **Parecer solicitado: a varredura aplica a política; a D48 acrescenta política.** Reproduzir `git diff 7b0bea6..807a904 -- docs/governanca_de_dados.md` e ler a §10. O diff acrescenta à rotação já exigida uma distinção entre credencial local e externa, registro obrigatório e, para token externo/nuvem, revogação **e reescrita** pelo Owner; a §10 continua exigindo decisão explícita e ADR. A obrigação de reescrever não se deduz da regra anterior de rotacionar. D48 já tem decisão do Owner; falta, nesta leitura, formalizá-la em **novo ADR**, sem reescrever aceitos. A varredura, isoladamente, é uma implementação do controle existente. “Nenhum componente novo, logo nenhum ADR” não resolve o requisito específico da §10. | **bloqueante** | Parecer normativo para decisão expressa do Owner antes do fechamento; recomendo ADR para D48. Não implementei nem tratei o aceite geral como ratificação tácita. |
+| RVF12-03 | `src/mvp_ed1/secrets_review.py`, `PLACEHOLDER_RULES` e `detectar` | **Os moldes dispensam literais, além do limite alfabético declarado.** S1 serializa quatro valores sintéticos como JSON: o controle tem **1 achado**; os valores com `$`, `(` e `[` têm **0**, classificados como variável/expressão mesmo estando entre aspas. A regra usa busca por caractere em qualquer posição e o detector perde o contexto de literal. São credenciais na própria forma JSON prometida por B2. Proponho restringir os moldes às referências completas/contextos reconhecidos e testar literais nessas mesmas posições, sem enfraquecer a detecção após rotação. | **ajuste** | Aberto; contraprova isolada, sem alegação de outro segredo real encontrado. |
+| RVF12-04 | `src/mvp_ed1/docs_check.py`, `ler`, ramo `if titulo` | **Links e citações de ADR em títulos são ignorados.** S1, casos `link_no_titulo` e `adr_no_titulo`: um arquivo inexistente ligado num título e um título citando ADR inexistente devolvem `quebrados: []`, com `links: 0` e `adrs: 0`. O `continue` após registrar a âncora impede a conferência do restante da linha. Proponho extrair a âncora e também examinar links/citações do título. | **ajuste** | Aberto; os testes atuais passam porque conferem o slug do título com link, sem conferir o destino dele. |
+| RVF12-05 | `src/mvp_ed1/docs_check.py`, `ler`, sufixos em `vistos` | **A unicidade de âncoras não inclui as já geradas por sufixo.** S1, `colisao_de_slug`, com títulos `X`, `X`, `X-1`: o link `#x-1-1` é acusado como inexistente. Pela regra de [âncoras únicas do GitHub](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#section-links), a terceira âncora deve evitar `x-1`, já ocupada pela segunda. Proponho conferir colisões contra todas as âncoras emitidas, inclusive sufixadas. | **ajuste** | Aberto; falso positivo reproduzido, sem supor que uma âncora atual do projeto esteja quebrada. |
+| RVF12-06 | `src/mvp_ed1/docs_check.py`, `_fora_de_codigo` e `CERCA` | **Cerca menor fecha indevidamente um bloco maior.** S1, `cerca_interna`: dentro de uma cerca de quatro crases, três crases fazem o leitor alternar para fora e registrar `# Falso` como título; o link posterior para `#falso` passa com **0 quebrados**. No [GFM, a cerca de fechamento precisa ter o mesmo caractere e comprimento suficiente](https://github.github.com/gfm/#fenced-code-blocks); esse título continua sendo código. Proponho guardar caractere/comprimento da abertura e cobrir cercas aninhadas e de tipos diferentes. | **ajuste** | Aberto; falso negativo reproduzido sobre Markdown válido. |
+| RVF12-07 | `.claude/skills/adr/verificar.py`, `decisoes`; `README.md`, linha Pendências do Owner | **O verificador não conta aprovações, embora anuncie contar tudo que espera o Owner.** Reproduzir `python3 .claude/skills/adr/verificar.py` em `04e1aa5`: saída **1**, `README ... conta 2, e 'Esperando você' tem 1 (D43)`. O README conta corretamente aceite da Etapa 12 + D43; `codigos_dos_titulos` só extrai `Dnn` e perde o aceite. Proponho distinguir decisões e aprovações e testar o estado real com ambas. Não reduzir o README para 1 para satisfazer o teste. | **ajuste** | Aberto; os dez cenários do teste do verificador passaram, mas não incluem este estado criado por B6. |
+| RVF12-08 | `docs/capacidade_e_recuperacao.md` §2.12, explicação 3 | **“Memória de 43 capturas” usa o identificador como quantidade e não sustenta a explicação causal de tamanho.** Reproduzir S1 (`PACOTE`) e S2: **11 capturas certificadas, maior snapshot 43; 28 sync_ids retidos no bruto, mais o 49 novo**, não 43 capturas. Os tamanhos medidos **627,9 MB e 334,6 MB** conferem; a causalidade quantitativa da frase não foi medida por ela. Proponho corrigir a contagem e distinguir certificados, bruto retido e identificador, preservando os tamanhos observados. | **ajuste** | Aberto; corrigir no dono atual do número, sem alterar medições de ADRs aceitos. |
+| RVF12-09 | `docs/execucao_local.md` §6, “Duas armadilhas no caminho de volta”; `Makefile`, `airbyte-config` | **O procedimento ainda descreve criação paralela como comportamento atual.** Reproduzir `rg -n -e 'Duas armadilhas' -e 'cria fonte e destino em paralelo' -e 'parallelism=1' docs/execucao_local.md Makefile`. Saída: a linha 663 da prosa diz que o `terraform apply` cria fonte e destino em paralelo e recomenda rodar de novo; a linha 420 da receita agora passa `-parallelism=1`. O teste `test_airbyte_config_aplica_um_recurso_por_vez` passou. Proponho datar a armadilha como comportamento anterior e apontar o tratamento já aplicado, sem conservar a repetição como orientação normal. | **ajuste** | Aberto; contradição introduzida pela correção do intervalo, por isso está no escopo. |
+| RVF12-10 | `Makefile`, `airbyte-up`; premissa 1 da §5 deste dossiê; risco R6 | **Fixar o abctl não fixa a instalação nova do Airbyte.** Reproduzir `DO_NOT_TRACK=1 .tools/abctl version` → `version: v0.30.4`; a receita de instalação não passa `--chart-version`. No [resolver da versão v0.30.4](https://github.com/airbytehq/abctl/blob/v0.30.4/internal/helm/chart.go#L62-L73), chart e versão vazios chamam `GetLatestAirbyteChartUrlFromRepoIndex`. O log B5 `20260925T124958Z_73_l2_airbyte_up.log`, sem escapes ANSI, registra `Starting Helm Chart installation of 'airbyte/airbyte' (version: 2.3.0)`. A premissa de versão estável está refutada pelo código upstream; uma próxima instalação efetiva não foi executada nem sua versão inferida. Proponho fixar o chart medido antes da tag, ou obter decisão explícita sobre essa limitação de reprodutibilidade. | **ajuste** | Aberto; é tratamento do R6 existente. Nenhuma instalação ou atualização foi feita pela revisão. |
+| RVF12-11 | Plano, Etapa 12; README, Status; Capacidade §2.12, linha `migrate` | **O pico de memória não foi medido em toda linha.** Reproduzir a leitura de `data/medicoes/b5/20260925T124837Z_73_l1_migrate.log`: `migrate`, **0m 02s**, **não medido**, **não medido**, **0 amostras**, **24.9 MB**. A Capacidade declara corretamente a lacuna; o plano diz “cada uma” com extremos e o README “pico ... em cada linha”. Proponho carregar a mesma ressalva para esses resumos. O ciclo dos cinco cenários tem medições; não atribuo um pico ao comando curto nem peço sua reexecução nesta revisão. | **observação** | Ressalva de P5 para o fechamento; a ausência está explicitamente preservada no parecer do critério 2. |
