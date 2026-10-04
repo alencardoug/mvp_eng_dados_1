@@ -55,14 +55,6 @@ DEFINICAO = re.compile(r"^\s{0,3}\[(?P<rotulo>[^\]]+)\]:\s*(?P<alvo>\S+)")
 #: Uso de link por referência: `[texto][rótulo]`, ou `[rótulo][]`.
 USO_REFERENCIA = re.compile(r"\[(?P<texto>[^\]]*)\]\[(?P<rotulo>[^\]]*)\]")
 
-#: Código em linha: uma sequência de crases fecha só noutra do **mesmo**
-#: comprimento, e crase escapada não abre. No GFM o código em linha tem
-#: precedência sobre o link — `` `[x](y.md)` `` mostra a sintaxe, não aponta
-#: para nada. Até 03/10/2026 nenhuma linha o respeitava, e a correção do
-#: RVF12-04, que passou a ler os títulos, fez de um exemplo num título um link
-#: quebrado (RVF12-2-05). Link cujo texto é código continua link.
-CODIGO_EM_LINHA = re.compile(r"(?<![`\\])(?P<crases>`+)(?!`).+?(?<!`)(?P=crases)(?!`)")
-
 #: Citação de ADR no corpo do texto.
 CITACAO_ADR = re.compile(r"\bADR-(?P<numero>\d{4})\b")
 
@@ -184,6 +176,45 @@ def _fora_de_codigo(texto: str):
         yield numero, linha
 
 
+def _sem_codigo_em_linha(linha: str) -> str:
+    """A linha com cada código em linha trocado por um espaço.
+
+    No GFM o código em linha tem precedência sobre o link — `` `[x](y.md)` ``
+    mostra a sintaxe, não aponta para nada. Até 03/10/2026 nenhuma linha o
+    respeitava, e a correção do RVF12-04, que passou a ler os títulos, fez de um
+    exemplo num título um link quebrado (RVF12-2-05). Link cujo texto é código
+    continua link.
+
+    A leitura é da esquerda para a direita, como a do GFM (RVF12-3-02). Fora do
+    código, a barra invertida escapa o caractere seguinte: em `\\` + crase, a
+    primeira barra escapa a segunda, e a crase abre código. Uma sequência de
+    crases fecha só noutra do **mesmo** comprimento, e dentro do código a barra
+    é literal. O código vira um espaço, e não nada: apagá-lo juntava `[x]`, o
+    código e `(y.md)` num link que não existia.
+    """
+    partes: list[str] = []
+    i = 0
+    while i < len(linha):
+        if linha[i] == "\\":
+            partes.append(linha[i : i + 2])
+            i += 2
+        elif linha[i] == "`":
+            fim = i
+            while fim < len(linha) and linha[fim] == "`":
+                fim += 1
+            fecho = re.compile(rf"(?<!`){'`' * (fim - i)}(?!`)").search(linha, fim)
+            if fecho:
+                partes.append(" ")
+                i = fecho.end()
+            else:
+                partes.append(linha[i:fim])
+                i = fim
+        else:
+            partes.append(linha[i])
+            i += 1
+    return "".join(partes)
+
+
 def ler(caminho: pathlib.Path, relativo: str) -> Documento:
     texto = caminho.read_text(encoding="utf-8")
     #: âncora já emitida → último sufixo usado a partir dela
@@ -215,7 +246,7 @@ def ler(caminho: pathlib.Path, relativo: str) -> Documento:
             definicoes[definicao.group("rotulo").lower()] = definicao.group("alvo")
             continue
 
-        sem_codigo = CODIGO_EM_LINHA.sub("", linha)
+        sem_codigo = _sem_codigo_em_linha(linha)
         for casado in LINK.finditer(sem_codigo):
             links.append((numero, casado.group("alvo")))
         for casado in USO_REFERENCIA.finditer(sem_codigo):

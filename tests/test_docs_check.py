@@ -297,6 +297,10 @@ def test_link_dentro_de_codigo_em_linha_nao_e_conferido(repositorio):
     O título que mostra a sintaxe entre crases, a mesma sintaxe dentro de duas
     crases, e a referência `[x][y]` no corpo são exemplo. Link cujo texto é
     código continua link, e crase escapada não abre código.
+
+    RVF12-3-02: código entre os colchetes e o parêntese separa os dois — não há
+    link —, e em duas barras seguidas de crase a barra escapada é a segunda: a
+    crase abre código. Dentro do código a barra é literal e não impede o fecho.
     """
     _escrever(
         repositorio,
@@ -304,13 +308,20 @@ def test_link_dentro_de_codigo_em_linha_nao_e_conferido(repositorio):
         "# Como escrever `[perdido](sumiu.md)`\n\n"
         "Com crase dentro: `` `[perdido](sumiu.md)` `` e `[x][y]`.\n\n"
         "Link com código no texto: [`sumiu.md`](tambem-sumiu.md).\n\n"
-        "Crase escapada: \\`[escapado](escapado.md)\\`.\n",
+        "Crase escapada: \\`[escapado](escapado.md)\\`.\n\n"
+        "Código entre as partes: [perdido]`texto`(sumiu.md).\n\n"
+        "Barra escapada: \\\\`[perdido](sumiu.md)`.\n\n"
+        "Barra dentro do código: `a\\`[dentro](dentro.md).\n",
     )
 
     quebrados, contagem = docs_check.verificar(repositorio)
 
-    assert [(q.linha, q.alvo) for q in quebrados] == [(5, "tambem-sumiu.md"), (7, "escapado.md")]
-    assert contagem["links"] == 2
+    assert [(q.linha, q.alvo) for q in quebrados] == [
+        (5, "tambem-sumiu.md"),
+        (7, "escapado.md"),
+        (13, "dentro.md"),
+    ]
+    assert contagem["links"] == 3
 
 
 def test_link_externo_nao_e_conferido(repositorio):
