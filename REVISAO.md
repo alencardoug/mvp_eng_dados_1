@@ -730,6 +730,193 @@ critérios 2, 3 e 4, o B5 e os logs. O ambiente e as proibições são os da §6
 
 ---
 
+## 9. Resposta à segunda rodada — 03/10/2026
+
+Os seis ajustes reproduzidos antes de qualquer correção, pela sonda R2-A/B/C do parecer, extraída
+literal deste dossiê: as seis saídas idênticas às do parecer. Seis *commits* de correção, um por
+assunto — RVF12-2-01 e RVF12-2-03 são a mesma regra e entraram juntos —, e dois achados próprios:
+um corrigido (`3b81cc3`), outro levado ao Owner (§9.4). A situação de cada achado está na tabela,
+ao fim.
+
+```
+29d2424 fix: a referência a variável precisa estar completa e alcançar o fim do valor
+3b72ca6 fix: a senha igual ao usuário só conta quando os dois lados são literais
+3b81cc3 fix: o identificador no último argumento nomeado não vira credencial
+8283886 fix: o verificador de ADR conta decisões e aprovações fora de bloco de código
+6be1f54 fix: o docs-check não confere link dentro de código em linha
+42e2ce9 fix: o recuo da cerca de código conta contra a coluna do item de lista
+```
+
+Cada teste novo rodou contra o código anterior antes do *commit*, e ficou vermelho onde devia:
+9 de 12 na referência (os verdes são `$1Ab9Z7q1`, que a regra antiga já acusava, e a lista de
+moldes); 2 de 7 na igualdade (os verdes são os controles literais); 1 de 1 no parêntese; 1 de 2 no
+bloco de código do verificador; 1 de 1 no código em linha; 5 de 8 no recuo (os dois casos de lista
+e o teste de paridade já passavam).
+
+### 9.1 O detector, antes de mudar
+
+Duas sondas no histórico inteiro, *blob* por *blob*, como a varredura. A primeira pegou todo valor
+de atribuição ou URL que começa com `$`, `{{` ou `{` e conferiu se a forma completa, lida no resto
+da linha, alcança o fim do valor:
+
+```
+cobrem: {'$': 575, '{': 13, '{{': 1}
+18 ('{', '{SENHA}\\n') ('tests/test_secrets_review.py', '(repositorio / "conector.yml").write_text(f"password: {SENHA}\\n", encoding="utf-8")')
+3 ('{', '{TOKEN_GITHUB}\\n') ('tests/test_secrets_review.py', '(repositorio / "ci.yml").write_text(f"token: {TOKEN_GITHUB}\\n", encoding="utf-8")')
+```
+
+As 575 ocorrências do `$` e a do `{{` são formas completas: a regra nova não cria achado. O `{var}`
+de *f-string* ficou como estava — já exige a chave que fecha dentro do valor —, porque, exigindo
+também alcançar o fim, os 21 *blobs* do teste com `\n` depois da interpolação virariam achados
+falsos. A segunda listou toda senha cujo valor está no conjunto de usuários do mesmo texto:
+
+```
+2 ('docker/docker-compose.airflow.yml', 'POSTGRES_PASSWORD: airflow', 'POSTGRES_USER: airflow', None)
+```
+
+Um par só, o da composição do Airflow em `4ff3be9` e `ea91a49`, e a linha de configuração YAML o
+mantém. Depois das três correções do detector:
+
+```
+revisão de segredos: nada encontrado nos arquivos rastreados
+revisão do histórico: nada não tratado (11 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Do lado dos documentos, a regra de cerca nova comparada com a anterior em cada `.md` rastreado,
+linha a linha do que cada uma lê como fora de código: `documentos com diferença: 0 de 108`. O código
+em linha também não tirou link nenhum do repositório: as contagens do `docs-check` não mudaram.
+
+### 9.2 As sondas, refeitas na ponta
+
+R2-A/B/C do parecer, literal, em `42e2ce9`:
+
+```
+R2_A usuario_literal antes= 0 depois= 1
+R2_A identificador_python antes= 0 depois= 0
+R2_A grupo_literal antes= 0 depois= 1
+R2_A referencia_completa antes= 0 depois= 0
+R2_A referencia_incompleta antes= 0 depois= 1
+R2_A shell_posicional_url antes= 0 depois= 0
+R2_B controle {"exit": 0, "problemas": []}
+R2_B aprovacao_em_codigo {"exit": 0, "problemas": []}
+R2_B fecho_indentado {"exit": 1, "problemas": ["- link quebrado — docs/pendencias.md: sumiu.md"]}
+R2_C {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 0, "adrs": 0}}
+```
+
+Contraprovas próprias do detector, reproduzíveis da raiz do checkout com `.venv/bin/python`; os
+valores são montados em partes pelo mesmo motivo do parecer:
+
+```python
+from mvp_ed1.secrets_review import detectar
+
+k, u = "pass" + "word", "u" + "ser"
+casos = {
+    "yaml_sem_fecho": f"{k}: ${{Ab9Z7q1",
+    "aspa_simples_sem_fecho": f"{k}: '${{Ab9Z7q1'",
+    "referencia_mais_literal": f'{k}: "${{A}}Ab9Z7q1"',
+    "posicional_mais_literal": f"{k}: $1Ab9Z7q1x",
+    "parentese_sem_fecho": f"{k}: $(Ab9Z7q1",
+    "gabarito_sem_fecho": f"{k}: {{{{Ab9Z7q1",
+    "make_subshell": f'echo "SOURCE_DB_{k.upper()}=$$(pw)"',
+    "terraform_interp": 'token_url = "${trimsuffix(var.airbyte_server_url, "/")}/applications/token"',
+    "jinja": f"{k}: \"{{{{ env_var('DBT_PASS') }}}}\"",
+    "compose_msg": f"POSTGRES_{k.upper()}: ${{AIRFLOW_DB_PASSWORD:?defina AIRFLOW_DB_PASSWORD no .env}}",
+    "env_par_fabrica": f"POSTGRES_USER=airflow\nPOSTGRES_{k.upper()}=airflow",
+    "lista_compose_par": f"  - POSTGRES_USER=airflow\n  - POSTGRES_{k.upper()}=airflow",
+    "kwargs_multilinha": f"connect(\n    {u}=db_user,\n    {k}=db_user,\n)",
+    "kwargs_linha": f"connect({u}=db_user, {k}=db_user)",
+    "python_aspas_par": f'{u} = "airflow"\n{k} = "airflow"',
+    "yaml_flow_limite": f"{{{k}: ${{Ab9Z7q1, {u}: x}}",
+}
+for nome, texto in casos.items():
+    print(f"{nome:26} {len(detectar(texto))}")
+```
+
+```
+yaml_sem_fecho             1
+aspa_simples_sem_fecho     1
+referencia_mais_literal    1
+posicional_mais_literal    1
+parentese_sem_fecho        1
+gabarito_sem_fecho         1
+make_subshell              0
+terraform_interp           0
+jinja                      0
+compose_msg                0
+env_par_fabrica            1
+lista_compose_par          1
+kwargs_multilinha          0
+kwargs_linha               0
+python_aspas_par           1
+yaml_flow_limite           0
+```
+
+O `kwargs_linha` dava 1 antes de `3b81cc3` — e já dava em `d8ebe5a`, antes da revisão final: o `)`
+colado ao identificador o fazia passar por valor. O último é limite, não acerto: num mapeamento
+YAML em linha, a chave que fecha o mapeamento completa a referência aberta. O repositório não
+escreve credencial nessa forma; está na §9.5.
+
+### 9.3 A ponta inteira
+
+`make check` em `42e2ce9`, saída 0 (trechos):
+
+```
+── 1/4 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 108 documentos, 1035 links de arquivo, 160 âncoras, 658 citações de ADR — nada quebrado
+Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905
+── 3/4 classificação derivada e linhagem em dia com os modelos ──
+classificação derivada de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s)
+linhagem de 2983 colunas em 199 relações; §3 do dicionário em dia
+625 passed, 8 skipped in 268.52s (0:04:28)
+check: as quatro etapas passaram
+```
+
+Os oito pulados são os da §8.3, com o mesmo motivo impresso. Os três arquivos de teste tocados
+coletam 88 testes; o parecer coletou 60 neles (os 62 da validação dele, menos os dois do
+`Makefile`): 28 novos.
+
+### 9.4 Achado próprio, levado ao Owner: o usuário web do Airflow
+
+O `airflow_init` da composição traz `airflow users create --username admin --password admin` desde
+`4ff3be9`, e o `make airflow-up` imprime "admin / admin". A varredura não vê essa forma — opção de
+linha de comando não está entre as que a Governança §9 promete. Lido na imagem local, num contêiner
+descartável, e no log do último `airflow_init`, sem subir serviço:
+
+```
+$ docker run --rm --entrypoint airflow mvp_ed1/airflow:3.2.2 config get-value core auth_manager
+airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+$ docker run --rm --entrypoint airflow mvp_ed1/airflow:3.2.2 config get-value core simple_auth_manager_users
+admin:admin
+$ docker logs mvp_ed1-airflow_init-1 2>&1 | grep 'command error'
+airflow users create command error: the following arguments are required: -e/--email, -f/--firstname, -l/--lastname, -r/--role, see help above.
+```
+
+Três coisas, então. O comando nunca rodou: o bloco dobrado do YAML (`>`) mantém em linha própria as
+linhas mais recuadas, o `bash` executa `users create` só com usuário e senha, e o `|| true` engole a
+falha. Se rodasse, criaria um usuário do FAB que o `SimpleAuthManager` — o padrão do Airflow 3 —
+não consulta: o `admin:admin` da configuração é usuário e **papel**, e a senha é gerada pelo próprio
+gerenciador quando o *api-server* sobe e impressa no log dele (o valor não é reproduzido aqui). E a
+instrução do `make airflow-up` é falsa. Nenhuma credencial de fábrica chegou a valer, mas há uma
+escrita na composição e uma instrução errada no `Makefile`. Não foi corrigido nesta resposta: a
+mudança na composição só se confere subindo o Airflow, o que esta rodada não autoriza, e a forma de
+autenticar é escolha do Owner.
+
+### 9.5 O que NÃO foi verificado
+
+- **Limites declarados do detector, novos:** a chave que fecha um mapeamento YAML em linha completa
+  uma referência aberta dentro dele; `{var}` de *f-string* seguido de literal (`{a}Ab9Z7q1`) segue
+  excusado; num `.env`, `chave = valor` com espaços não é linha de configuração; a opção de linha de
+  comando (`--password valor`) não é lida (§9.4). Os da §8.4 continuam.
+- **Limites declarados da regra de cerca:** tab, citação (`>`), item que abre com a própria cerca,
+  bloco indentado sem cerca e continuação de parágrafo sem recuo — nesta última o erro é acusar um
+  exemplo, não esconder. Código em linha que atravessa linhas não é lido como tal.
+- A regra de recuo foi conferida contra a especificação do GFM, não contra uma página renderizada.
+- Nenhum ciclo, restauração, instalação ou subida de ambiente; nada do que a §8.4 deixou como não
+  medido foi medido aqui.
+
+---
+
 ## Achados da revisão
 
 **Parecer de 03/10/2026 — Codex. Devolver para ajustes antes do aceite:** dois bloqueantes,
@@ -1150,9 +1337,9 @@ que exigiriam escrever dados. Os artefatos temporários estão em `/tmp/revisao-
 | RVF12-09 | `docs/execucao_local.md` §6, “Duas armadilhas no caminho de volta”; `Makefile`, `airbyte-config` | **O procedimento ainda descreve criação paralela como comportamento atual.** Reproduzir `rg -n -e 'Duas armadilhas' -e 'cria fonte e destino em paralelo' -e 'parallelism=1' docs/execucao_local.md Makefile`. Saída: a linha 663 da prosa diz que o `terraform apply` cria fonte e destino em paralelo e recomenda rodar de novo; a linha 420 da receita agora passa `-parallelism=1`. O teste `test_airbyte_config_aplica_um_recurso_por_vez` passou. Proponho datar a armadilha como comportamento anterior e apontar o tratamento já aplicado, sem conservar a repetição como orientação normal. | **ajuste** | Aberto; contradição introduzida pela correção do intervalo, por isso está no escopo. — **Resposta, 03/10/2026: corrigido.** `df46f9c`: a armadilha vira registro do que acontecia antes de `45395e3`, e a que continua valendo (a conexão recriada sem cursor) fica como orientação. Execução Local v1.17. |
 | RVF12-10 | `Makefile`, `airbyte-up`; premissa 1 da §5 deste dossiê; risco R6 | **Fixar o abctl não fixa a instalação nova do Airbyte.** Reproduzir `DO_NOT_TRACK=1 .tools/abctl version` → `version: v0.30.4`; a receita de instalação não passa `--chart-version`. No [resolver da versão v0.30.4](https://github.com/airbytehq/abctl/blob/v0.30.4/internal/helm/chart.go#L62-L73), chart e versão vazios chamam `GetLatestAirbyteChartUrlFromRepoIndex`. O log B5 `20260925T124958Z_73_l2_airbyte_up.log`, sem escapes ANSI, registra `Starting Helm Chart installation of 'airbyte/airbyte' (version: 2.3.0)`. A premissa de versão estável está refutada pelo código upstream; uma próxima instalação efetiva não foi executada nem sua versão inferida. Proponho fixar o chart medido antes da tag, ou obter decisão explícita sobre essa limitação de reprodutibilidade. | **ajuste** | Aberto; é tratamento do R6 existente. Nenhuma instalação ou atualização foi feita pela revisão. — **Resposta, 03/10/2026: o Owner decidiu fixar.** `cc84cd3`: `AIRBYTE_CHART_VERSION := 2.3.0`, a do log da linha 2 do B5, e `--chart-version` no ramo de instalação do `airbyte-up`; `abctl local install --help` da v0.30.4 lista a opção; o teste do ramo exige a chamada. Execução Local e R6 atualizados. **Não medido:** uma instalação real com o *chart* fixado — o cluster de pé não passa por esse ramo. |
 | RVF12-11 | Plano, Etapa 12; README, Status; Capacidade §2.12, linha `migrate` | **O pico de memória não foi medido em toda linha.** Reproduzir a leitura de `data/medicoes/b5/20260925T124837Z_73_l1_migrate.log`: `migrate`, **0m 02s**, **não medido**, **não medido**, **0 amostras**, **24.9 MB**. A Capacidade declara corretamente a lacuna; o plano diz “cada uma” com extremos e o README “pico ... em cada linha”. Proponho carregar a mesma ressalva para esses resumos. O ciclo dos cinco cenários tem medições; não atribuo um pico ao comando curto nem peço sua reexecução nesta revisão. | **observação** | Ressalva de P5 para o fechamento; a ausência está explicitamente preservada no parecer do critério 2. — **Resposta, 03/10/2026: ressalva aplicada.** `30e8386`: o critério 2 do plano e o status do README dizem que o pico do `migrate`, de 2 s, não foi medido. A linha não foi refeita. |
-| RVF12-2-01 | `src/mvp_ed1/secrets_review.py:113`, regra de referência; RVF12-03 | **A referência ainda é reconhecida só pelo prefixo.** Reproduzir R2-A, `referencia_incompleta`: JSON com valor sintético começando com `${` e **sem chave de fechamento** devolve **0 achados antes e depois**; a referência completa também dá 0. A forma incompleta não é uma referência válida, mas dispensa o literal. A promessa de molde como propriedade do valor inteiro, na Governança §9 e no módulo, continua mais forte que o controle. Proponho delimitar as formas completas e considerar o contexto, incluindo um controle negativo para referência malformada. | **ajuste** | Aberto; lacuna remanescente da resposta, não falso negativo introduzido agora nem segredo real adicional encontrado. |
-| RVF12-2-02 | `src/mvp_ed1/secrets_review.py:88`, `USER_PATTERN`; `detectar:232`, exceção da `WORD_RULE` | **Dois identificadores Python viram senha de fábrica.** Reproduzir R2-A, `identificador_python`: as atribuições de usuário e senha recebem o identificador `db_user`, sem aspas; **0 achados antes, 1 depois**. São referências a uma variável, sem credencial literal. O conjunto de usuários perdeu essa distinção e desativa a regra de identificador por igualdade textual. Proponho preservar referências no código e manter a detecção do par literal de fábrica da composição/URL. | **ajuste** | Aberto; falso positivo novo. O controle JSON com usuário/senha literais iguais é corretamente acusado. |
-| RVF12-2-03 | `src/mvp_ed1/secrets_review.py:113`, regra `$`; `detectar`, URL | **Uma referência posicional válida de shell passou a ser acusada.** Reproduzir R2-A, `shell_posicional_url`: uma URL sob aspas duplas usa `$1` como senha; **0 achados antes, 1 depois**. `$1` é parâmetro posicional, e a regra nova só admite letra, sublinhado, chave ou parêntese depois de `$`. Proponho reconhecer a forma completa do parâmetro nesse contexto, preservando a detecção de texto literal com `$`. | **ajuste** | Aberto; falso positivo novo em entrada sintética válida, sem alegação de uso atual dessa forma no projeto. |
-| RVF12-2-04 | `.claude/skills/adr/verificar.py:74`, `decisoes`; `main:203` | **Blocos de código ainda entram na contagem de aprovações.** Reproduzir R2-B, `aprovacao_em_codigo`: só acrescentar um título `### Exemplo` em cerca ao estado correto faz a saída mudar de **0 para 1**, exigindo uma aprovação inexistente e acusando que o README conta 1 com 2 pendentes. `sem_codigo` só é usado na varredura de links/ADRs; `decisoes` recebe os textos inteiros. Proponho excluir exemplos também antes de extrair seções, títulos e contadores. | **ajuste** | Aberto; regressão na contagem nova, além da citação em código que o teste já cobre. |
-| RVF12-2-05 | `src/mvp_ed1/docs_check.py:141`, `ler`, links em títulos | **Exemplo de link em código em linha virou link real.** Reproduzir R2-C: título que mostra a sintaxe de link entre crases; saída **`README.md:1: sumiu.md — arquivo não existe`**, 1 link. Antes havia 0 links. Pelo [GFM, código em linha tem precedência sobre links](https://github.github.com/gfm/#code-spans); esse texto não cria ponteiro. Proponho conferir os links renderizáveis do título respeitando código em linha, preservando sua contribuição ao texto da âncora. | **ajuste** | Aberto; falso positivo novo na resposta a RVF12-04. |
-| RVF12-2-06 | `.claude/skills/adr/verificar.py:160`, `CERCA`/`sem_codigo`; regra compartilhada com `docs_check` | **A cerca indentada faz o verificador novo ocultar um link quebrado fora do bloco.** Reproduzir R2-B, `fecho_indentado`: abertura normal, três crases com quatro espaços como conteúdo, fechamento normal e depois um link inexistente. Saída nova **0, `Integridade conferida`**, sem problemas; o verificador anterior saía **1** com `link quebrado — docs/pendencias.md: sumiu.md`. No [GFM o fechamento admite até três espaços](https://github.github.com/gfm/#fenced-code-blocks), fora de contexto de lista; o `\s*` aceita quatro, fecha cedo e reabre na cerca verdadeira, escondendo o link. Proponho respeitar a indentação e o contexto de lista, com controle do texto depois do fechamento. | **ajuste** | Aberto; a liberdade de indentação já existia no `docs_check`, mas sua cópia para o verificador de ADR introduziu esta regressão no intervalo. |
+| RVF12-2-01 | `src/mvp_ed1/secrets_review.py:113`, regra de referência; RVF12-03 | **A referência ainda é reconhecida só pelo prefixo.** Reproduzir R2-A, `referencia_incompleta`: JSON com valor sintético começando com `${` e **sem chave de fechamento** devolve **0 achados antes e depois**; a referência completa também dá 0. A forma incompleta não é uma referência válida, mas dispensa o literal. A promessa de molde como propriedade do valor inteiro, na Governança §9 e no módulo, continua mais forte que o controle. Proponho delimitar as formas completas e considerar o contexto, incluindo um controle negativo para referência malformada. | **ajuste** | Aberto; lacuna remanescente da resposta, não falso negativo introduzido agora nem segredo real adicional encontrado. — **Resposta, 03/10/2026: corrigido.** `29d2424`: a referência é forma completa — `$VAR`, `$1`, `${…}`, `$(…)`, `$$` do Make e `{{ … }}` —, lida no resto da linha e alcançando o fim do valor; aspa dentro dela só com par, e a chave do objeto JSON em volta não a fecha. R2-A `referencia_incompleta`: 1 achado; controle negativo em JSON e YAML nos testes. O `{{`, com o mesmo defeito, entrou na mesma regra. No histórico, as 575 ocorrências do `$` são completas e a varredura segue em 11 (§9.1). |
+| RVF12-2-02 | `src/mvp_ed1/secrets_review.py:88`, `USER_PATTERN`; `detectar:232`, exceção da `WORD_RULE` | **Dois identificadores Python viram senha de fábrica.** Reproduzir R2-A, `identificador_python`: as atribuições de usuário e senha recebem o identificador `db_user`, sem aspas; **0 achados antes, 1 depois**. São referências a uma variável, sem credencial literal. O conjunto de usuários perdeu essa distinção e desativa a regra de identificador por igualdade textual. Proponho preservar referências no código e manter a detecção do par literal de fábrica da composição/URL. | **ajuste** | Aberto; falso positivo novo. O controle JSON com usuário/senha literais iguais é corretamente acusado. — **Resposta, 03/10/2026: corrigido.** `3b72ca6`: o par só conta entre literais — entre aspas, ou numa linha de configuração YAML ou ENV, em que a chave abre a linha e o valor a fecha. R2-A `identificador_python`: 0; argumentos nomeados em várias linhas: 0; os controles literais (JSON, Python entre aspas, ENV, lista da composição) e o par de `4ff3be9` continuam achados. Achado próprio em `3b81cc3`: o `)` do último argumento nomeado fazia do identificador um valor, desde antes da revisão final (§9.2). |
+| RVF12-2-03 | `src/mvp_ed1/secrets_review.py:113`, regra `$`; `detectar`, URL | **Uma referência posicional válida de shell passou a ser acusada.** Reproduzir R2-A, `shell_posicional_url`: uma URL sob aspas duplas usa `$1` como senha; **0 achados antes, 1 depois**. `$1` é parâmetro posicional, e a regra nova só admite letra, sublinhado, chave ou parêntese depois de `$`. Proponho reconhecer a forma completa do parâmetro nesse contexto, preservando a detecção de texto literal com `$`. | **ajuste** | Aberto; falso positivo novo em entrada sintética válida, sem alegação de uso atual dessa forma no projeto. — **Resposta, 03/10/2026: corrigido** em `29d2424`, na regra do RVF12-2-01: `$1` é forma completa, e `$1Ab9Z7q1` continua achado. R2-A `shell_posicional_url`: 0. |
+| RVF12-2-04 | `.claude/skills/adr/verificar.py:74`, `decisoes`; `main:203` | **Blocos de código ainda entram na contagem de aprovações.** Reproduzir R2-B, `aprovacao_em_codigo`: só acrescentar um título `### Exemplo` em cerca ao estado correto faz a saída mudar de **0 para 1**, exigindo uma aprovação inexistente e acusando que o README conta 1 com 2 pendentes. `sem_codigo` só é usado na varredura de links/ADRs; `decisoes` recebe os textos inteiros. Proponho excluir exemplos também antes de extrair seções, títulos e contadores. | **ajuste** | Aberto; regressão na contagem nova, além da citação em código que o teste já cobre. — **Resposta, 03/10/2026: corrigido.** `8283886`: o texto sem código é calculado uma vez e serve aos links, às citações de ADR e às seções, títulos e contadores das decisões. R2-B `aprovacao_em_codigo`: saída 0; cenário novo com aprovação e decisão só em bloco de código. |
+| RVF12-2-05 | `src/mvp_ed1/docs_check.py:141`, `ler`, links em títulos | **Exemplo de link em código em linha virou link real.** Reproduzir R2-C: título que mostra a sintaxe de link entre crases; saída **`README.md:1: sumiu.md — arquivo não existe`**, 1 link. Antes havia 0 links. Pelo [GFM, código em linha tem precedência sobre links](https://github.github.com/gfm/#code-spans); esse texto não cria ponteiro. Proponho conferir os links renderizáveis do título respeitando código em linha, preservando sua contribuição ao texto da âncora. | **ajuste** | Aberto; falso positivo novo na resposta a RVF12-04. — **Resposta, 03/10/2026: corrigido.** `6be1f54`: o código em linha sai antes da busca de link em toda linha, não só no título — a sequência de crases fecha só noutra do mesmo comprimento, crase escapada não abre, e link cujo texto é código continua link. O texto da âncora não muda. R2-C: 0 quebrados, 0 links; as contagens do repositório não mudaram. |
+| RVF12-2-06 | `.claude/skills/adr/verificar.py:160`, `CERCA`/`sem_codigo`; regra compartilhada com `docs_check` | **A cerca indentada faz o verificador novo ocultar um link quebrado fora do bloco.** Reproduzir R2-B, `fecho_indentado`: abertura normal, três crases com quatro espaços como conteúdo, fechamento normal e depois um link inexistente. Saída nova **0, `Integridade conferida`**, sem problemas; o verificador anterior saía **1** com `link quebrado — docs/pendencias.md: sumiu.md`. No [GFM o fechamento admite até três espaços](https://github.github.com/gfm/#fenced-code-blocks), fora de contexto de lista; o `\s*` aceita quatro, fecha cedo e reabre na cerca verdadeira, escondendo o link. Proponho respeitar a indentação e o contexto de lista, com controle do texto depois do fechamento. | **ajuste** | Aberto; a liberdade de indentação já existia no `docs_check`, mas sua cópia para o verificador de ADR introduziu esta regressão no intervalo. — **Resposta, 03/10/2026: corrigido.** `42e2ce9`: a cerca abre e fecha com até três espaços além da coluna em que o conteúdo do item de lista começa, zero fora de lista; linha com menos recuo que o item encerra o item e o bloco. Vale nas duas cópias, e um teste confere que elas dão o mesmo texto nos casos de recuo e nos 108 documentos. R2-B `fecho_indentado`: saída 1, `link quebrado — docs/pendencias.md: sumiu.md`. Limites declarados na §9.5. |
