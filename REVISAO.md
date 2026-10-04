@@ -990,6 +990,151 @@ destino vazio e quantidade esperada de alertas por oráculo independente. O B5 m
 11 era a quantidade correta para aquele corte. Essas limitações não foram convertidas em novos
 resultados nem usadas para reabrir o que já estava aceito no roteiro.
 
+**Segunda rodada, 03/10/2026 — Codex, sobre `d8ebe5a..503edf6`.** A §8 inteira e as situações
+dos onze achados foram lidas antes das sondas. Os dois bloqueantes originais estão tratados;
+recomendo **seis ajustes novos nas automações antes do aceite**, sem novo bloqueante. As
+contraprovas originais foram corrigidas, mas parte da resposta introduz regressões ou deixa
+lacunas. Os critérios 2, 3 e 4, o B5 e seus logs não foram reabertos. Nenhuma correção foi feita.
+
+| Resposta original | Conferência própria nesta rodada |
+|---|---|
+| RVF12-01 | **Confirmada para o caso conhecido.** S1 literal: `achados_detector: 2`, `registros_airflow: 4`, senha atual diferente. A comparação de todas as chaves sensíveis do `.env` com o valor histórico devolveu `[]`. `docker volume inspect mvp_ed1_airflow_db_data --format '{{.Name}} {{.CreatedAt}}'` devolveu `mvp_ed1_airflow_db_data 2026-09-25T10:35:44-03:00`. O histórico tem 11 ocorrências tratadas, sem blob pulado. A rotação registrada é coerente com essas evidências; não instalei nem retomei Airflow. |
+| RVF12-02 | **Confirmada a formalização e a transação.** ADR-0048 aceito, D48 no Registro e nas Pendências, Governança §9, R7, critério 6, registro YAML e README conferidos integralmente no diff. Os contadores dão 48 ADRs, uma decisão e uma aprovação pendentes; os links passam. A opinião sobre Paridade está abaixo. |
+| RVF12-03 | **Contraprova corrigida; resposta ainda parcial.** Os quatro literais da S1 têm um achado cada; R2-A também acusa o grupo entre aspas. A referência completa segue dispensada. Uma referência incompleta também é dispensada, e há dois falsos positivos novos (RVF12-2-01, 02 e 03). |
+| RVF12-04 | **Contraprova corrigida, com regressão.** S1 acusa o arquivo e o ADR inexistentes no título. R2-C acusa como link um exemplo dentro de código em linha (RVF12-2-05). |
+| RVF12-05 | **Confirmada.** S1 aceita a terceira âncora. Sonda adicional com títulos `X`, `X`, `X-1`, `X`, `X-1`, `X-1-1`, `X-2`, `X` devolveu `['x', 'x-1', 'x-1-1', 'x-1-1-1', 'x-1-2', 'x-2', 'x-2-1', 'x-3']`, coerente com o [algoritmo de colisões do github-slugger](https://github.com/Flet/github-slugger/blob/master/index.js). |
+| RVF12-06 | **Comprimento e caractere confirmados; GFM ainda parcial.** S1 acusa a âncora fictícia; sonda com abertura de quatro crases, três crases e tis dentro, e fechamento de cinco crases devolveu somente `[(6, '# Real')]`. A indentação livre foi copiada para o verificador de ADR e oculta texto válido (RVF12-2-06). |
+| RVF12-07 | **Contagem atual confirmada; exclusão de exemplos parcial.** O verificador real passa com uma decisão e uma aprovação. R2-B faz um título dentro de código virar aprovação (RVF12-2-04). O teste novo que ignora a citação de ADR em código passou. |
+| RVF12-08 | **Confirmada.** S1 mede 11 certificadas e maior snapshot 43. S2, com `SHOW transaction_read_only` devolvendo `on`, contou 29 `sync_id`, 28 retidos e o 49. A prosa agora distingue essas quantidades e declara não medida a atribuição dos 293 MB. A contagem das duas capturas do ciclo é documental; não reexecutei o B5. |
+| RVF12-09 | **Confirmada.** `rg -n -e 'Uma armadilha' -e 'Havia uma segunda' -e 'parallelism=1' docs/execucao_local.md Makefile` mostra o problema datado como anterior e o alvo serializado. O teste da serialização passou. |
+| RVF12-10 | **Confirmado o contrato de instalação.** `AIRBYTE_CHART_VERSION := 2.3.0`, flag no ramo sem cluster, teste simulado passando e `abctl` v0.30.4 com a opção no `--help`. Conferi o índice v2 e o arquivo: versão disponível e HTTP 200. Instalação efetiva **não medida**, conforme a autorização desta rodada. |
+| RVF12-11 | **Confirmada.** Leitura própria do diff e `rg -n -e 'não foi medido' -e 'todas menos' docs/plano_de_desenvolvimento.md README.md` encontram as ressalvas no critério 2 e no Status. Nenhum pico novo foi atribuído ao `migrate`. |
+
+**Paridade do ADR-0048.** Considero coerente incluir a senha do Cloud SQL no segundo tipo: ela
+protege um serviço externo à estação, mesmo com IP privado. É uma classificação conservadora
+pela política, que distingue o contêiner da estação dos serviços externos. O acesso ao Cloud SQL
+também exige conectividade; com IP privado, alcance da VPC, e com Auth Proxy, autorização IAM
+além da autenticação do banco ([documentação do proxy](https://docs.cloud.google.com/sql/docs/postgres/sql-proxy)).
+Rotacionar a senha no próprio banco invalida o valor antigo
+([gestão de usuários](https://docs.cloud.google.com/sql/docs/postgres/create-manage-users)). A obrigação
+adicional de reescrever o histórico é a decisão do Owner, com seu custo aceito. Armazenar no
+Secret Manager cumpre a paridade da Arquitetura §5; a classificação acompanha o serviço protegido.
+Esta é uma leitura normativa e técnica, **não uma medição da implantação GCP**, que não existe
+neste escopo. Não proponho reescrever o ADR aceito.
+
+**Validação própria na ponta `503edf6`, antes deste parecer:**
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -rs -p no:cacheprovider \
+  tests/test_secrets_review.py tests/test_docs_check.py tests/test_verificador_adr.py \
+  tests/test_makefile.py::test_airbyte_up_instala_quando_nao_ha_cluster \
+  tests/test_makefile.py::test_airbyte_config_aplica_um_recurso_por_vez
+```
+
+```text
+62 passed in 13.38s
+docs-check: 108 documentos, 1035 links de arquivo, 160 âncoras, 656 citações de ADR — nada quebrado
+revisão de segredos: nada encontrado nos arquivos rastreados
+revisão do histórico: nada não tratado (11 achado(s), todos registrados; 0 blob(s) pulado(s))
+ADRs aceitos: 48  ·  esperando ADR: 1  ·  esperando o Owner: 1 decisão(ões) e 1 aprovação(ões)  ·  Dnn citados: 61
+Integridade conferida: links, ADRs citados, decisões pendentes e contadores.
+transaction_read_only on
+raw_legacy_quantidade_sync_ids 29
+raw_legacy_retidos_do_pacote 28
+```
+
+Todos esses comandos saíram 0, sem teste pulado. A S1 foi extraída do próprio parecer anterior
+e executada literal: saída idêntica à §8.2. A conexão inicial ao PostgreSQL e a inspeção do volume
+foram bloqueadas pelo sandbox; repetidas com acesso local autorizado, concluíram. Nenhum alvo
+proibido foi executado. O alvo de instalação foi exercitado **só com executáveis simulados**.
+
+Para conferir a disponibilidade do chart sem instalar, o [resolver v0.30.4](https://github.com/airbytehq/abctl/blob/v0.30.4/internal/helm/chart.go)
+seleciona o repositório v2 para 2.3.0. Consultei `https://airbytehq.github.io/charts/index.yaml`
+com `curl -fsSL --max-time 30` e filtrei `entries.airbyte` pela versão: **uma entrada**,
+`urls: ['airbyte-2.3.0.tgz']`, `appVersion: '2.3.0'`. A consulta
+`curl -fsSL --max-time 30 --head https://airbytehq.github.io/charts/airbyte-2.3.0.tgz` devolveu
+`HTTP/2 200`, `content-length: 60130`. O primeiro índice consultado, `/helm-charts`, era o v1;
+sua ausência de 2.3.0 foi descartada ao conferir as constantes da versão do abctl. Não é achado.
+
+**Sondas adicionais R2-A/B/C, reproduzíveis da raiz do checkout.** Escrevem apenas em diretórios
+temporários. Valores e links são montados em partes para que o parecer não acrescente fixtures
+ao histórico nem links fictícios aos documentos. R2-B reaproveita apenas o montador do teste;
+as entradas adicionais são contraprovas desta revisão. `antes` é o detector de `d8ebe5a`.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import types
+
+from mvp_ed1 import docs_check, secrets_review
+
+root = Path.cwd()
+old = types.ModuleType('secrets_antes_r2')
+sys.modules[old.__name__] = old
+exec(subprocess.check_output(['git', 'show', 'd8ebe5a:src/mvp_ed1/secrets_review.py'], text=True), old.__dict__)
+key, user = 'pass' + 'word', 'u' + 'ser'
+cases = {
+    'usuario_literal': json.dumps({'username': 'reader', key: 'reader'}),
+    'identificador_python': f'{user} = db_user\n{key} = db_user\n',
+    'grupo_literal': json.dumps({key: '(Ab9Z7q1)'}),
+    'referencia_completa': json.dumps({key: '${DB_PASSWORD}'}),
+    'referencia_incompleta': json.dumps({key: '${Ab9Z7q1'}),
+    'shell_posicional_url': 'url="' + 'postgresql' + '://' + 'reader' + ':' + '$1' + '@localhost/db"',
+}
+for label, text in cases.items():
+    print('R2_A', label, 'antes=', len(old.detectar(text)), 'depois=', len(secrets_review.detectar(text)))
+
+spec = importlib.util.spec_from_file_location('adr_tests_r2', root / 'tests/test_verificador_adr.py')
+tests = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tests)
+def link(label, target):
+    return '[' + label + ']' + '(' + target + ')'
+adr_cases = {
+    'controle': '',
+    'aprovacao_em_codigo': '\n```markdown\n### Exemplo\n```\n',
+    'fecho_indentado': '\n```text\n    ```\nExemplo\n```\n\n' + link('perdido', 'sumiu.md') + '\n',
+}
+for label, extra in adr_cases.items():
+    with tempfile.TemporaryDirectory(prefix='adr-e12-r2-') as d:
+        result = tests._verificar(Path(d), esperando=tests.ATUAL['esperando'] + extra)
+        problems = [s.strip() for s in result.stdout.splitlines() if s.startswith(' -')]
+        print('R2_B', label, json.dumps({'exit': result.returncode, 'problemas': problems}, ensure_ascii=False))
+
+with tempfile.TemporaryDirectory(prefix='docs-e12-r2-') as d:
+    p = Path(d)
+    subprocess.run(['git', 'init', '-q'], cwd=p, check=True)
+    (p / 'README.md').write_text('# Como escrever `' + link('perdido', 'sumiu.md') + '`\n')
+    subprocess.run(['git', 'add', 'README.md'], cwd=p, check=True)
+    broken, counts = docs_check.verificar(p)
+    print('R2_C', json.dumps({'quebrados': [str(x) for x in broken], 'contagem': counts}, ensure_ascii=False))
+PY
+```
+
+```text
+R2_A usuario_literal antes= 0 depois= 1
+R2_A identificador_python antes= 0 depois= 1
+R2_A grupo_literal antes= 0 depois= 1
+R2_A referencia_completa antes= 0 depois= 0
+R2_A referencia_incompleta antes= 0 depois= 0
+R2_A shell_posicional_url antes= 0 depois= 1
+R2_B controle {"exit": 0, "problemas": []}
+R2_B aprovacao_em_codigo {"exit": 1, "problemas": ["- pendencias.md desatualizado — o cabeçalho deveria dizer 1 aprovações pendentes (Exemplo)", "- README desatualizado — a linha Pendências do Owner conta 1, e 'Esperando você' tem 2 (D43; Exemplo)"]}
+R2_B fecho_indentado {"exit": 0, "problemas": []}
+R2_C {"quebrados": ["README.md:1: sumiu.md — arquivo não existe"], "contagem": {"documentos": 1, "links": 1, "ancoras": 0, "adrs": 0}}
+```
+
+Também confrontei o código anterior com as duas últimas entradas: no exemplo de cerca, o
+verificador anterior saía **1**, `link quebrado — docs/pendencias.md: sumiu.md`; no título com
+código em linha, o `docs_check` anterior contava **0 links**, sem quebrados. São regressões
+do intervalo. **Não medidos:** instalação real do chart, implantação GCP e caminhos operacionais
+que exigiriam escrever dados. Os artefatos temporários estão em `/tmp/revisao-e12-r2-503edf6/`.
+
+
 **Achados — cada linha inclui reprodução, saída observada e encaminhamento proposto.**
 
 | # | Onde | Achado | Veredito | Situação |
@@ -1005,3 +1150,9 @@ resultados nem usadas para reabrir o que já estava aceito no roteiro.
 | RVF12-09 | `docs/execucao_local.md` §6, “Duas armadilhas no caminho de volta”; `Makefile`, `airbyte-config` | **O procedimento ainda descreve criação paralela como comportamento atual.** Reproduzir `rg -n -e 'Duas armadilhas' -e 'cria fonte e destino em paralelo' -e 'parallelism=1' docs/execucao_local.md Makefile`. Saída: a linha 663 da prosa diz que o `terraform apply` cria fonte e destino em paralelo e recomenda rodar de novo; a linha 420 da receita agora passa `-parallelism=1`. O teste `test_airbyte_config_aplica_um_recurso_por_vez` passou. Proponho datar a armadilha como comportamento anterior e apontar o tratamento já aplicado, sem conservar a repetição como orientação normal. | **ajuste** | Aberto; contradição introduzida pela correção do intervalo, por isso está no escopo. — **Resposta, 03/10/2026: corrigido.** `df46f9c`: a armadilha vira registro do que acontecia antes de `45395e3`, e a que continua valendo (a conexão recriada sem cursor) fica como orientação. Execução Local v1.17. |
 | RVF12-10 | `Makefile`, `airbyte-up`; premissa 1 da §5 deste dossiê; risco R6 | **Fixar o abctl não fixa a instalação nova do Airbyte.** Reproduzir `DO_NOT_TRACK=1 .tools/abctl version` → `version: v0.30.4`; a receita de instalação não passa `--chart-version`. No [resolver da versão v0.30.4](https://github.com/airbytehq/abctl/blob/v0.30.4/internal/helm/chart.go#L62-L73), chart e versão vazios chamam `GetLatestAirbyteChartUrlFromRepoIndex`. O log B5 `20260925T124958Z_73_l2_airbyte_up.log`, sem escapes ANSI, registra `Starting Helm Chart installation of 'airbyte/airbyte' (version: 2.3.0)`. A premissa de versão estável está refutada pelo código upstream; uma próxima instalação efetiva não foi executada nem sua versão inferida. Proponho fixar o chart medido antes da tag, ou obter decisão explícita sobre essa limitação de reprodutibilidade. | **ajuste** | Aberto; é tratamento do R6 existente. Nenhuma instalação ou atualização foi feita pela revisão. — **Resposta, 03/10/2026: o Owner decidiu fixar.** `cc84cd3`: `AIRBYTE_CHART_VERSION := 2.3.0`, a do log da linha 2 do B5, e `--chart-version` no ramo de instalação do `airbyte-up`; `abctl local install --help` da v0.30.4 lista a opção; o teste do ramo exige a chamada. Execução Local e R6 atualizados. **Não medido:** uma instalação real com o *chart* fixado — o cluster de pé não passa por esse ramo. |
 | RVF12-11 | Plano, Etapa 12; README, Status; Capacidade §2.12, linha `migrate` | **O pico de memória não foi medido em toda linha.** Reproduzir a leitura de `data/medicoes/b5/20260925T124837Z_73_l1_migrate.log`: `migrate`, **0m 02s**, **não medido**, **não medido**, **0 amostras**, **24.9 MB**. A Capacidade declara corretamente a lacuna; o plano diz “cada uma” com extremos e o README “pico ... em cada linha”. Proponho carregar a mesma ressalva para esses resumos. O ciclo dos cinco cenários tem medições; não atribuo um pico ao comando curto nem peço sua reexecução nesta revisão. | **observação** | Ressalva de P5 para o fechamento; a ausência está explicitamente preservada no parecer do critério 2. — **Resposta, 03/10/2026: ressalva aplicada.** `30e8386`: o critério 2 do plano e o status do README dizem que o pico do `migrate`, de 2 s, não foi medido. A linha não foi refeita. |
+| RVF12-2-01 | `src/mvp_ed1/secrets_review.py:113`, regra de referência; RVF12-03 | **A referência ainda é reconhecida só pelo prefixo.** Reproduzir R2-A, `referencia_incompleta`: JSON com valor sintético começando com `${` e **sem chave de fechamento** devolve **0 achados antes e depois**; a referência completa também dá 0. A forma incompleta não é uma referência válida, mas dispensa o literal. A promessa de molde como propriedade do valor inteiro, na Governança §9 e no módulo, continua mais forte que o controle. Proponho delimitar as formas completas e considerar o contexto, incluindo um controle negativo para referência malformada. | **ajuste** | Aberto; lacuna remanescente da resposta, não falso negativo introduzido agora nem segredo real adicional encontrado. |
+| RVF12-2-02 | `src/mvp_ed1/secrets_review.py:88`, `USER_PATTERN`; `detectar:232`, exceção da `WORD_RULE` | **Dois identificadores Python viram senha de fábrica.** Reproduzir R2-A, `identificador_python`: as atribuições de usuário e senha recebem o identificador `db_user`, sem aspas; **0 achados antes, 1 depois**. São referências a uma variável, sem credencial literal. O conjunto de usuários perdeu essa distinção e desativa a regra de identificador por igualdade textual. Proponho preservar referências no código e manter a detecção do par literal de fábrica da composição/URL. | **ajuste** | Aberto; falso positivo novo. O controle JSON com usuário/senha literais iguais é corretamente acusado. |
+| RVF12-2-03 | `src/mvp_ed1/secrets_review.py:113`, regra `$`; `detectar`, URL | **Uma referência posicional válida de shell passou a ser acusada.** Reproduzir R2-A, `shell_posicional_url`: uma URL sob aspas duplas usa `$1` como senha; **0 achados antes, 1 depois**. `$1` é parâmetro posicional, e a regra nova só admite letra, sublinhado, chave ou parêntese depois de `$`. Proponho reconhecer a forma completa do parâmetro nesse contexto, preservando a detecção de texto literal com `$`. | **ajuste** | Aberto; falso positivo novo em entrada sintética válida, sem alegação de uso atual dessa forma no projeto. |
+| RVF12-2-04 | `.claude/skills/adr/verificar.py:74`, `decisoes`; `main:203` | **Blocos de código ainda entram na contagem de aprovações.** Reproduzir R2-B, `aprovacao_em_codigo`: só acrescentar um título `### Exemplo` em cerca ao estado correto faz a saída mudar de **0 para 1**, exigindo uma aprovação inexistente e acusando que o README conta 1 com 2 pendentes. `sem_codigo` só é usado na varredura de links/ADRs; `decisoes` recebe os textos inteiros. Proponho excluir exemplos também antes de extrair seções, títulos e contadores. | **ajuste** | Aberto; regressão na contagem nova, além da citação em código que o teste já cobre. |
+| RVF12-2-05 | `src/mvp_ed1/docs_check.py:141`, `ler`, links em títulos | **Exemplo de link em código em linha virou link real.** Reproduzir R2-C: título que mostra a sintaxe de link entre crases; saída **`README.md:1: sumiu.md — arquivo não existe`**, 1 link. Antes havia 0 links. Pelo [GFM, código em linha tem precedência sobre links](https://github.github.com/gfm/#code-spans); esse texto não cria ponteiro. Proponho conferir os links renderizáveis do título respeitando código em linha, preservando sua contribuição ao texto da âncora. | **ajuste** | Aberto; falso positivo novo na resposta a RVF12-04. |
+| RVF12-2-06 | `.claude/skills/adr/verificar.py:160`, `CERCA`/`sem_codigo`; regra compartilhada com `docs_check` | **A cerca indentada faz o verificador novo ocultar um link quebrado fora do bloco.** Reproduzir R2-B, `fecho_indentado`: abertura normal, três crases com quatro espaços como conteúdo, fechamento normal e depois um link inexistente. Saída nova **0, `Integridade conferida`**, sem problemas; o verificador anterior saía **1** com `link quebrado — docs/pendencias.md: sumiu.md`. No [GFM o fechamento admite até três espaços](https://github.github.com/gfm/#fenced-code-blocks), fora de contexto de lista; o `\s*` aceita quatro, fecha cedo e reabre na cerca verdadeira, escondendo o link. Proponho respeitar a indentação e o contexto de lista, com controle do texto depois do fechamento. | **ajuste** | Aberto; a liberdade de indentação já existia no `docs_check`, mas sua cópia para o verificador de ADR introduziu esta regressão no intervalo. |
