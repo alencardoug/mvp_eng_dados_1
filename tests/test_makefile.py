@@ -346,7 +346,8 @@ def test_airbyte_up_instala_quando_nao_ha_cluster(tmp_path):
     r, chamadas = _make(tmp_path, "airbyte-up", docker=DOCKER_DO_CLUSTER)
 
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "abctl local install --values airbyte/values.yaml" in chamadas
+    # RVF12-10: o chart é o medido no B5, não o mais recente do dia da instalação.
+    assert "abctl local install --chart-version 2.3.0 --values airbyte/values.yaml" in chamadas
     assert "docker start airbyte-abctl-control-plane" not in chamadas
     assert not any(c.startswith("curl") for c in chamadas), "quem instala é o abctl, e ele espera por conta própria"
 

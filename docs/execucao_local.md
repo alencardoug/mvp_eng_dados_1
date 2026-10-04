@@ -26,7 +26,7 @@ preenchido e conferido — executando-o — na etapa em que nasce, conforme o
 |---|---|
 | Docker e Docker Compose | Todo o ambiente roda em contêineres |
 | `uv` | Gerencia interpretador, dependências e ambiente ([ADR-0026](adr/0026-uv-para-ambiente-e-dependencias.md)). Instala o Python 3.11 sozinho — não é preciso ter Python antes |
-| `abctl` e Terraform | Baixados por `make tools` nas versões fixadas no `Makefile`, para `.tools/`. Não precisam existir na máquina antes |
+| `abctl` e Terraform | Baixados por `make tools` nas versões fixadas no `Makefile`, para `.tools/`. Não precisam existir na máquina antes. O `abctl` fixado não fixa o Airbyte: a versão do *chart* que `make airbyte-up` instala também está no `Makefile` (`AIRBYTE_CHART_VERSION`, a 2.3.0 que o B5 mediu) — sem ela, cada instalação nova traria o *chart* mais recente do dia |
 | **CPU** | **A restrição descoberta na Etapa 5.** Quatro núcleos é o mínimo documentado do Airbyte para a *plataforma* — o *pod* de replicação pede outros quatro. Ver seção 6 |
 | Python 3.11 | Fixado por paridade com o Cloud Composer. `make install` cria o `.venv` e instala o pacote ([ADR-0012](adr/0012-repositorio-com-pacote-instalavel.md)) |
 | `make` | Interface única de operação |

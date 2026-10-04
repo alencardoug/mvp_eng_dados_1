@@ -47,7 +47,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 2 pendentes em 25/09/2026: o aceite da Etapa 12 e a D43 (adiada para a fase GCP) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 48 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
-| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048 |
+| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.17 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 

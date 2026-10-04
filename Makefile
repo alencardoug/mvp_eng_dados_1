@@ -26,6 +26,10 @@ STREAM := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.streaming.cli
 # aqui, não na máquina de quem clona: o projeto fixa imagem por digest e
 # interpretador por série, e ferramenta de linha de comando não é exceção.
 ABCTL_VERSION := v0.30.4
+# Fixar o abctl não fixa o Airbyte: sem `--chart-version`, o v0.30.4 instala o
+# chart mais recente do repositório. 2.3.0 é o que o B5 instalou e mediu do
+# zero em 25/09/2026; trocar é decisão, não efeito de data (RVF12-10).
+AIRBYTE_CHART_VERSION := 2.3.0
 TERRAFORM_VERSION := 1.16.1
 ABCTL := DO_NOT_TRACK=1 .tools/abctl
 TERRAFORM := .tools/terraform -chdir=airbyte
@@ -393,7 +397,7 @@ airbyte-up: require-abctl ## Sobe o Airbyte local: instala, retoma o pausado ou 
 	@$(ESTADO_AIRBYTE); case "$$estado" in \
 		running) echo "cluster de pé — conferindo a API"; $(AGUARDAR_API_AIRBYTE) ;; \
 		exited) echo "cluster pausado — retomando em vez de reinstalar"; $(RETOMAR_AIRBYTE) ;; \
-		"") $(ABCTL) local install --values airbyte/values.yaml ;; \
+		"") $(ABCTL) local install --chart-version $(AIRBYTE_CHART_VERSION) --values airbyte/values.yaml ;; \
 	esac
 	@echo ""
 	@echo "Interface em $(AIRBYTE_WEB) — credenciais em 'make airbyte-credentials'."
