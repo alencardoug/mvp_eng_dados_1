@@ -12,8 +12,8 @@
 | Campo | Informação |
 |---|---|
 | Versão | 3.7 |
-| Etapa atual | **Etapa 12 — Fechamento da fase local**: os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; aguarda a revisão final e o aceite do Owner, que fecham o **M5** (**M0** a **M4** concluídos) |
-| Última revisão | 03/10/2026 (resposta à revisão final da Etapa 12: o critério 6 com a medição nova e o ADR-0048) |
+| Etapa atual | **Etapa 12 — Fechamento da fase local**: os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; a revisão final, de 03/10/2026, respondida no mesmo dia; aguarda a decisão do Owner — uma rodada curta ou o aceite, que fecha o **M5** (**M0** a **M4** concluídos) |
+| Última revisão | 03/10/2026 (resposta à revisão final da Etapa 12: o critério 6 com a medição nova e o ADR-0048; o critério 2 com a ressalva do `migrate`) |
 
 ---
 

@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 — Fechamento da fase local (M5): os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; **aguardando a revisão final por outro agente e o seu aceite** |
+| Etapa atual | Etapa 12 — Fechamento da fase local (M5): os seis critérios medidos em 25/09/2026, num ciclo do zero, e a definição de pronto aplicada; a revisão final por outro agente, em 03/10/2026, teve os onze achados tratados no mesmo dia; **aguardando a sua decisão — uma rodada curta sobre a resposta, ou o aceite** |
 | Aprovações pendentes | 1 (aceite da Etapa 12) |
 | Decisões pendentes | 1 (D43, adiada de propósito para a fase GCP) |
 | Última revisão | 03/10/2026 |
@@ -41,7 +41,11 @@ o pacote aprovado, no `data/recovery` do clone (D60), com a cópia da P5 fora do
 
 **O que a revisão final cobre.** B2 (a varredura do histórico) e B3 (a coerência dos documentos),
 que ficaram para ela; o código que o B5 corrigiu; e o B6. O mapa do que revisar por inteiro
-(declarativo) e por amostragem (derivado) é do dossiê, `REVISAO.md`.
+(declarativo) e por amostragem (derivado) é do dossiê, `REVISAO.md`. **O parecer veio em
+03/10/2026** — dois bloqueantes, oito ajustes e uma observação, nenhum reabrindo o que o B5 provou —,
+e os onze foram tratados no mesmo dia, com duas decisões suas (o ADR-0048 e o *chart* do Airbyte
+fixado); a resposta está na §8 do dossiê. Antes do aceite, a sua decisão: devolver a ponta ao
+revisor numa rodada curta, ou aceitar.
 
 **A decisão que estava embutida no aceite está resolvida.** A [Governança
 §10](governanca_de_dados.md#10-revisão-desta-política) exige a sua decisão explícita **e ADR** para
