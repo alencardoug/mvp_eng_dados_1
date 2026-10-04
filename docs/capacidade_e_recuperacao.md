@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.13 |
+| Versão | 2.14 |
 | Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12); o ponto de recuperação **entregue em 25/09/2026** e restaurado de ponta a ponta (§3) |
-| Última revisão | 25/09/2026 |
+| Última revisão | 03/10/2026 — §2.12, explicação 3: as capturas contadas, e não o identificador da maior |
 
 ---
 
@@ -495,8 +495,13 @@ de subir o *streaming*. O `migrate` durou menos que a pausa do amostrador, e por
    `/var` do nó sai com ele no `make airbyte-down` (conferido no desmonte do B5). Retomar o *cluster*
    pausado levou 1m 29s e 1m 49s nas linhas 4 e 7, fora do `medir`, pelo diário.
 3. **A restauração inteira custa 17 minutos**, com as duas sincronizações e o `check` como o grosso
-   dela. O armazém restaurado tem quase o dobro do ciclo novo — 628 MB contra 335 MB — porque traz a
-   memória de 43 capturas, e o do ciclo novo, de 3.
+   dela. O armazém restaurado tem quase o dobro do ciclo novo — 628 MB contra 335 MB —, e o que muda
+   entre os dois é a memória do legado. O ciclo novo tinha **duas** capturas, as certificadas 2 e 3
+   (diário do B5, 13:52). O restaurado traz no bruto **28** capturas retidas do *checkout* antigo —
+   11 delas certificadas no pacote, a maior a 43 — e a 49, certificada na restauração: 29 `sync_id`
+   distintos em `raw_legacy`, contados em 03/10/2026. **Não medido:** quanto dos 293 MB de diferença
+   vem do bruto retido, e quanto do resto da memória. Até 03/10/2026 esta frase dizia "43 capturas"
+   e "3": eram os identificadores da maior captura de cada lado, lidos como quantidade (RVF12-08).
 
 ---
 
