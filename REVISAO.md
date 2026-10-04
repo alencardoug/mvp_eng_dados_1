@@ -969,6 +969,15 @@ recriação não foi investigada. `make dag-status` mostrou como última execuç
   §8.4 deixou como não medido foi medido aqui.
 - A interface do Airflow não foi aberta num navegador: o login foi conferido pela API que ela usa.
 
+**A terceira rodada é curta, por decisão do Owner em 03/10/2026, e revisa `ebc84ae..` a ponta**,
+este registro incluído: a resposta a cada um dos seis achados — o detector de segredos
+(`REFERENCE_RULE` e o contexto da linha, `CONFIG_LINE_PATTERN` e `_literal`, o `)` da
+`WORD_RULE`), o `docs_check` (código em linha, recuo da cerca contra o item de lista) e o
+verificador de ADR (texto sem código nas decisões, a cópia da regra de cerca e o teste de
+paridade) — e o achado próprio do Airflow (`e828acd`: a composição, a mensagem do `airflow-up` e o
+guarda das composições). Não reabre o que as rodadas anteriores já sustentaram. O ambiente e as
+proibições são os da §6, sem mudança; a senha do Airflow, se lida, não entra no parecer.
+
 ---
 
 ## Achados da revisão
