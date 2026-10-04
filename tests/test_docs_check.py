@@ -239,6 +239,28 @@ def test_link_e_adr_no_titulo_sao_conferidos(repositorio):
     assert (contagem["links"], contagem["adrs"]) == (1, 1)
 
 
+def test_link_dentro_de_codigo_em_linha_nao_e_conferido(repositorio):
+    """RVF12-2-05: no GFM o código em linha tem precedência sobre o link.
+
+    O título que mostra a sintaxe entre crases, a mesma sintaxe dentro de duas
+    crases, e a referência `[x][y]` no corpo são exemplo. Link cujo texto é
+    código continua link, e crase escapada não abre código.
+    """
+    _escrever(
+        repositorio,
+        "README.md",
+        "# Como escrever `[perdido](sumiu.md)`\n\n"
+        "Com crase dentro: `` `[perdido](sumiu.md)` `` e `[x][y]`.\n\n"
+        "Link com código no texto: [`sumiu.md`](tambem-sumiu.md).\n\n"
+        "Crase escapada: \\`[escapado](escapado.md)\\`.\n",
+    )
+
+    quebrados, contagem = docs_check.verificar(repositorio)
+
+    assert [(q.linha, q.alvo) for q in quebrados] == [(5, "tambem-sumiu.md"), (7, "escapado.md")]
+    assert contagem["links"] == 2
+
+
 def test_link_externo_nao_e_conferido(repositorio):
     _escrever(repositorio, "README.md", "[fora](https://exemplo.invalido/pagina)\n")
 

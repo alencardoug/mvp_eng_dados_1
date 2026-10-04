@@ -51,6 +51,14 @@ DEFINICAO = re.compile(r"^\s{0,3}\[(?P<rotulo>[^\]]+)\]:\s*(?P<alvo>\S+)")
 #: Uso de link por referência: `[texto][rótulo]`, ou `[rótulo][]`.
 USO_REFERENCIA = re.compile(r"\[(?P<texto>[^\]]*)\]\[(?P<rotulo>[^\]]*)\]")
 
+#: Código em linha: uma sequência de crases fecha só noutra do **mesmo**
+#: comprimento, e crase escapada não abre. No GFM o código em linha tem
+#: precedência sobre o link — `` `[x](y.md)` `` mostra a sintaxe, não aponta
+#: para nada. Até 03/10/2026 nenhuma linha o respeitava, e a correção do
+#: RVF12-04, que passou a ler os títulos, fez de um exemplo num título um link
+#: quebrado (RVF12-2-05). Link cujo texto é código continua link.
+CODIGO_EM_LINHA = re.compile(r"(?<![`\\])(?P<crases>`+)(?!`).+?(?<!`)(?P=crases)(?!`)")
+
 #: Citação de ADR no corpo do texto.
 CITACAO_ADR = re.compile(r"\bADR-(?P<numero>\d{4})\b")
 
@@ -169,9 +177,10 @@ def ler(caminho: pathlib.Path, relativo: str) -> Documento:
             definicoes[definicao.group("rotulo").lower()] = definicao.group("alvo")
             continue
 
-        for casado in LINK.finditer(linha):
+        sem_codigo = CODIGO_EM_LINHA.sub("", linha)
+        for casado in LINK.finditer(sem_codigo):
             links.append((numero, casado.group("alvo")))
-        for casado in USO_REFERENCIA.finditer(linha):
+        for casado in USO_REFERENCIA.finditer(sem_codigo):
             rotulo = (casado.group("rotulo") or casado.group("texto")).lower()
             links.append((numero, f"[[ref:{rotulo}]]"))
         for casado in CITACAO_ADR.finditer(linha):
