@@ -1385,6 +1385,201 @@ do intervalo. **Não medidos:** instalação real do chart, implantação GCP e 
 que exigiriam escrever dados. Os artefatos temporários estão em `/tmp/revisao-e12-r2-503edf6/`.
 
 
+**Terceira rodada, 04/10/2026 — Codex, sobre `ebc84ae..1bddee9`.** Li a §9 inteira, a situação
+dos seis ajustes e o diff do intervalo no checkout `/home/doug/Projetos/mvp_eng_dados_1`, limpo
+em `1bddee9`. R2-A/B/C literal confirma as seis saídas corrigidas da §9.2; as sondas adicionais
+abaixo deixam **três ajustes e uma observação**, sem bloqueante novo. Recomendo os ajustes antes
+do aceite. Os critérios 2, 3 e 4, o B5, seus logs e os achados já confirmados não foram reabertos.
+Nenhuma correção foi feita; somente este parecer entra no commit.
+
+| Resposta da segunda rodada | Conferência própria nesta rodada |
+|---|---|
+| RVF12-2-01 | **Contraprova corrigida; resposta parcial para gabarito.** R2-A acusa a referência incompleta (1) e dispensa a completa (0). Os testes cobrem o contexto além do espaço/vírgula, aspas internas e sufixo literal. Porém a regra posterior de f-string ainda dispensa `{{` com só um fechamento e gabarito seguido de literal (RVF12-3-01). A exceção declarada para `{var}` foi preservada, sem inferir que ela cobre gabaritos malformados. |
+| RVF12-2-02 | **Contraprova corrigida, com limite da heurística.** R2-A devolve 0 para os identificadores Python com espaços; os testes dos argumentos nomeados e dos pares literais passam. A inclusão de `)` na `WORD_RULE` está coerente com o último argumento. Sem espaços, o mesmo Python ainda devolve 1, também no código anterior: observação RVF12-3-04. |
+| RVF12-2-03 | **Confirmada.** R2-A dispensa a URL com `$1` (0); os controles de parâmetro seguido de literal são acusados pelos testes. Não há nova medição de uso dessa forma no projeto. |
+| RVF12-2-04 | **Confirmada.** R2-B devolve saída 0 para aprovação em código. O texto sem bloco de código alimenta também `decisoes`; o teste com aprovação e decisão fictícias só no bloco passa. |
+| RVF12-2-05 | **Contraprova corrigida, com regressão em outra entrada.** R2-C devolve 0 links e nenhum quebrado; os controles de comprimento das crases, link com código no texto e crase escapada passam. Apagar o trecho sem preservar separação cria um link antes inexistente; duas barras antes da abertura também deixam código virar link (RVF12-3-02). |
+| RVF12-2-06 | **Confirmada para os casos corrigidos.** R2-B acusa o link depois do fechamento real (saída 1). Os casos de recuo e o teste de paridade entre as duas cópias passam. A paridade prova igualdade das cópias, não conformidade integral com GFM; os limites da §9.5 permanecem declarados. |
+| Airflow, §9.4 (`e828acd`) | **Composição e mensagem confirmadas por leitura; guarda parcial.** YAML lido: init só `db migrate`, sem `|| true`; os três serviços dependem de `service_completed_successfully`. A mensagem aponta o arquivo gerado, coerente com a [documentação do SimpleAuthManager 3.2.2](https://airflow.apache.org/docs/apache-airflow/3.2.2/core-concepts/auth-manager/simple/index.html). O teste da mensagem passa. O guarda acusa a opção antiga sem aspas, mas dispensa senha literal entre aspas (RVF12-3-03). |
+
+**Validação própria em `1bddee9`, antes de escrever este parecer.** Os testes do Makefile usam
+executáveis simulados e `docker compose config` em rascunhos; não sobem serviços reais. Não executei
+`make check`, que escreve no armazém, nem qualquer alvo proibido na §6. Comandos abaixo: saída 0.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -rs -p no:cacheprovider \
+  tests/test_secrets_review.py tests/test_docs_check.py tests/test_verificador_adr.py tests/test_makefile.py
+PYTHONDONTWRITEBYTECODE=1 python3 .claude/skills/adr/verificar.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m mvp_ed1.docs_check
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m mvp_ed1.secrets_review --historico
+```
+
+```text
+175 passed in 23.19s
+ADRs aceitos: 48  ·  esperando ADR: 1  ·  esperando o Owner: 1 decisão(ões) e 1 aprovação(ões)  ·  Dnn citados: 61
+
+Integridade conferida: links, ADRs citados, decisões pendentes e contadores.
+docs-check: 108 documentos, 1035 links de arquivo, 160 âncoras, 658 citações de ADR — nada quebrado
+revisão do histórico: nada não tratado (11 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Do histórico, foi colada a última linha; as onze linhas anteriores identificam as ocorrências
+tratadas, sem achado adicional. **R2-A/B/C** foi extraída e executada literalmente do bloco de
+comando do parecer anterior, sem alteração. Saída 0 do conjunto:
+
+```text
+R2_A usuario_literal antes= 0 depois= 1
+R2_A identificador_python antes= 0 depois= 0
+R2_A grupo_literal antes= 0 depois= 1
+R2_A referencia_completa antes= 0 depois= 0
+R2_A referencia_incompleta antes= 0 depois= 1
+R2_A shell_posicional_url antes= 0 depois= 0
+R2_B controle {"exit": 0, "problemas": []}
+R2_B aprovacao_em_codigo {"exit": 0, "problemas": []}
+R2_B fecho_indentado {"exit": 1, "problemas": ["- link quebrado — docs/pendencias.md: sumiu.md"]}
+R2_C {"quebrados": [], "contagem": {"documentos": 1, "links": 0, "ancoras": 0, "adrs": 0}}
+```
+
+**Sonda adicional R3, reproduzível da raiz do checkout.** Só escreve repositórios e composições
+fictícias em `/tmp`. `antes` é `ebc84ae`; `depois`, `1bddee9`. A função do guarda é extraída do
+teste real, com sua raiz apontada para o rascunho. `PASS (sem acusar)` significa que o guarda
+aceitou aquela composição fictícia; os quatro primeiros argumentos são credenciais literais.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+import ast
+import json
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
+import types
+
+from mvp_ed1 import docs_check, secrets_review
+
+root = pathlib.Path.cwd()
+
+
+def anterior(nome, caminho):
+    modulo = types.ModuleType(nome)
+    sys.modules[nome] = modulo
+    exec(subprocess.check_output(['git', 'show', 'ebc84ae:' + caminho], text=True), modulo.__dict__)
+    return modulo
+
+
+secrets_old = anterior('secrets_antes_r3', 'src/mvp_ed1/secrets_review.py')
+docs_old = anterior('docs_antes_r3', 'src/mvp_ed1/docs_check.py')
+k, u = 'pass' + 'word', 'u' + 'ser'
+for nome, valor in {
+    'jinja_completa': '{{A}}',
+    'jinja_um_fecho': '{{Ab9Z7q1}',
+    'jinja_mais_literal': '{{A}}Ab9Z7q1',
+    'f_string_mais_literal_limite': '{a}Ab9Z7q1',
+}.items():
+    texto = json.dumps({k: valor})
+    print('R3_S', nome, json.dumps({
+        'antes': len(secrets_old.detectar(texto)),
+        'depois': len(secrets_review.detectar(texto)),
+        'motivo': secrets_review.placeholder(valor, literal=True),
+    }, ensure_ascii=False))
+for nome, texto in {
+    'python_sem_espacos': f'{u}=db_user\n{k}=db_user\n',
+    'python_com_espacos': f'{u} = db_user\n{k} = db_user\n',
+    'env_par_literal': f'POSTGRES_USER=reader\nPOSTGRES_{k.upper()}=reader\n',
+}.items():
+    compile(texto, '<sonda>', 'exec')
+    print('R3_S', nome, json.dumps({
+        'antes': len(secrets_old.detectar(texto)),
+        'depois': len(secrets_review.detectar(texto)),
+    }))
+
+
+def link(rotulo, destino):
+    return '[' + rotulo + ']' + '(' + destino + ')'
+
+
+x = link('perdido', 'sumiu.md')
+for nome, texto in {
+    'codigo_normal': 'Antes `' + x + '` depois\n',
+    'duas_barras': 'Antes ' + chr(92) * 2 + '`' + x + '` depois\n',
+    'codigo_entre_partes': '[' + 'perdido' + ']' + '`texto`' + '(sumiu.md)\n',
+}.items():
+    with tempfile.TemporaryDirectory(prefix='docs-e12-r3-') as tmp:
+        p = pathlib.Path(tmp)
+        subprocess.run(['git', 'init', '-q'], cwd=p, check=True)
+        (p / 'README.md').write_text(texto)
+        subprocess.run(['git', 'add', 'README.md'], cwd=p, check=True)
+        antes, _ = docs_old.verificar(p)
+        depois, contagem = docs_check.verificar(p)
+        print('R3_D', nome, json.dumps({
+            'antes': [str(q) for q in antes],
+            'depois': [str(q) for q in depois],
+            'links': contagem['links'],
+        }, ensure_ascii=False))
+
+# Executa a função real do guarda sobre composições fictícias em /tmp.
+fonte = (root / 'tests/test_secrets_review.py').read_text()
+funcao = next(n for n in ast.parse(fonte).body if isinstance(n, ast.FunctionDef)
+              and n.name == 'test_nenhuma_composicao_embute_credencial')
+corpo = ast.get_source_segment(fonte, funcao)
+for nome, argumento in {
+    'sem_aspas': ' admin',
+    'aspas_duplas': ' "admin"',
+    'aspas_simples': " 'admin'",
+    'igual_com_aspas': '="admin"',
+    'referencia': ' ${SENHA}',
+}.items():
+    with tempfile.TemporaryDirectory(prefix='compose-e12-r3-') as tmp:
+        p = pathlib.Path(tmp)
+        (p / 'docker').mkdir()
+        (p / 'tests').mkdir()
+        (p / 'docker/docker-compose.airflow.yml').write_text(
+            'services:\n  exemplo:\n    command: airflow users create --' + k + argumento + '\n')
+        ns = {'pathlib': pathlib, 're': re, '__file__': str(p / 'tests/test_secrets_review.py')}
+        exec(corpo, ns)
+        try:
+            ns['test_nenhuma_composicao_embute_credencial']()
+            print('R3_G', nome, 'PASS (sem acusar)')
+        except AssertionError as erro:
+            print('R3_G', nome, 'FAIL', str(erro))
+PY
+```
+
+Saída literal, comando com saída 0:
+
+```text
+R3_S jinja_completa {"antes": 0, "depois": 0, "motivo": "referência — `$VAR`, `$1`, `${…}`, `$(…)`, `$$VAR` do Make, `{{ … }}` de gabarito"}
+R3_S jinja_um_fecho {"antes": 0, "depois": 0, "motivo": "interpolação — `{var}` de f-string"}
+R3_S jinja_mais_literal {"antes": 0, "depois": 0, "motivo": "interpolação — `{var}` de f-string"}
+R3_S f_string_mais_literal_limite {"antes": 0, "depois": 0, "motivo": "interpolação — `{var}` de f-string"}
+R3_S python_sem_espacos {"antes": 1, "depois": 1}
+R3_S python_com_espacos {"antes": 1, "depois": 0}
+R3_S env_par_literal {"antes": 1, "depois": 1}
+R3_D codigo_normal {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": [], "links": 0}
+R3_D duas_barras {"antes": ["README.md:1: sumiu.md — arquivo não existe"], "depois": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R3_D codigo_entre_partes {"antes": [], "depois": ["README.md:1: sumiu.md — arquivo não existe"], "links": 1}
+R3_G sem_aspas FAIL docker-compose.airflow.yml:3: senha literal em opção de linha de comando
+R3_G aspas_duplas PASS (sem acusar)
+R3_G aspas_simples PASS (sem acusar)
+R3_G igual_com_aspas PASS (sem acusar)
+R3_G referencia PASS (sem acusar)
+```
+
+No caso `codigo_entre_partes`, o trecho de código separa os colchetes do parêntese: não existe
+link antes de apagar esse trecho. No caso `duas_barras`, a primeira barra escapa a segunda;
+a crase seguinte abre código. São leituras da [especificação GFM, escapes](https://github.github.com/gfm/#backslash-escapes)
+e [código em linha](https://github.github.com/gfm/#code-spans), não inspeção de página renderizada.
+
+**Não medidos nesta rodada:** subida e login do Airflow, prontidão do api-server, causa da recriação
+dos contêineres e renovação da senha; permanecem as medições e ressalvas da §9.4. Também não medi
+outro ciclo, restauração, instalação ou implantação GCP. YAML em linha e f-string com sufixo,
+continuação sem recuo, tab, citação e código em linha atravessando linhas foram considerados
+limites explícitos da §9.5; não os converti em acertos do controle nem em achados novos. Os
+achados R3 são contraprovas sintéticas das respostas, sem demonstração de outro segredo real.
+Artefatos temporários: `/tmp/revisao-e12-r3-1bddee9/`.
+
+
 **Achados — cada linha inclui reprodução, saída observada e encaminhamento proposto.**
 
 | # | Onde | Achado | Veredito | Situação |
@@ -1406,3 +1601,7 @@ que exigiriam escrever dados. Os artefatos temporários estão em `/tmp/revisao-
 | RVF12-2-04 | `.claude/skills/adr/verificar.py:74`, `decisoes`; `main:203` | **Blocos de código ainda entram na contagem de aprovações.** Reproduzir R2-B, `aprovacao_em_codigo`: só acrescentar um título `### Exemplo` em cerca ao estado correto faz a saída mudar de **0 para 1**, exigindo uma aprovação inexistente e acusando que o README conta 1 com 2 pendentes. `sem_codigo` só é usado na varredura de links/ADRs; `decisoes` recebe os textos inteiros. Proponho excluir exemplos também antes de extrair seções, títulos e contadores. | **ajuste** | Aberto; regressão na contagem nova, além da citação em código que o teste já cobre. — **Resposta, 03/10/2026: corrigido.** `8283886`: o texto sem código é calculado uma vez e serve aos links, às citações de ADR e às seções, títulos e contadores das decisões. R2-B `aprovacao_em_codigo`: saída 0; cenário novo com aprovação e decisão só em bloco de código. |
 | RVF12-2-05 | `src/mvp_ed1/docs_check.py:141`, `ler`, links em títulos | **Exemplo de link em código em linha virou link real.** Reproduzir R2-C: título que mostra a sintaxe de link entre crases; saída **`README.md:1: sumiu.md — arquivo não existe`**, 1 link. Antes havia 0 links. Pelo [GFM, código em linha tem precedência sobre links](https://github.github.com/gfm/#code-spans); esse texto não cria ponteiro. Proponho conferir os links renderizáveis do título respeitando código em linha, preservando sua contribuição ao texto da âncora. | **ajuste** | Aberto; falso positivo novo na resposta a RVF12-04. — **Resposta, 03/10/2026: corrigido.** `6be1f54`: o código em linha sai antes da busca de link em toda linha, não só no título — a sequência de crases fecha só noutra do mesmo comprimento, crase escapada não abre, e link cujo texto é código continua link. O texto da âncora não muda. R2-C: 0 quebrados, 0 links; as contagens do repositório não mudaram. |
 | RVF12-2-06 | `.claude/skills/adr/verificar.py:160`, `CERCA`/`sem_codigo`; regra compartilhada com `docs_check` | **A cerca indentada faz o verificador novo ocultar um link quebrado fora do bloco.** Reproduzir R2-B, `fecho_indentado`: abertura normal, três crases com quatro espaços como conteúdo, fechamento normal e depois um link inexistente. Saída nova **0, `Integridade conferida`**, sem problemas; o verificador anterior saía **1** com `link quebrado — docs/pendencias.md: sumiu.md`. No [GFM o fechamento admite até três espaços](https://github.github.com/gfm/#fenced-code-blocks), fora de contexto de lista; o `\s*` aceita quatro, fecha cedo e reabre na cerca verdadeira, escondendo o link. Proponho respeitar a indentação e o contexto de lista, com controle do texto depois do fechamento. | **ajuste** | Aberto; a liberdade de indentação já existia no `docs_check`, mas sua cópia para o verificador de ADR introduziu esta regressão no intervalo. — **Resposta, 03/10/2026: corrigido.** `42e2ce9`: a cerca abre e fecha com até três espaços além da coluna em que o conteúdo do item de lista começa, zero fora de lista; linha com menos recuo que o item encerra o item e o bloco. Vale nas duas cópias, e um teste confere que elas dão o mesmo texto nos casos de recuo e nos 108 documentos. R2-B `fecho_indentado`: saída 1, `link quebrado — docs/pendencias.md: sumiu.md`. Limites declarados na §9.5. |
+| RVF12-3-01 | `src/mvp_ed1/secrets_review.py:127`, `PLACEHOLDER_RULES`; `placeholder:222`; RVF12-2-01 | **A exceção de f-string neutraliza a exigência nova para gabaritos.** Reproduzir R3, `jinja_um_fecho` e `jinja_mais_literal`: JSON com um só fechamento de `{{`, ou com literal depois do gabarito completo. Ambos dão **0 antes e 0 depois**, motivo **`interpolação — {var} de f-string`**, enquanto `jinja_completa` dá 0 pela regra de referência. O primeiro não completa o gabarito; o segundo não alcança o fim do valor. É lacuna remanescente da resposta, além da exceção de `{var}` declarada na §9.5. Proponho impedir que a regra de uma chave absorva o prefixo de duas chaves, preservando a exceção dos blobs de teste da §9.1, e cobrir esses dois controles. | **ajuste** | Aberto; contraprova sintética, sem segredo real adicional encontrado. |
+| RVF12-3-02 | `src/mvp_ed1/docs_check.py:64`, `CODIGO_EM_LINHA`; `ler:218`; RVF12-2-05 | **O tratamento de código em linha ainda cria falsos links.** Reproduzir R3, `codigo_entre_partes`: colchetes, trecho de código e parêntese com destino, em sequência. Saída **antes: `[]`; depois: `README.md:1: sumiu.md — arquivo não existe`, 1 link**. A substituição por vazio junta partes que não formavam link: regressão do intervalo. Em `duas_barras`, um link de exemplo dentro de código também é acusado (**1 link**): a segunda barra está escapada, mas o lookbehind trata a crase como escapada. Proponho preservar a separação sintática ao ignorar código e considerar a paridade das barras na abertura, mantendo os controles do link cujo texto é código. | **ajuste** | Aberto; falsos positivos em Markdown sintético de uma linha, fora dos limites declarados da §9.5. |
+| RVF12-3-03 | `tests/test_secrets_review.py:486`, `em_opcao`; `test_nenhuma_composicao_embute_credencial`; Airflow §9.4 | **O guarda novo dispensa senha literal entre aspas em opção de CLI.** Reproduzir R3_G com a função real sobre o rascunho: sem aspas dá **`FAIL ... senha literal em opção de linha de comando`**; aspas duplas, simples e `=` com aspas dão **`PASS (sem acusar)`**. O padrão exclui a aspa inicial e não captura o valor. A composição atual foi limpa, mas a proteção anunciada para essa forma é parcial. Proponho cobrir também argumentos entre aspas, preservando referências ao ambiente, e incluir os controles no guarda. | **ajuste** | Aberto; só composições fictícias foram alteradas. Não há demonstração de senha literal restante na composição atual. |
+| RVF12-3-04 | `src/mvp_ed1/secrets_review.py:103`, `CONFIG_LINE_PATTERN`; `_literal`; RVF12-2-02 | **Python sem espaços continua classificado como ENV literal.** Reproduzir R3_S, `python_sem_espacos` e `python_com_espacos`: as duas entradas compilam como Python e atribuem o mesmo identificador; a primeira dá **1 antes e 1 depois**, a segunda **1 antes e 0 depois**. O controle ENV literal permanece em 1. É a ambiguidade da heurística indicada pelo Owner, não regressão nova. Proponho explicitar esse falso positivo junto dos limites: “par só entre literais” não vale para toda formatação de Python. A correção dos casos com espaços e argumentos nomeados permanece sustentada. | **observação** | Limite confirmado em entrada sintética; nenhuma mudança de parser ou ampliação de escopo proposta nesta rodada. |
