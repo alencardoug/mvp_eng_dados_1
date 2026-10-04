@@ -165,6 +165,10 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
             },
             id="04e1aa5-um-aceite-e-a-D43",
         ),
+        pytest.param(
+            {"esperando": "### D43 — a guarda\n\nA saída colada:\n\n```\nREADME.md:1: ADR-9999 — não existe\n```\n"},
+            id="adr-inexistente-so-em-bloco-de-codigo",
+        ),
     ],
 )
 def test_contadores_certos_passam(tmp_path, trocas):
@@ -234,6 +238,11 @@ def test_contadores_certos_passam(tmp_path, trocas):
              "pendencias": "2 pendentes: o aceite da Etapa 12 e a D43"},
             "o cabeçalho deveria dizer 1 aprovações pendentes (Aceite da Etapa 12)",
             id="cabecalho-sem-a-aprovacao",
+        ),
+        pytest.param(
+            {"esperando": "### D43 — a guarda\n\nSegundo o ADR-9999, fora de bloco de código.\n"},
+            "ADR inexistente — docs/pendencias.md: ADR-9999",
+            id="adr-inexistente-no-texto",
         ),
     ],
 )

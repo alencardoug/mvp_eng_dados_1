@@ -157,22 +157,44 @@ def decisoes(
     return problemas, do_registro, esperando, aprovacoes
 
 
+CERCA = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+
+
+def sem_codigo(texto: str) -> str:
+    """O texto sem os blocos de código cercados — a mesma regra do `docs_check`.
+
+    Saída de comando colada num dossiê é exemplo, não citação: até 03/10/2026 o
+    `ADR-9999` que a contraprova de um revisor imprimia virava "ADR inexistente".
+    """
+    linhas, aberta = [], None
+    for linha in texto.splitlines():
+        cerca = CERCA.match(linha)
+        if aberta is None:
+            if cerca and not (cerca.group(1)[0] == "`" and "`" in cerca.group(2)):
+                aberta = cerca.group(1)
+            else:
+                linhas.append(linha)
+        elif cerca and cerca.group(1)[0] == aberta[0] and len(cerca.group(1)) >= len(aberta) and not cerca.group(2).strip():
+            aberta = None
+    return "\n".join(linhas)
+
+
 def main() -> int:
     docs = [p for p in sorted(ROOT.rglob("*.md")) if not IGNORADOS & set(p.parts)]
     texts = {p: p.read_text(encoding="utf-8") for p in docs}
     problemas: list[str] = []
 
-    # links relativos resolvem
-    for path, text in texts.items():
+    # links relativos resolvem — fora de bloco de código, como no `docs_check`
+    for path, text in ((p, sem_codigo(t)) for p, t in texts.items()):
         for m in re.finditer(r"\]\((?!https?:|#)([^)\s]+)\)", text):
             target = m.group(1).split("#")[0]
             if target and not (path.parent / target).resolve().exists():
                 problemas.append(f"link quebrado — {rel(path)}: {target}")
 
-    # ADRs citados existem
+    # ADRs citados existem — também fora de bloco de código
     adr_numbers = {f.name[:4] for f in (ROOT / "docs/adr").glob("0*.md")}
     for path, text in texts.items():
-        for n in sorted(set(re.findall(r"ADR-(\d{4})", text))):
+        for n in sorted(set(re.findall(r"ADR-(\d{4})", sem_codigo(text)))):
             if n not in adr_numbers and n != "NNNN":
                 problemas.append(f"ADR inexistente — {rel(path)}: ADR-{n}")
 
