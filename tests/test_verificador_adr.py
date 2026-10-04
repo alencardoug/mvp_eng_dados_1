@@ -248,6 +248,11 @@ def test_contadores_certos_passam(tmp_path, trocas):
             "ADR inexistente — docs/pendencias.md: ADR-9999",
             id="adr-inexistente-no-texto",
         ),
+        pytest.param(
+            {"esperando": "### D43 — a guarda\n\n```text\n    ```\nExemplo\n```\n\n[perdido](sumiu.md)\n"},
+            "link quebrado — docs/pendencias.md: sumiu.md",
+            id="cerca-com-quatro-espacos-nao-esconde-o-link-depois",
+        ),
     ],
 )
 def test_contadores_errados_sao_acusados(tmp_path, trocas, acusacao):

@@ -177,6 +177,58 @@ def test_cerca_so_fecha_com_o_mesmo_caractere_e_comprimento(repositorio, bloco):
     assert [q.alvo for q in quebrados] == ["#falso"]
 
 
+#: Cercas cujo recuo decide onde o bloco começa e termina (RVF12-2-06). Em todas,
+#: `# Falso` está dentro do bloco e o `# Real` acrescentado depois, fora.
+BLOCOS_COM_RECUO = [
+    pytest.param("```text\n    ```\n# Falso\n```\n", id="quatro-espacos-sao-conteudo"),
+    pytest.param("   ```\n     ```\n# Falso\n   ```\n", id="abre-com-tres-conteudo-com-cinco"),
+    pytest.param("1. Passo:\n\n   ```bash\n   # Falso\n   ```\n", id="item-de-lista"),
+    pytest.param("16. Passo:\n    ```\n    # Falso\n    ```\n", id="item-de-dois-digitos"),
+    pytest.param("- Passo:\n\n  ```\n  # Falso\n", id="o-fim-do-item-fecha-o-bloco"),
+    pytest.param("    ```\n", id="quatro-espacos-fora-de-lista-nao-abrem"),
+]
+
+
+@pytest.mark.parametrize("bloco", BLOCOS_COM_RECUO)
+def test_recuo_da_cerca_conta_contra_o_item_de_lista(repositorio, bloco):
+    """RVF12-2-06: a cerca abre e fecha com até três espaços além do item.
+
+    Até 03/10/2026 o recuo era livre: três crases com quatro espaços fechavam
+    o bloco cedo, a cerca verdadeira o reabria, e o texto depois sumia.
+    """
+    _escrever(repositorio, "README.md", bloco + "\n# Real\n\n[falso](#falso) [real](#real)\n")
+
+    quebrados, _ = docs_check.verificar(repositorio)
+
+    assert [q.alvo for q in quebrados] == ["#falso"]
+
+
+def test_o_verificador_de_adr_copia_a_mesma_regra_de_cercas():
+    """`.claude/skills/adr/verificar.py` roda com o `python3` do sistema e copia a regra.
+
+    Cópia diverge na primeira correção que esquece uma das duas — foi assim que
+    a liberdade de recuo daqui virou regressão lá (RVF12-2-06). O oráculo é este
+    módulo, nos casos de recuo e em cada documento rastreado do repositório.
+    """
+    import importlib.util
+
+    raiz = pathlib.Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "verificar_adr", raiz / ".claude" / "skills" / "adr" / "verificar.py"
+    )
+    verificar = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(verificar)
+
+    rastreados = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"], cwd=raiz, capture_output=True, text=True, check=True
+    ).stdout.split("\0")
+    textos = [caso.values[0] for caso in BLOCOS_COM_RECUO]
+    textos += [(raiz / r).read_text(encoding="utf-8") for r in rastreados if r]
+    for texto in textos:
+        esperado = "\n".join(linha for _, linha in docs_check._fora_de_codigo(texto))
+        assert verificar.sem_codigo(texto) == esperado
+
+
 def test_crase_na_linha_nao_abre_cerca(repositorio):
     """``` `x` ``` é código em linha: depois dele, o título continua sendo título."""
     _escrever(repositorio, "README.md", "``` `x` ```\n\n# Real\n\n[real](#real)\n")

@@ -157,25 +157,56 @@ def decisoes(
     return problemas, do_registro, esperando, aprovacoes
 
 
-CERCA = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+CERCA = re.compile(r"^(?P<recuo> *)(?P<cerca>`{3,}|~{3,})(?P<resto>.*)$")
+ITEM_DE_LISTA = re.compile(r"^(?P<marcador> *(?:[-*+]|\d{1,9}[.)]))(?= |$)")
 
 
 def sem_codigo(texto: str) -> str:
-    """O texto sem os blocos de código cercados — a mesma regra do `docs_check`.
+    """O texto sem os blocos de código cercados — a mesma regra do `docs_check`, copiada.
 
     Saída de comando colada num dossiê é exemplo, não citação: até 03/10/2026 o
     `ADR-9999` que a contraprova de um revisor imprimia virava "ADR inexistente".
+    O recuo da cerca conta contra a coluna do item de lista, até três espaços:
+    três crases com quatro espaços são conteúdo, e até 03/10/2026 fechavam o
+    bloco cedo e escondiam o link quebrado depois dele (RVF12-2-06). A cópia
+    existe porque este script roda com o `python3` do sistema, sem o pacote; o
+    `test_docs_check` confere que as duas dão o mesmo texto.
     """
-    linhas, aberta = [], None
+    linhas: list[str] = []
+    larguras: list[int] = []  # a coluna do conteúdo de cada item de lista aberto
+    aberta: tuple[str, int] | None = None  # a cerca e a coluna do item em que ela abriu
     for linha in texto.splitlines():
-        cerca = CERCA.match(linha)
-        if aberta is None:
-            if cerca and not (cerca.group(1)[0] == "`" and "`" in cerca.group(2)):
-                aberta = cerca.group(1)
-            else:
-                linhas.append(linha)
-        elif cerca and cerca.group(1)[0] == aberta[0] and len(cerca.group(1)) >= len(aberta) and not cerca.group(2).strip():
+        recuo = len(linha) - len(linha.lstrip(" "))
+        if aberta is not None:
+            cerca_aberta, base = aberta
+            if not linha.strip():
+                continue
+            if recuo >= base:
+                cerca = CERCA.match(linha)
+                if (
+                    cerca
+                    and recuo - base <= 3
+                    and cerca["cerca"][0] == cerca_aberta[0]
+                    and len(cerca["cerca"]) >= len(cerca_aberta)
+                    and not cerca["resto"].strip()
+                ):
+                    aberta = None
+                continue
             aberta = None
+        if linha.strip():
+            while larguras and recuo < larguras[-1]:
+                larguras.pop()
+        base = larguras[-1] if larguras else 0
+        cerca = CERCA.match(linha)
+        if cerca and recuo - base <= 3 and not (cerca["cerca"][0] == "`" and "`" in cerca["resto"]):
+            aberta = (cerca["cerca"], base)
+            continue
+        item = ITEM_DE_LISTA.match(linha)
+        if item:
+            depois = linha[item.end():]
+            espacos = len(depois) - len(depois.lstrip(" "))
+            larguras.append(item.end() + (espacos if depois.strip() and espacos <= 4 else 1))
+        linhas.append(linha)
     return "\n".join(linhas)
 
 

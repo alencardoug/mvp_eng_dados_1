@@ -36,8 +36,12 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 #: Cerca de bloco de código: três ou mais crases ou tis, com ou sem linguagem.
-#: A indentação é livre, porque este repositório tem blocos dentro de listas.
-CERCA = re.compile(r"^\s*(?P<cerca>`{3,}|~{3,})(?P<resto>.*)$")
+#: O recuo é medido à parte, contra o do item de lista em que a cerca está.
+CERCA = re.compile(r"^(?P<recuo> *)(?P<cerca>`{3,}|~{3,})(?P<resto>.*)$")
+
+#: Item de lista — `-`, `*`, `+`, `1.` ou `1)` seguido de espaço ou do fim da
+#: linha. O conteúdo dele começa na coluna depois do marcador e dos espaços.
+ITEM_DE_LISTA = re.compile(r"^(?P<marcador> *(?:[-*+]|\d{1,9}[.)]))(?= |$)")
 
 #: Título ATX. Setext (`====` embaixo) não é usado neste repositório.
 TITULO = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -128,22 +132,56 @@ def _fora_de_codigo(texto: str):
     num exemplo de Markdown. Até 03/10/2026 qualquer cerca alternava o estado,
     e um `# título` de exemplo virava âncora (RVF12-06). Crase na linha de
     abertura de uma cerca de crases é código em linha, não cerca.
+
+    **O recuo conta, contra a coluna do item de lista** (RVF12-2-06). A cerca
+    abre e fecha com até três espaços além da coluna em que o conteúdo do item
+    começa — zero fora de lista. Até 03/10/2026 o recuo era livre, e três
+    crases com quatro espaços, que são conteúdo, fechavam o bloco cedo: a cerca
+    verdadeira o reabria e escondia o texto depois dela. Linha com menos recuo
+    que o item encerra o item, e o bloco com ele. **Limites declarados:** tab,
+    citação (`>`), item que abre com a própria cerca e bloco indentado sem cerca
+    não são lidos; a continuação de parágrafo sem recuo encerra o item, e a
+    cerca de um item de quatro colunas depois dela é lida como texto — o erro
+    aí é acusar um exemplo, não esconder. O repositório não usa nenhum desses.
     """
-    aberta: str | None = None
+    larguras: list[int] = []  # a coluna do conteúdo de cada item de lista aberto
+    aberta: tuple[str, int] | None = None  # a cerca e a coluna do item em que ela abriu
     for numero, linha in enumerate(texto.splitlines(), start=1):
-        cerca = CERCA.match(linha)
-        if aberta is None:
-            if cerca and not (cerca["cerca"][0] == "`" and "`" in cerca["resto"]):
-                aberta = cerca["cerca"]
+        recuo = len(linha) - len(linha.lstrip(" "))
+        if aberta is not None:
+            cerca_aberta, base = aberta
+            if not linha.strip():
                 continue
-            yield numero, linha
-        elif (
-            cerca
-            and cerca["cerca"][0] == aberta[0]
-            and len(cerca["cerca"]) >= len(aberta)
-            and not cerca["resto"].strip()
-        ):
+            if recuo >= base:
+                cerca = CERCA.match(linha)
+                if (
+                    cerca
+                    and recuo - base <= 3
+                    and cerca["cerca"][0] == cerca_aberta[0]
+                    and len(cerca["cerca"]) >= len(cerca_aberta)
+                    and not cerca["resto"].strip()
+                ):
+                    aberta = None
+                continue
             aberta = None
+        if linha.strip():
+            while larguras and recuo < larguras[-1]:
+                larguras.pop()
+        base = larguras[-1] if larguras else 0
+        cerca = CERCA.match(linha)
+        if (
+            cerca
+            and recuo - base <= 3
+            and not (cerca["cerca"][0] == "`" and "`" in cerca["resto"])
+        ):
+            aberta = (cerca["cerca"], base)
+            continue
+        item = ITEM_DE_LISTA.match(linha)
+        if item:
+            depois = linha[item.end():]
+            espacos = len(depois) - len(depois.lstrip(" "))
+            larguras.append(item.end() + (espacos if depois.strip() and espacos <= 4 else 1))
+        yield numero, linha
 
 
 def ler(caminho: pathlib.Path, relativo: str) -> Documento:
