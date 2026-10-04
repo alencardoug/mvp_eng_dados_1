@@ -51,6 +51,7 @@ PENDENCIAS = """# Pendências do Owner
 
 | Campo | Informação |
 |---|---|
+| Aprovações pendentes | {aprovacoes} |
 | Decisões pendentes | {cabecalho} |
 
 ---
@@ -81,6 +82,7 @@ README = """# Projeto
 #: O estado de hoje: a D43 adiada, nas duas tabelas, sem negrito.
 ATUAL = {
     "linhas": "| D43 | A guarda de identidade — adiada | 16/09/2026 | Nenhum na fase local |",
+    "aprovacoes": "0",
     "cabecalho": "1 (D43, adiada de propósito para a fase GCP)",
     "esperando": "### D43 — a guarda de identidade (adiada em 16/09/2026)\n\nTexto.",
     "fechadas": "### D53 e D54 — decididas e implementadas em 24/09/2026\n\nTexto.",
@@ -100,7 +102,12 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
         (adr / nome).write_text(f"# {nome}\n", encoding="utf-8")
     (adr / "README.md").write_text(REGISTRO.format(linhas=campos["linhas"]), encoding="utf-8")
     (raiz / "docs" / "pendencias.md").write_text(
-        PENDENCIAS.format(cabecalho=campos["cabecalho"], esperando=campos["esperando"], fechadas=campos["fechadas"]),
+        PENDENCIAS.format(
+            aprovacoes=campos["aprovacoes"],
+            cabecalho=campos["cabecalho"],
+            esperando=campos["esperando"],
+            fechadas=campos["fechadas"],
+        ),
         encoding="utf-8",
     )
     (raiz / "README.md").write_text(
@@ -149,6 +156,14 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
                 "pendencias": "2 pendentes em 24/09/2026: a D43 e a D55",
             },
             id="uma-de-operacao-so-nas-pendencias",
+        ),
+        pytest.param(
+            {
+                "aprovacoes": "1 (aceite da Etapa 12)",
+                "esperando": "### Aceite da Etapa 12\n\nTexto.\n\n### D43 — a guarda\n\nTexto.",
+                "pendencias": "2 pendentes em 25/09/2026: o aceite da Etapa 12 e a D43 (adiada para a fase GCP)",
+            },
+            id="04e1aa5-um-aceite-e-a-D43",
         ),
     ],
 )
@@ -204,6 +219,21 @@ def test_contadores_certos_passam(tmp_path, trocas):
             {"registro": "2 aceitos, 0 pendentes"},
             "Registro de Decisões",
             id="readme-do-registro-atrasado",
+        ),
+        pytest.param(
+            {
+                "aprovacoes": "1 (aceite da Etapa 12)",
+                "esperando": "### Aceite da Etapa 12\n\nTexto.\n\n### D43 — a guarda\n\nTexto.",
+                "pendencias": "1 pendente em 25/09/2026: a D43 (adiada para a fase GCP)",
+            },
+            "conta 1, e 'Esperando você' tem 2 (D43; Aceite da Etapa 12)",
+            id="readme-esquece-a-aprovacao",
+        ),
+        pytest.param(
+            {"esperando": "### Aceite da Etapa 12\n\nTexto.\n\n### D43 — a guarda\n\nTexto.",
+             "pendencias": "2 pendentes: o aceite da Etapa 12 e a D43"},
+            "o cabeçalho deveria dizer 1 aprovações pendentes (Aceite da Etapa 12)",
+            id="cabecalho-sem-a-aprovacao",
         ),
     ],
 )

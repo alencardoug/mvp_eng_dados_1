@@ -17,6 +17,12 @@ Até 24/09/2026 o verificador só conhecia o primeiro conjunto, e só com o cód
 (`| **D36** |`): a linha `| D43 |` virava zero pendentes, o cabeçalho `1 (D43, …)` não casava com a
 forma `1 — D36`, e ele acusava contadores certos. E, com a D53 e a D54 abertas só nas Pendências, o
 README dizia 1 pendente enquanto elas diziam 3 — e ele não via.
+
+**Nem tudo que espera o Owner é decisão.** "Esperando você" também guarda aprovações — o aceite de
+uma etapa —, com título `###` sem `Dnn`. O cabeçalho das Pendências conta cada tipo na sua linha
+(*Decisões pendentes*, *Aprovações pendentes*), e a linha *Pendências do Owner* do README conta as
+duas. Até 03/10/2026 o verificador só via as decisões, e reprovava o README certo do fechamento da
+Etapa 12 — "o aceite da Etapa 12 e a D43" — por contar 2 (RVF12-07).
 """
 from __future__ import annotations
 
@@ -48,6 +54,11 @@ def codigos_dos_titulos(corpo: str) -> set[str]:
     return {c for titulo in re.findall(r"^### (.*)$", corpo, re.M) for c in re.findall(r"\bD\d{2}\b", titulo)}
 
 
+def aprovacoes_dos_titulos(corpo: str) -> list[str]:
+    """Os títulos `###` sem `Dnn` de uma seção — aprovações, como o aceite de uma etapa."""
+    return [titulo for titulo in re.findall(r"^### (.*)$", corpo, re.M) if not re.search(r"\bD\d{2}\b", titulo)]
+
+
 def pendentes_do_registro(registro: str) -> set[str]:
     """Os códigos da tabela da §3 do Registro, com ou sem negrito. A prosa depois dela não conta."""
     corpo = secao(registro, "3. Decisões pendentes") or ""
@@ -60,8 +71,10 @@ def plural(n: int) -> str:
     return f"{n} pendente" + ("" if n == 1 else "s")
 
 
-def decisoes(registro: str, pendencias: str, readme: str, n_adr: int) -> tuple[list[str], set[str], set[str]]:
-    """Os problemas de coerência das decisões pendentes, e os dois conjuntos: do Registro e das Pendências."""
+def decisoes(
+    registro: str, pendencias: str, readme: str, n_adr: int
+) -> tuple[list[str], set[str], set[str], list[str]]:
+    """Os problemas de coerência do que espera o Owner, e os conjuntos: do Registro, das Pendências e as aprovações."""
     problemas: list[str] = []
 
     # "Parte da D36" registra resolução **parcial**: o ADR fechou um pedaço e a
@@ -83,6 +96,7 @@ def decisoes(registro: str, pendencias: str, readme: str, n_adr: int) -> tuple[l
         problemas.append("pendencias.md sem a seção '## 1. Esperando você' — não há onde contar as pendentes")
         corpo = ""
     esperando = codigos_dos_titulos(corpo)
+    aprovacoes = aprovacoes_dos_titulos(corpo)
     fechadas = codigos_dos_titulos(secao(pendencias, "2. Decisões já fechadas") or "")
     for d in sorted(esperando & (fechadas | resolvidas)):
         problemas.append(f"decisão fechada ainda esperando o Owner nas Pendências: {d}")
@@ -97,6 +111,12 @@ def decisoes(registro: str, pendencias: str, readme: str, n_adr: int) -> tuple[l
             f"pendencias.md desatualizado — o cabeçalho deveria dizer {len(esperando)} decisões pendentes"
             f" ({', '.join(sorted(esperando)) or 'nenhuma'})"
         )
+    cabecalho = re.search(r"^\| Aprovações pendentes \| (\d+)\b", pendencias, re.M)
+    if (int(cabecalho.group(1)) if cabecalho else 0) != len(aprovacoes):
+        problemas.append(
+            f"pendencias.md desatualizado — o cabeçalho deveria dizer {len(aprovacoes)} aprovações pendentes"
+            f" ({'; '.join(aprovacoes) or 'nenhuma'})"
+        )
 
     linha = re.search(r"^\| \[Registro de Decisões\].*$", readme, re.M)
     contagem = linha and re.search(r"(\d+) aceitos, (\d+) pendentes?", linha.group(0))
@@ -109,7 +129,8 @@ def decisoes(registro: str, pendencias: str, readme: str, n_adr: int) -> tuple[l
     # A situação das Pendências já foi escrita de quatro jeitos — "Nada pendente",
     # "Nenhuma decisão pendente em 15/09/2026", "**D33** e **D34**, da revisão" e
     # "1 pendente em 24/09/2026: a D43". O número, quando há; senão, nada ou os
-    # códigos nomeados. E todo código nomeado ali precisa estar esperando.
+    # códigos nomeados. E todo código nomeado ali precisa estar esperando. A
+    # conta inclui as aprovações: "2 pendentes: o aceite da Etapa 12 e a D43".
     linha = re.search(r"^\| \[Pendências do Owner\]\([^)]*\) \|[^|]*\|([^|]*)\|", readme, re.M)
     if not linha:
         problemas.append("README sem a linha Pendências do Owner")
@@ -123,15 +144,17 @@ def decisoes(registro: str, pendencias: str, readme: str, n_adr: int) -> tuple[l
             n = 0
         else:
             n = len(nomeadas)
-        if n != len(esperando):
+        total = len(esperando) + len(aprovacoes)
+        if n != total:
+            quais = sorted(esperando) + aprovacoes
             problemas.append(
                 f"README desatualizado — a linha Pendências do Owner conta {n}, e 'Esperando você' tem"
-                f" {len(esperando)} ({', '.join(sorted(esperando)) or 'nenhuma'})"
+                f" {total} ({'; '.join(quais) or 'nenhuma'})"
             )
         for d in sorted(nomeadas - esperando):
             problemas.append(f"README nomeia como pendente o que não espera o Owner: {d}")
 
-    return problemas, do_registro, esperando
+    return problemas, do_registro, esperando, aprovacoes
 
 
 def main() -> int:
@@ -155,7 +178,7 @@ def main() -> int:
 
     # decisões pendentes: resolvidas que ficaram, e os contadores dos dois conjuntos
     n_adr = len(adr_numbers) - 1  # 0000-template não conta
-    achados, do_registro, esperando = decisoes(
+    achados, do_registro, esperando, aprovacoes = decisoes(
         texts[ROOT / "docs/adr/README.md"], texts[ROOT / "docs/pendencias.md"], texts[ROOT / "README.md"], n_adr
     )
     problemas += achados
@@ -167,8 +190,8 @@ def main() -> int:
         todos |= set(re.findall(r"\bD\d{2}\b", text))
 
     print(
-        f"ADRs aceitos: {n_adr}  ·  esperando ADR: {len(do_registro)}  ·  esperando o Owner: {len(esperando)}"
-        f"  ·  Dnn citados: {len(todos)}"
+        f"ADRs aceitos: {n_adr}  ·  esperando ADR: {len(do_registro)}  ·  esperando o Owner:"
+        f" {len(esperando)} decisão(ões) e {len(aprovacoes)} aprovação(ões)  ·  Dnn citados: {len(todos)}"
     )
     print()
 
