@@ -132,6 +132,10 @@ dl.glossario dt{font-weight:700; margin-top:12px; scroll-margin-top:16px}
 dl.glossario dd{margin:2px 0 0 0; color:var(--fg-2)}
 dl.glossario dt:target{color:var(--accent)}
 a.g{text-decoration:underline dotted; text-underline-offset:3px}
+a.nota{font-size:.78em; font-weight:600; text-decoration:none; color:var(--accent); vertical-align:super; line-height:0}
+.diagrama svg a.nota text{fill:var(--accent); text-decoration:underline}
+.pergunta{scroll-margin-top:16px}
+.voltar{font-size:14px; color:var(--fg-3)}
 .grade-2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
 .menu-movel{display:none}
 @media (max-width: 900px){
@@ -185,6 +189,7 @@ a.g{text-decoration:underline dotted; text-underline-offset:3px}
     <li><a href="#falar">7 · O que você pode dizer</a></li>
     <li><a href="#glossario">8 · Glossário</a></li>
     <li><a href="#procedencia">9 · Procedência</a></li>
+    <li><a href="#perguntas">10 · Perguntas e respostas</a></li>
   </ol>
   <div class="tema">Tema: <button type="button" data-tema="light">claro</button> <button type="button" data-tema="dark">escuro</button> <button type="button" data-tema="">sistema</button></div>
 </nav>
@@ -227,7 +232,7 @@ a.g{text-decoration:underline dotted; text-underline-offset:3px}
 <div class="caixa atencao">
   <span class="titulo">Três regras de segurança deste repositório</span>
   <ul>
-    <li><strong>Nunca rode <code>make -n</code></strong>. Aqui ele <em>executa</em> as linhas que contêm <code>$(MAKE)</code> e já chegou a disparar <code>abctl local install</code>. Para entender uma receita, leia o <code>Makefile</code>.</li>
+    <li id="ref-p2-seg"><strong>Nunca rode <code>make -n</code></strong> <a class="nota" href="#p2" title="Pergunta 2: o que há dentro de cada comando make">[*2]</a>. Aqui ele <em>executa</em> as linhas que contêm <code>$(MAKE)</code> e já chegou a disparar <code>abctl local install</code>. Para entender uma receita, leia o <code>Makefile</code>.</li>
     <li><strong>Não force o <code>FORCE=1</code></strong> quando o <em>preflight</em> recusar subir algo por falta de memória. A recusa existe porque subir tudo junto já travou esta máquina. Feche programas e tente de novo.</li>
     <li><strong>Alvos destrutivos</strong> (<code>make reset</code>, <code>seed-data FORCE=1</code>, <code>recovery-restore RESTAURAR=1</code> e outros, ver <a href="../docs/execucao_local.md#4-alvos-auxiliares">Execução Local §4</a>) ficam para o L8, que você roda sabendo o que vai acontecer.</li>
   </ul>
@@ -280,6 +285,7 @@ a.g{text-decoration:underline dotted; text-underline-offset:3px}
   <rect x="224" y="402" width="138" height="52" rx="8" class="caixa-q"/>
   <text x="235" y="423" font-size="13" font-weight="700">tópico de alertas</text>
   <text x="235" y="441" font-size="11" class="t2">saldo abaixo de 25</text>
+  <a href="#p1" id="ref-p1-mapa" class="nota"><title>Pergunta 1: o que é o tópico de alertas</title><text x="362" y="397" font-size="11" font-weight="700" text-anchor="end">[*1]</text></a>
   <path d="M362,346 L376,346" class="seta-q" marker-end="url(#ponta-q)"/>
   <path d="M439,372 L439,400" class="seta-q" marker-end="url(#ponta-q)"/>
   <path d="M378,428 L364,428" class="seta-q" marker-end="url(#ponta-q)"/>
@@ -454,7 +460,7 @@ from raw.orders where order_number = 'ORD-0000037';</pre>
  37 | ORD-0000037  | delivered |     10804.64 | 2026-09-25 15:53:56.73+00 |                      2 | {"changes": [], "sync_id": 48}</pre>
 <div class="caixa info"><span class="titulo">Por que o pedido não foi "re-extraído" hoje</span>
 <p>Às 04:10 desta validação rodou uma sincronização nova (o <em>job</em> 50). O pedido 37 continuou com <code>sync_id 48</code>, de 25/09. A conexão usa <strong>incremental com deduplicação</strong> para <code>orders</code>, com cursor em <code>updated_at</code>: o Airbyte só traz o que mudou desde o último valor do cursor. O pedido não mudou.</p>
-<p>Mas 57 pedidos <em>foram</em> re-extraídos sem mudar. Medido: são exatamente os que têm <code>updated_at = 2026-09-01 03:00:00</code>, o maior valor do cursor. O Airbyte compara com <strong>maior ou igual</strong>, para não perder linhas que compartilham o último instante, e por isso as linhas da fronteira voltam a cada sincronização. <span class="selo medido">medido 04/10</span></p></div>
+<p>Mas 57 pedidos <em>foram</em> re-extraídos sem mudar. Medido: são exatamente os que têm <code>updated_at = 2026-09-01 03:00:00</code>, o maior valor do cursor. O Airbyte compara com <strong>maior ou igual</strong>, para não perder linhas que compartilham o último instante, e por isso as linhas da fronteira voltam a cada sincronização. <span class="selo medido">medido 04/10</span> <span id="ref-p3-jornada"><a class="nota" href="#p3" title="Pergunta 3: por que maior ou igual">[*3]</a></span></p></div>
 
 <h4>Parada 3 · <code>staging.stg_retail__orders</code></h4>
 <p>Só tipa e renomeia, sem regra de negócio. <code>status</code> vira <code>order_status</code>, <code>discount_amount</code> vira <code>order_discount_amount</code>, e o carimbo do Airbyte vira <code>ingested_at</code>. É uma <strong>view</strong>: não guarda dado, só a consulta.</p>
@@ -479,11 +485,12 @@ order_total_amount         | 10804.64                     order_total_amount    
 item_count                 | 3                            item_count                 | 3
 unit_count                 | 4                            unit_count                 | 6
 is_realised                | t                            is_realised                | t
-has_post_order_repeat      | f                            days_to_next_order         | 329.5920</pre>
-<p>Duas linhas com <code>order_id = 37</code>: uma do varejo e uma do legado, que passou pela limpeza e foi <strong>empilhada</strong> ao lado. Quem as distingue é <code>source_system</code>, que entra na chave de tudo dali em diante. É por isso que "quantos registros vieram do legado?" vira um simples <code>WHERE source_system = 'legacy'</code>. Aqui também nascem colunas de negócio, como <code>item_count</code>, <code>is_realised</code> e <code>days_to_next_order</code>.</p>
+days_to_next_order         |                              days_to_next_order         | 329.5920
+has_post_order_repeat      | f                            has_post_order_repeat      | f</pre>
+<p>Duas linhas com <code>order_id = 37</code>: uma do varejo e uma do legado, que passou pela limpeza e foi <strong>empilhada</strong> ao lado. Quem as distingue é <code>source_system</code>, que entra na chave de tudo dali em diante. É por isso que "quantos registros vieram do legado?" vira um simples <code>WHERE source_system = 'legacy'</code>. Aqui também nascem colunas de negócio, como <code>item_count</code>, <code>is_realised</code> e <code>days_to_next_order</code>. <span id="ref-p4-parada4"><a class="nota" href="#p4" title="Pergunta 4: colunas diferentes por origem?">[*4]</a></span></p>
 
 <h4>Parada 5 · <code>analytics</code>: a fato e as dimensões</h4>
-<p>O <strong>grão</strong> de <code>fact_sales_order_item</code> é uma linha por item de pedido. As ligações com as dimensões são <strong>chaves substitutas</strong> (<em>hashes</em> MD5), e não os IDs da origem: elas incluem <code>source_system</code>, para que o cliente 62 do legado e o cliente 62 do varejo nunca se confundam.</p>
+<p>O <strong>grão</strong> de <code>fact_sales_order_item</code> é uma linha por item de pedido. As ligações com as dimensões são <strong>chaves substitutas</strong> (<em>hashes</em> MD5), e não os IDs da origem: elas incluem <code>source_system</code>, para que o cliente 62 do legado e o cliente 62 do varejo nunca se confundam. <span id="ref-p5-parada5"><a class="nota" href="#p5" title="Pergunta 5: por que hash, e por que MD5">[*5]</a></span></p>
 <span class="rotulo-saida">saída real · 04/10/2026 (chaves cortadas)</span>
 <pre class="saida"> order_item_key | source_system | customer_key | product_key | order_item_id | quantity | net_revenue_amount
 ----------------+---------------+--------------+-------------+---------------+----------+--------------------
@@ -526,7 +533,7 @@ has_post_order_repeat      | f                            days_to_next_order    
 </div>
 
 <h3 id="jornada-quente">Caminho quente: um movimento de estoque, em ~7 segundos</h3>
-<p>O livro de estoque (<code>oltp.inventory_movements</code>) só aceita inserções: correção é um evento compensatório, nunca <code>UPDATE</code>. Isso o torna ideal para <strong>CDC</strong>, a captura de mudanças pelo log de transações. Nesta validação, o produtor (<code>make stream-produce</code>) emitiu eventos novos, e um deles foi seguido:</p>
+<p>O livro de estoque (<code>oltp.inventory_movements</code>) só aceita inserções: correção é um evento compensatório, nunca <code>UPDATE</code><span id="ref-p6-quente"> <a class="nota" href="#p6" title="Pergunta 6: evento compensatório">[*6]</a></span>. Isso o torna ideal para <strong>CDC</strong>, a captura de mudanças pelo log de transações. Nesta validação, o produtor (<code>make stream-produce</code>) emitiu eventos novos, e um deles foi seguido:</p>
 
 <h4>1 · Origem</h4>
 <span class="rotulo-saida">saída real · 04/10/2026</span>
@@ -589,7 +596,7 @@ analytics.fact_inventory_movement        movement_type         | sale_dispatch
 
 <!-- ───────────────────────── L0 ───────────────────────── -->
 <h3 id="l0">L0 · A máquina e o Makefile</h3>
-<p><strong>Conceito.</strong> Toda a operação acontece por alvos do <code>Makefile</code>. A consequência é arquitetural: na fase GCP muda o <em>conteúdo</em> dos alvos, não o jeito de operar. O alvo mais importante para não travar a máquina é o <code>preflight</code>.</p>
+<p><strong>Conceito.</strong> Toda a operação acontece por alvos do <code>Makefile</code>. A consequência é arquitetural: na fase GCP muda o <em>conteúdo</em> dos alvos, não o jeito de operar. O alvo mais importante para não travar a máquina é o <code>preflight</code>. <span id="ref-p2-l0"><a class="nota" href="#p2" title="Pergunta 2: o que há dentro de cada comando make">[*2]</a></span></p>
 <pre class="cmd">make help</pre>
 <span class="rotulo-saida">saída real · 04/10/2026 (início de 76 alvos)</span>
 <pre class="saida">Alvos disponíveis:
@@ -1350,7 +1357,7 @@ offset confirmado de mvp_ed1_beam alcançou 30051                 ← as duplica
 depois:  linhas 16101 · soma 702701 · digest_eventos 09b0f0e26020475297c0f97851f830f8 · digest_saldos e44e52316f12af93fe3518e533590237</pre>
 <p>Contagem igual sozinha não prova nada, porque um consumidor parado também deixa a contagem igual. A prova tem duas metades: o <em>offset</em> confirmado passou das duplicatas (e o Beam confirma <em>depois</em> de gravar) e o conteúdo ficou idêntico, linha a linha e saldo a saldo.</p>
 
-<h4>Alertas: borda, não nível</h4>
+<h4 id="ref-p1-l6">Alertas: borda, não nível <a class="nota" href="#p1" title="Pergunta 1: o que é o tópico de alertas">[*1]</a></h4>
 <span class="rotulo-saida">saída real · 04/10/2026 · <code>make stream-alerts</code> ao fim da fase</span>
 <pre class="saida">tópico mvp.alerts.inventory_low_stock: 14 alertas
   aberturas (cruzaram o limiar de 25 para baixo): 4
@@ -1670,6 +1677,126 @@ check: as quatro etapas passaram</pre>
   <li><strong>Não validado:</strong> Variables e Connections (achado da chave Fernet); a parcela quente da view de reposição diferente de zero; o caminho de reexecução parcial pela interface; <code>make recovery-verify</code> e todo o L8 nesta data (escrito do registro do B5).</li>
   <li><strong>O plano e a revisão:</strong> <a href="PLANO_material_de_estudo.md">PLANO_material_de_estudo.md</a>, revisado pelo Codex (§13) e respondido na revisão 2 (§14), com o resultado da execução na §15.</li>
 </ul>
+
+<h2 id="perguntas">10 · Perguntas e respostas</h2>
+<p>Dúvidas levantadas na leitura desta trilha, com a resposta. Cada uma tem marcas <a class="nota" href="#perguntas">[*n]</a> nos pontos do texto a que se refere.</p>
+
+<h3 id="p1" class="pergunta">[*1] O que é o "tópico de alertas" no mapa?</h3>
+<p>É um tópico do Redpanda, <code>mvp.alerts.inventory_low_stock</code>, onde o Apache Beam publica um aviso quando o saldo de estoque de um par armazém/SKU fica baixo. No mapa, é a caixa no fim do caminho quente: a seta sai do Beam e chega nele.</p>
+<p><strong>O que dispara o alerta.</strong> O Beam lê os movimentos de estoque que o Debezium captura da origem e soma o saldo de cada par armazém/SKU em janelas de 1 minuto. Quando o saldo <strong>cruza</strong> o limiar de 25 unidades, ele escreve um evento no tópico. O nome do tópico e o limiar estão declarados em <a href="../streaming/fluxo.yml">streaming/fluxo.yml</a>. O limiar é um parâmetro, e não uma coluna da origem, porque <code>inventory_balances</code> não tem ponto de reposição.</p>
+<p><strong>Por que um tópico separado.</strong> Os movimentos vão para uma tabela (<code>raw.inventory_movements_stream</code>). O alerta não vai, porque não é uma linha de dado: é um sinal para outro sistema. Numa empresa, quem leria esse tópico seria, por exemplo, um sistema de reposição ou de notificação. No MVP não existe esse consumidor: quem lê o tópico é só o <code>make stream-alerts</code>, que mostra o conteúdo para conferência.</p>
+<p><strong>Três regras de funcionamento:</strong></p>
+<ul>
+  <li><strong>O alerta sai na travessia do limiar, não enquanto o saldo continua baixo.</strong> Sai uma <code>abertura</code> quando o saldo cai abaixo de 25 e uma <code>normalizacao</code> quando volta para cima. Se saísse a cada evento com saldo baixo, o tópico ficaria afogado em avisos repetidos.</li>
+  <li><strong>A carga inicial não gera alerta.</strong> O <em>snapshot</em> traz dois anos e meio de histórico. Ele serve para montar o saldo, sem avisar sobre estoque baixo de 2024.</li>
+  <li><strong>Evento atrasado gera alerta marcado como correção.</strong> Quando um evento atrasado reabre uma janela já fechada, o alerta vem com <code>[correção de atraso]</code>, para quem consome saber que não é um fato novo.</li>
+</ul>
+<p>A saída real e os dois achados sobre esta parte do fluxo estão no <a href="#l6">L6</a>. O dono documental do assunto é <a href="../docs/streaming.md">docs/streaming.md</a> §5, "Ramificação de alerta".</p>
+<p class="voltar">↩ Voltar para <a href="#ref-p1-mapa">o mapa</a> · <a href="#ref-p1-l6">"Alertas: borda, não nível" (L6)</a></p>
+
+<h3 id="p2" class="pergunta">[*2] O <code>make</code> é um conjunto de execuções de CLI? Como confiro o que cada comando roda?</h3>
+<p>Procede. O <code>Makefile</code> é uma lista de <strong>alvos</strong>, e cada alvo é um nome com uma <strong>receita</strong>: linhas de <em>shell</em> que o <code>make</code> executa em ordem, como se você as digitasse. Neste projeto as receitas chamam quatro tipos de coisa: o código Python do próprio projeto (<code>.venv/bin/python -m mvp_ed1.…</code>), o <code>docker compose</code>, o <code>abctl</code> e o <code>dbt</code>. O <code>make</code> não faz o trabalho; ele guarda <em>qual</em> comando rodar, com quais variáveis e em que ordem.</p>
+<p><strong>A anatomia de um alvo</strong>, com o <code>stream-alerts</code> como exemplo:</p>
+<pre class="arquivo">stream-alerts: require-env ## Lê e resume o tópico de alerta de estoque baixo
+	@$(STREAM) alertas $(if $(MOSTRAR),--mostrar $(MOSTRAR)) $(if $(GRUPO),--grupo $(GRUPO))</pre>
+<ul>
+  <li><code>stream-alerts:</code> é o nome do alvo.</li>
+  <li><code>require-env</code>, entre o <code>:</code> e o <code>##</code>, é um <strong>pré-requisito</strong>: outro alvo, que roda antes. Aqui ele só confere se o <code>.env</code> existe.</li>
+  <li>O texto depois de <code>##</code> é a descrição que o <code>make help</code> mostra.</li>
+  <li>A linha de baixo, recuada com TAB, é a receita. O <code>@</code> só esconde o eco da linha. <code>$(STREAM)</code> é uma <strong>variável</strong>, definida no topo do arquivo. <code>$(if $(MOSTRAR),…)</code> acrescenta uma opção só quando você passa <code>MOSTRAR=</code> na linha de comando. <code>$$</code> é um <code>$</code> literal para o <em>shell</em>.</li>
+</ul>
+<p><strong>Como conferir, passo a passo:</strong></p>
+<ol>
+  <li><strong>Liste os alvos:</strong> <code>make help</code>. Ele é só um <code>grep</code> nas linhas com <code>##</code>.</li>
+  <li><strong>Leia a receita:</strong> <code>grep -n -A8 '^stream-alerts:' Makefile</code>. O <code>-A8</code> mostra as oito linhas seguintes; a receita termina na primeira linha em branco.</li>
+  <li><strong>Resolva as variáveis:</strong> <code>grep -n '^STREAM ' Makefile</code> devolve <code>STREAM := set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.streaming.cli</code>. Ou seja: carrega o <code>.env</code> e executa o módulo <code>mvp_ed1.streaming.cli</code> com o subcomando <code>alertas</code>.</li>
+  <li><strong>Vá ao código:</strong> <code>mvp_ed1.streaming.cli</code> é o arquivo <code>src/mvp_ed1/streaming/cli.py</code> (troque os pontos por barras). O subcomando está em <code>grep -n alertas src/mvp_ed1/streaming/cli.py</code>, na função <code>comando_alertas</code>.</li>
+  <li><strong>Confira os pré-requisitos</strong> do mesmo jeito, porque eles também executam.</li>
+</ol>
+<p>Outro exemplo: <code>sync-airbyte</code> carrega as credenciais do <code>abctl</code> e roda <code>.venv/bin/python -m mvp_ed1.airbyte sync</code>, que é <code>src/mvp_ed1/airbyte.py</code>.</p>
+<div class="caixa atencao"><span class="titulo">Leia o texto, não peça ao <code>make</code> para mostrar</span><p>O <code>make</code> tem modos de "simular" (<code>-n</code>, e também <code>-q</code> e <code>-t</code>), mas neles as linhas que contêm <code>$(MAKE)</code> <strong>executam de verdade</strong>. Este <code>Makefile</code> tem 21 delas, e uma simulação já chegou a disparar <code>abctl local install</code>. Para entender uma receita, abra o arquivo ou use <code>grep</code>.</p></div>
+<p class="voltar">↩ Voltar para <a href="#ref-p2-l0">L0 · A máquina e o Makefile</a> · <a href="#ref-p2-seg">as regras de segurança</a></p>
+
+<h3 id="p3" class="pergunta">[*3] Por que o cursor incremental do Airbyte compara com "maior ou igual", e não só "maior"? Reler a fronteira a cada sincronização não é desperdício?</h3>
+<p><strong>O que o cursor guarda.</strong> Entre uma sincronização e outra, o Airbyte guarda só o <strong>maior valor de <code>updated_at</code></strong> que já viu. Ele não guarda quais linhas leu. E <code>updated_at</code> não é único: várias linhas podem ter o mesmo instante.</p>
+<p><strong>O que daria errado com "maior".</strong> Suponha duas linhas com o mesmo <code>updated_at</code>, e só uma delas lida na sincronização anterior: a outra foi gravada nesse mesmo instante logo depois da leitura, ou a leitura foi interrompida no meio. Na próxima sincronização, "maior que o cursor" exclui as duas, e a que faltou <strong>nunca mais seria lida</strong>. Ninguém seria avisado: a linha simplesmente não chegaria.</p>
+<p><strong>A troca.</strong> Com "maior ou igual", o pior que acontece é reler linhas já entregues. É trocar uma <strong>perda silenciosa e irrecuperável</strong> por uma <strong>duplicata visível e corrigível</strong>. Essa garantia tem nome: entrega <strong>ao menos uma vez</strong> (<em>at-least-once</em>).</p>
+<p><strong>Quem absorve a duplicata.</strong> Depende do modo da conexão:</p>
+<ul>
+  <li>Em <code>orders</code>, o modo é incremental com deduplicação: o Airbyte sobrescreve pela chave primária. Reler os 57 pedidos é reescrever as mesmas 57 linhas, sem duplicar nada.</li>
+  <li>Nas tabelas em modo <code>append</code>, a releitura vira duplicata em <code>raw</code>, e quem a remove é o <code>staging</code>, pela chave do evento (ver <a href="../docs/execucao_local.md#6-solução-de-problemas">Execução Local §6</a>, "Um valor financeiro apareceu dobrado").</li>
+</ul>
+<p>É o mesmo desenho do caminho quente: transporte <em>at-least-once</em> e destino idempotente (<a href="../docs/adr/0019-saldo-em-deltas-com-entrega-idempotente.md">ADR-0019</a>). Juntos, os dois produzem o efeito de "exatamente uma vez" sem pagar o custo dele.</p>
+<p><strong>Por que 57, e sempre os mesmos.</strong> O gerador limita todo instante ao fim da simulação, <code>as_of_date: 2026-09-01</code>, à meia-noite no fuso de −3 h, ou seja, 03:00 UTC (<code>src/mvp_ed1/generator/rng.py</code>). Os 57 pedidos ficaram encostados nesse teto. Como a origem não muda mais, o cursor não avança, e a fronteira é sempre a mesma. Numa origem viva o cursor anda a cada sincronização, e a fronteira são só as poucas linhas do último instante.</p>
+<div class="caixa info"><span class="titulo">O ponto cego que nem "maior ou igual" cobre</span><p>No PostgreSQL, <code>now()</code> é o instante em que a transação <em>começou</em>. Uma transação longa pode gravar um <code>updated_at</code> anterior ao cursor e só confirmar depois da leitura. Essa linha fica para trás para sempre, porque o cursor já passou dela. O cursor por carimbo de tempo tem esse limite por construção. O CDC, que lê o WAL na ordem de confirmação, não tem.</p></div>
+<p class="voltar">↩ Voltar para <a href="#ref-p3-jornada">a jornada do dado (Parada 2)</a></p>
+
+<h3 id="p4" class="pergunta">[*4] Na Parada 4, a linha do varejo termina em <code>has_post_order_repeat</code> e a do legado em <code>days_to_next_order</code>. As duas origens têm colunas diferentes em <code>trusted.orders</code>?</h3>
+<p><strong>Não.</strong> As duas linhas têm exatamente as mesmas colunas: é isso que permite empilhá-las numa tabela só. A diferença era do <strong>recorte da saída</strong>: a primeira versão da Parada 4 cortou cada lado numa linha diferente. O recorte já foi corrigido lá. Completa, para o pedido 37:</p>
+<span class="rotulo-saida">saída real · 12/10/2026</span>
+<pre class="saida"> source_system | placed_at              | next_order_at          | days_to_next_order | is_repeat_window_closed | has_post_order_repeat
+---------------+------------------------+------------------------+--------------------+-------------------------+-----------------------
+ retail        | 2025-07-01 17:58:53+00 |                        |                    | t                       | f
+ legacy        | 2024-12-09 10:05:04+00 | 2025-11-04 00:17:36+00 |           329.5920 | t                       | f</pre>
+<p><strong>O que cada coluna responde.</strong> As duas implementam o termo de negócio <a href="../docs/glossario_de_negocio/recompra_pos_pedido.md">recompra pós-pedido</a> (<a href="../docs/adr/0036-recompra-ancorada-no-pedido.md">ADR-0036</a>), mas respondem perguntas diferentes:</p>
+<ul>
+  <li><code>days_to_next_order</code> é uma <strong>medida</strong>: quantos dias até o próximo pedido do mesmo cliente. É nula quando não houve próximo pedido. No varejo ela está vazia porque o cliente 1279 não comprou de novo. No legado, o cliente 62 voltou 329,6 dias depois.</li>
+  <li><code>has_post_order_repeat</code> é um <strong>indicador</strong>: houve outro pedido <em>em até 90 dias</em>? Os dois são <code>f</code>. No legado o cliente voltou, mas depois da janela. É o tipo de coisa que só a medida, ao lado do indicador, deixa ver.</li>
+</ul>
+<p><strong>Um terceiro estado: nulo.</strong> <code>has_post_order_repeat</code> fica <strong>nulo</strong>, e não <code>f</code>, quando a janela de 90 dias ainda não fechou em <code>as_of_date</code> (<code>is_repeat_window_closed = f</code>). "Ainda não sabemos" não é "não voltou". Contar esses pedidos como "não voltou" faria a taxa dos meses recentes cair sozinha, só porque os clientes ainda não tiveram tempo. A regra está em <code>dbt/models/trusted/orders.sql</code>.</p>
+<p class="voltar">↩ Voltar para <a href="#ref-p4-parada4">a Parada 4 da jornada</a></p>
+
+<h3 id="p5" class="pergunta">[*5] Por que a chave substituta é um <em>hash</em> das colunas, e não a simples concatenação delas? Por que MD5? Que alternativas o mercado usa?</h3>
+<p><strong>Primeiro, como a chave nasce.</strong> O <em>hash</em> não substitui a concatenação: ele é aplicado <strong>sobre</strong> ela. A macro <code>dbt_utils.generate_surrogate_key</code> converte cada coluna em texto, troca nulo por um marcador fixo (<code>_dbt_utils_surrogate_key_null_</code>), junta tudo com <code>-</code> e passa o resultado pelo <code>md5</code>. Para o cliente, as colunas são <code>source_system</code>, <code>customer_id</code> e <code>dbt_valid_from</code> (<code>dbt/models/analytics/dim_customer.sql</code>):</p>
+<pre class="arquivo">md5('retail' || '-' || '1279' || '-' || '&lt;dbt_valid_from&gt;')   →   fb1d882ed1…  (32 caracteres hexadecimais)</pre>
+<p>A pergunta real, então, é: por que não parar na concatenação?</p>
+<table>
+  <tr><th></th><th>Só concatenar</th><th><em>Hash</em> da concatenação</th></tr>
+  <tr><td>Largura</td><td>Variável, e cresce com o número de colunas</td><td>Sempre 32 caracteres, seja qual for a chave</td></tr>
+  <tr><td>Legibilidade</td><td>Legível: você lê a chave e sabe de onde ela veio</td><td>Opaca: para depurar, é preciso voltar à dimensão</td></tr>
+  <tr><td>Conteúdo exposto</td><td>A chave natural viaja dentro de toda fato. Se ela tiver dado sensível (e-mail, documento), o dado vaza junto</td><td>Não se lê o conteúdo na chave. Mas não é anonimização: quem conhece os valores possíveis recalcula o <em>hash</em></td></tr>
+  <tr><td>Colisão</td><td>Nenhuma, desde que o separador nunca apareça nos dados</td><td>Possível em teoria, desprezível na prática (abaixo)</td></tr>
+  <tr><td>Custo</td><td>Nenhum cálculo</td><td>Um <code>md5</code> por linha, barato</td></tr>
+</table>
+<p>O separador importa nos dois casos. Sem ele, <code>'1' || '23'</code> e <code>'12' || '3'</code> dão o mesmo texto. Com <code>-</code>, o risco só volta se o próprio dado tiver <code>-</code>. Aqui as chaves são <code>source_system</code> (<code>retail</code> ou <code>legacy</code>), números e datas, então isso não acontece.</p>
+<p><strong>Por que MD5.</strong> Ninguém escolheu o MD5 entre funções de <em>hash</em>. O <a href="../docs/adr/0017-chaves-substitutas-e-scd.md">ADR-0017</a> comparou <em>hash</em> determinístico, sequência, SCD-2 escrito à mão e chave natural, e escolheu a macro do <code>dbt_utils</code>. O MD5 é o padrão dela (<code>dbt.hash</code>), e está disponível igual no PostgreSQL e no BigQuery, que é o que a fase GCP precisa. Ele serve bem porque:</p>
+<ul>
+  <li><strong>A fraqueza conhecida do MD5 não importa aqui.</strong> O MD5 está quebrado para <em>segurança</em>: dá para fabricar duas entradas com o mesmo <em>hash</em> de propósito. Chave substituta não é segurança: as entradas são os próprios dados do armazém, e ninguém tenta forjar colisão neles.</li>
+  <li><strong>Colisão por acaso é desprezível.</strong> São 128 bits. Pela conta do paradoxo do aniversário, a chance de alguma colisão entre <em>n</em> chaves é cerca de <em>n</em>²/2<sup>129</sup>. Com um bilhão de linhas, fica na ordem de 10<sup>−21</sup>. E se acontecer, não passa despercebida: as chaves substitutas têm teste <code>unique</code> no dbt.</li>
+</ul>
+<p><strong>Alternativas comuns:</strong></p>
+<table>
+  <tr><th>Opção</th><th>Como é</th><th>Troca</th></tr>
+  <tr><td>Sequência / <code>identity</code></td><td>Inteiro gerado pelo banco: 1, 2, 3…</td><td>8 bytes e <em>join</em> rápido, a receita Kimball clássica. Mas depende de estado: reconstruir do zero gera chaves diferentes. Foi recusada no ADR-0017 por isso</td></tr>
+  <tr><td>SHA-256 (ou SHA-1)</td><td><em>Hash</em> criptográfico mais forte</td><td>64 caracteres, o dobro do MD5, e mais lento, para proteger contra um ataque que não existe neste uso</td></tr>
+  <tr><td><em>Hash</em> de 64 bits (<code>FARM_FINGERPRINT</code> no BigQuery, <code>HASH()</code> no Snowflake, xxHash)</td><td>Devolve um inteiro</td><td>Compacto e rápido como uma sequência, e determinístico. Mas 64 bits colidem bem antes: com 10<sup>9</sup> linhas, a chance de alguma colisão já passa de 2%</td></tr>
+  <tr><td>UUID v4</td><td>128 bits aleatórios</td><td>Não colide, mas não é determinístico: rodar de novo gera outra chave. Mesmo problema da sequência</td></tr>
+  <tr><td>UUID v5</td><td>UUID derivado de um <em>namespace</em> mais o texto da chave, via SHA-1</td><td>Determinístico, como o MD5, e com formato padrão de UUID</td></tr>
+</table>
+<p>Uma otimização comum no PostgreSQL é guardar o MD5 no tipo <code>uuid</code> (16 bytes) em vez de texto (33 bytes). O ADR-0017 registra a largura da chave como custo aceito: irrelevante nesta escala, relevante na nuvem.</p>
+<p class="voltar">↩ Voltar para <a href="#ref-p5-parada5">a Parada 5 da jornada</a></p>
+
+<h3 id="p6" class="pergunta">[*6] O que é corrigir com um "evento compensatório" em vez de <code>UPDATE</code>, e por que o livro de estoque só aceita inserções?</h3>
+<p><strong>A ideia.</strong> Suponha que uma venda foi registrada com <code>quantity_delta = −38</code>, mas saíram só 30 unidades. Há dois jeitos de corrigir:</p>
+<table>
+  <tr><th></th><th><code>UPDATE</code></th><th>Evento compensatório</th></tr>
+  <tr><td>O que se faz</td><td>Troca o −38 por −30 na linha original</td><td>Mantém o −38 e insere um novo movimento <code>adjustment_in</code> de +8</td></tr>
+  <tr><td>Saldo final</td><td>Correto</td><td>Correto: −38 + 8 = −30</td></tr>
+  <tr><td>História</td><td>Apagada: ninguém sabe que houve erro, nem quando foi corrigido</td><td>Completa: o erro e a correção ficam registrados, cada um com seu instante</td></tr>
+</table>
+<p>É o mesmo princípio da contabilidade e do extrato bancário: lançamento errado não se apaga, se estorna com outro lançamento.</p>
+<p><strong>Por que isso importa neste projeto.</strong> O saldo de cada par armazém/SKU é a <strong>soma dos deltas</strong>, e o livro tem vários leitores que já leram o −38:</p>
+<ul>
+  <li><strong>O Beam</strong> já gravou o −38 em <code>raw.inventory_movements_stream</code>, de forma idempotente por <code>movement_id</code>. Se o mesmo <code>movement_id</code> chegasse de novo com −30, a idempotência o trataria como duplicata e o descartaria, e o saldo do armazém ficaria divergente da origem. O mesmo vale para o alerta: ele já teria saído com base no −38.</li>
+  <li><strong>Os dois caminhos de ingestão discordariam.</strong> O Airbyte faz carga completa deste livro, só para reconciliar com o CDC (<code>airbyte/streams.yml</code>), e por isso traria o −30. O CDC já entregou o −38. Os dois se encontram no <code>staging</code>, que deduplica por <code>movement_id</code> e, quando o evento veio pelos dois caminhos, fica com o do fluxo (<code>order by movement_id, caminho desc</code>, em <code>stg_retail__inventory_movements.sql</code>). Fica o −38, e o −30 é descartado sem aviso. A tabela nem tem <code>updated_at</code> (é o <code>AppendOnlyMixin</code>, em <code>src/mvp_ed1/models/base.py</code>), porque nada nela deveria mudar.</li>
+  <li><strong>O saldo em qualquer data passada</strong> deixa de ser reconstruível se o passado muda. Com o livro imutável, "quanto havia no dia 10?" é só somar os eventos até o dia 10 (é por isso que o saldo é uma view sobre os deltas, <a href="../docs/adr/0019-saldo-em-deltas-com-entrega-idempotente.md">ADR-0019</a>).</li>
+</ul>
+<div class="caixa atencao"><span class="titulo">Nem a reconciliação veria</span><p>O teste <code>dbt/tests/caminhos_de_ingestao_reconciliam.sql</code> compara os dois caminhos, mas confere se o evento <strong>chegou</strong>, não se o <strong>valor</strong> bate: ele acusa o movimento que veio por um lado só. O −38 do CDC e o −30 do Airbyte têm o mesmo <code>movement_id</code>, então o evento conta como "chegou pelos dois" e o teste passa. A reconciliação foi desenhada contando com o livro imutável. Se essa premissa cai, ela não percebe.</p></div>
+<p>Um evento novo, ao contrário, percorre o mesmo caminho de qualquer outro (WAL, Debezium, Beam, e a carga do Airbyte) e todos os leitores o recebem sem tratamento especial. A regra é o que torna o CDC simples: basta capturar inserções.</p>
+<p><strong>Quem garante a regra.</strong> O contrato está no <a href="../docs/modelo_de_dados.md">Modelo de Dados</a> §5, e quem o fiscaliza é o <strong>consumidor</strong>: se o Debezium capturar um <code>UPDATE</code>, <code>DELETE</code> ou <code>TRUNCATE</code> no livro, o Beam para com <code>ContratoViolado</code> ("defeito na origem, não evento de negócio", <code>src/mvp_ed1/streaming/envelope.py</code>). O banco em si não bloqueia o <code>UPDATE</code>: não há <em>trigger</em> nem permissão revogada nas migrações. A violação não é impedida, é detectada no primeiro leitor.</p>
+<p><strong>O custo.</strong> O livro só cresce, o saldo precisa ser somado (ou materializado) em vez de lido numa linha, e o erro fica visível para sempre. Esse último é justamente o objetivo.</p>
+<p class="voltar">↩ Voltar para <a href="#ref-p6-quente">o caminho quente da jornada</a></p>
+
 <p style="color:var(--fg-3);font-size:13.5px;margin-top:30px">Todos os dados deste material são sintéticos. Nenhum nome, documento ou endereço pertence a uma pessoa real.</p>
 </main>
 </div>
