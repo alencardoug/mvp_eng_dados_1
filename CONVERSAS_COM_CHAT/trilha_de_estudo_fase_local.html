@@ -968,7 +968,7 @@ Done. PASS=1 WARN=0 ERROR=1 SKIP=0 NO-OP=0 REUSED=0 TOTAL=2</pre>
 <ul>
   <li>Modelos de estudo passam <strong>só</strong> por <code>compile</code> e <code>show</code>, nunca por <code>dbt build</code> ou <code>dbt run</code>, que criariam objetos no armazém.</li>
   <li><strong>Não rode a DAG nem <code>make dbt-build</code> com o teste de estudo presente</strong>: ele referencia <code>stg_retail__orders</code>, e a seleção indireta do dbt o puxaria para dentro de <code>--select staging</code>, que falharia.</li>
-  <li>Saída: <code>git switch main</code>; apagar os compilados (<code>find dbt/target -path '*estudo*' -delete</code>); <code>git branch -D estudo</code>; conferir <code>git status</code> limpo e que nenhum objeto <code>estudo*</code> existe no banco.</li>
+  <li>Antes de sair, faça <em>commit</em> dos dois arquivos na branch: sem ele, arquivo novo segue para a <code>main</code> no <code>git switch</code>. Saída: <code>git switch main</code>; apagar os compilados (<code>find dbt/target -path '*estudo*' -delete</code>); <code>git branch -D estudo</code>; conferir <code>git status</code> limpo e que nenhum objeto <code>estudo*</code> existe no banco.</li>
 </ul></div>
 <div class="exercicio" data-ex="l4-1">
   <p class="competencia">Consigo escrever um modelo, ver o SQL que o dbt gera e consultá-lo sem materializar.</p>
@@ -1079,7 +1079,7 @@ fluxo_batch  dbt_staging                         success  2026-10-04T05:26:59.36
 <p><strong>Conceito.</strong> <strong>Retry</strong> é tentar de novo uma tarefa que falhou, depois de uma espera (<code>retries</code>, <code>retry_delay</code>). Serve para falha transitória (rede, serviço reiniciando), não para erro de código ou de dado. <strong>Reexecução parcial</strong> (<em>clear</em>) é mandar o Airflow rodar de novo uma tarefa, e as seguintes, de uma execução que já existe. <strong><em>Trigger rule</em></strong> decide quando uma tarefa roda em função das anteriores; o padrão é <code>all_success</code>.</p>
 
 <h4>A DAG de estudo <span class="classe x">X</span></h4>
-<p>Para praticar o que a <code>fluxo_batch</code> não usa, sem tocar no armazém, crie na branch <code>estudo</code> o arquivo <code>airflow/dags/estudo_didatica.py</code>. Esta é a versão que rodou nesta validação, já com a correção que o próprio teste exigiu:</p>
+<p>Para praticar o que a <code>fluxo_batch</code> não usa, sem tocar no armazém, crie na branch <code>estudo</code> o arquivo <code>airflow/dags/estudo_didatica.py</code> e faça <em>commit</em> dele na branch. Esta é a versão que rodou nesta validação, já com a correção que o próprio teste exigiu:</p>
 <pre class="arquivo"><code>import datetime as dt
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.sensors.python import PythonSensor
@@ -1269,7 +1269,7 @@ Runs to be attempted:
 <h4>Sair da branch de estudo sem deixar rastro</h4>
 <p>Voltar à <code>main</code> não basta: o registro, as execuções e o backfill ficam no banco de metadados. A ordem importa, porque apagar a DAG com o arquivo ainda presente faz o Airflow registrá-la de novo:</p>
 <pre class="cmd">$A airflow dags pause estudo_didatica          # cuidado: a tabela que ele imprime é o estado ANTERIOR</pre>
-<pre class="cmd">git switch main                                 # o arquivo sai da pasta montada</pre>
+<pre class="cmd">git switch main                                 # com o commit na branch, o arquivo sai da pasta montada</pre>
 <pre class="cmd">$A airflow dags details estudo_didatica -o json | grep is_stale    # esperar "True" (texto, entre aspas)</pre>
 <pre class="cmd">$A airflow dags delete estudo_didatica -y && $A rm -f /tmp/estudo_liberado && git branch -D estudo</pre>
 <span class="rotulo-saida">saída real · 04/10/2026</span>
