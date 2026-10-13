@@ -11,10 +11,10 @@
 
 | Campo | Informação |
 |---|---|
-| Revisão | 3 — registra a execução (§15); a 2 respondeu à primeira rodada do Codex (coluna *Situação* da §13 e §14) |
+| Revisão | 4 — escopo da segunda rodada do Codex, curta (§16); a 3 registrou a execução (§15), e a 2 respondeu à primeira rodada (coluna *Situação* da §13 e §14) |
 | Data | 12/10/2026 |
 | Base | `main` em `c531b87`, publicada; árvore limpa antes deste arquivo |
-| Situação | **Executado** entre 12/10/2026 21:03Z e 13/10/2026 00:17Z, com o complemento do PC-2, sem segunda rodada do Codex por decisão do Owner (§14); resultado, desvios e achados na §15 |
+| Situação | **Executado** entre 12/10/2026 21:03Z e 13/10/2026 00:17Z, com o complemento do PC-2, sem segunda rodada do Codex por decisão do Owner (§14); resultado, desvios e achados na §15. Depois da entrega, o Owner pediu uma segunda rodada curta (§16) |
 | Destino | `CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html`, seção 11 nova; cópia privada em https://claude.ai/artifact/SigkpJDk5jtpS1W3DUPCWS |
 
 ---
@@ -1323,3 +1323,180 @@ na validação, ou escondiam o que aparece na tela. Foram corrigidos na declara�
    resumo continua certo como registro de 04/10, e o R10 ensina a achar um *offset* vivo.
 4. **A folga de memória na `fluxo_batch`** foi de 370 MiB sobre o limiar (desvio 8). Não pede
    decisão; é o dado mais recente sobre o R11.
+
+## 16. Segunda rodada, curta — escopo e dossiê
+
+**Pedido do Owner em 12/10/2026**, depois do *push* de `bc31027`: a opção 2, uma rodada curta e com
+escopo fechado, para conferir o que a execução não prova — o texto. Os comandos dos roteiros não
+estão em jogo: rodaram na máquina com oráculo por passo (§15). Esta seção é o dossiê da rodada, no
+formato da [skill `revisao`](../.claude/skills/revisao/SKILL.md), e a §16.8 recebe o parecer.
+
+### 16.1 Escopo
+
+Três blocos, nada além deles:
+
+- **A. Afirmações do resumo sobre o comportamento das ferramentas.** As 30 frases do manifesto da
+  §16.2, nas seções 0 a 10 da trilha, sobre Airflow 3, Airbyte e o *streaming* (Debezium, Kafka
+  Connect, Redpanda e Beam). Cada uma recebe um veredito: **confirmada**, com o arquivo ou a sonda
+  que a prova; **errada ou imprecisa**, com a frase proposta; ou **não verificável** sem mudar
+  estado. As 11 marcadas com ★ dependem de versão ou levantaram suspeita minha, e vêm primeiro. O
+  manifesto é uma seleção minha: frase vizinha errada que aparecer na leitura também entra.
+- **B. As oito trocas já feitas no resumo.** São os pares `O4` (três) e `DATA_LOGICA` (cinco) de
+  `data/medicoes/material_estudo/secao11/aplicar.py`, nos *commits* `b601f03` e `bc31027`. Conferir
+  se cada troca está certa, se o mesmo erro sobrou em outro lugar da trilha e se a seção 11 continua
+  coerente com elas.
+- **C. Cinco roteiros da seção 11, por amostra:** PC-2, R33, R39, R44 e R45 — os que mais mudam
+  estado ou foram reescritos depois da execução (§15.4). Em cada um, conferir:
+  - o texto contra a transcrição de onde vem a saída — a declaração (`secao11/spec.py` para o PC-2,
+    `spec_b.py` para R33 e R39, `spec_c.py` para R44 e R45) diz o arquivo e o passo;
+  - as linhas *De pé*, *Muda estado* e *Antes* contra o que os comandos fazem;
+  - cada saída de lugar (`\q`, `exit`, Ctrl-C) e a devolução do estado.
+
+**Fora do escopo:** os outros 45 roteiros e os 8 procedimentos restantes, as ferramentas da
+validação, o código do projeto e as §13 a §15, salvo como contexto.
+
+### 16.2 O manifesto do bloco A
+
+As linhas são as do HTML em `bc31027`, que esta rodada não altera.
+
+| ID | Linha | Afirmação, literal | Como conferir | Nota |
+|---|---|---|---|---|
+| AF-01 | 1056 | O Airflow 3.2.2 deste projeto tem quatro processos: o api-server (interface e API REST, porta 8081), o scheduler (decide o que roda e, com o LocalExecutor, executa as tarefas), o dag-processor (lê os arquivos de DAG) e o banco de metadados (airflow_db). | `docker/docker-compose.airflow.yml` |  |
+| AF-02 | 1056 | A pasta airflow/ do repositório é montada só leitura dentro dos contêineres: editar o arquivo no host muda a DAG. | os volumes da mesma composição |  |
+| AF-03 | 778 | Cinco: airflow_db, airflow_init (roda uma vez e sai), apiserver, scheduler e dag_processor. | a mesma composição |  |
+| AF-04 | 1102 | O make dag-run despausa a DAG antes de disparar. | `Makefile` (`dag-run`) e `docker/airflow_cli.sh` |  |
+| AF-05 ★ | 1203 | Defina um atalho para a CLI e registre a DAG sem esperar o ciclo de 5 minutos do dag-processor: | a configuração do 3.2.2 (`[dag_processor] refresh_interval`); o código instalado se lê do contêiner parado com `docker cp` |  |
+| AF-06 ★ | 1309, 1360, 1724 | No Airflow 2, uma execução cron das 05:00 tinha data lógica igual ao início do intervalo anterior (04:50) e cobria 04:50–05:00. … No Airflow 3, com o padrão desta instalação, a data lógica é o próprio momento do disparo, e o "intervalo" tem largura zero. … A das 14:00, com data lógica 14:00 (semântica do Airflow 3; no 2 … | o padrão do 3.2.2 para cron (`create_cron_data_intervals`) e o XCom de 04/10 que a própria trilha mostra |  |
+| AF-07 ★ | 1322 | O --max-active-runs do backfill é um limite próprio, independente do max_active_runs da DAG. | o código ou a documentação do *backfill* no 3.2.2 |  |
+| AF-08 ★ | 1322 | A CLI do 3.2.2 só tem backfill create: cancelar ou pausar um backfill é pela interface (botões na faixa "Backfill em progresso") ou pela API. | a definição da CLI no código do 3.2.2, lida do contêiner parado |  |
+| AF-09 ★ | 1332, 1728 | Uma Variable é um valor de configuração guardado no Airflow; uma Connection guarda host, porta, usuário e senha de um sistema externo, cifrados com a chave Fernet. … Esquema de criptografia simétrica que o Airflow usa para guardar senhas de Connections e Variables. | o modelo `Connection` do 3.2.2: quais campos são cifrados | Suspeita do autor: só a senha e o `extra` são cifrados; *host*, porta e usuário, não. |
+| AF-10 | 1338 | Voltar à main não basta: o registro, as execuções e o backfill ficam no banco de metadados. … A ordem importa, porque apagar a DAG com o arquivo ainda presente faz o Airflow registrá-la de novo: | o R39 de 12/10 (`fase_b/R39.txt`) |  |
+| AF-11 | 1046 | Falha de teste de dados não se resolve repetindo: repetir só atrasaria a notícia. Por isso retries: 0 na fluxo_batch (comentário no código da DAG, e Qualidade de Dados §1). | `airflow/dags/fluxo_batch.py` |  |
+| AB-01 | 473 | Cópia fiel, com quatro colunas a mais que o Airbyte acrescenta: um identificador da linha, o instante da extração, a geração e um JSON com o job (sync_id) que a trouxe. | as colunas de `raw.orders`, por consulta de leitura |  |
+| AB-02 ★ | 1808 | Entre uma sincronização e outra, o Airbyte guarda só o maior valor de updated_at que já viu. | o estado da conexão pela API do Airbyte, só leitura e sem imprimir credenciais | Suspeita do autor: versões novas da fonte PostgreSQL guardam também a contagem de linhas no valor do cursor (`cursor_record_count`). |
+| AB-03 | 1813 | Em orders, o modo é incremental com deduplicação: o Airbyte sobrescreve pela chave primária. | `airbyte/streams.yml` |  |
+| AB-04 ★ | 763 | Cada pod é um serviço do Airbyte: server (API e interface), worker e workload-launcher (disparam as sincronizações, que nascem como pods próprios de replicação), temporal (o motor de fluxos), airbyte-db-0 (o PostgreSQL interno, onde ficam o contador de jobs e os cursores). | `kubectl get pods` no cluster do `abctl`, como no R17, só leitura |  |
+| AB-05 | 860 | Frequência "Manual": quem decide quando sincronizar é o Airflow, não o Airbyte. | `airbyte/main.tf` |  |
+| AB-06 | 926 | fonte PostgreSQL em modo CDC (o projeto usa o modo Standard e deixou o CDC para o Debezium). | `airbyte/main.tf` (método de replicação da fonte) |  |
+| AB-07 | 1879 | O Airbyte faz carga completa deste livro, só para reconciliar com o CDC (airbyte/streams.yml), e por isso traria o −30. | `airbyte/streams.yml` |  |
+| ST-01 | 1369 | O PostgreSQL da origem roda com wal_level=logical: cada transação gravada no log (WAL) pode ser lida por um consumidor através de um slot de replicação. | `show wal_level` no `source_db`, só leitura |  |
+| ST-02 | 1369 | O Debezium, um conector do Kafka Connect, lê as inserções em inventory_movements e publica cada uma como mensagem no tópico mvp.oltp.inventory_movements do Redpanda. | `streaming/connectors/inventory_movements.yml` |  |
+| ST-03 | 1369, 1483 | O Beam consome o tópico como parte de um grupo de consumo (mvp_ed1_beam), grava cada evento uma única vez no destino (on conflict do nothing) e só então confirma o offset. … A entrega é at-least-once com escrita idempotente, e provei com duplicatas injetadas e conferência de offset. | `src/mvp_ed1/streaming/sink.py` e `transport.py` |  |
+| ST-04 | 1399 | Os tópicos _mvp_connect_* são onde o Kafka Connect guarda a própria configuração, os offsets do conector (a posição no WAL) e o status. | `docker/docker-compose.streaming.yml` |  |
+| ST-05 | 1399 | O tópico de alertas ainda não existia; ele nasce no primeiro alerta, porque o Redpanda cria tópicos sozinho (auto_create_topics_enabled = true). | a mesma composição (configuração do Redpanda) |  |
+| ST-06 ★ | 1401 | O grupo do Beam apontava para o offset 6009, mas o log começa em 13700: o estado ficou assim depois da restauração de 25/09. … Ao subir, o Beam pediu o 6009, o consumidor caiu para o mais antigo disponível (auto.offset.reset: earliest) e releu 13.700 mensagens antigas. | a evidência de 04/10 (`20261004_fase_c/`) e a configuração do consumidor em `transport.py` | Suspeita do autor: a conta "releu 13.700 mensagens" depende do fim do log naquele dia, que a frase não mostra. |
+| ST-07 ★ | 1419 | No encerramento, o Beam imprime um traceback de gRPC ("Failed to read inputs in the data plane"), um ruído conhecido do executor local depois do SIGINT, já registrado no ciclo de 25/09. | as transcrições de 12/10 (`fase_c/R42_terminal1.txt` e `R44_terminal1.txt`) | O passo do Ctrl-C no R45 diz o mesmo com outras palavras. |
+| ST-08 | 1446 | O make medir encerra o Beam quando o destino alcança o corte, mas os alertas saem de outro ramo, que só recebe painéis quando o watermark fecha as janelas. | `src/mvp_ed1/streaming/pipeline.py` |  |
+| ST-09 ★ | 1469 | "c" é uma inserção ("r" seria leitura do snapshot inicial); lsn é a posição da transação no WAL; snapshot: | a documentação do Debezium 3.6 para `source.lsn` | Suspeita do autor: o `lsn` é a posição do evento no WAL, não a da transação. |
+| ST-10 ★ | 1484 | "O que acontece com o slot de replicação se o conector morrer?" O PostgreSQL segura WAL para ele até o disco acabar; por isso make stream-down FORCE=1 remove o slot (a pegadinha clássica de CDC, comentada no Makefile). | `show max_slot_wal_keep_size` no `source_db` (só leitura) e o alvo `stream-down` do `Makefile` | A ajuda do alvo (`Makefile`, linha 537) fala em apagar tópicos, não o *slot*. |
+| ST-11 | 1884 | O contrato está no Modelo de Dados §5, e quem o fiscaliza é o consumidor: se o Debezium capturar um UPDATE, DELETE ou TRUNCATE no livro, o Beam para com ContratoViolado ("defeito na origem, não evento de negócio", src/mvp_ed1/streaming/envelope.py). | `src/mvp_ed1/streaming/envelope.py` |  |
+| ST-12 | 1619 | A ordem importa num ponto: o snapshot do streaming vem antes do primeiro dbt-build, porque o staging do estoque lê a tabela que só o Beam cria. | a criação da tabela em `sink.py` e o modelo de *staging* do estoque |  |
+
+### 16.3 O que já foi verificado, com a saída
+
+A execução inteira está na §15. Depois dela, só documentação mudou:
+
+```text
+$ git log --oneline c531b87..bc31027
+bc31027 docs: corrige na trilha a afirmação de que execução manual não tem data lógica
+22ddb87 docs: registra o plano dos roteiros passo a passo, a revisão do Codex e a execução
+f8f9105 docs: acrescenta à trilha a seção 11, com os roteiros passo a passo
+b601f03 docs: corrige na trilha a saída das branches de estudo, que deixava arquivo novo na main
+$ git diff --stat c531b87 bc31027
+ CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md | 1325 ++++++++
+ .../trilha_de_estudo_fase_local.html               | 3458 +++++++++++++++++++-
+ 2 files changed, 4773 insertions(+), 10 deletions(-)
+```
+
+O `make check-offline` antes de `bc31027`:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 109 documentos, 1020 links de arquivo, 152 âncoras, 635 citações de ADR — nada quebrado
+511 passed, 134 deselected in 146.81s (0:02:26)
+check-offline: as três etapas passaram
+```
+
+O `make check` completo não rodou de novo: o último foi o do R49 (§15.2), e de `c531b87` para cá
+nenhum código mudou. Regenerar a trilha a partir de `c531b87` com o `aplicar.py` dá o mesmo arquivo
+de `bc31027` — o `cmp` não acusou diferença. A navegação e a varredura da variante publicada estão
+em `data/medicoes/material_estudo/20261012_roteiros_entrega/`.
+
+### 16.4 Não verificado
+
+- **As 30 afirmações do manifesto.** Nenhuma foi conferida de novo em 12/10; as que um roteiro
+  mediu, com saída na trilha, ficaram de fora do manifesto.
+- **A falha do desafio final com o disparo pela interface:** não rodou. A frase nova afirma só que o
+  formulário preenche a data lógica, o que o R37 mediu.
+- **Os ramos "senão, pule" dos passos condicionais do R44:** rodou o caminho de subir de novo; o de
+  pular, não.
+- **A explicação dos *tracebacks* do Ctrl-C no R45** ("o executor local do Beam sendo derrubado") é
+  interpretação minha, não conferida no código do Beam.
+- **O PC-2 com um banco de pé, mas sem `(healthy)`:** só o banco parado foi ensaiado.
+- **Os roteiros a partir de outro estado inicial da máquina**, como o Airflow já de pé no R30 ou o
+  *streaming* já de pé no R40.
+- **A conferência visual de `bc31027` no Chrome:** o navegador estava fechado.
+
+### 16.5 Premissas
+
+- As versões das ferramentas são as da Procedência da trilha: Airflow 3.2.2, `abctl` v0.30.4 com o
+  *chart* do Airbyte 2.3.0, Debezium 3.6.2, Redpanda v25.2.4, PostgreSQL 16.15 e Beam 2.76. Em 12/10,
+  só o `psql` 16.15 e o Beam 2.76.0 apareceram nas transcrições; as outras não foram reconferidas.
+- As evidências em `data/medicoes/material_estudo/` são o registro das execuções de 04/10 e 12/10.
+  Ficam fora do Git e se leem no disco.
+
+### 16.6 Ambiente e regras da rodada
+
+A máquina está assim, e assim deve ficar:
+
+```text
+$ make preflight ALVO=trabalho
+[preflight] nenhum trabalho em andamento — janela parada.
+$ docker ps -a --filter name=mvp_ed1 --filter name=airbyte --format '{{.Names}} {{.State}} {{.Status}}'
+airbyte-abctl-control-plane running Up
+mvp_ed1-airflow_apiserver-1 exited Exited
+mvp_ed1-airflow_dag_processor-1 exited Exited
+mvp_ed1-airflow_db-1 exited Exited
+mvp_ed1-airflow_init-1 exited Exited
+mvp_ed1-airflow_scheduler-1 exited Exited
+mvp_ed1_kafka_connect exited Exited
+mvp_ed1_legacy_db running Up(healthy)
+mvp_ed1_redpanda exited Exited
+mvp_ed1_source_db running Up(healthy)
+mvp_ed1_warehouse_db running Up(healthy)
+```
+
+(A saída do `docker ps` passou pelo mesmo `sed` da §15, que tira o tempo de *uptime*.)
+
+- **Sondas permitidas, todas de leitura:**
+  - arquivos e Git;
+  - SQL nos bancos, com a sessão em somente leitura;
+  - GET na API do Airbyte pelos auxiliares do projeto, sem imprimir credencial;
+  - o código do Airflow 3.2.2, lido dos contêineres parados com `docker cp`;
+  - o pacote do Beam no `.venv`.
+- **Proibido:** subir o Airflow ou o *streaming* (R11), mudar estado, trocar de branch, fazer
+  *commit* ou publicar. Sonda que precise de algo disso vira "não verificável sem subir",
+  registrada, e a rodada segue.
+- O parecer entra na §16.8, sem *commit*.
+
+### 16.7 Onde hesitei
+
+- **O rótulo "apareceu".** O critério é a saída depender do estado da máquina de quem roda — um
+  `git status`, um banco parado de propósito. Horários e contadores também variam, e a caixa "Como
+  ler um roteiro" avisa isso sem trocar o rótulo.
+- **As correções do resumo como pares no `aplicar.py`**, fora do Git, em vez de edição direta do
+  HTML. Assim a seção 11 continua regenerável, mas o gerador não é versionado; versioná-lo seria
+  decisão do Owner.
+- **Os passos condicionais do R44** saíram da interrupção da execução (desvio 6). A alternativa era
+  tirá-los e deixar o R44 supor o Beam do R42 de pé.
+- **O Ctrl-C do R45** mostra as sete últimas linhas, com "…". A alternativa era a saída inteira, com
+  cerca de 90 linhas de *traceback*.
+- **A seleção do manifesto** é minha. Suspeitei de cinco frases — AF-09, AB-02, ST-06, ST-09 e
+  ST-10 — e anotei o motivo na coluna Nota, sem conferir.
+
+### 16.8 Achados da segunda rodada
+
+*Parecer do Codex: a preencher.*
+
+| ID | Veredito | Localização | Achado e recomendação | Reprodução | Saída observada | Situação |
+|---|---|---|---|---|---|---|
