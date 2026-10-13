@@ -11,10 +11,10 @@
 
 | Campo | Informação |
 |---|---|
-| Revisão | 4 — escopo da segunda rodada do Codex, curta (§16); a 3 registrou a execução (§15), e a 2 respondeu à primeira rodada (coluna *Situação* da §13 e §14) |
+| Revisão | 5 — responde à segunda rodada do Codex (coluna *Situação* e resposta do autor na §16.8); a 4 deu o escopo dela (§16), a 3 registrou a execução (§15), e a 2 respondeu à primeira rodada (§13 e §14) |
 | Data | 12/10/2026 |
 | Base | `main` em `c531b87`, publicada; árvore limpa antes deste arquivo |
-| Situação | **Executado** entre 12/10/2026 21:03Z e 13/10/2026 00:17Z, com o complemento do PC-2, sem segunda rodada do Codex por decisão do Owner (§14); resultado, desvios e achados na §15. Depois da entrega, o Owner pediu uma segunda rodada curta (§16) |
+| Situação | **Executado** entre 12/10/2026 21:03Z e 13/10/2026 00:17Z, com o complemento do PC-2, sem segunda rodada do Codex por decisão do Owner (§14); resultado, desvios e achados na §15. Depois da entrega, o Owner pediu uma segunda rodada curta (§16), respondida em 13/10/2026 |
 | Destino | `CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html`, seção 11 nova; cópia privada em https://claude.ai/artifact/SigkpJDk5jtpS1W3DUPCWS |
 
 ---
@@ -1496,7 +1496,383 @@ mvp_ed1_warehouse_db running Up(healthy)
 
 ### 16.8 Achados da segunda rodada
 
-*Parecer do Codex: a preencher.*
+**Parecer do Codex — segunda rodada, base 6e1b7e40934a322360fd0e3a8c716470b11c4f16, main inicialmente limpa.** Li CLAUDE.md, a skill revisao, a §16 e o contexto da §15; conferi os trechos do manifesto pelas linhas do HTML, os oito pares do aplicar.py e as declarações/transcrições de PC-2, R33, R39, R44 e R45. Priorizei os itens ★, lendo o código do Airflow copiado do scheduler parado e o pacote Beam instalado; consultei também a documentação oficial do Debezium 3.6. As sondas novas foram Git, leitura de arquivos, enumeração dos pods, SQL com transaction_read_only=on e GETs do Airbyte pelo auxiliar do projeto, sem exibir credenciais. **O texto precisa dos ajustes abaixo antes de encerrar a revisão; R33 tem uma pré-condição bloqueante para preservar trabalho já preparado no Git.** As oito substituições corrigem os erros originais, e as saídas da amostra correspondem às transcrições, ressalvadas as interpretações apontadas. AB-02 não pôde ser confirmado pelo GET permitido; ST-05 depende de configuração efetiva não declarada no arquivo citado. Não iniciei serviços nem reexecutei roteiros. Evidências históricas estão identificadas; leitura de código não foi apresentada como ensaio de execução.
+
+**Vereditos do manifesto**
+
+Nos caminhos de código do Airflow abaixo, a raiz é /tmp/rt2_airflow_6e1b7e4, a cópia obtida em E2. “Trilha” significa CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html nesta base. E1–E7 estão ao fim desta seção.
+
+| ID | Veredito | Evidência (arquivo/comando e trecho decisivo) |
+|---|---|---|
+| AF-01 | imprecisa | docker/docker-compose.airflow.yml:83–139 declara quatro serviços permanentes e um inicializador, não quatro processos do sistema operacional. Proposta: “O Airflow deste projeto tem quatro serviços permanentes: api-server, scheduler com LocalExecutor, dag-processor e banco de metadados; airflow_init executa a migração e termina.” RT2-11. |
+| AF-02 | confirmada | docker/docker-compose.airflow.yml:68: - ../airflow:/opt/mvp_ed1/airflow:ro. A alteração no host fica visível à próxima leitura/processamento da DAG; não exige reconstruir a imagem. |
+| AF-03 | confirmada | docker/docker-compose.airflow.yml:83,103,108,120,130: airflow_db, airflow_init, airflow_apiserver, airflow_scheduler, airflow_dag_processor; o inicializador usa command: db migrate e restart: "no". |
+| AF-04 | confirmada | Makefile:477–485 chama airflow_cli.sh disparar; docker/airflow_cli.sh:112–124 executa dags unpause, confere a DAG despausada e só depois dags trigger. |
+| AF-05 ★ | confirmada | config_templates/config.yml:2828–2834: refresh_interval procura arquivos novos e tem default: "300"; o compose não sobrescreve esse parâmetro. É a descoberta do arquivo novo deste exemplo, não todo reprocessamento: min_file_process_interval tem default: "30" em 2864–2872. |
+| AF-06 ★ | imprecisa | config_templates/config.yml:2607–2627 distingue CronTriggerTimetable de CronDataIntervalTimetable, com create_cron_data_intervals default: "False". Trilha:1302–1308 mostra 05:00 mesmo com unpause às 05:04. Data lógica é o horário **agendado**, não o instante efetivo de disparo; a configuração, disponível desde 2.9, também impede generalizar por versão. Proposta em RT2-02. |
+| AF-07 ★ | confirmada | jobs/scheduler_job_runner.py:2309–2337 conta por (dag_id, backfill_id); usa backfill.max_active_runs no ramo de backfill e elif dag_run.max_active_runs no outro. São limites separados. |
+| AF-08 ★ | confirmada | cli/cli_config.py:1076–1094: BACKFILL_COMMANDS contém somente name="create". api_fastapi/core_api/routes/public/backfills.py:114,141,167 expõe /pause, /unpause e /cancel. Confirmação da CLI e da alternativa API por código; os botões da interface não foram reexercitados. |
+| AF-09 ★ | errada | models/connection.py:131–138,369–407 cifra _password e _extra; host, login e port são colunas comuns. models/variable.py:99–105 cifra o valor da Variable. O glossário também chama esse valor de “senha”. Propostas em RT2-03. |
+| AF-10 | confirmada | R39.txt registra a troca de branch antes de is_stale=True, Deleting Dag e Removed 76 record(s), seguida de dags list só com fluxo_batch. api/common/delete_dag.py:55–93 confirma a remoção de metadados; limites em RT2-07. Evidência histórica em E7, sem nova exclusão. |
+| AF-11 | confirmada | airflow/dags/fluxo_batch.py:41–46: comentário “falha de teste de dados não se resolve repetindo” e default_args com "retries": 0. |
+| AB-01 | confirmada | SQL somente leitura em E3: _airbyte_raw_id, _airbyte_extracted_at, _airbyte_meta, _airbyte_generation_id; o JSON contém changes e sync_id. Confirma a estrutura descrita para raw.orders; não é nova comparação integral de todas as linhas da réplica. |
+| AB-02 ★ | não verificável | E4: `GET /connections/<id>` devolveu HTTP 200 sem estado do cursor; `GET /connections/<id>/state` devolveu 403. Não consultei endpoints POST de estado nem alterei permissões. “Só o maior updated_at”, inclusive a ausência de cursor_record_count, permanece **não medido** nesta rodada; o 403 não prova que o campo inexiste. |
+| AB-03 | confirmada | airbyte/streams.yml:134–137: orders, modo: dedup_history, cursor: updated_at, chave: [id]; airbyte/main.tf:22–25 traduz para incremental_deduped_history. |
+| AB-04 ★ | imprecisa | E5 mostra serviços em Running e bootloader em Completed: nem todo pod é um serviço permanente. Proposta: “Os pods incluem serviços do Airbyte e tarefas temporárias: server atende API/interface; worker e workload-launcher participam da execução; temporal coordena fluxos; airbyte-db-0 mantém metadados; bootloader termina após a inicialização e as sincronizações usam pods próprios.” A listagem confirma identidades/estados, não inspeciona o conteúdo do banco interno. RT2-11. |
+| AB-05 | confirmada | airbyte/main.tf:158–160: comentário sobre disparo pelo Airflow e schedule = { schedule_type = "manual" }. É a política do projeto; o modo não impede disparo humano pela interface ou CLI. |
+| AB-06 | confirmada | airbyte/main.tf:94–97: replication_method = { method = "Standard" }; streaming/connectors/inventory_movements.yml:14 declara PostgresConnector para o CDC. |
+| AB-07 | confirmada | airbyte/streams.yml:95–107: inventory_movements usa full_refresh para reconciliação; airbyte/main.tf:22 o traduz para full_refresh_overwrite. Trazer o valor alterado é conclusão condicional ao cenário hipotético, não atualização executada nesta revisão. |
+| ST-01 | confirmada | E3: show wal_level → logical, com transaction_read_only → on. streaming/connectors/inventory_movements.yml:30–33 declara pgoutput, slot e publicação. |
+| ST-02 | confirmada | streaming/connectors/inventory_movements.yml:14,41–43: PostgresConnector, table.include.list: oltp.inventory_movements, topic.prefix: mvp; o tópico correspondente aparece no registro de R44. |
+| ST-03 | confirmada | src/mvp_ed1/streaming/transport.py:40–57 desliga auto commit; src/mvp_ed1/streaming/sink.py:187–195 faz on_conflict_do_nothing, sai da transação e depois chama _confirmar_offsets. R44.txt registra consumo até 32551 e conteúdo/saldos iguais antes/depois; E7 traz a comparação e o lote duplicado. group.id para offsets não implica participação no protocolo de membros (RT2-06). |
+| ST-04 | confirmada | docker/docker-compose.streaming.yml:67–69: CONFIG_STORAGE_TOPIC, OFFSET_STORAGE_TOPIC e STATUS_STORAGE_TOPIC apontam para os três tópicos _mvp_connect_*. |
+| ST-05 | não verificável | docker/docker-compose.streaming.yml:17–49 não fixa auto_create_topics_enabled. O registro 20261004T053607Z_rpk_topicos.log mostra ausência do tópico; registros posteriores mostram alertas, mas isso não mede o parâmetro efetivo nem o instante de criação. **Não verificável sem subir** o Redpanda nesta rodada; não o iniciei. |
+| ST-06 ★ | confirmada | E6 soma os lotes de 04/10: 15901 processados, 2201 gravados, 13700 já existentes, com reset explícito 6009 → 13700. A suspeita numérica não se confirmou. É evidência histórica, não releitura nova. |
+| ST-07 ★ | imprecisa | E7 situa o traceback depois de ^C e da destruição do Prism. Porém apache_beam/runners/worker/data_plane.py:762–775 registra a mesma mensagem para uma exceção geral de leitura. A última linha do projeto vem apenas de except KeyboardInterrupt em streaming/cli.py:209–213. Proposta delimitada ao caso observado em RT2-05. |
+| ST-08 | confirmada | src/mvp_ed1/streaming/pipeline.py:272–301 separa GravarDeltas do ramo com WindowInto, AfterWatermark e CombinePerKey; painéis atrasados usam AfterCount(1). O corte do destino não certifica drenagem desse ramo. |
+| ST-09 ★ | imprecisa | A [documentação do Debezium 3.6](https://debezium.io/documentation/reference/3.6/connectors/postgresql.html#postgresql-create-events) distingue txId de “Offset of the operation in the database log”. c/r estão corretos; source.lsn localiza a operação/evento, não identifica a transação inteira. Proposta em RT2-04. |
+| ST-10 ★ | confirmada | E3: max_slot_wal_keep_size → -1. Makefile:537–544 chama maintenance drop-slots --force, além de down -v; maintenance.py:33–50 chama pg_drop_replication_slot e confere ausência, recusando slot ativo/de outro banco. A ajuda abreviada não invalida a frase. Remoção não executada. |
+| ST-11 | confirmada | src/mvp_ed1/streaming/envelope.py:24–27,73–82 aceita c/r e levanta ContratoViolado para u/d/t; o conector declara skipped.operations: none. |
+| ST-12 | confirmada | src/mvp_ed1/streaming/sink.py:100–151 cria a tabela em garantir_tabela/setup; dbt/models/staging/stg_retail__inventory_movements.sql:50 lê inventory_movements_stream. No ciclo do zero, o caminho quente precisa ser preparado antes do primeiro build; não implica refazer snapshot antes de todo build. |
+
+**Conferência das oito substituições (bloco B).** O4-1 (linha 1024), O4-2 (1142) e O4-3 (1340) corrigem o arquivo novo que sobrevivia à troca de branch; R29 e R33 registram os arquivos por caminho e R39 parte desse commit. DATA_LOGICA-1 (1240), -2 (1243), -3 (1678), -4 (1679) e -5 (1737) restringem corretamente a afirmação ao disparo CLI sem --logical-date, à execução do make dag-run e ao desafio pela CLI. O código instalado passa args.logical_date sem preenchê-lo e só inclui a chave no contexto quando há valor (cli/commands/dag_command.py:83–90; api/common/trigger_dag.py:76–92; sdk/execution_time/task_runner.py:274–292). Evidência histórica de CLI/interface em E7. A busca dos pares, em E6, encontrou cada novo trecho uma vez e nenhum antigo; a leitura complementar das passagens de data lógica e saída de branch não encontrou outra repetição desses dois erros originais. Isso não dispensa RT2-01. O desafio com a interface não foi ensaiado.
+
+**Conferência da amostra (bloco C).** PC-2 corresponde ao ensaio PC2_parado.txt: banco parado e espera --wait sustentados pelo registro e por Makefile:197–201; banco já ativo sem healthy não foi reensaiado. make up aplica a composição: “com os três já de pé, ele só confere” vale para a composição inalterada do ensaio, não como garantia de operação exclusivamente de leitura. R33b.txt contém o commit, registro, unpause e exit apresentados. R39.txt contém as três saídas por exit, a remoção do sinal e o retorno à main; não devolve por si só o estado ligado/desligado do Airflow. R44.txt contém as duas saídas por \q e a prova de idempotência; o Beam continua até o Ctrl-C de R45, registrado em R44_terminal1.txt. R45 usa alertas_N0.txt, R45.txt e PC9_fase_c.txt; retomar o Airbyte fica delegado ao PC-9. Os ramos de pular em R44 e a execução da amostra em outro estado inicial são **não verificáveis sem subir** nesta revisão. Não reavaliei os outros roteiros nem as ferramentas de validação.
+
+**Achados**
+
+As reproduções por inspeção não pedem executar as ações mutantes citadas. Ajustes no derivado devem nascer da declaração correspondente; nenhum foi aplicado pelo revisor.
 
 | ID | Veredito | Localização | Achado e recomendação | Reprodução | Saída observada | Situação |
 |---|---|---|---|---|---|---|
+| RT2-01 | bloqueante | R33:4045–4069; R39:4458–4465; spec_b.py:173–177,243–244 | **Anotar pendências não protege o índice do Git.** git commit -m inclui tudo que já estiver preparado, mesmo que o git add nomeie só a DAG. R39 apaga a branch antes de comparar o status; trabalho preparado antes do estudo pode acabar nesse commit e sair da main junto da DAG. Acrescentar às pré-condições: partir da main, branch estudo ausente e índice sem alterações preparadas; caso contrário, parar e preservar o trabalho. Conferir os caminhos do commit e a linha de base antes de excluir a branch. O4 continua válida. | Inspecionar spec_b.py:173–177,243–244 e R33a.txt/R33b.txt. Não criar branch nesta rodada. | Declaração: “anote o que aparece”; git add airflow/dags/estudo_didatica.py seguido de git commit -m "estudo: DAG de estudo"; em R39, git branch -D estudo precede git status. O registro cobre pendência não rastreada, não índice previamente ocupado. Cenário adverso não executado. | **Aceito; reproduzido** num repositório descartável (`20261013_roteiros_revisao2/20261013T044757Z_rt2_01_indice.log`): `A  b.txt`, preparado antes do estudo, entrou no `git commit -m` e sumiu da `main` com o `git branch -D`. Vale também para o R29. R29 e R33 ganharam, na linha de base, a regra do índice limpo (letra na primeira coluna do `git status --porcelain=v1`: pare); R23, R29 e R33, o passo `git branch --show-current` e o aviso de branch já existente; R29 e R39, o `git log --oneline --stat main..estudo` antes de apagar a branch. Os passos novos rodaram num ensaio num clone descartável (`ensaio_git_clone.txt`), e o rótulo diz isso. `9e6f3ac`. |
+| RT2-02 | ajuste | AF-06; trilha:1309,1360,1364,1724; repetição em 4331 | **Data lógica de cron não é a hora real do disparo nem regra universal da versão 3.** Proposta: “Nesta instalação, create_cron_data_intervals=False usa CronTriggerTimetable: a data lógica é o horário previsto no cron e o intervalo tem largura zero, mesmo que a execução comece depois. Com CronDataIntervalTimetable, ela é o início do intervalo coberto.” No exercício: “Às 14:07, a execução mais recente corresponde às 14:00 nesta configuração.” Ajustar a generalização da seção 11. | Ler config_templates/config.yml:2607–2627 e comparar trilha:1301–1308; E7 também traz R33. | Código distingue os timetables. Histórico R33: logical_date 21:20:00, start_date 21:29:49.387342. Os horários são diferentes; nenhuma nova execução foi disparada. | **Aceito; conferido** no código do 3.2.2 (`create_cron_data_intervals`, *default* `False`, `version_added: 2.9.0`; com `CronTriggerTimetable`, a data lógica é o horário que a execução tenta agendar) e no R33b (data lógica 21:20, início 21:29:49). Trocadas as quatro passagens do resumo — L5c, conferência do l5c-1, "Como falar disso" e glossário — e o passo do XCom no R38. `324cfae`, `9e6f3ac`. |
+| RT2-03 | ajuste | AF-09; trilha:1332,1728 | **Fernet não cifra host, porta e login da Connection.** Proposta: “Uma Connection guarda parâmetros de acesso; com chave Fernet válida, o Airflow cifra a senha e extra, enquanto host, porta e login ficam sem essa cifra. Uma Variable guarda um valor de configuração, também cifrado com Fernet.” No glossário, usar “senha e extra das Connections e valores das Variables”. Não altera a pendência da chave inválida. | Ler models/connection.py:131–138,369–407 e models/variable.py:99–105 na cópia E2. | Inspeção: fernet.encrypt aplicado a self._password, self._extra e self._val; host/login/port têm mapped_column comum. | **Aceito; conferido** em `models/connection.py` e `models/variable.py` do 3.2.2: `fernet.encrypt` só em `_password`, `_extra` e `_val`. Trocadas a frase do L5c e a do glossário. `324cfae`. |
+| RT2-04 | ajuste | ST-09; trilha:1469 | **LSN do evento foi chamado de posição da transação.** Proposta: “op: c indica inserção e r indica leitura de snapshot; source.lsn é a posição da operação no WAL, enquanto source.txId identifica a transação; snapshot: false indica captura ao vivo.” | Conferir a tabela source/op na documentação do Debezium 3.6 vinculada no manifesto. | Texto documental distingue “ID of the transaction” de “Offset of the operation in the database log”. Sem produzir evento. | **Aceito; conferido** na documentação do Debezium 3.6: `lsn` é "Offset of the operation in the database log", e `txId`, "ID of the transaction in which the operation was performed". O glossário repetia o erro na definição de LSN e foi corrigido também. `324cfae`. |
+| RT2-05 | ajuste | ST-07:1419; R45:4913; spec_c.py:71 | **“Não uma falha; importa a última linha” excede a evidência.** Proposta: “Neste encerramento, os tracebacks apareceram após Ctrl-C, junto da parada do Prism, compatíveis com o fechamento dos canais. A mesma mensagem durante o processamento exige investigação. Antes de encerrar, confira corte/offset e resultados esperados; depois, ausência de trabalho antes de pausar.” Manter o trecho real sem classificá-lo genericamente como inofensivo. | E7; apache_beam/runners/worker/data_plane.py:762–775; src/mvp_ed1/streaming/cli.py:209–213. | Histórico: ^C, Really destroying service e erros de canal. Código: except Exception registra Failed to read inputs in the data plane.; pipeline interrompido vem de except KeyboardInterrupt, sem validar integridade. | **Aceito; conferido** em `apache_beam/runners/worker/data_plane.py` (a mensagem sai de qualquer exceção de leitura) e em `streaming/cli.py` (a última linha só vem de `KeyboardInterrupt`). O Ctrl-C do R45 pede conferir corte e alertas antes, descreve os *tracebacks* como observados neste encerramento e diz que a mesma mensagem durante o processamento pede investigação; o L6 do resumo, idem. `324cfae`, `9e6f3ac`. |
+| RT2-06 | ajuste | Vizinha de ST-04/ST-06:1395; repetição em 4545; contraste com R44:4815–4826 | **STATE Empty não prova ausência de Beam.** O consumidor usa assign explícito, não subscribe/coordenação de membros. Proposta: “Empty indica ausência de membros registrados no protocolo do grupo; neste consumidor com atribuição manual, confira o processo/terminal do Beam para saber se ele está rodando.” | Comparar R44.txt e R44_terminal1.txt (E7) com src/mvp_ed1/streaming/transport.py:185–188, leitor.assign. | R44: STATE Empty, MEMBERS 0 e CURRENT-OFFSET 32551; no primeiro terminal, lote de 250 consumido e pipeline is running antes de ^C. Contraexemplo histórico. | **Aceito; conferido** em `transport.py` (`leitor.assign`) e no R44 (`STATE Empty` e `MEMBERS 0` com o segundo Beam rodando). Corrigidos a anotação da saída de 04/10 no L6, com uma frase sobre o `assign`, e o passo do R40. `324cfae`, `9e6f3ac`. |
+| RT2-07 | ajuste | R39:4411–4490; spec_b.py:233–249 | **A limpeza supõe DAG ociosa sem declarar esse requisito.** Pausar não encerra tarefas; delete_dag recusa tarefa running. Exigir sequência de estudo concluída e conferir execuções/tarefas terminais antes de retirar o arquivo. Delimitar “desfaz R33 ao R38”: limpa a DAG de estudo, não R36 em fluxo_batch nem todos os rastros; ficam logs e auditoria. Retirar a garantia de “um ciclo” em sleep 65: descoberta de arquivos tem padrão de 300 s. Indicar PC-9 para devolver os serviços após o grupo. | R39.txt; api/common/delete_dag.py:44–93; config_templates/config.yml:2828–2834. Sem excluir DAG com tarefa ativa. | Registro começa com No unpaused DAGs were found. Código: raise AirflowException("TaskInstances still running"); keep_records_in_log=True preserva Log. Esperar 65 s observa ausência naquele instante, não um ciclo de 300 s. | **Aceito; conferido** em `api/common/delete_dag.py` (`TaskInstances still running`; `keep_records_in_log=True`) e no `refresh_interval` de 300 s. O R39 ganhou a pré-condição na introdução (sequência terminada, nada `running` ou `queued`, conferido na interface), o alcance exato em *Muda estado* (ficam os *logs*, a auditoria e o R36), o `sleep 65` sem a promessa de um ciclo e a remissão ao PC-9. A conferência das execuções ficou como instrução, não como comando: gravar a saída dela exigiria refazer R33–R38. `9e6f3ac`. |
+| RT2-08 | ajuste | Metadados de R33:4045 e R44:4736; spec_b.py:171; spec_c.py:49–51 | **Pré-requisitos e efeitos estão incompletos.** R33 despausa DAG que consulta consumption.monthly_revenue_by_channel_and_category: requer armazém com a view, além do Airflow, e cria execuções/logs. R44 consulta o armazém, pode pausar Airbyte e subir transporte/Beam, e avança offsets. Explicitar em De pé/Antes/Muda estado, mantendo a devolução no fim da sequência. | Ler a DAG na trilha:1177–1181, os passos de R44 e R44_subir.txt. | Inspeção: consulta à view; make stream-up, make stream-run, make psql-warehouse e stream-duplicate. A saída publicada do próprio R44 inclui “Airbyte está de pé e ocioso — pausando.” | **Aceito; conferido** na DAG de estudo (conta `consumption.monthly_revenue_by_channel_and_category`) e nos passos do R44. R33: *De pé* com o armazém e as views, *Antes* com o PC-2, *Muda estado* com execuções e *logs*. R44: *De pé* com o armazém, *Antes* com o PC-2, *Muda estado* com o *offset* do grupo e a pausa do Airbyte, se o passo 1 rodar. `9e6f3ac`. |
+| RT2-09 | ajuste | R44:4770; spec_c.py:53 | **O digest não cobre todas as colunas da tabela.** Exclui _stream_partition, _stream_offset, _stream_lsn, _stream_from_snapshot e _stream_extracted_at. Proposta: “Contagem, soma e digest das colunas de negócio de todos os eventos; os metadados de entrega _stream_* não entram neste digest.” A prova continua útil, com alcance delimitado. | Comparar DIGEST_EVENTOS em spec_c.py:9–12 com COLUNAS_DO_EVENTO e tabela em sink.py:43–95. | Inspeção: SELECT termina em schema_version, metadata::text; a tabela acrescenta as cinco colunas _stream_*. | **Aceito; conferido**: `DIGEST_EVENTOS` cobre as 17 colunas do evento, e a tabela tem mais cinco `_stream_*` (`sink.py`). O passo do R44 diz o alcance. `9e6f3ac`. |
+| RT2-10 | ajuste | R45:4864–4926; spec_c.py:65–72 | **R45 ocupa dois momentos da sequência e muda estado, apesar de declarar “nada”.** A base vem antes de R41, quando o Beam de R42 ainda não existe; a entrada pede esse Beam. Depois há Ctrl-C e stream-pause. Separar a entrada antes de R41 da conclusão após R44, com remissão no início da sequência; declarar o encerramento e condicionar a pausa ao que o grupo iniciou. Manter PC-9 para a retomada. Diferença entre contagens do tópico só representa alertas novos sem perda por retenção no intervalo: registrar seus limites de offset. | Confrontar metadados/ordem com alertas_N0.txt, R45.txt e PC9_fase_c.txt (E7). | Histórico: limites 14/14 antes e 14/26 depois sustentam doze alertas. Ao fim: “streaming pausado — 2 contêineres parados. Retomar: make stream-resume”, incompatível com “Muda estado: nada”. Serviços inicialmente ligados não foram ensaiados. | **Aceito.** A linha de base dos alertas foi para o fim do R40, com a mesma saída de 12/10. O R45 ficou com a conclusão: declara que encerra o Beam e pausa o *streaming*, condiciona a pausa a quem o subiu e diz que a diferença só vale com o início do log igual nas duas leituras (14 nas duas). `9e6f3ac`. |
+| RT2-11 | observação | AF-01 e AB-04; trilha:1056,763 | **Distinguir componente de processo e pod de serviço permanente.** Adotar as frases do manifesto: “quatro serviços permanentes” no Airflow e “pods de serviços e tarefas temporárias” no Airbyte. Preserva a explicação didática sem ensinar equivalências falsas. | Ler serviços no compose e a enumeração E5. | Compose inclui inicializador db migrate; a listagem contém airbyte-abctl-bootloader em Completed, ao lado dos serviços em Running. | **Aceito.** As duas frases adotadas, com o `airflow_init` e o `bootloader` nomeados — a lista de 04/10 na própria trilha já mostra o `bootloader` em `Completed`. `324cfae`. |
+| RT2-12 (do autor) | ajuste | Seção 11: onze passos em PC-2 a R39 | **Passos marcados "não aparece nada" imprimiam algo**: o `exit` do contêiner e da aba do dbt (`exit`), o `make psql-warehouse` do R08 e do R36 (o cabeçalho do `psql`) e o `airflow dags pause` do R39 (`No unpaused DAGs were found` — um passo da própria validação já tinha pausado a DAG). Achado ao reler o R39 a partir da E7. | `secao11/conferir_sem_saida.py`, nova, contra todas as transcrições | Antes: "34 passos sem saída conferidos; 11 imprimem algo"; depois: "23 passos sem saída conferidos; 0 imprimem algo" (`20261013_roteiros_revisao2/*_sem_saida_*.log`) | **Corrigido**: os onze mostram a saída real da transcrição; o do R39, com o rótulo "apareceu" e a explicação. `9e6f3ac`. |
+
+**Evidências literais e limites**
+
+E1 — base e estado inicial. Ausência de saída indicada explicitamente.
+
+~~~text
+$ git rev-parse HEAD
+6e1b7e40934a322360fd0e3a8c716470b11c4f16
+$ git rev-parse --abbrev-ref HEAD
+main
+$ git status --short
+(sem saída)
+$ git diff --stat
+(sem saída)
+~~~
+
+E2 — cópia do código sem iniciar o contêiner. A primeira tentativa encontrou bloqueio do socket no sandbox; a repetição com permissão da ferramenta concluiu. Versões lidas de arquivos, não de serviços em execução. Saída do rg no __init__.py cortada.
+
+~~~text
+$ docker cp mvp_ed1-airflow_scheduler-1:/home/airflow/.local/lib/python3.11/site-packages/airflow /tmp/rt2_airflow_6e1b7e4
+(sem saída; código 0)
+$ rg -n '__version__' /tmp/rt2_airflow_6e1b7e4/__init__.py
+28:__version__ = "3.2.2"
+67:    "__version__",
+… (cortada)
+$ rg -n 'version =|__version__|version:' /tmp/rt2_airflow_6e1b7e4/version.py .venv/lib/python3.11/site-packages/apache_beam/version.py
+/tmp/rt2_airflow_6e1b7e4/version.py:21:from airflow import __version__ as version
+.venv/lib/python3.11/site-packages/apache_beam/version.py:20:__version__ = '2.76.0'
+~~~
+
+E3 — SQL novo, somente leitura; saída literal das duas sessões.
+
+~~~text
+$ docker exec -e PGOPTIONS='-c default_transaction_read_only=on' -i mvp_ed1_source_db psql -U mvp_source -d source_db -X -P pager=off -v ON_ERROR_STOP=1 -c 'show transaction_read_only' -c 'show wal_level' -c 'show max_slot_wal_keep_size'
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
+
+ wal_level 
+-----------
+ logical
+(1 row)
+
+ max_slot_wal_keep_size 
+------------------------
+ -1
+(1 row)
+
+$ docker exec -e PGOPTIONS='-c default_transaction_read_only=on' -i mvp_ed1_warehouse_db psql -U mvp_warehouse -d warehouse_db -X -P pager=off -v ON_ERROR_STOP=1 -c 'show transaction_read_only' -c "select column_name,data_type from information_schema.columns where table_schema='raw' and table_name='orders' and column_name like '\_airbyte\_%' order by ordinal_position" -c "select distinct _airbyte_meta from raw.orders order by 1 limit 4"
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
+
+      column_name       |        data_type         
+------------------------+--------------------------
+ _airbyte_raw_id        | character varying
+ _airbyte_extracted_at  | timestamp with time zone
+ _airbyte_meta          | jsonb
+ _airbyte_generation_id | bigint
+(4 rows)
+
+         _airbyte_meta          
+--------------------------------
+ {"changes": [], "sync_id": 48}
+ {"changes": [], "sync_id": 56}
+(2 rows)
+~~~
+
+E4 — GETs pela API pública. Autenticação por airbyte.token(), como no auxiliar; nenhum token/segredo impresso. A tentativa no sandbox não obteve credenciais; abaixo está a repetição que alcançou a API. O identificador foi ocultado pelo próprio comando.
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 data/medicoes/material_estudo/com_credenciais.sh .venv/bin/python - <<'PY'
+import json
+from mvp_ed1 import airbyte
+jwt=airbyte.token()
+cid=airbyte.conexao('oltp_para_raw',jwt)
+for suffix in ('', '/state'):
+    path=f'/connections/{cid}{suffix}'
+    try:
+        data=airbyte._chamar(path,jwt)
+    except airbyte.AirbyteIndisponivel as e:
+        print('GET /connections/<id>'+suffix+': '+str(e).split(' em ',1)[0])
+        continue
+    print('GET /connections/<id>'+suffix+': HTTP 200')
+    print('chaves:', ', '.join(sorted(data)))
+    def show(x):
+        if isinstance(x,dict):
+            fields={k:v for k,v in x.items() if k in ('stream_name','stream_namespace','cursor_field','cursor','cursor_record_count')}
+            if fields: print(json.dumps(fields,ensure_ascii=False,sort_keys=True))
+            for v in x.values(): show(v)
+        elif isinstance(x,list):
+            for v in x: show(v)
+    if suffix: show(data)
+PY
+~~~
+
+~~~text
+GET /connections/<id>: HTTP 200
+chaves: configurations, connectionId, createdAt, destinationId, name, namespaceDefinition, nonBreakingSchemaUpdatesBehavior, prefix, schedule, sourceId, status, tags, workspaceId
+GET /connections/<id>/state: 403
+~~~
+
+E5 — enumeração atual dos pods, somente leitura.
+
+~~~text
+$ docker exec airbyte-abctl-control-plane kubectl get pods -n airbyte-abctl
+NAME                                                 READY   STATUS      RESTARTS        AGE
+airbyte-abctl-bootloader                             0/1     Completed   0               17d
+airbyte-abctl-cron-866f8d8f9-n9dg8                   1/1     Running     12 (125m ago)   17d
+airbyte-abctl-manifest-server-9fbfb7ffc-sb884        1/1     Running     13 (125m ago)   17d
+airbyte-abctl-server-844886cb59-rf7t9                1/1     Running     24 (125m ago)   17d
+airbyte-abctl-temporal-69495f7b87-xnncq              1/1     Running     12 (125m ago)   17d
+airbyte-abctl-worker-77fcb9c6dd-58c7w                1/1     Running     17 (125m ago)   17d
+airbyte-abctl-workload-api-server-7fccbb9d7c-hzw2q   1/1     Running     17 (125m ago)   17d
+airbyte-abctl-workload-launcher-d7f56c5d6-866hp      1/1     Running     30 (124m ago)   17d
+airbyte-db-0                                         1/1     Running     12 (125m ago)   17d
+~~~
+
+E6 — leitura dos pares e soma dos lotes históricos, sem importar/executar aplicar.py.
+
+~~~bash
+python3 - <<'PY'
+from pathlib import Path
+import ast
+s=Path('CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html').read_text()
+for node in ast.parse(Path('data/medicoes/material_estudo/secao11/aplicar.py').read_text()).body:
+ if isinstance(node,ast.Assign) and isinstance(node.targets[0],ast.Name) and node.targets[0].id in ('O4','DATA_LOGICA'):
+  for i,(old,new) in enumerate(ast.literal_eval(node.value),1):
+   print(f'{node.targets[0].id}-{i}: antigo={s.count(old)} novo={s.count(new)} linha={s[:s.index(new)].count(chr(10))+1}')
+PY
+~~~
+
+~~~text
+O4-1: antigo=0 novo=1 linha=1024
+O4-2: antigo=0 novo=1 linha=1142
+O4-3: antigo=0 novo=1 linha=1340
+DATA_LOGICA-1: antigo=0 novo=1 linha=1240
+DATA_LOGICA-2: antigo=0 novo=1 linha=1243
+DATA_LOGICA-3: antigo=0 novo=1 linha=1678
+DATA_LOGICA-4: antigo=0 novo=1 linha=1679
+DATA_LOGICA-5: antigo=0 novo=1 linha=1737
+~~~
+
+~~~bash
+python3 - <<'PY'
+from pathlib import Path
+import re
+p=Path('data/medicoes/material_estudo/20261004_fase_c/20261004T053708Z_producao_medida.log')
+s=p.read_text()
+a=[tuple(map(int,m)) for m in re.findall(r'lote de (\d+): (\d+) gravados, (\d+) já existiam',s)]
+print(p.name)
+print('Lotes:',len(a))
+print('Total processado:',sum(t[0] for t in a))
+print('Gravados:',sum(t[1] for t in a))
+print('Já existiam:',sum(t[2] for t in a))
+for l in s.splitlines():
+ if 'offset reset' in l or 'retomando do offset' in l: print(l)
+PY
+~~~
+
+~~~text
+20261004T053708Z_producao_medida.log
+Lotes: 33
+Total processado: 15901
+Gravados: 2201
+Já existiam: 13700
+2026-10-04 02:37:12,818 INFO mvp_ed1.streaming.transport: partição 0: retomando do offset 6009
+%4|1791092232.840|OFFSET|rdkafka#consumer-3| [thrd:main]: mvp.oltp.inventory_movements [0]: offset reset (at offset 6009 (leader epoch -1), broker 0) to cached BEGINNING offset offset 13700 (leader epoch -1): fetch failed due to requested offset not available on the broker: Broker: Offset out of range
+~~~
+
+E7 — **histórico de 12/10**, lido nesta revisão. Comandos dentro dos registros não foram reexecutados. Cortes marcados.
+
+~~~text
+$ sed -n '1,145p' data/medicoes/material_estudo/20261012_roteiros_fase_b/R33b.txt
+… (cortada)
+dag_id           run_id                                state    run_after                  logical_date               start_date                        end_date
+estudo_didatica  scheduled__2026-10-12T21:20:00+00:00  running  2026-10-12T21:20:00+00:00  2026-10-12T21:20:00+00:00  2026-10-12T21:29:49.387342+00:00
+default@e2739e45aef5:/opt/airflow$ exit
+exit
+$ 
+$ sed -n '1,35p' data/medicoes/material_estudo/20261012_roteiros_fase_b/R35a.txt
+… (cortada)
+default@e2739e45aef5:/opt/airflow$ airflow dags trigger estudo_didatica --conf '{"falhar": true}'
+… (cortada)
+2026-10-12T21:32:53.864136Z [info     ] creating dag run               [airflow.serialization.definitions.dag] loc=dag.py:526 logical_date=None partition_key=None run_after=datetime.datetime(2026, 10, 12, 21, 32, 53, 844246, tzinfo=Timezone('UTC')) run_id=manual__2026-10-12T21:32:53.844246+00:00
+… (cortada)
+$ sed -n '1,22p' data/medicoes/material_estudo/20261012_roteiros_fase_b/R37.txt
+… (cortada)
+default@e2739e45aef5:/opt/airflow$ airflow tasks states-for-dag-run estudo_didatica manual__2026-10-12T21:37:14.553953+00:00 -o plain
+… (cortada)
+dag_id           logical_date               task_id                state    start_date                        end_date
+estudo_didatica  2026-10-12T21:36:57+00:00  talvez_falhar          success  2026-10-12T21:37:15.636268+00:00  2026-10-12T21:37:16.414203+00:00
+… (cortada)
+$ cat data/medicoes/material_estudo/20261012_roteiros_fase_b/R39.txt
+… (cortada)
+No unpaused DAGs were found
+… (cortada)
+2026-10-12T21:58:50.801067Z [info     ] Deleting Dag: estudo_didatica  [airflow.api.common.delete_dag] loc=delete_dag.py:55
+Removed 76 record(s)
+… (cortada)
+dag_id      | fileloc                                  | owners         | is_paused | bundle_name | bundle_version
+============+==========================================+================+===========+=============+===============
+fluxo_batch | /opt/mvp_ed1/airflow/dags/fluxo_batch.py | data_custodian | False     | dags-folder | None
+… (cortada)
+$ cat data/medicoes/material_estudo/20261012_roteiros_fase_c/R44.txt
+… (cortada)
+ linhas | soma_quantidade |          digest_eventos
+--------+-----------------+----------------------------------
+  18351 |          700501 | 5bda93595e16231e55031992cbdd1597
+(1 row)
+… (cortada)
+          digest_saldos           | pares
+----------------------------------+-------
+ aa6fea90ef9d77f22b5708075477fe24 |  2919
+(1 row)
+… (cortada)
+GROUP                  mvp_ed1_beam
+COORDINATOR-NODE       0
+COORDINATOR-PARTITION  __consumer_offsets/2
+STATE                  Empty
+BALANCER
+MEMBERS                0
+TOTAL-LAG              0
+
+TOPIC                         PARTITION  CURRENT-OFFSET  LOG-START-OFFSET  LOG-END-OFFSET  LAG   MEMBER-ID  CLIENT-ID  HOST
+mvp.oltp.inventory_movements  0          32551           30051             32551           0
+… (cortada)
+ linhas | soma_quantidade |          digest_eventos
+--------+-----------------+----------------------------------
+  18351 |          700501 | 5bda93595e16231e55031992cbdd1597
+(1 row)
+… (cortada)
+          digest_saldos           | pares
+----------------------------------+-------
+ aa6fea90ef9d77f22b5708075477fe24 |  2919
+(1 row)
+… (cortada)
+$ sed -n '73,79p' data/medicoes/material_estudo/20261012_roteiros_fase_c/R44_terminal1.txt
+2026-10-12 20:43:41,514 INFO root: running job-001[job]
+2026-10-12 20:43:41,521 INFO apache_beam.runners.portability.portable_runner: Job state changed to RUNNING
+2026-10-12 20:43:41,553 INFO mvp_ed1.streaming.transport: partição 0: retomando do offset 32301
+2026-10-12 20:44:00,942 INFO mvp_ed1.streaming.sink: lote de 250: 0 gravados, 250 já existiam
+2026-10-12 20:44:41,502 INFO PrismRunner: pipeline is running (job='job-001[job]')
+^CException in thread wait_until_finish_read:
+2026-10-12 20:44:55,577 WARNING apache_beam.utils.subprocess_server: Really destroying service at localhost:60883 with cmd: ('/home/doug/.apache_beam/cache/prism/bin/apache_beam-v2.76.0-prism-linux-amd64', '--job_port', '60883', '--log_level', 'info', '--log_kind', 'json', '--serve_http=false')
+$ sed -n '5,12p' data/medicoes/material_estudo/20261012_roteiros_fase_c/alertas_N0.txt
+tópico mvp.alerts.inventory_low_stock: 0 alertas
+  aberturas (cruzaram o limiar de 25 para baixo): 0
+  normalizações (voltaram acima): 0
+  correções de evento atrasado: 0
+$ docker exec mvp_ed1_redpanda rpk topic describe mvp.alerts.inventory_low_stock -p
+PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
+0          0       2      [0]       14                14
+$ 
+$ sed -n '5,8p' data/medicoes/material_estudo/20261012_roteiros_fase_c/R45.txt
+tópico mvp.alerts.inventory_low_stock: 12 alertas
+  aberturas (cruzaram o limiar de 25 para baixo): 8
+  normalizações (voltaram acima): 4
+  correções de evento atrasado: 1
+$ sed -n '19,21p' data/medicoes/material_estudo/20261012_roteiros_fase_c/R45.txt
+$ docker exec mvp_ed1_redpanda rpk topic describe mvp.alerts.inventory_low_stock -p
+PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
+0          0       3      [0]       14                26
+$ sed -n '1,7p' data/medicoes/material_estudo/20261012_roteiros_fase_c/PC9_fase_c.txt
+$ cd ~/Projetos/mvp_eng_dados_1
+$ make preflight ALVO=trabalho
+[preflight] nenhum trabalho em andamento — janela parada.
+$ make stream-pause
+streaming pausado — 2 contêineres parados. Retomar: make stream-resume
+$ make ps
+NAME                   STATUS                 PORTS
+~~~
+
+Não foram medidos novamente: temporização do Airflow, botões da interface, cancelamento/backfill, criação automática de tópico, ramos condicionais não executados anteriormente, encerramento do Beam ou devolução dos ambientes. O estado do cursor do Airbyte não foi obtido. As sondas de leitura não substituem esses ensaios nem encerram pendências do Owner.
+
+**Resposta do autor — 13/10/2026.** Cada achado foi reproduzido antes de entrar; a coluna *Situação*
+diz como e onde. As evidências da resposta ficam em
+`data/medicoes/material_estudo/20261013_roteiros_revisao2/`, fora do Git. Lá estão a reprodução do
+RT2-01, as leituras do código do Airflow 3.2.2 (copiado do contêiner parado) e do Beam, o ensaio dos
+passos de Git num clone descartável e a conferência dos passos "sem saída". O RT2-04 foi conferido na
+documentação do Debezium 3.6.
+
+Os dois itens do manifesto que ficaram não verificáveis nesta rodada foram conferidos pelo autor, só
+com leitura, e as duas frases estão certas.
+
+AB-02, o estado do cursor, pelo endpoint de leitura da API interna (`POST /api/v1/state/get`):
+
+```text
+$ PYTHONDONTWRITEBYTECODE=1 data/medicoes/material_estudo/com_credenciais.sh .venv/bin/python data/medicoes/material_estudo/20261013_roteiros_revisao2/ler_estado_cursor.py
+stateType: stream
+stream: {'name': 'orders', 'namespace': 'oltp'}
+{"cursors": {"updated_at": "2026-09-01T03:00:00.000000Z"}, "state_type": "cursor_based", "stream_name": "", "stream_namespace": "", "version": 3}
+```
+
+Só o maior valor do cursor, sem `cursor_record_count`; a minha suspeita não se confirmou.
+
+ST-05, a configuração do Redpanda, lida do contêiner parado:
+
+```text
+$ docker cp mvp_ed1_redpanda:/etc/redpanda/redpanda.yaml - | tar -xO | grep -n -E 'developer_mode|auto_create_topics_enabled'
+28:    developer_mode: true
+29:    auto_create_topics_enabled: true
+--- a composição do projeto define o parâmetro?
+não (0 ocorrências)
+--- o projeto cria tópico em algum lugar?
+não
+```
+
+Três *commits*, cada um depois do `make check-offline` com código 0: `324cfae` (as trocas no resumo),
+`9e6f3ac` (os roteiros) e o que registra esta resposta. Regenerar a trilha a partir de `c531b87`
+dá `9e6f3ac` byte a byte. A varredura de segredos achou zero em 28 arquivos, e as duas senhas
+digitadas não aparecem em nenhum deles. O Artifact foi republicado na versão 12.
+
+**Não verificado nesta resposta:**
+- a conferência visual no Chrome, porque a extensão estava desconectada;
+- a conferência das execuções no R39, que ficou como instrução, sem saída gravada;
+- os ramos de pular do R44 e o desafio com o disparo pela interface, que continuam como na §16.4.
