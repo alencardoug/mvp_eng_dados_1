@@ -1757,7 +1757,7 @@ check: as quatro etapas passaram</pre>
 <h2 id="procedencia">9 · Procedência</h2>
 <ul>
   <li><strong>Base:</strong> <code>main</code> em <code>23a4ee0</code> (<code>v1.0.0</code>). Ferramentas: dbt-core 1.12.3, <code>abctl</code> v0.30.4 com o <em>chart</em> do Airbyte 2.3.0, Airflow 3.2.2, Debezium 3.6.2, Redpanda v25.2.4, PostgreSQL 16.15, Beam 2.76.</li>
-  <li><strong>Seção 11:</strong> os 50 roteiros e os 9 procedimentos rodaram como estão escritos em 12/10/2026, entre 21:03Z e 00:17Z (UTC), sobre <code>c531b87</code>, com o estado da máquina devolvido igual ao encontrado. Evidências em <code>data/medicoes/material_estudo/20261012_roteiros_*</code> (fora do Git); plano, revisão do Codex e execução em <code>CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md</code>.</li>
+  <li><strong>Seção 11:</strong> os 50 roteiros e os 9 procedimentos rodaram como estão escritos em 12/10/2026, entre 21:03Z e 00:17Z (UTC), sobre <code>c531b87</code>, com o estado da máquina devolvido igual ao encontrado; os passos de conferência do Git que a segunda revisão do Codex pediu rodaram num ensaio à parte, num clone, em 13/10/2026. Evidências em <code>data/medicoes/material_estudo/20261012_roteiros_*</code> e <code>20261013_roteiros_revisao2</code> (fora do Git); plano, as duas revisões do Codex e a execução em <code>CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md</code>.</li>
   <li><strong>Validação:</strong> 04/10/2026, entre 04:08Z e 06:04Z, nas fases A a D do plano, com o estado da máquina devolvido igual ao encontrado (bancos e Airbyte de pé; Airflow e <em>streaming</em> parados).</li>
   <li><strong>Evidências:</strong> cada comando, com início, fim, código de saída real e saída redigida, em <code>data/medicoes/material_estudo/20261004_fase_{a,b,c,d}/indice.tsv</code> (fora do Git). As telas e a inspeção visual de cada uma, em <code>data/medicoes/material_estudo/telas/</code>.</li>
   <li><strong>Marcas permanentes desta validação:</strong> uma captura do legado a mais (a 52), 2.401 eventos novos no livro da origem (2.201 planejados e 200 do teste de alertas), a configuração inicial da interface do Airbyte com dados fictícios, e o histórico no Airflow.</li>
@@ -1902,7 +1902,9 @@ com um "↩" de volta para cada ponto que aponta para ele.</p>
   rodou exatamente como está escrito. Horários, identificadores e contadores da sua vão diferir; a
   quebra de linha também, conforme a largura do seu terminal. Saída longa vem cortada com <code>…</code>.
   Quando a saída depende do estado da máquina — um <code>git status</code>, um banco parado de
-  propósito —, o rótulo diz <strong>"apareceu"</strong>: é o que se viu, não o que você deve ver.</li>
+  propósito —, o rótulo diz <strong>"apareceu"</strong>: é o que se viu, não o que você deve ver. Os
+  passos de conferência do Git que entraram depois da segunda revisão rodaram num ensaio à parte, num
+  clone do repositório, em 13/10/2026, e o rótulo diz isso.</li>
   <li><strong>Antes de um roteiro</strong>, faça os procedimentos que ele cita (PC-1, PC-2…). Eles estão
   logo abaixo e valem para todos.</li>
   <li><strong>O que subir em cada cenário</strong> é assunto da
@@ -2680,6 +2682,9 @@ Type "help" for help. </pre>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
 <p>Abre o <code>psql</code> no armazém. Agora repita as consultas de R02 a R07 trocando <code>ORD-0000037</code> pelo seu <code>order_number</code> e <code>37</code> pelo seu <code>id</code>. Para a Parada 4, conte as linhas por <code>order_id</code> — o mesmo número pode existir no legado.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">psql (16.15)
+Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select source_system, order_id, customer_id, placed_at, order_total_amount, item_count from trusted.orders where order_id = 1148 order by source_system desc;</pre>
@@ -3512,6 +3517,13 @@ Type "help" for help. </pre>
 <pre class="saida">?? CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">git branch --show-current</pre>
+<p>Confirme que você está na <code>main</code>: a branch de estudo nasce dela, e o fim do roteiro volta para ela.</p>
+<span class="rotulo-saida">deve aparecer · saída real · ensaio num clone · 13/10/2026</span>
+<pre class="saida">main </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> você está em outra branch. Volte para a <code>main</code> antes de começar; senão, o roteiro termina num lugar diferente de onde começou.</p>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">sha256sum airbyte/terraform.tfstate</pre>
 <p>O <em>hash</em> do estado do Terraform. <code>plan</code> não pode mudá-lo.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
@@ -3532,6 +3544,7 @@ Terraform has compared your real infrastructure against your configuration and f
 <p>Cria a branch de estudo e entra nela.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">Switched to a new branch 'estudo' </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> o mais provável é <code>fatal: a branch named 'estudo' already exists</code>: sobrou uma branch de estudo de outra vez. Pare e veja o que ela tem com <code>git log --oneline --stat main..estudo</code> antes de decidir se a apaga.</p>
 </li>
 <li><span class="onde editor">editor de texto</span>
 <p>Em <code>airbyte/main.tf</code>, troque a linha do agendamento e salve:</p>
@@ -3735,15 +3748,23 @@ make: *** [Makefile:675: dbt-docs] Erro 2 </pre>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git status --porcelain=v1</pre>
-<p>A linha de base. Anote: no fim, tem de ser igual. Em 12/10, a única pendência era um arquivo de trabalho ainda não versionado; na sua máquina, aparece o que estiver pendente aí — ou nada, com a árvore limpa.</p>
+<p>A linha de base. Anote: no fim, tem de ser igual. Em 12/10, a única pendência era um arquivo de trabalho ainda não versionado; na sua máquina, aparece o que estiver pendente aí — ou nada, com a árvore limpa. Se alguma linha tiver letra na <strong>primeira</strong> coluna (<code>M</code>, <code>A</code>, <code>D</code>, <code>R</code>: alteração já preparada com <code>git add</code>), pare: o <em>commit</em> do estudo a levaria junto, e ela sumiria da <code>main</code> com a branch. Antes de começar, faça o <em>commit</em> dela na <code>main</code> ou tire-a do índice com <code>git restore --staged</code> e o caminho do arquivo.</p>
 <span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
 <pre class="saida">?? CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md </pre>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">git branch --show-current</pre>
+<p>Confirme que você está na <code>main</code>: a branch de estudo nasce dela, e o fim do roteiro volta para ela.</p>
+<span class="rotulo-saida">deve aparecer · saída real · ensaio num clone · 13/10/2026</span>
+<pre class="saida">main </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> você está em outra branch. Volte para a <code>main</code> antes de começar; senão, o roteiro termina num lugar diferente de onde começou.</p>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git switch -c estudo</pre>
 <p>Cria a branch de estudo.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">Switched to a new branch 'estudo' </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> o mais provável é <code>fatal: a branch named 'estudo' already exists</code>: sobrou uma branch de estudo de outra vez. Pare e veja o que ela tem com <code>git log --oneline --stat main..estudo</code> antes de decidir se a apaga.</p>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">mkdir -p dbt/models/estudo</pre>
@@ -3825,7 +3846,9 @@ group by order_status </pre>
 </li>
 <li><span class="onde terminal">terminal · pasta dbt</span>
 <pre class="cmd">exit</pre>
-<p>Fecha a sessão do dbt.</p>
+<p>Fecha a sessão do dbt e a aba.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
@@ -3858,6 +3881,15 @@ Your branch is up to date with 'origin/main'. </pre>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">find dbt/target -path '*estudo*' -delete</pre>
 <p>Apaga os compilados de estudo.</p>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">git log --oneline --stat main..estudo</pre>
+<p>Antes de apagar a branch, veja o que vai embora com ela: só o <em>commit</em> de estudo, com os dois arquivos. Se aparecer outro arquivo, pare: é trabalho seu que entrou no <em>commit</em>. Recupere-o antes, com <code>git restore --source estudo</code> e o caminho dele.</p>
+<span class="rotulo-saida">deve aparecer · saída real · ensaio num clone · 13/10/2026 (o identificador do commit será outro)</span>
+<pre class="saida">537fb14 (estudo) estudo: modelo e teste de estudo
+ dbt/models/estudo/estudo_pedidos_por_status.sql | 3 +++
+ dbt/tests/estudo_falha_proposital.sql           | 3 +++
+ 2 files changed, 6 insertions(+) </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git branch -D estudo</pre>
@@ -4042,20 +4074,28 @@ fluxo_batch  manual__2026-09-25T13:44:37.036774+00:00  success  2026-09-25T13:44
 
 <section class="roteiro" id="r33">
 <h4><span class="rid">R33</span> Criar e registrar a DAG de estudo (experimento X)</h4>
-<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r33-dag-estudo">o L5b, a DAG de estudo</a></span> · <span><strong>De pé:</strong> o Airflow</span> · <span><strong>Muda estado:</strong> uma branch <code>estudo</code> com um <em>commit</em> e a DAG no banco de metadados — desfeitos no R39</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc5">PC-5</a></span></p>
+<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r33-dag-estudo">o L5b, a DAG de estudo</a></span> · <span><strong>De pé:</strong> o Airflow e o armazém com as views de consumo — a DAG de estudo conta as linhas de uma delas</span> · <span><strong>Muda estado:</strong> uma branch <code>estudo</code> com um <em>commit</em>, a DAG no banco de metadados, as execuções dela e os <em>logs</em> — desfeitos no R39, salvo os <em>logs</em> das tarefas e a auditoria do Airflow</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a>, <a href="#pc5">PC-5</a></span></p>
 <p>R33 a R39 formam uma sequência: a branch e a DAG de estudo ficam de pé até o R39, que as desfaz.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git status --porcelain=v1</pre>
-<p>A linha de base: anote o que aparece. O R39 confere que voltou a ser igual. Em 12/10, a única pendência era um arquivo de trabalho ainda não versionado; na sua máquina, aparece o que estiver pendente aí — ou nada, com a árvore limpa.</p>
+<p>A linha de base: anote o que aparece. O R39 confere que voltou a ser igual. Em 12/10, a única pendência era um arquivo de trabalho ainda não versionado; na sua máquina, aparece o que estiver pendente aí — ou nada, com a árvore limpa. Se alguma linha tiver letra na <strong>primeira</strong> coluna (<code>M</code>, <code>A</code>, <code>D</code>, <code>R</code>: alteração já preparada com <code>git add</code>), pare: o <em>commit</em> do estudo a levaria junto, e ela sumiria da <code>main</code> com a branch. Antes de começar, faça o <em>commit</em> dela na <code>main</code> ou tire-a do índice com <code>git restore --staged</code> e o caminho do arquivo.</p>
 <span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
 <pre class="saida">?? CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md </pre>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">git branch --show-current</pre>
+<p>Confirme que você está na <code>main</code>: a branch de estudo nasce dela, e o fim do roteiro volta para ela.</p>
+<span class="rotulo-saida">deve aparecer · saída real · ensaio num clone · 13/10/2026</span>
+<pre class="saida">main </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> você está em outra branch. Volte para a <code>main</code> antes de começar; senão, o roteiro termina num lugar diferente de onde começou.</p>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git switch -c estudo</pre>
 <p>Cria a branch de estudo.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">Switched to a new branch 'estudo' </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> o mais provável é <code>fatal: a branch named 'estudo' already exists</code>: sobrou uma branch de estudo de outra vez. Pare e veja o que ela tem com <code>git log --oneline --stat main..estudo</code> antes de decidir se a apaga.</p>
 </li>
 <li><span class="onde editor">editor de texto</span>
 <p>Crie <code>airflow/dags/estudo_didatica.py</code> e cole nele o código do bloco <strong>A DAG de estudo</strong>, no L5b, como está.</p>
@@ -4170,6 +4210,8 @@ default@e2739e45aef5:/opt/airflow </pre>
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 <li><span class="onde navegador">navegador</span>
 <p>A CLI não mostra o número da tentativa. Na interface, abra a execução e a tarefa <strong>instavel</strong>, aba <strong>Logs</strong>.</p>
@@ -4227,6 +4269,8 @@ estudo_didatica                  dormir                 upstream_failed  2026-10
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 </ol>
 <p class="voltar">↩ Voltar para <a href="#ref-r35-mascarada">o L5b, a falha mascarada</a> · <a href="#ref-r35-l5b1">o exercício l5b-1</a></p>
@@ -4257,6 +4301,9 @@ Tarefas Afetadas: 3 — dbt_consumption, dbt_fronteiras, dbt_docs
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
 <p>Confira que nenhuma ingestão se repetiu: as capturas continuam as mesmas.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">psql (16.15)
+Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select count(distinct snapshot_id) as capturas from governance.legacy_captures;</pre>
@@ -4317,6 +4364,8 @@ estudo_didatica  2026-10-12T21:36:57+00:00  dormir                 failed   2026
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 </ol>
 <p>Nunca use <code>docker stop</code> para isso: ele mata o trabalho sem deixar estado terminal.</p>
@@ -4328,7 +4377,7 @@ estudo_didatica  2026-10-12T21:36:57+00:00  dormir                 failed   2026
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r38-agenda">o L5c</a>, <a href="#ref-r38-l5c1">o exercício l5c-1</a></span> · <span><strong>De pé:</strong> o Airflow e a DAG de estudo (R33)</span> · <span><strong>Muda estado:</strong> quatro execuções de <em>backfill</em>, desfeitas no R39</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
 <ol class="passos-r">
 <li><span class="onde navegador">navegador</span>
-<p>Na execução agendada do R33, abra a tarefa <strong>intervalo_de_dados</strong>, aba <strong>XCom</strong>. No Airflow 3, a data lógica e as duas pontas do intervalo são o mesmo instante.</p>
+<p>Na execução agendada do R33, abra a tarefa <strong>intervalo_de_dados</strong>, aba <strong>XCom</strong>. Nesta instalação — o padrão do Airflow 3.2.2, <code>CronTriggerTimetable</code> —, a data lógica e as duas pontas do intervalo são o mesmo instante: o horário previsto no <em>cron</em>, 21:20, embora a execução tenha começado às 21:29.</p>
 <span class="rotulo-saida">deve aparecer · tela real · 12/10/2026</span>
 <pre class="saida">data_interval_end    2026-10-12 21:20:00+00:00
 data_interval_start  2026-10-12 21:20:00+00:00
@@ -4401,6 +4450,8 @@ estudo_didatica  backfill__2026-10-12T00:00:00+00:00       success  2026-10-12T0
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 </ol>
 <p class="voltar">↩ Voltar para <a href="#ref-r38-agenda">o L5c</a> · <a href="#ref-r38-l5c1">o exercício l5c-1</a></p>
@@ -4408,7 +4459,8 @@ estudo_didatica  backfill__2026-10-12T00:00:00+00:00       success  2026-10-12T0
 
 <section class="roteiro" id="r39">
 <h4><span class="rid">R39</span> Sair da branch de estudo sem deixar rastro</h4>
-<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r39-sair">o L5c, sair da branch de estudo</a></span> · <span><strong>De pé:</strong> o Airflow</span> · <span><strong>Muda estado:</strong> desfaz o R33 ao R38</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
+<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r39-sair">o L5c, sair da branch de estudo</a></span> · <span><strong>De pé:</strong> o Airflow, com a sequência R33–R38 terminada</span> · <span><strong>Muda estado:</strong> apaga a DAG de estudo — registro, execuções e <em>backfill</em> —, a branch e o arquivo-sinal; ficam os <em>logs</em> das tarefas e a auditoria do Airflow, e o R36, que mexeu na <code>fluxo_batch</code>, não se desfaz</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
+<p>Antes de começar, confira na interface que nenhuma execução da DAG de estudo está <code>running</code> ou <code>queued</code>: pausar não encerra o que já roda, e o <code>dags delete</code> recusa enquanto houver tarefa rodando (<code>TaskInstances still running</code>). Se houver, espere terminar ou marque a execução como falha, como no R37.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">docker exec -it mvp_ed1-airflow_scheduler-1 bash</pre>
@@ -4416,11 +4468,15 @@ estudo_didatica  backfill__2026-10-12T00:00:00+00:00       success  2026-10-12T0
 </li>
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">airflow dags pause estudo_didatica</pre>
-<p>Pausa a DAG de estudo: nenhuma execução nova.</p>
+<p>Pausa a DAG de estudo: nenhuma execução nova. Na validação, ela já estava pausada por um passo da própria validação, e a resposta foi esta; despausada, ela é pausada agora.</p>
+<span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
+<pre class="saida">No unpaused DAGs were found </pre>
 </li>
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git switch main</pre>
@@ -4453,6 +4509,16 @@ Removed 76 record(s) </pre>
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">git log --oneline --stat main..estudo</pre>
+<p>Antes de apagar a branch, veja o que vai embora com ela: só o <em>commit</em> do R33, com o arquivo da DAG. Se aparecer outro arquivo, pare: é trabalho seu que entrou no <em>commit</em>. Recupere-o antes, com <code>git restore --source estudo</code> e o caminho dele.</p>
+<span class="rotulo-saida">deve aparecer · saída real · ensaio num clone · 13/10/2026 (o identificador do commit será outro)</span>
+<pre class="saida">1b3c58b (estudo) estudo: DAG de estudo
+ airflow/dags/estudo_didatica.py | 60 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 60 insertions(+) </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">git branch -D estudo</pre>
@@ -4468,7 +4534,7 @@ Removed 76 record(s) </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">sleep 65</pre>
-<p>Espera um ciclo, para garantir que a DAG não volta.</p>
+<p>Espera um minuto e confere de novo. Não é garantia para sempre — a busca de arquivos novos roda a cada 300 s —, mas o arquivo já saiu da pasta, e não há o que o Airflow redescobrir.</p>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">docker exec -it mvp_ed1-airflow_scheduler-1 bash</pre>
@@ -4485,9 +4551,11 @@ fluxo_batch | /opt/mvp_ed1/airflow/dags/fluxo_batch.py | data_custodian | False 
 <li><span class="onde conteiner">contêiner · scheduler</span>
 <pre class="cmd sem-prompt">exit</pre>
 <p>Sai do contêiner.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">exit </pre>
 </li>
 </ol>
-<p>O <code>dags delete</code> não apaga os arquivos de <em>log</em> das tarefas: a pasta <code>dag_id=estudo_didatica</code> continua no volume de <em>logs</em> do Airflow (conferido em 12/10). Não ocupa nada que importe; não precisa limpar à mão.</p>
+<p>O <code>dags delete</code> não apaga os arquivos de <em>log</em> das tarefas: a pasta <code>dag_id=estudo_didatica</code> continua no volume de <em>logs</em> do Airflow (conferido em 12/10). Não ocupa nada que importe; não precisa limpar à mão. Para devolver os serviços — pausar o Airflow, se foi você que o subiu —, siga o <a href="#pc9">PC-9</a>.</p>
 <p class="voltar">↩ Voltar para <a href="#ref-r39-sair">o L5c, sair da branch de estudo</a></p>
 </section>
 
@@ -4496,7 +4564,7 @@ fluxo_batch | /opt/mvp_ed1/airflow/dags/fluxo_batch.py | data_custodian | False 
 <section class="roteiro" id="r40">
 <h4><span class="rid">R40</span> Subir e conferir o streaming</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r40-l6">o L6, subir e conferir</a>, <a href="#ref-r40-l0stream">o L0, o início do stream-up</a></span> · <span><strong>De pé:</strong> os três bancos</span> · <span><strong>Muda estado:</strong> pausa o Airbyte e liga o <em>streaming</em></span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
-<p>R40 a R45 formam uma sequência: o <em>streaming</em> fica de pé do R40 ao fim do R45.</p>
+<p>R40 a R45 formam uma sequência: o <em>streaming</em> fica de pé do R40 ao fim do R45. O R40 termina com a linha de base dos alertas, que o R45 compara depois de produzir.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make stream-up</pre>
@@ -4542,7 +4610,7 @@ mvp.oltp.inventory_movements    1           1 </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">docker exec mvp_ed1_redpanda rpk group describe mvp_ed1_beam</pre>
-<p>O grupo de consumo do Beam: em que <em>offset</em> ele parou e quanto falta (<code>LAG</code>). <code>STATE Empty</code> quer dizer que nenhum Beam está conectado agora.</p>
+<p>O grupo de consumo do Beam: em que <em>offset</em> ele parou e quanto falta (<code>LAG</code>). <code>STATE Empty</code> quer dizer só que ninguém se registrou como membro do grupo — e o Beam deste projeto nunca se registra: ele escolhe a partição por conta própria (<code>assign</code>) e usa o grupo só para guardar o <em>offset</em>. Para saber se o Beam roda, olhe o terminal dele.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">GROUP                  mvp_ed1_beam
 COORDINATOR-NODE       0
@@ -4561,6 +4629,24 @@ mvp.oltp.inventory_movements  0          30051           30051             30051
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
 0          0       3      [0]       30051             30051 </pre>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">make stream-alerts</pre>
+<p>A linha de base dos alertas, antes de produzir: o R45 compara com ela. Em 12/10, os alertas antigos já tinham saído por retenção — a primeira linha, do cliente Kafka, avisa isso —, então a base era zero.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">2026-10-12 19:02:37,691 INFO apache_beam.io.gcp.bigquery: No module named google.cloud.bigquery_storage_v1. As a result, the ReadFromBigQuery transform *CANNOT* be used with `method=DIRECT_READ`.
+%4|1791842557.795|OFFSET|rdkafka#consumer-1| [thrd:main]: mvp.alerts.inventory_low_stock [0]: offset reset (at offset 0 (leader epoch -1), broker 0) to cached BEGINNING offset offset 14 (leader epoch -1): fetch failed due to requested offset not available on the broker: Broker: Offset out of range
+tópico mvp.alerts.inventory_low_stock: 0 alertas
+  aberturas (cruzaram o limiar de 25 para baixo): 0
+  normalizações (voltaram acima): 0
+  correções de evento atrasado: 0 </pre>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic describe mvp.alerts.inventory_low_stock -p</pre>
+<p>O início e o fim do log de alertas agora. Anote os dois.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
+0          0       2      [0]       14                14 </pre>
 </li>
 </ol>
 <p class="voltar">↩ Voltar para <a href="#ref-r40-l6">o L6, subir e conferir</a> · <a href="#ref-r40-l0stream">o L0, o início do stream-up</a></p>
@@ -4733,7 +4819,7 @@ occurred_at        | 2026-10-12 22:04:42.005735+00 </pre>
 
 <section class="roteiro" id="r44">
 <h4><span class="rid">R44</span> Idempotência, provada com duplicatas</h4>
-<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r44-duplicatas">o L6, idempotência</a>, <a href="#ref-r44-l62">o exercício l6-2</a></span> · <span><strong>De pé:</strong> o <em>streaming</em> e o Beam do R42 — ou um novo, pelos passos 1 e 2</span> · <span><strong>Muda estado:</strong> 250 mensagens repetidas no tópico; o destino não muda — é isso que se prova</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
+<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r44-duplicatas">o L6, idempotência</a>, <a href="#ref-r44-l62">o exercício l6-2</a></span> · <span><strong>De pé:</strong> o <em>streaming</em>, o Beam do R42 — ou um novo, pelos passos 1 e 2 — e o armazém</span> · <span><strong>Muda estado:</strong> 250 mensagens repetidas no tópico, e o <em>offset</em> do grupo avança; o destino não muda — é isso que se prova. Se o passo 1 rodar, ele pausa o Airbyte</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
 <ol class="passos-r">
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
 <pre class="cmd">make stream-up</pre>
@@ -4767,7 +4853,7 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select count(*) as linhas, sum(quantity_delta) as soma_quantidade, md5(string_agg(concat_ws('|', movement_id, event_sequence, idempotency_key, warehouse_id, product_variant_id, movement_type, quantity_delta, unit_cost, source_type, source_id, correlation_id, causation_id, aggregate_version, occurred_at, recorded_at, schema_version, metadata::text), ',' order by movement_id)) as digest_eventos from raw.inventory_movements_stream;</pre>
-<p>Contagem, soma e um <em>digest</em> (MD5) de todas as colunas de todos os eventos.</p>
+<p>Contagem, soma e um <em>digest</em> (MD5) das colunas do evento, em todos os eventos. Os metadados de entrega (<code>_stream_*</code>) ficam de fora: a prova é sobre o conteúdo.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida"> linhas | soma_quantidade |          digest_eventos
 --------+-----------------+----------------------------------
@@ -4861,27 +4947,9 @@ Type "help" for help. </pre>
 
 <section class="roteiro" id="r45">
 <h4><span class="rid">R45</span> Os alertas do intervalo</h4>
-<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r45-alertas">o L6, alertas</a></span> · <span><strong>De pé:</strong> o <em>streaming</em> e o Beam do R42 (ou o do R44)</span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
-<p>Para contar os alertas de um intervalo, tire a linha de base <strong>antes</strong> de produzir (antes do R41) e compare depois.</p>
+<p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r45-alertas">o L6, alertas</a></span> · <span><strong>De pé:</strong> o <em>streaming</em> e o Beam do R42 (ou o do R44)</span> · <span><strong>Muda estado:</strong> encerra o Beam (Ctrl-C) e pausa o <em>streaming</em>, se foi você que o subiu</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a></span></p>
+<p>A linha de base dos alertas vem do fim do R40, antes de produzir; aqui, depois do R44, a leitura nova e a diferença. A diferença só conta alertas novos se o início do log (<code>LOG-START-OFFSET</code>) não mudou entre as duas leituras: confira os dois limites.</p>
 <ol class="passos-r">
-<li><span class="onde terminal">segundo terminal · raiz do projeto</span>
-<pre class="cmd">make stream-alerts</pre>
-<p>Antes do R41: lê o tópico de alertas inteiro e resume. Em 12/10 os alertas antigos já tinham saído por retenção — a primeira linha, do cliente Kafka, avisa isso —, então a base era zero.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
-<pre class="saida">2026-10-12 19:02:37,691 INFO apache_beam.io.gcp.bigquery: No module named google.cloud.bigquery_storage_v1. As a result, the ReadFromBigQuery transform *CANNOT* be used with `method=DIRECT_READ`.
-%4|1791842557.795|OFFSET|rdkafka#consumer-1| [thrd:main]: mvp.alerts.inventory_low_stock [0]: offset reset (at offset 0 (leader epoch -1), broker 0) to cached BEGINNING offset offset 14 (leader epoch -1): fetch failed due to requested offset not available on the broker: Broker: Offset out of range
-tópico mvp.alerts.inventory_low_stock: 0 alertas
-  aberturas (cruzaram o limiar de 25 para baixo): 0
-  normalizações (voltaram acima): 0
-  correções de evento atrasado: 0 </pre>
-</li>
-<li><span class="onde terminal">segundo terminal · raiz do projeto</span>
-<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic describe mvp.alerts.inventory_low_stock -p</pre>
-<p>O fim do log de alertas antes de produzir.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
-<pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
-0          0       2      [0]       14                14 </pre>
-</li>
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
 <pre class="cmd">make stream-alerts</pre>
 <p>Depois do R44: os alertas do intervalo são a diferença. Zero também é resultado: o ramo de alerta só emite quando o <em>watermark</em> fecha as janelas, e pode demorar uns minutos. O saldo dentro do alerta tem um defeito conhecido, ainda em aberto (D62).</p>
@@ -4904,13 +4972,13 @@ tópico mvp.alerts.inventory_low_stock: 12 alertas
 </li>
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
 <pre class="cmd">docker exec mvp_ed1_redpanda rpk topic describe mvp.alerts.inventory_low_stock -p</pre>
-<p>O novo fim do log: 14 → 26, doze alertas.</p>
+<p>O início continua em 14, e o fim foi de 14 a 26: doze alertas novos.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
 0          0       3      [0]       14                26 </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
-<p>Agora, no <strong>primeiro</strong> terminal, aperte <strong>Ctrl-C</strong> no Beam. Antes da última linha, ele despeja vários <em>tracebacks</em> do gRPC (<code>StatusCode.CANCELLED</code>, <code>StatusCode.UNAVAILABLE</code>, <code>Stream removed</code>): é o executor local do Beam sendo derrubado, e as conexões dos trabalhadores caindo junto — não uma falha. O que importa é a última linha.</p>
+<p>Confira antes que o esperado já aconteceu — o corte alcançado (R42) e os alertas contados (acima) — e então, no <strong>primeiro</strong> terminal, aperte <strong>Ctrl-C</strong> no Beam. Neste encerramento, os <em>tracebacks</em> do gRPC (<code>StatusCode.CANCELLED</code>, <code>StatusCode.UNAVAILABLE</code>, <code>Stream removed</code>) apareceram depois do Ctrl-C, junto da parada do executor local do Beam — compatíveis com o fechamento dos canais. A mesma mensagem durante o processamento, sem Ctrl-C, pede investigação. A última linha diz que o <em>offset</em> confirmado retoma de onde parou.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
 <pre class="saida">…
 grpc._channel._MultiThreadedRendezvous: &lt;_MultiThreadedRendezvous of RPC that terminated with:
@@ -4923,7 +4991,7 @@ pipeline interrompido. O offset confirmado retoma de onde parou. </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make stream-pause</pre>
-<p>Pausa o <em>streaming</em>. Para retomar o Airbyte, veja o <a href="#pc9">PC-9</a>.</p>
+<p>Pausa o <em>streaming</em>, se foi você que o subiu (no R40 ou no R44). Para retomar o Airbyte, veja o <a href="#pc9">PC-9</a>.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">streaming pausado — 2 contêineres parados. Retomar: make stream-resume </pre>
 </li>
