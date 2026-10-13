@@ -1,0 +1,123 @@
+{
+ "gerado_em": "2026-10-13T05:31:13Z",
+ "manifesto_arquivo": "42f4d251ba9579f5362a350406d53f1a9feaded9eac2cf76d2996074b0ece837",
+ "minutos": {
+  "claude_code": 2847,
+  "claude_owner": 555,
+  "claude_work": 2292,
+  "codex": 974,
+  "terminal": 0,
+  "total": 3690,
+  "trail": 0
+ },
+ "parametros": {
+  "gap_sessao_min": 15,
+  "pagina_ociosa_min": 5,
+  "terminal_intervalo_min": 5,
+  "terminal_teto_min": 30
+ },
+ "por_dia": {
+  "2026-09-01": {
+   "codex": 49,
+   "total": 49
+  },
+  "2026-09-05": {
+   "codex": 154,
+   "total": 154
+  },
+  "2026-09-06": {
+   "codex": 54,
+   "total": 54
+  },
+  "2026-09-07": {
+   "codex": 53,
+   "total": 53
+  },
+  "2026-09-08": {
+   "codex": 49,
+   "total": 49
+  },
+  "2026-09-14": {
+   "claude_code": 175,
+   "codex": 82,
+   "total": 255
+  },
+  "2026-09-15": {
+   "claude_code": 367,
+   "codex": 47,
+   "total": 393
+  },
+  "2026-09-16": {
+   "claude_code": 83,
+   "codex": 31,
+   "total": 104
+  },
+  "2026-09-17": {
+   "claude_code": 251,
+   "codex": 51,
+   "total": 268
+  },
+  "2026-09-18": {
+   "claude_code": 266,
+   "codex": 71,
+   "total": 337
+  },
+  "2026-09-19": {
+   "claude_code": 30,
+   "codex": 27,
+   "total": 56
+  },
+  "2026-09-20": {
+   "claude_code": 205,
+   "codex": 50,
+   "total": 240
+  },
+  "2026-09-21": {
+   "claude_code": 66,
+   "codex": 34,
+   "total": 100
+  },
+  "2026-09-23": {
+   "claude_code": 171,
+   "codex": 20,
+   "total": 191
+  },
+  "2026-09-24": {
+   "claude_code": 247,
+   "codex": 21,
+   "total": 261
+  },
+  "2026-09-25": {
+   "claude_code": 289,
+   "codex": 33,
+   "total": 307
+  },
+  "2026-10-03": {
+   "claude_code": 115,
+   "codex": 67,
+   "total": 171
+  },
+  "2026-10-04": {
+   "claude_code": 259,
+   "codex": 26,
+   "total": 270
+  },
+  "2026-10-12": {
+   "claude_code": 277,
+   "codex": 55,
+   "total": 332
+  },
+  "2026-10-13": {
+   "claude_code": 46,
+   "total": 46
+  }
+ },
+ "registros": {
+  "artifact.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "claude_code.jsonl": "dd74a0f2b85eefaad084e5eaf1522860c3c894ee2949d8a6f75d1da1c1cc4741",
+  "codex.jsonl": "2082f5ba70b375079680bd97781ddd9e10b01a6c2f1d9918db54aebe3c425d8a",
+  "pagina.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "terminal.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "secoes": {}
+}

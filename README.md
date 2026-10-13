@@ -33,6 +33,10 @@ saídas reais de uma execução em 04/10/2026. É um HTML autocontido: baixe o a
 navegador, porque o GitHub mostra o código-fonte em vez da página. **Não é documento do projeto** e
 fica fora do mapa abaixo: em divergência, vale o documento.
 
+As horas de construção e de estudo são somadas pelo [relógio de estudo](CONVERSAS_COM_CHAT/estudo/README.md),
+que publica a [auditoria das horas](CONVERSAS_COM_CHAT/estudo/auditoria.md) com os registros de onde
+cada minuto veio. Também fica fora do mapa abaixo.
+
 ## Fases
 
 1. **Local (pré-GCP)** — duas origens transacionais, geração determinística de dados, ingestão,
