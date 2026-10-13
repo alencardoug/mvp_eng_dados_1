@@ -1237,10 +1237,10 @@ estudo_didatica()</code></pre>
 <pre class="saida">"level":"error","event":"Task failed with exception", …
 "exc_type":"KeyError","exc_value":"'logical_date'", …
 "filename":"/opt/mvp_ed1/airflow/dags/estudo_didatica.py","lineno":46,"name":"intervalo_de_dados"</pre>
-<p>No Airflow 3, uma execução manual não tem data lógica, e a chave nem existe no contexto. Os dois <em>retries</em> não adiantaram nada, porque erro de código não é transitório. A correção é <code>ctx.get(...)</code>; disparada de novo, a tarefa devolveu <code>"logical_date": "None"</code>. Este caso volta no <a href="#desafio">desafio final</a>.</p>
+<p>No Airflow 3, uma execução disparada pela CLI (<code>airflow dags trigger</code>, sem <code>--logical-date</code>) não tem data lógica, e a chave nem existe no contexto; o formulário "Acionar Dag" da interface, ao contrário, preenche uma. Os dois <em>retries</em> não adiantaram nada, porque erro de código não é transitório. A correção é <code>ctx.get(...)</code>; disparada de novo, a tarefa devolveu <code>"logical_date": "None"</code>. Este caso volta no <a href="#desafio">desafio final</a>.</p>
 
 <h4>Reexecução parcial na DAG real</h4>
-<p>A CLI <code>airflow tasks clear</code> filtra por intervalo de datas, e uma execução manual não tem data lógica. A forma precisa é a API REST, que aceita o identificador da execução. Primeiro o ensaio (<code>dry_run</code>), depois de verdade, só para <code>dbt_docs</code>, a última tarefa:</p>
+<p>A CLI <code>airflow tasks clear</code> filtra por intervalo de datas, e a execução do <code>make dag-run</code>, disparada pela CLI, não tem data lógica. A forma precisa é a API REST, que aceita o identificador da execução. Primeiro o ensaio (<code>dry_run</code>), depois de verdade, só para <code>dbt_docs</code>, a última tarefa:</p>
 <pre class="cmd sem-prompt">POST /api/v2/dags/fluxo_batch/clearTaskInstances
 {"dag_run_id": "manual__2026-10-04T05:23:55.971491+00:00", "task_ids": ["dbt_docs"],
  "include_downstream": true, "only_failed": false, "reset_dag_runs": true, "dry_run": false}</pre>
@@ -1675,8 +1675,8 @@ check: as quatro etapas passaram</pre>
 </div>
 <div class="exercicio" data-ex="d-3">
   <p class="competencia">Diagnosticar uma falha de DAG pelo log e corrigi-la.</p>
-  <p>Na branch <code>estudo</code>, troque na DAG de estudo os três <code>ctx.get(...)</code> de <code>intervalo_de_dados</code> por <code>ctx[...]</code>. Despause, espere uma execução agendada passar, e então dispare uma manual. Uma delas falha. Descubra qual, por quê, e corrija.</p>
-  <details><summary>Caminho de conferência</summary><p>A agendada passa; a manual falha nas três tentativas com <code>KeyError: 'logical_date'</code> (aba Logs, ou <code>/opt/airflow/logs/dag_id=estudo_didatica/run_id=manual__…/task_id=intervalo_de_dados/attempt=1.log</code> no scheduler). No Airflow 3, execução manual não tem data lógica, e a chave nem entra no contexto. Os <em>retries</em> não ajudam, porque o erro não é transitório. A correção é <code>ctx.get(...)</code>, e o XCom passa a mostrar <code>"logical_date": "None"</code>. Não esqueça a saída da branch (<a href="#l5c">L5c</a>).</p></details>
+  <p>Na branch <code>estudo</code>, troque na DAG de estudo os três <code>ctx.get(...)</code> de <code>intervalo_de_dados</code> por <code>ctx[...]</code>. Despause, espere uma execução agendada passar, e então dispare uma manual pela CLI. Uma delas falha. Descubra qual, por quê, e corrija.</p>
+  <details><summary>Caminho de conferência</summary><p>A agendada passa; a manual falha nas três tentativas com <code>KeyError: 'logical_date'</code> (aba Logs, ou <code>/opt/airflow/logs/dag_id=estudo_didatica/run_id=manual__…/task_id=intervalo_de_dados/attempt=1.log</code> no scheduler). No Airflow 3, a execução disparada pela CLI sem <code>--logical-date</code> não tem data lógica, e a chave nem entra no contexto; pela interface, o formulário preencheria uma. Os <em>retries</em> não ajudam, porque o erro não é transitório. A correção é <code>ctx.get(...)</code>, e o XCom passa a mostrar <code>"logical_date": "None"</code>. Não esqueça a saída da branch (<a href="#l5c">L5c</a>).</p></details>
 </div>
 
 <!-- ───────────────────────── BASTIDORES ───────────────────────── -->
@@ -1734,7 +1734,7 @@ check: as quatro etapas passaram</pre>
   <dt id="g-kind"><em>kind</em></dt><dd><em>Kubernetes in Docker</em>: um cluster Kubernetes inteiro dentro de um contêiner. É onde o <code>abctl</code> instala o Airbyte. (L1)</dd>
   <dt id="g-lag"><em>Lag</em></dt><dd>Quantas mensagens o grupo de consumo ainda não confirmou: fim do log menos o <em>offset</em> confirmado. (L6)</dd>
   <dt id="g-linhagem">Linhagem</dt><dd>De onde vem cada tabela ou coluna. O dbt desenha a de modelos; o projeto gera também a por coluna (Dicionário §3). (L4, L7)</dd>
-  <dt id="g-logical-date">Data lógica</dt><dd>A data que identifica uma execução agendada. Execuções manuais no Airflow 3 não têm. (L5b, L5c)</dd>
+  <dt id="g-logical-date">Data lógica</dt><dd>A data que identifica uma execução agendada. No Airflow 3, a execução manual disparada pela CLI sem <code>--logical-date</code> não tem; a da interface recebe a que o formulário preenche. (L5b, L5c)</dd>
   <dt id="g-lsn">LSN</dt><dd><em>Log Sequence Number</em>: a posição de uma transação no WAL do PostgreSQL. (Jornada, L6)</dd>
   <dt id="g-materializacao">Materialização</dt><dd>Como o dbt grava um modelo: view, tabela, incremental, efêmero. (L4)</dd>
   <dt id="g-offset"><em>Offset</em></dt><dd>A posição de uma mensagem numa partição do tópico. O consumidor confirma até onde processou. (L6)</dd>

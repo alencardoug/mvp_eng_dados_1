@@ -1287,8 +1287,9 @@ na validação, ou escondiam o que aparece na tela. Foram corrigidos na declara�
 - **Gerador**, fora do Git, em `data/medicoes/material_estudo/secao11/`. `spec.py`, `spec_b.py` e
   `spec_c.py` declaram o texto de cada passo e de onde vem a saída. `transcricoes.py` e `gerar.py`
   tiram a saída da transcrição, pelo comando que abriu o passo. `aplicar.py` aplica à trilha o CSS,
-  o sumário, a capa, as Convenções, a O4, a procedência, os 70 links ▶ e a seção. Escritos à mão, só
-  as telas do navegador (rotuladas "tela real") e os arquivos que o roteiro manda criar.
+  o sumário, a capa, as Convenções, as correções do resumo (a O4 e a data lógica da §15.6), a
+  procedência, os 70 links ▶ e a seção. Escritos à mão, só as telas do navegador (rotuladas "tela
+  real") e os arquivos que o roteiro manda criar.
 - **Resultado**: 9 procedimentos, 50 roteiros e 70 pontos de origem.
 - **Conferências sobre a página final** (`entrega/`):
   - navegação OK na trilha local e na variante, e as negativas acusando 1 problema (um ponto sem
@@ -1296,24 +1297,26 @@ na validação, ou escondiam o que aparece na tela. Foram corrigidos na declara�
   - varredura sem achados em 278 arquivos: página, variante, plano, evidências e gerador;
   - as duas senhas digitadas, a do Airbyte e a do Airflow, em nenhum arquivo;
   - as partes revistas conferidas no Chrome, nos dois temas.
-- **Commits**, cada um depois do `make check-offline` com código 0: a O4, a seção 11 e este plano.
-  Sem *push*.
-- **Artifact**: versão 10, com o conteúdo igual ao da variante local, salvo o invólucro que a
-  publicação acrescenta.
+- **Commits**, cada um depois do `make check-offline` com código 0: a O4, a seção 11, este plano e,
+  depois, a correção da data lógica (§15.6). Sem *push*.
+- **Artifact**: republicado a partir da trilha commitada, com o conteúdo igual ao da variante local,
+  salvo o invólucro que a publicação acrescenta.
 
 ### 15.6 Achados para o Owner
 
-1. **"Execução manual não tem data lógica" vale só para a CLI.** O resumo diz isso em três lugares:
-   o diagnóstico da falha no L5b, a reexecução parcial na DAG real e o caminho de conferência do
-   desafio final. Medido em 12/10:
+1. **"Execução manual não tem data lógica" vale só para a CLI.** O resumo dizia isso em quatro
+   lugares: o diagnóstico da falha no L5b, a reexecução parcial na DAG real, o desafio final e o
+   glossário. Medido em 12/10:
    - a execução manual pela CLI (`airflow dags trigger`, a mesma do `make dag-run`) ficou com
      `logical_date` nula (R35);
    - a execução manual pela interface teve `2026-10-12T21:36:57+00:00` (R37): o formulário
      "Acionar Dag" preenche uma.
 
-   O desafio final manda "disparar uma manual" sem dizer como; pela interface, a falha esperada pode
-   não acontecer — isso não foi testado. **Decisão pendente:** corrigir as três frases, como na O4,
-   ou manter o resumo como está.
+   O desafio final mandava "disparar uma manual" sem dizer como; pela interface, a falha esperada
+   pode não acontecer — isso não foi testado. **Decidido pelo Owner em 12/10/2026: corrigir** ("Se
+   há correções a fazer, faça"). As quatro passagens dizem agora que a falta de data lógica é da
+   execução disparada pela CLI, e o desafio pede o disparo pela CLI. As trocas estão no
+   `aplicar.py`, junto com as da O4.
 2. **Os *logs* da DAG de estudo ficam no volume** depois do `airflow dags delete`: 18 pastas em
    `/opt/airflow/logs/dag_id=estudo_didatica`. O R39 diz isso e não manda limpar.
 3. **A retenção do Redpanda apagou o *offset* 29603** que o passo 2 do caminho quente mostra. O
