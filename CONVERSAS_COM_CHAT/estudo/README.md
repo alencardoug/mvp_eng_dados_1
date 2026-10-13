@@ -17,7 +17,7 @@
 | ↳ você entre turnos | as mesmas | do último evento até o seu pedido seguinte |
 | Construção e revisão com o Codex | sessões do Codex abertas na pasta do projeto (`~/.codex/sessions/`) | eventos a até 15 min formam um bloco |
 | Estudo na trilha | o relógio da página, local e no Artifact | um minuto conta quando a aba está visível e houve rolagem, clique ou tecla nos últimos 5 min |
-| Execução no terminal | o gancho do bash, só dentro da pasta do projeto | a duração de cada comando, até 30 min, mais até 5 min entre um comando e o seguinte |
+| Execução no terminal | o gancho do bash, só dentro da pasta do projeto | um minuto conta quando houve tecla no terminal nos últimos 5 min: o Enter de cada comando e, enquanto ele roda, as teclas dentro dele (`psql`, contêiner) |
 
 O total é a **união** dos minutos: um minuto em que o Claude trabalhava e você lia a trilha conta uma
 vez. Os parâmetros ficam no começo de [`study_clock.py`](study_clock.py), e a auditoria os repete.
@@ -39,7 +39,10 @@ página, e só quando quem vê é o dono. Os minutos de lá entram na soma quand
 importa — peça "traga os minutos do Artifact".
 
 **Terminal:** nada a fazer. Nos terminais abertos depois da instalação, cada comando digitado dentro
-da pasta do projeto é registrado. `ESTUDO_SEM_REGISTRO=1` desliga num terminal.
+da pasta do projeto é registrado e, enquanto ele roda, um vigia anota a cada 20 s se houve tecla
+naquele terminal — só o minuto, nunca a tecla. `ESTUDO_SEM_REGISTRO=1` desliga num terminal. Um
+terminal aberto antes da chegada do vigia (13/10/2026) continua com o gancho antigo, que só
+vê o Enter: feche e abra de novo, ou rode `source ~/.bashrc`.
 
 **Fechar o dia:**
 
@@ -71,9 +74,13 @@ O `archive` guarda uma cópia das transcrições; o `import` extrai delas os min
 - **O passado tem buracos conhecidos.** As transcrições do Claude Code anteriores a 14/09/2026 foram
   apagadas pela limpeza automática antes de este registro existir; o Codex cobre o projeto desde
   01/09/2026. O estudo na trilha e no terminal antes de 13/10/2026 não foi medido.
-- **O terminal vê só o histórico do bash.** Comandos começados por espaço e repetidos idênticos não
-  entram no histórico (`HISTCONTROL=ignoreboth`). Dentro de um `psql` ou de um contêiner, o tempo conta
-  como a duração do comando que os abriu, até o teto de 30 min.
+- **O terminal vê o histórico do bash e as teclas, não o que elas dizem.** Comandos começados por
+  espaço e repetidos idênticos não entram no histórico (`HISTCONTROL=ignoreboth`). Dentro de um `psql`
+  ou de um contêiner, conta o minuto com tecla nos últimos 5 min, pelo horário de acesso do
+  dispositivo do terminal — o mesmo sinal que o `w` usa para a ociosidade, que o núcleo atualiza de 8
+  em 8 s. Esperar um comando longo sem digitar pausa a contagem, como ler a página sem tocar nela.
+  Até 13/10/2026 a regra era a duração do comando, com teto de 30 min; a regra nova vale para todos
+  os registros.
 - **Relógio da máquina.** Os horários vêm do relógio desta máquina (coletor, gancho e transcrições) e
   do navegador (Artifact).
 

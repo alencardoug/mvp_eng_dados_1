@@ -46,8 +46,8 @@ PORT = 8770
 
 # Parâmetros do método — a auditoria os repete, e mudar um muda a soma.
 GAP_SESSION_MIN = 15   # Claude Code e Codex: eventos a até 15 min um do outro formam um bloco contínuo
-TERMINAL_CAP_MIN = 30  # um comando conta no máximo 30 min (um psql esquecido aberto não vira horas)
-TERMINAL_GAP_MIN = 5   # entre dois comandos, até 5 min contam (ler o roteiro, escrever o próximo)
+TERMINAL_IDLE_MIN = 5  # no terminal, um minuto conta com tecla nos últimos 5 min: o Enter de cada comando
+                       # e as teclas vistas pelo vigia enquanto ele roda (psql, contêiner); sem teto
 PAGE_IDLE_MIN = 5      # na página, sem interação por 5 min o relógio pausa (study_clock.js)
 
 HOOK_BEGIN = "# >>> relógio de estudo — mvp_eng_dados_1 >>>"
@@ -287,12 +287,9 @@ def compute() -> dict:
     page_all = set(page_sections)
 
     terminal_all: set[dt.datetime] = set()
-    commands = sorted((parse_ts(r["start"]), parse_ts(r["end"])) for r in terminal if r.get("start") and r.get("end"))
-    for start, end in commands:
-        terminal_all |= expand(start, min(end, start + dt.timedelta(minutes=TERMINAL_CAP_MIN)))
-    for (_, end_a), (start_b, _) in zip(commands, commands[1:]):
-        if dt.timedelta(0) < start_b - end_a <= dt.timedelta(minutes=TERMINAL_GAP_MIN):
-            terminal_all |= expand(end_a, start_b)
+    keys = [parse_ts(r["start"]) for r in terminal if r.get("start")] + [parse_ts(r["input"]) for r in terminal if r.get("input")]
+    for key in keys:
+        terminal_all |= expand(key, key + dt.timedelta(minutes=TERMINAL_IDLE_MIN - 1))
 
     activities = {
         "claude_code": claude_all, "claude_work": claude_work, "claude_owner": claude_owner,
@@ -356,7 +353,7 @@ def cmd_report(_args) -> int:
         f"| ↳ você entre turnos: lendo, decidindo, escrevendo | {hm(m['claude_owner'])} | as mesmas | do último evento até o seu pedido seguinte |",
         f"| Construção e revisão com o Codex | {hm(m['codex'])} | sessões do Codex na pasta do projeto | eventos a até {GAP_SESSION_MIN} min formam um bloco |",
         f"| Estudo na trilha | {hm(m['trail'])} | relógio da página, local e no Artifact | minuto com a aba visível e uso nos últimos {PAGE_IDLE_MIN} min |",
-        f"| Execução no terminal | {hm(m['terminal'])} | gancho do bash, só na pasta do projeto | duração do comando, até {TERMINAL_CAP_MIN} min, mais até {TERMINAL_GAP_MIN} min entre comandos |",
+        f"| Execução no terminal | {hm(m['terminal'])} | gancho do bash, só na pasta do projeto | minuto com tecla no terminal nos últimos {TERMINAL_IDLE_MIN} min |",
         f"| **Total, sem contar o mesmo minuto duas vezes** | **{hm(m['total'])}** | a união dos minutos acima | |",
         "",
         "## Por dia",
@@ -395,14 +392,20 @@ def cmd_report(_args) -> int:
         f"- Trilha: o relógio da página grava um minuto quando a aba está visível e houve rolagem, clique ou tecla nos "
         f"últimos {PAGE_IDLE_MIN} min. Ler sem tocar em nada por mais tempo pausa a contagem. Mede presença e uso, não compreensão.",
         f"- Terminal: só comandos digitados dentro da pasta do projeto; grava início, fim e o nome do programa, nunca o "
-        f"comando inteiro. Comandos repetidos idênticos ou começados por espaço não entram no histórico do bash e não são vistos.",
+        f"comando inteiro, e, enquanto o comando roda, o minuto de cada tecla no terminal (dentro de um `psql` ou de um "
+        f"contêiner, inclusive), nunca a tecla. Um minuto conta com tecla nos últimos {TERMINAL_IDLE_MIN} min: esperar um "
+        f"comando longo sem digitar pausa a contagem. Comandos repetidos idênticos ou começados por espaço não entram no "
+        f"histórico do bash e não são vistos.",
+        "- Terminal, mudança de regra em 13/10/2026: até então contava a duração do comando, com teto de 30 min, mais até 5 min "
+        "entre comandos; o teto perdia o estudo longo dentro do `psql` e contava como uso um programa parado. A regra nova vale "
+        "para todos os registros, inclusive os anteriores, que não têm as teclas e contam só o Enter de cada comando.",
         "- O estudo na trilha e no terminal antes de 13/10/2026 não foi medido.",
     ]
     (HERE / "auditoria.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     summary = {"gerado_em": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "minutos": m, "por_dia": result["per_day"],
                "secoes": result["sections"], "registros": {n: h for n, _, h in integrity}, "manifesto_arquivo": archive_hash,
-               "parametros": {"gap_sessao_min": GAP_SESSION_MIN, "terminal_teto_min": TERMINAL_CAP_MIN,
-                              "terminal_intervalo_min": TERMINAL_GAP_MIN, "pagina_ociosa_min": PAGE_IDLE_MIN}}
+               "parametros": {"gap_sessao_min": GAP_SESSION_MIN, "terminal_ocioso_min": TERMINAL_IDLE_MIN,
+                              "pagina_ociosa_min": PAGE_IDLE_MIN}}
     (HERE / "resumo.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(f"total: {hm(m['total'])} (Claude Code {hm(m['claude_code'])}, Codex {hm(m['codex'])}, "
           f"trilha {hm(m['trail'])}, terminal {hm(m['terminal'])}) → {HERE / 'auditoria.md'}")
