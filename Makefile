@@ -109,6 +109,7 @@ fi
 endef
 
 .PHONY: help env install up down reset ps logs psql-source psql-legacy psql-warehouse \
+        pgcli-source pgcli-legacy pgcli-warehouse \
         migrate migrate-down migrate-new migrate-status migrate-legacy migrate-legacy-down \
         migrate-legacy-status migrate-legacy-new catalog seed-data seed-plan size-report test test-carga \
         tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
@@ -781,3 +782,30 @@ psql-legacy: require-env ## Abre o psql na origem legada
 
 psql-warehouse: require-env ## Abre o psql no armazém
 	@$(COMPOSE) exec warehouse_db psql -U "$$(grep ^WAREHOUSE_DB_USER .env | cut -d= -f2)" -d "$$(grep ^WAREHOUSE_DB_NAME .env | cut -d= -f2)"
+
+# O pgcli é o cliente interativo do Owner para explorar com autocompletar de
+# colunas; vive fora do projeto (`uv tool`) e conecta pela porta publicada no
+# host. A sessão nasce somente leitura, cai sozinha se ficar parada dentro de
+# uma transação — o bloqueio de leitura seguraria o `dbt run` e as migrações —
+# e pede confirmação antes de qualquer comando destrutivo. O nome de aplicação
+# `pgcli` a identifica em `pg_stat_activity`.
+define pgcli
+@command -v pgcli >/dev/null || { \
+	echo "ERRO: pgcli ausente. Instale com: uv tool install --with 'psycopg[binary]' pgcli"; \
+	exit 1; \
+}
+@set -a; . ./.env; set +a; \
+	PGPASSWORD="$$$(1)_DB_PASSWORD" \
+	PGOPTIONS="-c default_transaction_read_only=on -c idle_in_transaction_session_timeout=5min" \
+	exec pgcli --warn all --application-name pgcli --auto-vertical-output \
+		-h localhost -p "$$$(1)_DB_PORT" -U "$$$(1)_DB_USER" -d "$$$(1)_DB_NAME"
+endef
+
+pgcli-source: require-env ## Abre o pgcli, somente leitura, na origem transacional
+	$(call pgcli,SOURCE)
+
+pgcli-legacy: require-env ## Abre o pgcli, somente leitura, na origem legada
+	$(call pgcli,LEGACY)
+
+pgcli-warehouse: require-env ## Abre o pgcli, somente leitura, no armazém
+	$(call pgcli,WAREHOUSE)

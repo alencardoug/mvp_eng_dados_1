@@ -205,6 +205,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make ps` | Estado e portas dos contêineres | Etapa 2 |
 | `make logs` | Acompanha os logs; `SERVICE=source_db` filtra | Etapa 2 |
 | `make psql-source` · `make psql-legacy` · `make psql-warehouse` | Abre o `psql` no banco correspondente | Etapa 2 |
+| `make pgcli-source` · `make pgcli-legacy` · `make pgcli-warehouse` | Abre o pgcli, com autocompletar de colunas, em sessão somente leitura que cai após 5 min parada dentro de transação e pede confirmação antes de comando destrutivo. É opcional e fica fora do projeto: `uv tool install --with 'psycopg[binary]' pgcli` | Pós-M5 |
 | `make down` | Derruba os contêineres preservando os volumes | Etapa 2 |
 | `make reset` | Derruba e apaga os volumes — recomeço do zero | Etapa 2 |
 | `make migrate-down` | Desfaz migrações; `TO=base` derruba tudo | Etapa 3 |
