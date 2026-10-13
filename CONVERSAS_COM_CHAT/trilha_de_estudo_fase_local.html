@@ -760,7 +760,7 @@ airbyte-abctl-workload-launcher-d7f56c5d6-866hp      1/1     Running     19
 airbyte-db-0                                         1/1     Running     7
 …</pre>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r17-kubectl" href="#r17">▶ passo a passo · R17</a></p>
-<p>Cada <em>pod</em> é um serviço do Airbyte: <code>server</code> (API e interface), <code>worker</code> e <code>workload-launcher</code> (disparam as sincronizações, que nascem como <em>pods</em> próprios de replicação), <code>temporal</code> (o motor de fluxos), <code>airbyte-db-0</code> (o PostgreSQL interno, onde ficam o contador de <em>jobs</em> e os cursores). Os <code>RESTARTS</code> altos são compatíveis com as pausas e retomadas, em que cada pausa é um <code>docker stop</code> no nó inteiro (inferência, não medida).</p>
+<p>Os <em>pods</em> são serviços do Airbyte e, alguns, tarefas que terminam: <code>server</code> (API e interface), <code>worker</code> e <code>workload-launcher</code> (disparam as sincronizações, que rodam em <em>pods</em> próprios de replicação, só enquanto duram), <code>temporal</code> (o motor de fluxos), <code>airbyte-db-0</code> (o PostgreSQL interno, onde ficam o contador de <em>jobs</em> e os cursores) e <code>airbyte-abctl-bootloader</code>, que prepara a instalação e fica em <code>Completed</code>. Os <code>RESTARTS</code> altos são compatíveis com as pausas e retomadas, em que cada pausa é um <code>docker stop</code> no nó inteiro (inferência, não medida).</p>
 <p>Leia na composição dos bancos (<code>docker/docker-compose.yml</code>) três boas práticas que o projeto usa <span class="classe i">I</span>:</p>
 <pre class="arquivo"><code>image: postgres:16.15-alpine@sha256:cf78e766…   # tag para ler, digest para garantir a mesma imagem sempre
 mem_limit: 2g                                      # consulta desgovernada morre; a máquina não vai junto
@@ -1053,7 +1053,7 @@ Done. PASS=1 WARN=0 ERROR=1 SKIP=0 NO-OP=0 REUSED=0 TOTAL=2</pre>
 
 <!-- ───────────────────────── L5a ───────────────────────── -->
 <h3 id="l5a">L5a · Airflow: disparo, estados e logs</h3>
-<p><strong>Conceito.</strong> Uma <a class="g" href="#g-dag">DAG</a> é um grafo de tarefas com dependências, escrito em Python. O Airflow 3.2.2 deste projeto tem quatro processos: o <strong>api-server</strong> (interface e API REST, porta 8081), o <strong>scheduler</strong> (decide o que roda e, com o <code>LocalExecutor</code>, executa as tarefas), o <strong>dag-processor</strong> (lê os arquivos de DAG) e o banco de metadados (<code>airflow_db</code>). A pasta <code>airflow/</code> do repositório é montada <em>só leitura</em> dentro dos contêineres: editar o arquivo no <em>host</em> muda a DAG.</p>
+<p><strong>Conceito.</strong> Uma <a class="g" href="#g-dag">DAG</a> é um grafo de tarefas com dependências, escrito em Python. O Airflow 3.2.2 deste projeto tem quatro serviços permanentes, cada um no seu contêiner: o <strong>api-server</strong> (interface e API REST, porta 8081), o <strong>scheduler</strong> (decide o que roda e, com o <code>LocalExecutor</code>, executa as tarefas), o <strong>dag-processor</strong> (lê os arquivos de DAG) e o banco de metadados (<code>airflow_db</code>). Um quinto contêiner, <code>airflow_init</code>, só migra o banco e termina. A pasta <code>airflow/</code> do repositório é montada <em>só leitura</em> dentro dos contêineres: editar o arquivo no <em>host</em> muda a DAG.</p>
 <p>A <code>fluxo_batch</code> tem 13 tarefas: as duas sincronizações em paralelo (com o certificado de captura do legado em volta) e depois <strong>uma tarefa por camada</strong> do dbt. Não é um <code>dbt build</code> só, de propósito: com tarefas por camada, uma falha em <code>analytics</code> é reexecutável sem repetir a ingestão, e o histórico diz <em>onde</em> quebrou.</p>
 <pre class="arquivo"><code># airflow/dags/fluxo_batch.py (trechos)
 @dag(dag_id="fluxo_batch", schedule=None,          # disparo explícito, não agendado
@@ -1306,7 +1306,7 @@ scheduled__2026-10-04T05:00:00+00:00  running  2026-10-04T05:00:00+00:00  2026-1
 <pre class="saida">"logical_date":        "2026-10-04 05:00:00+00:00",
 "data_interval_start": "2026-10-04 05:00:00+00:00",
 "data_interval_end":   "2026-10-04 05:00:00+00:00"</pre>
-<p>No Airflow 2, uma execução <em>cron</em> das 05:00 tinha data lógica igual ao <strong>início do intervalo anterior</strong> (04:50) e cobria 04:50–05:00. No Airflow 3, com o padrão desta instalação, a data lógica é o próprio momento do disparo, e o "intervalo" tem largura zero. Quem escreve consultas incrementais por <code>data_interval_start/end</code> precisa saber disso.</p>
+<p>No Airflow 2, uma execução <em>cron</em> das 05:00 tinha data lógica igual ao <strong>início do intervalo anterior</strong> (04:50) e cobria 04:50–05:00. Nesta instalação vale o padrão do Airflow 3.2.2, <code>create_cron_data_intervals = False</code>, que usa o <code>CronTriggerTimetable</code>: a data lógica é o horário previsto no <em>cron</em> — 05:00, mesmo que a execução comece depois —, e o "intervalo" tem largura zero. Com <code>True</code>, o <code>CronDataIntervalTimetable</code> volta à regra do Airflow 2. Quem escreve consultas incrementais por <code>data_interval_start/end</code> precisa saber disso.</p>
 
 <h4>Backfill</h4>
 <pre class="cmd">$A airflow backfill create --dag-id estudo_didatica --from-date 2026-10-04T00:00:00+00:00 --to-date 2026-10-04T00:30:00+00:00 --max-active-runs 1 --dry-run</pre>
@@ -1329,7 +1329,7 @@ Runs to be attempted:
 <p>Bastaria trocar <code>schedule=None</code> por um <em>cron</em>, por exemplo <code>"0 6 * * *"</code> (06:00 UTC, todo dia). O projeto <strong>não</strong> faz isso, e o motivo está no código: na fase local a origem é regerada à mão, e uma DAG que rodasse sozinha sincronizaria dado que ninguém pediu, retendo uma captura do legado a cada vez. <span class="selo nao">explicado, não aplicado</span></p>
 
 <h4>Variables e Connections</h4>
-<p>Uma <strong>Variable</strong> é um valor de configuração guardado no Airflow; uma <strong>Connection</strong> guarda host, porta, usuário e senha de um sistema externo, cifrados com a chave Fernet. O projeto não usa nenhuma das duas: as tarefas recebem as conexões por variável de ambiente, declaradas no compose a partir do <code>.env</code>.</p>
+<p>Uma <strong>Variable</strong> é um valor de configuração guardado no Airflow; uma <strong>Connection</strong> guarda host, porta, usuário e senha de um sistema externo. Com uma chave Fernet válida, o Airflow cifra a senha e o <code>extra</code> da Connection e o valor da Variable; host, porta e usuário ficam sem essa cifra. O projeto não usa nenhuma das duas: as tarefas recebem as conexões por variável de ambiente, declaradas no compose a partir do <code>.env</code>.</p>
 <div class="caixa achado"><span class="titulo">Achado desta validação: não dá para gravar Variable nem Connection</span>
 <pre class="saida" style="margin:6px 0">airflow.sdk.exceptions.AirflowException: Could not create Fernet object: Fernet key must be 32 url-safe base64-encoded bytes.</pre>
 <p>O <code>Makefile</code> gera a <code>AIRFLOW_FERNET_KEY</code> com 32 caracteres alfanuméricos, mas a chave precisa ser 32 bytes em base64 (44 caracteres, como a que <code>Fernet.generate_key()</code> produz). Nunca apareceu porque nada no projeto grava Variable ou Connection. Por isso a DAG de estudo usa arquivo-sinal no sensor e variáveis de ambiente na leitura. Corrigir é decisão do Owner. <span class="selo nao">Variables e Connections não validados</span></p></div>
@@ -1357,11 +1357,11 @@ backfills no banco de metadados: 0 · arquivo-sinal: ausente · Deleted branch e
     <li><strong>Explique</strong> por que o horário da interface não bate com o do agendamento.</li>
   </ol>
   <p class="ir-roteiro"><a class="roteiro" id="ref-r38-l5c1" href="#r38">▶ passo a passo · R38</a></p>
-  <details><summary>Conferir</summary><p>A das 14:00, com data lógica 14:00 (semântica do Airflow 3; no 2 seria 13:50). A interface mostra o fuso do navegador (−03:00), e o agendamento é em UTC.</p></details>
+  <details><summary>Conferir</summary><p>A das 14:00, com data lógica 14:00: nesta configuração, a data lógica é o horário previsto no <em>cron</em> (no Airflow 2, que usava o início do intervalo, seria 13:50). A interface mostra o fuso do navegador (−03:00), e o agendamento é em UTC.</p></details>
 </div>
 <p><strong>O que muda de estado:</strong> execuções da DAG de estudo no banco de metadados, apagadas pela saída acima. <span class="classe i">I</span> <code>schedule=None</code>, <code>catchup=False</code> e o porquê. <span class="classe x">X</span> <em>cron</em>, backfill, <code>params</code>, sensor, Variables e Connections (bloqueados pelo achado), <em>pools</em>.</p>
 <div class="falar"><h4>Como falar disso</h4>
-<p>"Agendo por <em>cron</em> em UTC, entendo <code>catchup</code>, <code>start_date</code> e a mudança de semântica de data lógica do Airflow 3, faço backfill com limite de concorrência próprio e sei limpar uma DAG do banco de metadados na ordem certa. Validando um material de estudo, achei que a chave Fernet gerada pelo projeto era inválida, o que impedia Connections e Variables."</p></div>
+<p>"Agendo por <em>cron</em> em UTC, entendo <code>catchup</code>, <code>start_date</code> e a data lógica de <em>cron</em> no Airflow 3 (o <code>CronTriggerTimetable</code>), faço backfill com limite de concorrência próprio e sei limpar uma DAG do banco de metadados na ordem certa. Validando um material de estudo, achei que a chave Fernet gerada pelo projeto era inválida, o que impedia Connections e Variables."</p></div>
 <div class="niveis" data-ex="l5c-1"></div>
 
 <!-- ───────────────────────── L6 ───────────────────────── -->
@@ -1392,13 +1392,13 @@ _mvp_connect_status           5           1
 mvp.oltp.inventory_movements  1           1
 
 GROUP        mvp_ed1_beam
-STATE        Empty                      ← nenhum Beam conectado agora
+STATE        Empty                      ← ninguém registrado como membro do grupo
 TOTAL-LAG    21391
 TOPIC                         PARTITION  CURRENT-OFFSET  LOG-START-OFFSET  LOG-END-OFFSET  LAG
 mvp.oltp.inventory_movements  0          6009            13700             27400           21391</pre>
 <p>Os tópicos <code>_mvp_connect_*</code> são onde o Kafka Connect guarda a própria configuração, os <em>offsets</em> do conector (a posição no WAL) e o status. O tópico de alertas ainda não existia; ele nasce no primeiro alerta, porque o Redpanda cria tópicos sozinho (<code>auto_create_topics_enabled = true</code>).</p>
 <div class="caixa atencao"><span class="titulo">Um offset que não existe mais</span>
-<p>O grupo do Beam apontava para o <em>offset</em> 6009, mas o log começa em 13700: o estado ficou assim depois da restauração de 25/09. Ao subir, o Beam pediu o 6009, o consumidor caiu para o mais antigo disponível (<code>auto.offset.reset: earliest</code>) e <strong>releu 13.700 mensagens antigas</strong>. O destino, idempotente, barrou todas. Custo: tempo, e um efeito nos alertas (abaixo).</p></div>
+<p>O <code>Empty</code> não diz se o Beam roda: ele escolhe a partição por conta própria (<code>assign</code>) e usa o grupo só para guardar o <em>offset</em> confirmado, sem se registrar como membro. O grupo do Beam apontava para o <em>offset</em> 6009, mas o log começa em 13700: o estado ficou assim depois da restauração de 25/09. Ao subir, o Beam pediu o 6009, o consumidor caiu para o mais antigo disponível (<code>auto.offset.reset: earliest</code>) e <strong>releu 13.700 mensagens antigas</strong>. O destino, idempotente, barrou todas. Custo: tempo, e um efeito nos alertas (abaixo).</p></div>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r40-l6" href="#r40">▶ passo a passo · R40</a></p>
 
 <h4>Produzir, ver chegar, encerrar</h4>
@@ -1416,7 +1416,7 @@ INFO streaming: livro 15901/15901 até a sequência 15901 — faltam 0
 livro alcançou a sequência 15901: 15901 eventos em 26.3s
 [medir] grupo 307937 encerrou limpo em 2s
 | cenario:streaming | streaming,bancos | 1m 20s | 6,6 GB | 1,7 GB | 20 amostras … | 645.3 MB |</pre>
-<p>Essas linhas "livro N/15901" são o dado migrando, contado no destino a cada 2 s. No encerramento, o Beam imprime um <em>traceback</em> de gRPC ("Failed to read inputs in the data plane"), um ruído conhecido do executor local depois do SIGINT, já registrado no ciclo de 25/09.</p>
+<p>Essas linhas "livro N/15901" são o dado migrando, contado no destino a cada 2 s. No encerramento por SIGINT, o Beam imprimiu <em>tracebacks</em> de gRPC ("Failed to read inputs in the data plane") junto da parada do executor local, como no ciclo de 25/09 — compatíveis com o fechamento dos canais. A mesma mensagem durante o processamento, sem o SIGINT, pede investigação.</p>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r41-medir" href="#r41">▶ passo a passo · R41</a></p>
 <p>Para operar à mão: <code>make stream-run</code> num terminal (primeiro plano, Ctrl-C encerra), e no outro <code>make stream-produce LIMITE=200</code>, <code>make stream-corte</code> e <code>make stream-wait ATE_SEQ=&lt;corte&gt;</code>.</p>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r42-mao" href="#r42">▶ passo a passo · R42</a></p>
@@ -1466,7 +1466,7 @@ Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905</pre>
     <li><strong>Explique</strong> o que são <code>op</code>, <code>lsn</code> e <code>snapshot</code> no envelope.</li>
   </ol>
   <p class="ir-roteiro"><a class="roteiro" id="ref-r43-l61" href="#r43">▶ passo a passo · R43</a></p>
-  <details><summary>Conferir</summary><p><code>op: "c"</code> é uma inserção (<code>"r"</code> seria leitura do <em>snapshot</em> inicial); <code>lsn</code> é a posição da transação no WAL; <code>snapshot: "false"</code> diz que veio ao vivo. A diferença entre <code>occurred_at</code> e <code>_stream_extracted_at</code> é a latência de ponta a ponta (~7 s na validação).</p></details>
+  <details><summary>Conferir</summary><p><code>op: "c"</code> é uma inserção (<code>"r"</code> seria leitura do <em>snapshot</em> inicial); <code>lsn</code> é a posição da operação no WAL (a transação é o <code>txId</code>); <code>snapshot: "false"</code> diz que veio ao vivo. A diferença entre <code>occurred_at</code> e <code>_stream_extracted_at</code> é a latência de ponta a ponta (~7 s na validação).</p></details>
 </div>
 <div class="exercicio" data-ex="l6-2">
   <p class="competencia">Consigo provar idempotência com duplicatas de verdade, e não só com contagem.</p>
@@ -1721,11 +1721,11 @@ check: as quatro etapas passaram</pre>
   <dt id="g-chave-substituta">Chave substituta</dt><dd>Identificador gerado pelo armazém (aqui, um <em>hash</em> MD5 que inclui <code>source_system</code>), no lugar do ID da origem. Permite histórico SCD e evita colisão entre origens. (Jornada)</dd>
   <dt id="g-cursor">Cursor (Airbyte)</dt><dd>A coluna (<code>updated_at</code>, <code>created_at</code>) cujo maior valor visto marca até onde a sincronização incremental já leu. A comparação é "maior ou igual". (L3)</dd>
   <dt id="g-dag">DAG</dt><dd><em>Directed Acyclic Graph</em>: tarefas com dependências e sem ciclos. No Airflow, um arquivo Python. (L5a)</dd>
-  <dt id="g-data-interval">Intervalo de dados</dt><dd>O período que uma execução agendada "cobre". No Airflow 3, com agendamento por <em>cron</em> e o padrão desta instalação, tem largura zero: começo = fim = data lógica. (L5c)</dd>
+  <dt id="g-data-interval">Intervalo de dados</dt><dd>O período que uma execução agendada "cobre". Nesta instalação, com agendamento por <em>cron</em> e o padrão do Airflow 3.2.2 (<code>CronTriggerTimetable</code>), tem largura zero: começo = fim = data lógica = horário previsto no <em>cron</em>. (L5c)</dd>
   <dt id="g-dimensao">Dimensão</dt><dd>Tabela com o contexto de um fato: cliente, produto, data. Aqui, com prefixo <code>dim_</code>. (Jornada)</dd>
   <dt id="g-drift"><em>Drift</em></dt><dd>Diferença entre a infraestrutura real e o código que a declara. O <code>terraform plan</code> a revela. (L3)</dd>
   <dt id="g-fato">Fato</dt><dd>Tabela de eventos de negócio medidos, num grão declarado, com chaves para as dimensões. Aqui, prefixo <code>fact_</code>. (Jornada)</dd>
-  <dt id="g-fernet">Fernet</dt><dd>Esquema de criptografia simétrica que o Airflow usa para guardar senhas de Connections e Variables. A chave tem 32 bytes em base64. (L5c)</dd>
+  <dt id="g-fernet">Fernet</dt><dd>Esquema de criptografia simétrica que o Airflow usa para guardar a senha e o <code>extra</code> das Connections e o valor das Variables. A chave tem 32 bytes em base64. (L5c)</dd>
   <dt id="g-full-refresh"><em>Full refresh</em></dt><dd>Sincronização que traz a tabela inteira a cada vez. Com <em>overwrite</em>, troca a tabela no destino. (L3)</dd>
   <dt id="g-grao">Grão</dt><dd>O que uma linha da fato representa. Em <code>fact_sales_order_item</code>, um item de pedido. (Jornada)</dd>
   <dt id="g-grupo">Grupo de consumo</dt><dd>Conjunto de consumidores de um tópico que divide as partições e guarda o <em>offset</em> confirmado. O do Beam é <code>mvp_ed1_beam</code>. (L6)</dd>
@@ -1735,7 +1735,7 @@ check: as quatro etapas passaram</pre>
   <dt id="g-lag"><em>Lag</em></dt><dd>Quantas mensagens o grupo de consumo ainda não confirmou: fim do log menos o <em>offset</em> confirmado. (L6)</dd>
   <dt id="g-linhagem">Linhagem</dt><dd>De onde vem cada tabela ou coluna. O dbt desenha a de modelos; o projeto gera também a por coluna (Dicionário §3). (L4, L7)</dd>
   <dt id="g-logical-date">Data lógica</dt><dd>A data que identifica uma execução agendada. No Airflow 3, a execução manual disparada pela CLI sem <code>--logical-date</code> não tem; a da interface recebe a que o formulário preenche. (L5b, L5c)</dd>
-  <dt id="g-lsn">LSN</dt><dd><em>Log Sequence Number</em>: a posição de uma transação no WAL do PostgreSQL. (Jornada, L6)</dd>
+  <dt id="g-lsn">LSN</dt><dd><em>Log Sequence Number</em>: uma posição no WAL do PostgreSQL. No envelope do Debezium, <code>source.lsn</code> é a da operação. (Jornada, L6)</dd>
   <dt id="g-materializacao">Materialização</dt><dd>Como o dbt grava um modelo: view, tabela, incremental, efêmero. (L4)</dd>
   <dt id="g-offset"><em>Offset</em></dt><dd>A posição de uma mensagem numa partição do tópico. O consumidor confirma até onde processou. (L6)</dd>
   <dt id="g-preflight">Preflight</dt><dd>A verificação do projeto que mede a memória, vê o que está de pé e pausa a família conflitante antes de subir algo. (L0)</dd>
