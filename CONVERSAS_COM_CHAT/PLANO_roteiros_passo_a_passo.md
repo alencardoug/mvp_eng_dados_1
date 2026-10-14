@@ -1876,3 +1876,193 @@ digitadas não aparecem em nenhum deles. O Artifact foi republicado na versão 1
 - a conferência visual no Chrome, porque a extensão estava desconectada;
 - a conferência das execuções no R39, que ficou como instrução, sem saída gravada;
 - os ramos de pular do R44 e o desafio com o disparo pela interface, que continuam como na §16.4.
+
+## 17. Parecer complementar — compreensão do caminho quente (14/10/2026)
+
+**Pedido do Owner:** registrar nesta troca de revisão as sugestões de melhoria da trilha, para
+que ele peça ao Claude Code que atue. O pedido nasceu de uma dificuldade concreta: primeiro não
+ficou claro o objetivo do passo 2; depois, o Owner esclareceu que precisava compreender **a proposta
+do caminho quente inteiro e a função de cada ferramenta**.
+
+**Parecer do Codex:** recomendo os ajustes abaixo. O material tem evidências e roteiros úteis, mas
+o percurso consultado exige que o leitor já conecte conceitos que ele está tentando aprender.
+A melhoria principal é explicitar a relação **problema de negócio → responsabilidade da ferramenta
+→ transformação do dado → evidência observável**. Há também um problema concreto de continuidade
+no R10: o retrato do tópico está vazio e a mensagem do passo seguinte vem de outro momento e de
+outro movimento. Isso merece tratamento antes dos refinamentos de apresentação.
+
+Esta rodada segue o formato de achados e resposta da
+[skill `revisao`](../.claude/skills/revisao/SKILL.md). **É um parecer, não a implementação dos
+ajustes, nem aceite do material pelo Owner.** Os pareceres e as respostas das rodadas anteriores
+permanecem como histórico. Não foi aberto um `REVISAO.md` concorrente: a troca deste material já
+vive neste plano, conforme a §16.
+
+### 17.1 Base, escopo e mapa de revisão
+
+- **Base lida:** `main`, `e3c226c44291b1bdca89ab9d085797ac1aa21f22`.
+- **Estado inicial do trabalho:** a única alteração indicada pelo Git era o arquivo novo, ainda
+  não rastreado, `CONVERSAS_COM_CHAT/caminho_quente_por_dentro.html`, produzido pelo Codex na conversa
+  imediatamente anterior. Esta rodada acrescenta apenas o parecer ao plano.
+- **Escopo efetivamente lido:** a jornada quente, R09–R13, trechos do mapa, L6, pergunta 1 e
+  glossário; os arquivos de streaming e os modelos SQL necessários para interpretar esse percurso;
+  D62/D63; o mecanismo de serviço e injeção do relógio da trilha. **Não é uma revisão integral dos
+  50 roteiros, nem uma nova auditoria do pipeline.**
+- **Declaração e derivado:** o R10 e o R13 têm declaração em
+  `data/medicoes/material_estudo/secao11/spec.py`; o L6/R45 envolve `spec_c.py`; as substituições do
+  resumo e sua aplicação estão em `aplicar.py`, no mesmo diretório. Esses auxiliares foram lidos
+  nesta máquina e ficam fora do Git. O autor deve atualizar a declaração correspondente e regerar
+  o resultado, preservando a cadeia existente; não corrigir apenas o HTML derivado. Sua presença
+  em outro clone não é pressuposta.
+- **Complemento didático:** a página [Caminho quente por dentro](caminho_quente_por_dentro.html)
+  contém um mapa, explicações e simulações que podem ser aproveitados por link. **É uma proposta
+  de apoio, também sujeita à revisão do Claude Code**, não uma segunda fonte normativa nem uma
+  aprovação da própria entrega pelo Codex. A incorporação à trilha continua sendo uma possibilidade
+  mencionada pelo Owner, não uma publicação já efetuada.
+
+As localizações numéricas abaixo se referem à base desta rodada; os IDs HTML são os pontos de
+referência preferíveis depois da edição. As fontes normativas continuam sendo os documentos do
+projeto, os ADRs e a configuração; não se propõe reescrever ADR aceito nem mudar a arquitetura.
+
+### 17.2 Achados para resposta do Claude Code
+
+`ajuste` indica uma correção ou melhoria recomendada no escopo lido. `observação` indica uma
+possibilidade adicional ou uma condição de integração. A coluna *Situação* deve registrar o que
+foi aplicado, ou a justificativa para não aplicar, conforme a skill.
+
+| ID | Veredito | Onde | Achado e proposta | Critério de conferência | Situação |
+|---|---|---|---|---|---|
+| CQ-01 | ajuste | `#jornada-quente`, linhas 657–658; ligação com R09–R13 | **Abrir o percurso com sua pergunta de negócio e seu objetivo de estudo.** A seção passa do livro imutável/CDC diretamente à saída na origem. Antes do primeiro comando, explicar por que o saldo precisa incorporar uma novidade antes do próximo lote, por que o lote continua existindo e o que se pretende demonstrar acompanhando um movimento. Uma analogia curta de avisos durante o dia e livro completo para conferência ajuda a ligar as etapas. | Sem executar comandos, o leitor consegue dizer para que o fluxo existe, qual domínio cobre e por que existem duas chegadas do mesmo movimento. Um link para o complemento pode fornecer a explicação longa; o propósito deve continuar visível na trilha. | Proposto; aguardando resposta do autor. |
+| CQ-02 | ajuste | Mapa, tabela de ferramentas e `#l6` | **Explicar responsabilidades e relações entre produtos.** A tabela atual já descreve funções; falta conectá-las à viagem antes de exigir operação. Distinguir PostgreSQL na origem e no destino, Debezium como captura, Kafka Connect como executor/gestor do conector, Redpanda como transporte e retenção, Beam como lógica e DirectRunner/Prism como execução local. Situar produtor, Airbyte, dbt, Airflow, Docker e Make em relação ao fluxo. Para cada peça, bastam entrada, saída, motivo e evidência. | O mapa não apresenta Debezium e Connect como duas capturas consecutivas; não confunde Airflow com o consumidor contínuo; mostra o papel do lote e os destinos de movimento e alerta. O aluno consegue explicar quem captura, transporta, grava, consolida e consulta. | Proposto; aguardando resposta do autor. |
+| CQ-03 | ajuste | `#r10`, linhas 2874–2890; `spec.py`, declaração de R10 | **Tornar explícitas as condições de leitura e a troca de exemplo.** O primeiro retrato mostra `LOG-START-OFFSET = HIGH-WATERMARK = 30051`; o passo seguinte pede uma mensagem em `32300`, retirada de um momento posterior. Além disso, R09/R11 seguem o movimento terminado em `b222`, enquanto o JSON do R10 termina em `920c`. Explicar: log vazio não oferece mensagem retida para selecionar; offset expirado exige outro exemplo; inspeção do formato pode usar outro movimento, mas rastreamento ponta a ponta exige a mesma identidade. Separar os caminhos “ler exemplo histórico” e “seguir evento disponível”, com saída clara quando não houver mensagem, sem transformar automaticamente o roteiro de leitura em produção de dados. | Com tópico vazio ou com o evento original expirado, o leitor sabe por que não pode repetir o offset impresso e como encerrar/seguir o roteiro adequado. Não precisa adivinhar que houve produção entre os retratos. Na variante de rastreamento, o mesmo ID aparece na origem, mensagem e destino. Alterações operacionais novas recebem ensaio próprio ou rótulo de não ensaiadas. | Proposto; priorizar antes dos ajustes de apresentação. |
+| CQ-04 | ajuste | Quatro paradas de `#jornada-quente`; R09–R12 | **Declarar o que cada parada comprova.** Acrescentar uma frase de objetivo e uma de limite: origem prova registro; tópico prova publicação; raw quente prova gravação; fato e marcas de chegada permitem conferir consolidação e caminhos. Explicar perto do envelope que `op=c` é inserção no banco, `sale_dispatch` é o fato de negócio, `after` é a linha depois da operação, e o comando de inspeção não aciona o Beam nem apaga a mensagem. Distinguir identidade (`movement_id`), sequência do livro (`event_sequence`), posição no WAL (LSN) e posição na partição (offset). | O leitor não conclui “alerta emitido” ao encontrar uma linha no destino, nem “duas vendas” ao ver duas entregas da mesma identidade. Consegue relacionar `_stream_offset` e `_stream_lsn` à mensagem, sem tratá-los como chaves de negócio intercambiáveis. | Proposto; aguardando resposta do autor. |
+| CQ-05 | ajuste | Caixa da view, linha 707; `#r12`, `#r13`; SQL da view | **Mostrar a conservação do saldo e os dois pontos de encontro.** Acrescentar exemplo explicitamente didático: fato 100 + complemento −38 = 62; depois da incorporação pelo dbt, fato 62 + complemento 0 = 62. Mostrar que a sincronização do Airbyte não reconstrói sozinha a fato; o dbt também pode absorver o raw quente antes da carga de reconciliação. A linha quente permanece armazenada. Explicar que `quantity_from_batch` significa “já absorvido pela fato”, inclusive se chegou inicialmente pelo streaming, e que a anti-junção compara identidade e origem. | O leitor explica a diferença entre união no staging e complemento na view, sem somar duas vezes nem imaginar exclusão do raw. R13 distingue saldo quente não nulo de existência de eventos quentes: deltas podem se cancelar, e a view filtra os pares abaixo do ponto de reposição. Não interpretar zero nessa consulta como prova automática de ausência de streaming. | Proposto; aguardando resposta do autor. |
+| CQ-06 | ajuste | `#l6`, `#g-watermark`, pergunta `#p1`; controles de offset em R10/R44 | **Separar os relógios e os dois usos de “watermark”.** Explicar tempo de evento, registro e processamento com um evento atrasado. Distinguir o `HIGH-WATERMARK` do tópico, uma posição no log, do watermark do Beam, uma estimativa de progresso no tempo de evento. Mostrar a escrita antes do ramo de janelas; a janela de 60 s não é espera obrigatória para gravar cada movimento. Relacionar os 1.200 s à tolerância após o fim da janela no eixo do watermark, não a uma promessa de aceitar qualquer atraso. | O leitor distingue um offset inteiro de um instante, explica por que o dado pode estar gravado antes do alerta e reconhece que a expiração da tolerância do ramo de janelas não apaga o movimento já persistido. Manter hipótese original e configuração vigente com suas procedências, sem alterar o ADR aceito. | Proposto; aguardando resposta do autor. |
+| CQ-07 | ajuste | Pergunta `#p1`, L6 e ligação com `#r45` | **Explicar o alerta pela unidade que o código avalia.** O pipeline soma deltas por janela e mantém saldo entre janelas; a travessia é avaliada ao processar painéis, não necessariamente em cada oscilação de cada evento. Explicar abertura/normalização, supressão de painéis apenas de snapshot e marca de correção tardia. Diferenciar o saldo do acumulador e a consulta que incorpora reservas. Os achados D62/D63 já estão no material: aproximar a referência dos pontos em que se descreve o comportamento pretendido, sem apresentá-los como resolvidos. | Uma oscilação compensada dentro do mesmo painel não é prometida como alerta individual. “Destino alcançou o corte” não vira prova de drenagem do alerta. O leitor sabe que não há consumidor automático de reposição no MVP e onde estão as pendências conhecidas. | Proposto; aguardando resposta do autor. |
+| CQ-08 | ajuste | `#jornada-quente`, título e caixa da view; `#r13` | **Conectar os retratos de validação sem reescrever sua história.** “~7 segundos” descreve um evento de 04/10 até o carimbo no destino, não uma garantia do fluxo inteiro. A caixa da view diz “não capturado nesta validação”, sobre 04/10, enquanto R13 mostra em 12/10 `474` linhas e `214` com parcela quente não nula. Preservar o registro antigo e acrescentar referência explícita à evidência posterior. Rotular expectativa estrutural separadamente dos números históricos de “deve aparecer”. | As duas datas continuam visíveis; o leitor encontra o R13 como observação posterior e não entende que a parcela quente nunca foi observada. Outra execução pode mudar contagens sem, por isso, falhar. Os 7 s não são apresentados como SLA, média ou latência de alerta. | Proposto; aguardando resposta do autor. |
+| CQ-09 | observação | Possível link para `caminho_quente_por_dentro.html`; `estudo/study_clock.py` | **Conferir a integração real antes de anunciar o complemento como parte da trilha.** Preferir link de ida e volta, mantendo a explicação longa em um lugar. O coletor serve apenas caminhos de `git ls-files`, com a lista carregada na inicialização; o HTML novo ainda não rastreado não entra nessa lista. Além disso, o relógio só é injetado quando `relative == TRAIL`, e o complemento não contém o script. Não presumir que linkar passa a contar o tempo de leitura. Se o Owner quiser essa contagem, tratar a extensão explicitamente; não ampliar silenciosamente a auditoria. Conferir também a estratégia dos links na cópia privada do Artifact. | Se incorporado, o destino abre pelo modo de uso escolhido, retorna à seção de origem e respeita o filtro de arquivos do coletor. A página pode continuar independente e sem relógio, desde que isso seja dito. Caso se inclua medição, conferir as seções registradas e o comportamento do contador. Validar a apresentação no navegador: essa inspeção ficou pendente na entrega do complemento. | Condicional à incorporação; decisão e resposta do autor pendentes. |
+| CQ-10 | observação | Padrão didático para outras jornadas e laboratórios | **Reaproveitar a estrutura “objetivo → previsão → ação → evidência → explicação”.** O aprendizado não termina ao reproduzir uma saída. Perguntas curtas ajudam: “o que mudou?”, “o que esta saída prova?”, “o que ainda não foi verificado?” e “o que mudaria se a mensagem chegasse outra vez?”. A trilha já tem autoavaliações; fortalecer a ligação delas com o objetivo do bloco. Esta é uma sugestão de padrão, não um diagnóstico de que todos os demais laboratórios estejam deficientes. | Aplicar primeiro ao caminho quente. Uma expansão posterior para outros capítulos deve ser delimitada e revisada, preservando os três níveis de aprendizado e as evidências existentes. | Sugestão para avaliação do autor. |
+
+### 17.3 Evidências desta rodada e sua natureza
+
+**Leitura de arquivos e Git, sem executar roteiros.** As saídas abaixo foram obtidas nesta rodada.
+Os valores extraídos do HTML são **evidência histórica publicada**, não novas medições de bancos,
+retenção, latência ou alertas.
+
+```text
+$ git rev-parse HEAD
+e3c226c44291b1bdca89ab9d085797ac1aa21f22
+$ git status --short
+?? CONVERSAS_COM_CHAT/caminho_quente_por_dentro.html
+```
+
+A extração abaixo isola as seções, evitando as imagens embutidas e os dados extensos do diagrama:
+
+```python
+from pathlib import Path
+import re
+
+s = Path('CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html').read_text()
+for name, start, end in [
+    ('Jornada', '<h3 id="jornada-quente">', '<h3 id="jornada-scd">'),
+    ('R10', '<section class="roteiro" id="r10">', '<section class="roteiro" id="r11">'),
+    ('R13', '<section class="roteiro" id="r13">', '<section class="roteiro" id="r14">'),
+]:
+    block = s[s.index(start):s.index(end)]
+    ids = list(dict.fromkeys(re.findall(r'"movement_id":\s*"([0-9a-f-]+)"', block)))
+    print(name, 'movement_id no JSON:', ', '.join(ids) or '(não há JSON de movimento)')
+    for needle in ['30051             30051', '-o 29603', '-o 32300',
+                   '474 |                214', 'não capturado nesta validação']:
+        if needle in block:
+            print('  trecho presente:', needle)
+new = Path('CONVERSAS_COM_CHAT/caminho_quente_por_dentro.html').read_text()
+print('Complemento contém script do relógio:',
+      'study_clock.js' in new or '/estudo/relogio.js' in new)
+```
+
+Executado com `python3` por entrada padrão. Saída literal:
+
+```text
+Jornada movement_id no JSON: 19a5f610-86c3-4ca6-bb8a-433c4514b222
+  trecho presente: -o 29603
+  trecho presente: não capturado nesta validação
+R10 movement_id no JSON: 25fe38b8-2957-4c74-beba-12436ac4920c
+  trecho presente: 30051             30051
+  trecho presente: -o 32300
+R13 movement_id no JSON: (não há JSON de movimento)
+  trecho presente: 474 |                214
+Complemento contém script do relógio: False
+```
+
+```text
+$ rg -n 'git.*ls-files|relative not in self.allowed|relative == TRAIL|Collector.allowed = tracked_files' CONVERSAS_COM_CHAT/estudo/study_clock.py
+417:    out = subprocess.run(["git", "ls-files", "-z"], cwd=REPO, capture_output=True, check=True).stdout
+456:        if relative not in self.allowed:  # só arquivo versionado: o .env e o data/ nunca saem daqui
+460:        if relative == TRAIL:
+497:    Collector.allowed = tracked_files()
+```
+
+**Confronto estático adicional, não ensaio do comportamento:**
+
+- `spec.py:203–209` associa a descrição do tópico do R10 a `R40.txt` e a leitura da mensagem a
+  `R43b.txt`. São fontes distintas para os dois passos exibidos juntos.
+- `spec.py:224–233` contém as consultas e explicações do R13; o próprio roteiro já esclarece,
+  adiante, que só aparecem na view pares abaixo do ponto de reposição. CQ-05 propõe antecipar e
+  completar essa interpretação, não afirmar ausência total dessa informação.
+- `dbt/models/consumption/skus_below_reorder_point.sql:30–74` separa fato e complemento, com
+  `NOT EXISTS` por origem e movimento; os cálculos seguintes expõem soma e contagem de eventos
+  separadamente. Deltas não nulos e presença de eventos não são a mesma condição.
+- `src/mvp_ed1/streaming/pipeline.py:272–305` coloca `GravarDeltas` antes de `JanelaDeEvento`,
+  combina deltas por chave e passa o resultado ao acumulador. Os comentários distinguem saldo
+  global de estado por janela.
+- `streaming/fluxo.yml:32–72` declara janela, tolerância, folga e limiar; os comentários registram
+  a procedência da configuração. Nenhum desses valores foi medido de novo nesta rodada.
+- `docs/pendencias.md`, D62/D63, registra problemas no saldo e na espera pelo ramo de alertas.
+  O parecer usa esse estado documentado; não verificou se mudanças ainda não registradas o alteram.
+
+### 17.4 Limites, premissas e ambiente
+
+**Não verificado:**
+
+- Estado atual dos bancos, conector, tópicos, retenção efetiva, offsets ou pipeline Beam.
+- Execução dos casos alternativos sugeridos para o R10; produção de eventos; reconciliação e
+  resultados atuais da view ou dos alertas.
+- Geração de nova trilha, reprodução byte a byte após os ajustes, variante publicável, publicação
+  no Artifact, cópia de comandos ou navegação no navegador.
+- Funcionamento do complemento pelo coletor, contagem de tempo fora da trilha principal,
+  apresentação responsiva, impressão e uso com leitor de tela. A entrega anterior do complemento
+  informou a indisponibilidade da integração de navegador; esta rodada não remove esse limite.
+- Compreensão do Owner após a mudança. O relato da dificuldade é real; a eficácia das soluções
+  didáticas propostas ainda precisa ser observada no estudo.
+
+**Premissas e escolhas:** a trilha continua como percurso principal, os documentos continuam como
+fontes de autoridade e o complemento pode aprofundar sem repetir integralmente suas explicações
+dentro dela. A intenção de incorporar por link não foi convertida em publicação ou em autorização
+para alterar o método de medição. A generalização de CQ-10 é opcional; os achados se apoiam no
+caminho quente lido, não em uma avaliação completa dos outros capítulos.
+
+**Ambiente desta revisão:** leitura de arquivos locais e Git. Não foi necessário iniciar serviço,
+subir banco, trocar ambiente ou usar credenciais. Não foi executado `dossie.py --desde`, pois esta
+é uma nova rodada no dossiê existente; o `comandos.txt` da skill executaria `make check`, com
+reconstrução do dbt, o que não corresponde a este pedido de parecer. Não houve testes do pipeline.
+
+**Onde hesitei:** apenas adicionar um link ao complemento é a alteração mais curta, mas deixa o
+R10 com sua descontinuidade operacional. Recomendo corrigir CQ-03 na declaração, manter na trilha
+um enquadramento breve e os limites das evidências, e usar o complemento para a explicação longa.
+Isso preserva a distinção entre resumo, roteiro executável e aprofundamento conceitual.
+
+### 17.5 Encaminhamento ao autor
+
+Ao atuar a pedido do Owner, responder na coluna *Situação* da §17.2. Priorizar CQ-03 e, em seguida,
+o enquadramento e a conexão entre ferramentas e resultados (CQ-01, CQ-02, CQ-04 e CQ-05). CQ-06 a
+CQ-08 completam a interpretação de tempo, alerta e evidência. CQ-09 depende de como o Owner quiser
+usar o complemento; CQ-10 não amplia por si só o escopo para toda a trilha.
+
+Para alterações na seção gerada, atualizar os declarativos, regerar e conferir os links de ida e
+volta e a variante de publicação. Para mudanças só de explicação, conferir contra as fontes
+citadas. Novos ramos operacionais exigem validação proporcional ao que mudou; os ramos não
+executados permanecem identificados como tais. Não é necessário repetir os 50 roteiros apenas
+para acrescentar uma explicação ou um link.
+
+**Resposta do Claude Code:** aguardando atuação solicitada pelo Owner. Nenhum item desta rodada
+foi marcado como aplicado, nenhuma pendência do projeto foi encerrada e a trilha não foi alterada
+por este parecer.
