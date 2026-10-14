@@ -2248,3 +2248,194 @@ sobre onde ele acontece. Fica para o dono do documento decidir.
 **Commits:** `5819ec3` (o parecer, como veio), `ba8244a` (o `Makefile`), `3418309` (trilha e
 complemento), `bf89ae4` (o relógio) e o desta resposta. Nenhum foi publicado no GitHub: o *push* fica
 para o Owner pedir.
+
+## 18. Plano — os laboratórios ligados ao caminho quente que a §17 deixou de fora (14/10/2026)
+
+**Pedido do Owner:** depois da resposta da §17, perguntou se os laboratórios ligados ao caminho quente
+tinham sido reavaliados. A resposta foi "só em parte": no L6, o conceito, a caixa nova dos relógios e o
+conferir do l6-1; nos roteiros, o último passo do R43 e duas frases no R44 e no R45. O Owner pediu o
+plano do resto, **para o Codex revisar antes de qualquer execução**.
+
+**Estado deste plano:** nada foi mudado na trilha nem rodado na máquina. O inventário da §18.3 vem de
+leitura da trilha publicada (`105be0c`) e das fontes, com as saídas da §18.4.
+
+### 18.1 Objetivo e critérios
+
+Aplicar aos blocos que ficaram de fora os mesmos critérios da §17, e só eles:
+
+| Critério | O que se confere |
+|---|---|
+| C1 · objetivo e limite | o bloco diz o que a saída prova e o que ainda não prova |
+| C2 · fidelidade à fonte | cada afirmação bate com o código, a configuração ou o documento dono; a resposta cita o arquivo e a linha |
+| C3 · rótulos | "deve aparecer" só para a saída que não depende do estado da máquina; o resto é "apareceu", com data, e a expectativa estrutural fica escrita à parte (a regra da caixa "Como ler um roteiro") |
+| C4 · vocabulário da §17 | `HIGH-WATERMARK` é *offset*, não o *watermark* do Beam; *offset* e LSN são endereços, não identidade; painel; o Beam usa `assign` e o grupo só para guardar o *offset* |
+| C5 · executável | roteiro com um comando por passo; comando de exercício alinhado ao roteiro para o qual ele aponta |
+| C6 · sem duplicar | explicação longa vai para o complemento ou para o dono documental, por link; nenhum ADR muda; D62 e D63 continuam abertas |
+
+### 18.2 Escopo
+
+**Dentro:** no L6, o que a §17 não tocou — "Subir e conferir", a caixa "Um *offset* que não existe
+mais", "Produzir, ver chegar, encerrar", "Idempotência", a caixa dos alertas, "Voltar ao lote", os
+exercícios l6-1 (passos) e l6-2, "O que muda de estado" e "Como falar disso"; os roteiros R40, R41, R42,
+R44, R45 e R46, e os passos 1 a 8 do R43; no L0, os blocos do *preflight* do *streaming*; no L3, a carga
+completa do livro e a caixa das views derrubadas; no L4, o ponto em que o dbt encontra o caminho quente.
+
+**Vizinhos, para decisão (§18.8, D-1):** no L8, a ordem do ciclo do zero ("o *snapshot* do *streaming*
+vem antes do primeiro `dbt-build`") e a caixa "Por que o cursor do CDC não está no pacote"; na seção 6,
+as três linhas de *streaming* da tabela de achados; na seção 7, a linha "*Streaming*"; no glossário,
+"Grupo de consumo".
+
+**Fora:** os demais laboratórios; o complemento, revisado na §17, salvo uma referência cruzada; qualquer
+mudança no *pipeline*, no conector ou nas pendências D62/D63.
+
+### 18.3 Inventário preliminar
+
+Leitura do autor, **a confirmar ou derrubar pelo Codex**. "Preliminar" quer dizer que não é exaustivo: o
+Codex pode achar mais dentro do escopo.
+
+| ID | Onde | Observação | Fonte conferida | Proposta | Execução? |
+|---|---|---|---|---|---|
+| CL-01 | L6, conceito | Diz que o Beam consome "como parte de um grupo de consumo"; a caixa logo abaixo e o R40 dizem o contrário: ele escolhe a partição (`assign`) e usa o grupo só para guardar o *offset* confirmado | `src/mvp_ed1/streaming/transport.py` (`leitor.assign`, `committed`); `sink.py` (`_confirmar_offsets`) | Trocar pela forma correta, uma frase | não |
+| CL-02 | Glossário, "Grupo de consumo" | A mesma imprecisão: "divide as partições"; o do Beam não divide nada | as mesmas | Acrescentar que o Beam do projeto usa o grupo só para o *offset* | não |
+| CL-03 | L6, "Um *offset* que não existe mais" | É o mesmo mecanismo que o ensaio do R10 mediu: *offset* fora do log cai no mais antigo (`auto.offset.reset: earliest` no Beam; o `rpk` faz o mesmo sem aviso) | `transport.py:53`; §17.6 | Referência cruzada de uma linha | não |
+| CL-04 | L6, "Produzir, ver chegar, encerrar"; R41; R42 | Sem objetivo e limite: "livro alcançou a sequência" prova a gravação no destino, não que o ramo de alerta drenou (D63) | `docs/pendencias.md` D63; `pipeline.py:272–305` | Uma frase de objetivo e limite em cada um | não |
+| CL-05 | L6, "Idempotência"; R44; exercício l6-2 | "(high watermark: 30051)" e "o *high watermark*" sem dizer que é *offset* (C4); a prova é contagem + *offset* consumido + *digest* igual; os passos 1–2 do R44 são ramos de pular, não exercitados (§16.4) | `rpk`; R44 em `spec_c.py` | Nomear o `HIGH-WATERMARK` como *offset*; manter os ramos rotulados como não ensaiados | não |
+| CL-06 | L6, caixa dos alertas; R45 | O número de alertas depende do tempo (D63), e o R45 o mostra como "deve aparecer" | D63; `R45.txt` | Rótulo "apareceu"; a expectativa estrutural (a diferença só conta se o `LOG-START-OFFSET` não mudou) já está escrita | não |
+| CL-07 | L6, "Voltar ao lote"; R46 | O PASS de `caminhos_de_ingestao_reconciliam` aparece sem dizer o que ele confere: falha com evento que chegou **só pelo lote** (lacuna no CDC) e tolera evento **só pelo fluxo** por até `atraso_maximo_dias` (7 dias, pelo `recorded_at`). Também não diz que a sincronização derruba a view de *staging* do estoque até o `dbt-build` (L3), nem que o `dbt-build` sozinho já absorve o destino quente (§17, CQ-05) | `dbt/tests/caminhos_de_ingestao_reconciliam.sql`; `dbt_project.yml` | Uma frase sobre o teste e duas ligações por link | não |
+| CL-08 | Exercício l6-1, passo 3 | Ainda manda `rpk topic consume … -o <offset> -n 1`, sem o *offset* impresso que o R10 e o R43 passaram a usar | R10/R43 (§17.6) | Alinhar ao comando do R43 | não: o comando é o do R43, ensaiado em 14/10 |
+| CL-09 | Roteiros R40–R46 | As 42 saídas estão como "deve aparecer" (§18.4), e várias dependem do estado: *offsets*, `LAG`, contagens, cortes, *digests* absolutos, alertas | regra da caixa "Como ler" | Classificar uma a uma; o que depende do estado vira "apareceu", com a expectativa estrutural escrita (por exemplo, "o *digest* de depois é igual ao de antes") | não: rótulo vem da declaração |
+| CL-10 | L6, "Como falar disso" (e seção 7, se D-1 incluir) | "tolerância a atraso medida": o que se mediu foi a distribuição dos atrasos; a tolerância foi **dimensionada** pelo teto que a origem declara | `streaming/fluxo.yml` (comentário de `atraso_tolerado_segundos`) | Corrigir a palavra | não |
+| CL-11 | L0, *preflight* do *streaming* | O texto está certo; o "~0,5 GB" é custo declarado (`CUSTO_streaming=485` MB), e a tabela do mapa já o chama de "estimado". Nada a mudar, salvo o que o Codex vir | `docker/preflight.sh:56` | Só conferir | não |
+| CL-12 | L3, caixa "a carga completa derruba views" | Ela lista `stg_retail__inventory_movements` entre as views derrubadas, e não diz o efeito no caminho quente: até o próximo `dbt-build`, o *staging* do estoque não existe. A suposição a provar é que a fato (tabela) e a view de reposição (que lê a fato e o destino quente, não o *staging*) continuam respondendo | `skus_below_reorder_point.sql` (lê `fact_inventory_movement`, dimensões, `trusted.inventory_balances` e a fonte `inventory_movements_stream`) | Uma frase, **só depois** de conferir as dependências no banco | **leitura no banco** (§18.5) |
+| CL-13 | L4 | O L4 não liga o dbt ao caminho quente: o único modelo incremental do projeto é a fato do estoque (`merge`, filtro por tempo de evento, margem de 7 dias, `--full-refresh` para atraso maior), e o *staging* une as duas chegadas | cabeçalhos de `fact_inventory_movement.sql` e `stg_retail__inventory_movements.sql` | Um parágrafo curto com links, sem repetir a jornada | não |
+| CL-14 | L6, "Subir e conferir" | Os comandos históricos de 04/10 juntam dois com `;` num bloco copiável; o roteiro já os separa (R40) | regra do passo a passo humano | Manter o histórico e dizer que o roteiro tem um por passo — ou não mexer (D-3) | não |
+
+### 18.4 O que já foi verificado, com a saída
+
+Contagem dos rótulos nos roteiros, sobre a trilha de `105be0c`:
+
+```text
+R40: 8 saídas · 8 'deve aparecer' · 0 'apareceu'
+R41: 1 saídas · 1 'deve aparecer' · 0 'apareceu'
+R42: 5 saídas · 5 'deve aparecer' · 0 'apareceu'
+R43: 7 saídas · 7 'deve aparecer' · 0 'apareceu'
+R44: 12 saídas · 12 'deve aparecer' · 0 'apareceu'
+R45: 4 saídas · 4 'deve aparecer' · 0 'apareceu'
+R46: 5 saídas · 5 'deve aparecer' · 0 'apareceu'
+```
+
+O custo que o L0 cita:
+
+```text
+$ grep -rn "0,5\|streaming.*GB\|CUSTO" docker/preflight* Makefile | grep -i stream
+docker/preflight.sh:56:CUSTO_streaming=485
+```
+
+O que o teste de reconciliação confere (trecho de `dbt/tests/caminhos_de_ingestao_reconciliam.sql`):
+
+```text
+    from {{ ref('stg_retail__inventory_movements') }}
+    where not (arrived_by_stream and arrived_by_batch)
+…
+where arrived_by_stream is false
+   or recorded_at < (
+        select max(recorded_at) - interval '{{ var("atraso_maximo_dias") }} days'
+        from {{ ref('stg_retail__inventory_movements') }}
+      )
+```
+
+O resto do inventário é leitura das fontes citadas na tabela, sem saída de comando: está na seção do
+não verificado.
+
+### 18.5 Método
+
+**Fase 1 — confronto, sem máquina.** Para cada item da §18.3 e para o que o Codex acrescentar:
+confrontar com a fonte, classificar (correto, impreciso, errado, falta objetivo, rótulo) e anotar o
+arquivo e a linha. Para o CL-09, uma tabela das 42 saídas com a classificação e a expectativa estrutural
+de cada "apareceu" — é o oráculo do item, conferível linha a linha.
+
+**Fase 2 — leitura no banco, só para o CL-12.** Com os três bancos de pé (`make ps`; se faltar algum,
+`make up`), uma consulta de catálogo no `warehouse_db` que lista as views que dependem de
+`raw.inventory_movements`, direta ou indiretamente (`pg_depend` e `pg_rewrite`), e as dependências de
+`consumption.skus_below_reorder_point`. Só leitura: nenhuma sincronização, nenhum `dbt`. Se a lista
+mostrar que a view de reposição depende do *staging*, a frase muda de sentido, e o item volta ao Owner.
+
+**Fase 3 — declaração.** As trocas do resumo entram num grupo novo de `secao11/caminho_quente.py` (o mesmo
+módulo da §17, para a cadeia continuar uma só); os roteiros mudam em `spec_c.py`. A cadeia é a da §17.6:
+`c531b87` → `secao11/aplicar.py` → `secao12/aplicar.py --base`.
+
+**Fase 4 — conferência e entrega.** As mesmas da §17: as duas vias da regeneração diferindo só onde se
+espera; `conferir_navegacao.py` na local e na variante; `conferir_complemento.py`; varredura de segredos;
+fotos no Chrome *headless* dos blocos mudados; `make check-offline` com código 0; Artifact republicado.
+
+**Validação proporcional.** Texto e rótulo não pedem reexecução: a saída vem da transcrição de 12/10, e
+o rótulo diz a data. O único comando novo é o do l6-1 (CL-08), que é o do R43, ensaiado em 14/10. Por
+isso **o plano não reexecuta R40–R46** — a decisão D-2 pergunta se o Owner quer o contrário.
+
+### 18.6 Mudanças de estado
+
+Com o plano como está: nenhuma. A consulta do CL-12 só lê o catálogo do `warehouse_db`.
+
+Se a D-2 pedir o ensaio completo de R40–R46: cerca de 2.250 eventos novos **para sempre** no livro da
+origem (2.200 do R41 e 50 do R42), 250 mensagens repetidas no tópico (R44), alertas novos no tópico de
+alertas, um *job* do Airbyte e um `dbt-build` (R46). A troca entre Airbyte e *streaming* passa pelos
+alvos guardados, sem `FORCE`, e o estado é devolvido pelo PC-9.
+
+### 18.7 Entrega
+
+1. *Commit* deste plano (agora).
+2. Depois da revisão do Codex e da resposta do autor: um *commit* do resumo e dos roteiros, se forem um
+   assunto só, ou dois, se a revisão os separar.
+3. *Commit* da resposta no plano, com a coluna *Situação* da §18.9 preenchida.
+4. Artifact republicado; *push* quando o Owner pedir.
+
+### 18.8 Não verificado, premissas e onde hesitei
+
+**Não verificado:**
+
+- O inventário inteiro, salvo as três saídas da §18.4: CL-01 a CL-14 vêm de leitura da trilha e das
+  fontes, sem consulta nem execução.
+- O CL-12, de propósito: a suposição sobre o que sobrevive à sincronização é a coisa a provar.
+- A duração de um ensaio completo de R40–R46: em 12/10 a fase C foi das 19:01 às 20:47, mas com uma
+  pausa da própria validação no meio. Não foi medida como bloco.
+
+**Premissas:**
+
+- As saídas de 12/10 dos roteiros continuam válidas como história, com o rótulo e a data.
+- A regra dos rótulos é a da caixa "Como ler um roteiro".
+- O *pipeline*, o conector e D62/D63 não mudam nesta rodada.
+
+**Decisões para o Owner** — eu pergunto, com alternativas, antes de executar:
+
+- **D-1 · vizinhos.** Incluir o L8, a seção 6, a seção 7 e o glossário "Grupo de consumo" só como
+  conferência de texto, sem execução — recomendado, porque repetem afirmações do L6 (o CL-10 já aparece
+  na seção 7) —, ou deixá-los para outra rodada.
+- **D-2 · ensaio.** Não reexecutar R40–R46 e só reclassificar os rótulos (recomendado: as mudanças são de
+  texto e rótulo); ou reexecutar tudo, com as marcas permanentes da §18.6, para ter saídas de 2026-10 com
+  o vocabulário novo.
+- **D-3 · comandos históricos com `;` (CL-14).** Manter como estão, com uma frase apontando para o
+  roteiro (recomendado: são o registro de 04/10); ou trocar por dois blocos.
+
+**Onde hesitei:**
+
+- **O CL-13 (L4).** Um parágrafo sobre a fato incremental pode parecer repetir a jornada. A jornada não
+  fala do `merge` nem da margem de 7 dias; o parágrafo só liga o L4 a esses dois pontos, por link.
+- **Um módulo só para as trocas.** Juntar ao `caminho_quente.py` da §17 mantém uma cadeia; um módulo
+  novo deixaria a revisão de cada rodada mais limpa. Fiquei com o mesmo módulo, num grupo próprio.
+
+**Ambiente para a revisão:** nada precisa estar de pé para revisar o plano. Para conferir o CL-12 por
+conta própria, só os três bancos (`make ps`; se faltar algum, `make up`), com uma consulta de leitura.
+
+### 18.9 Achados da revisão do plano
+
+Para o Codex preencher, no formato da skill `revisao`: `bloqueante`, `ajuste` ou `observação`. O autor
+responde na coluna *Situação*.
+
+| ID | Veredito | Onde | Achado | Situação |
+|---|---|---|---|---|
+| | | | | |
+
+**Pedido ao Codex:** confirmar ou derrubar cada CL-01 a CL-14 contra a fonte; procurar o que falta dentro
+do escopo da §18.2; dizer se o método e os oráculos bastam — em especial a tabela das 42 saídas do CL-09
+e a leitura de catálogo do CL-12 —; e opinar sobre D-1 a D-3. Esta rodada não muda nada na trilha antes
+da resposta.
