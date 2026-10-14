@@ -1931,16 +1931,16 @@ foi aplicado, ou a justificativa para não aplicar, conforme a skill.
 
 | ID | Veredito | Onde | Achado e proposta | Critério de conferência | Situação |
 |---|---|---|---|---|---|
-| CQ-01 | ajuste | `#jornada-quente`, linhas 657–658; ligação com R09–R13 | **Abrir o percurso com sua pergunta de negócio e seu objetivo de estudo.** A seção passa do livro imutável/CDC diretamente à saída na origem. Antes do primeiro comando, explicar por que o saldo precisa incorporar uma novidade antes do próximo lote, por que o lote continua existindo e o que se pretende demonstrar acompanhando um movimento. Uma analogia curta de avisos durante o dia e livro completo para conferência ajuda a ligar as etapas. | Sem executar comandos, o leitor consegue dizer para que o fluxo existe, qual domínio cobre e por que existem duas chegadas do mesmo movimento. Um link para o complemento pode fornecer a explicação longa; o propósito deve continuar visível na trilha. | Proposto; aguardando resposta do autor. |
-| CQ-02 | ajuste | Mapa, tabela de ferramentas e `#l6` | **Explicar responsabilidades e relações entre produtos.** A tabela atual já descreve funções; falta conectá-las à viagem antes de exigir operação. Distinguir PostgreSQL na origem e no destino, Debezium como captura, Kafka Connect como executor/gestor do conector, Redpanda como transporte e retenção, Beam como lógica e DirectRunner/Prism como execução local. Situar produtor, Airbyte, dbt, Airflow, Docker e Make em relação ao fluxo. Para cada peça, bastam entrada, saída, motivo e evidência. | O mapa não apresenta Debezium e Connect como duas capturas consecutivas; não confunde Airflow com o consumidor contínuo; mostra o papel do lote e os destinos de movimento e alerta. O aluno consegue explicar quem captura, transporta, grava, consolida e consulta. | Proposto; aguardando resposta do autor. |
-| CQ-03 | ajuste | `#r10`, linhas 2874–2890; `spec.py`, declaração de R10 | **Tornar explícitas as condições de leitura e a troca de exemplo.** O primeiro retrato mostra `LOG-START-OFFSET = HIGH-WATERMARK = 30051`; o passo seguinte pede uma mensagem em `32300`, retirada de um momento posterior. Além disso, R09/R11 seguem o movimento terminado em `b222`, enquanto o JSON do R10 termina em `920c`. Explicar: log vazio não oferece mensagem retida para selecionar; offset expirado exige outro exemplo; inspeção do formato pode usar outro movimento, mas rastreamento ponta a ponta exige a mesma identidade. Separar os caminhos “ler exemplo histórico” e “seguir evento disponível”, com saída clara quando não houver mensagem, sem transformar automaticamente o roteiro de leitura em produção de dados. | Com tópico vazio ou com o evento original expirado, o leitor sabe por que não pode repetir o offset impresso e como encerrar/seguir o roteiro adequado. Não precisa adivinhar que houve produção entre os retratos. Na variante de rastreamento, o mesmo ID aparece na origem, mensagem e destino. Alterações operacionais novas recebem ensaio próprio ou rótulo de não ensaiadas. | Proposto; priorizar antes dos ajustes de apresentação. |
-| CQ-04 | ajuste | Quatro paradas de `#jornada-quente`; R09–R12 | **Declarar o que cada parada comprova.** Acrescentar uma frase de objetivo e uma de limite: origem prova registro; tópico prova publicação; raw quente prova gravação; fato e marcas de chegada permitem conferir consolidação e caminhos. Explicar perto do envelope que `op=c` é inserção no banco, `sale_dispatch` é o fato de negócio, `after` é a linha depois da operação, e o comando de inspeção não aciona o Beam nem apaga a mensagem. Distinguir identidade (`movement_id`), sequência do livro (`event_sequence`), posição no WAL (LSN) e posição na partição (offset). | O leitor não conclui “alerta emitido” ao encontrar uma linha no destino, nem “duas vendas” ao ver duas entregas da mesma identidade. Consegue relacionar `_stream_offset` e `_stream_lsn` à mensagem, sem tratá-los como chaves de negócio intercambiáveis. | Proposto; aguardando resposta do autor. |
-| CQ-05 | ajuste | Caixa da view, linha 707; `#r12`, `#r13`; SQL da view | **Mostrar a conservação do saldo e os dois pontos de encontro.** Acrescentar exemplo explicitamente didático: fato 100 + complemento −38 = 62; depois da incorporação pelo dbt, fato 62 + complemento 0 = 62. Mostrar que a sincronização do Airbyte não reconstrói sozinha a fato; o dbt também pode absorver o raw quente antes da carga de reconciliação. A linha quente permanece armazenada. Explicar que `quantity_from_batch` significa “já absorvido pela fato”, inclusive se chegou inicialmente pelo streaming, e que a anti-junção compara identidade e origem. | O leitor explica a diferença entre união no staging e complemento na view, sem somar duas vezes nem imaginar exclusão do raw. R13 distingue saldo quente não nulo de existência de eventos quentes: deltas podem se cancelar, e a view filtra os pares abaixo do ponto de reposição. Não interpretar zero nessa consulta como prova automática de ausência de streaming. | Proposto; aguardando resposta do autor. |
-| CQ-06 | ajuste | `#l6`, `#g-watermark`, pergunta `#p1`; controles de offset em R10/R44 | **Separar os relógios e os dois usos de “watermark”.** Explicar tempo de evento, registro e processamento com um evento atrasado. Distinguir o `HIGH-WATERMARK` do tópico, uma posição no log, do watermark do Beam, uma estimativa de progresso no tempo de evento. Mostrar a escrita antes do ramo de janelas; a janela de 60 s não é espera obrigatória para gravar cada movimento. Relacionar os 1.200 s à tolerância após o fim da janela no eixo do watermark, não a uma promessa de aceitar qualquer atraso. | O leitor distingue um offset inteiro de um instante, explica por que o dado pode estar gravado antes do alerta e reconhece que a expiração da tolerância do ramo de janelas não apaga o movimento já persistido. Manter hipótese original e configuração vigente com suas procedências, sem alterar o ADR aceito. | Proposto; aguardando resposta do autor. |
-| CQ-07 | ajuste | Pergunta `#p1`, L6 e ligação com `#r45` | **Explicar o alerta pela unidade que o código avalia.** O pipeline soma deltas por janela e mantém saldo entre janelas; a travessia é avaliada ao processar painéis, não necessariamente em cada oscilação de cada evento. Explicar abertura/normalização, supressão de painéis apenas de snapshot e marca de correção tardia. Diferenciar o saldo do acumulador e a consulta que incorpora reservas. Os achados D62/D63 já estão no material: aproximar a referência dos pontos em que se descreve o comportamento pretendido, sem apresentá-los como resolvidos. | Uma oscilação compensada dentro do mesmo painel não é prometida como alerta individual. “Destino alcançou o corte” não vira prova de drenagem do alerta. O leitor sabe que não há consumidor automático de reposição no MVP e onde estão as pendências conhecidas. | Proposto; aguardando resposta do autor. |
-| CQ-08 | ajuste | `#jornada-quente`, título e caixa da view; `#r13` | **Conectar os retratos de validação sem reescrever sua história.** “~7 segundos” descreve um evento de 04/10 até o carimbo no destino, não uma garantia do fluxo inteiro. A caixa da view diz “não capturado nesta validação”, sobre 04/10, enquanto R13 mostra em 12/10 `474` linhas e `214` com parcela quente não nula. Preservar o registro antigo e acrescentar referência explícita à evidência posterior. Rotular expectativa estrutural separadamente dos números históricos de “deve aparecer”. | As duas datas continuam visíveis; o leitor encontra o R13 como observação posterior e não entende que a parcela quente nunca foi observada. Outra execução pode mudar contagens sem, por isso, falhar. Os 7 s não são apresentados como SLA, média ou latência de alerta. | Proposto; aguardando resposta do autor. |
-| CQ-09 | observação | Possível link para `caminho_quente_por_dentro.html`; `estudo/study_clock.py` | **Conferir a integração real antes de anunciar o complemento como parte da trilha.** Preferir link de ida e volta, mantendo a explicação longa em um lugar. O coletor serve apenas caminhos de `git ls-files`, com a lista carregada na inicialização; o HTML novo ainda não rastreado não entra nessa lista. Além disso, o relógio só é injetado quando `relative == TRAIL`, e o complemento não contém o script. Não presumir que linkar passa a contar o tempo de leitura. Se o Owner quiser essa contagem, tratar a extensão explicitamente; não ampliar silenciosamente a auditoria. Conferir também a estratégia dos links na cópia privada do Artifact. | Se incorporado, o destino abre pelo modo de uso escolhido, retorna à seção de origem e respeita o filtro de arquivos do coletor. A página pode continuar independente e sem relógio, desde que isso seja dito. Caso se inclua medição, conferir as seções registradas e o comportamento do contador. Validar a apresentação no navegador: essa inspeção ficou pendente na entrega do complemento. | Condicional à incorporação; decisão e resposta do autor pendentes. |
-| CQ-10 | observação | Padrão didático para outras jornadas e laboratórios | **Reaproveitar a estrutura “objetivo → previsão → ação → evidência → explicação”.** O aprendizado não termina ao reproduzir uma saída. Perguntas curtas ajudam: “o que mudou?”, “o que esta saída prova?”, “o que ainda não foi verificado?” e “o que mudaria se a mensagem chegasse outra vez?”. A trilha já tem autoavaliações; fortalecer a ligação delas com o objetivo do bloco. Esta é uma sugestão de padrão, não um diagnóstico de que todos os demais laboratórios estejam deficientes. | Aplicar primeiro ao caminho quente. Uma expansão posterior para outros capítulos deve ser delimitada e revisada, preservando os três níveis de aprendizado e as evidências existentes. | Sugestão para avaliação do autor. |
+| CQ-01 | ajuste | `#jornada-quente`, linhas 657–658; ligação com R09–R13 | **Abrir o percurso com sua pergunta de negócio e seu objetivo de estudo.** A seção passa do livro imutável/CDC diretamente à saída na origem. Antes do primeiro comando, explicar por que o saldo precisa incorporar uma novidade antes do próximo lote, por que o lote continua existindo e o que se pretende demonstrar acompanhando um movimento. Uma analogia curta de avisos durante o dia e livro completo para conferência ajuda a ligar as etapas. | Sem executar comandos, o leitor consegue dizer para que o fluxo existe, qual domínio cobre e por que existem duas chegadas do mesmo movimento. Um link para o complemento pode fornecer a explicação longa; o propósito deve continuar visível na trilha. | **Aplicado** (`3418309`). O caminho quente abre, antes do primeiro comando, por três parágrafos: a pergunta de negócio (a P12), por que o lote continua — com a analogia dos avisos do dia e do livro completo — e o que seguir um movimento demonstra. A explicação longa fica no complemento, cap. 01, por link de ida e volta. O título perdeu o "~7 segundos". Corrigido no caminho: aqui o lote roda sob demanda (`fluxo_batch` tem `schedule=None`), não num ciclo diário. |
+| CQ-02 | ajuste | Mapa, tabela de ferramentas e `#l6` | **Explicar responsabilidades e relações entre produtos.** A tabela atual já descreve funções; falta conectá-las à viagem antes de exigir operação. Distinguir PostgreSQL na origem e no destino, Debezium como captura, Kafka Connect como executor/gestor do conector, Redpanda como transporte e retenção, Beam como lógica e DirectRunner/Prism como execução local. Situar produtor, Airbyte, dbt, Airflow, Docker e Make em relação ao fluxo. Para cada peça, bastam entrada, saída, motivo e evidência. | O mapa não apresenta Debezium e Connect como duas capturas consecutivas; não confunde Airflow com o consumidor contínuo; mostra o papel do lote e os destinos de movimento e alerta. O aluno consegue explicar quem captura, transporta, grava, consolida e consulta. | **Aplicado.** A tabela separa o Debezium (o conector: *snapshot* inicial, depois o WAL) do Kafka Connect (executa e administra; "não é uma segunda captura"), diz o papel do Airbyte, do dbt e do Airflow no caminho quente (o Airflow não orquestra o Beam), põe retenção e tópicos separados no Redpanda e DirectRunner/Prism no Beam, e ganha a linha do produtor. O mapa ganhou a seta tracejada do destino quente para a `consumption`, e a legenda diz os dois pontos de encontro. Entrada, saída e motivo de cada peça ficam no complemento, cap. 02. |
+| CQ-03 | ajuste | `#r10`, linhas 2874–2890; `spec.py`, declaração de R10 | **Tornar explícitas as condições de leitura e a troca de exemplo.** O primeiro retrato mostra `LOG-START-OFFSET = HIGH-WATERMARK = 30051`; o passo seguinte pede uma mensagem em `32300`, retirada de um momento posterior. Além disso, R09/R11 seguem o movimento terminado em `b222`, enquanto o JSON do R10 termina em `920c`. Explicar: log vazio não oferece mensagem retida para selecionar; offset expirado exige outro exemplo; inspeção do formato pode usar outro movimento, mas rastreamento ponta a ponta exige a mesma identidade. Separar os caminhos “ler exemplo histórico” e “seguir evento disponível”, com saída clara quando não houver mensagem, sem transformar automaticamente o roteiro de leitura em produção de dados. | Com tópico vazio ou com o evento original expirado, o leitor sabe por que não pode repetir o offset impresso e como encerrar/seguir o roteiro adequado. Não precisa adivinhar que houve produção entre os retratos. Na variante de rastreamento, o mesmo ID aparece na origem, mensagem e destino. Alterações operacionais novas recebem ensaio próprio ou rótulo de não ensaiadas. | **Aplicado, com ensaio em 14/10** (§17.6). Objetivo e limite no topo; o passo 1 explica o intervalo legível (do `LOG-START-OFFSET` ao `HIGH-WATERMARK − 1`) e faz do log vazio uma parada sem comando; o consumo passou a `-f '%o\n%v\n'`, porque o ensaio mediu que um *offset* expirado volta, sem aviso, como o mais antigo do log (pedido 29603, veio 30051) — o passo 3 mostra isso; o "se não aparecer" diz que o Ctrl-C deixa o `rpk` esperando no contêiner (medido). O rastreamento da mesma identidade é o R43, cujo último passo usa o mesmo comando. Nenhum ramo novo produz dados. |
+| CQ-04 | ajuste | Quatro paradas de `#jornada-quente`; R09–R12 | **Declarar o que cada parada comprova.** Acrescentar uma frase de objetivo e uma de limite: origem prova registro; tópico prova publicação; raw quente prova gravação; fato e marcas de chegada permitem conferir consolidação e caminhos. Explicar perto do envelope que `op=c` é inserção no banco, `sale_dispatch` é o fato de negócio, `after` é a linha depois da operação, e o comando de inspeção não aciona o Beam nem apaga a mensagem. Distinguir identidade (`movement_id`), sequência do livro (`event_sequence`), posição no WAL (LSN) e posição na partição (offset). | O leitor não conclui “alerta emitido” ao encontrar uma linha no destino, nem “duas vendas” ao ver duas entregas da mesma identidade. Consegue relacionar `_stream_offset` e `_stream_lsn` à mensagem, sem tratá-los como chaves de negócio intercambiáveis. | **Aplicado.** Cada parada abre com objetivo, o que prova e o que não prova. Depois do envelope, a leitura de `op`, `after`, `movement_type` e dos quatro números (`movement_id`, `event_sequence`, `source.lsn`, *offset*); depois do destino, o papel de `_stream_offset` e `_stream_lsn`. R09, R11 e R12 ganharam o mesmo objetivo e limite. |
+| CQ-05 | ajuste | Caixa da view, linha 707; `#r12`, `#r13`; SQL da view | **Mostrar a conservação do saldo e os dois pontos de encontro.** Acrescentar exemplo explicitamente didático: fato 100 + complemento −38 = 62; depois da incorporação pelo dbt, fato 62 + complemento 0 = 62. Mostrar que a sincronização do Airbyte não reconstrói sozinha a fato; o dbt também pode absorver o raw quente antes da carga de reconciliação. A linha quente permanece armazenada. Explicar que `quantity_from_batch` significa “já absorvido pela fato”, inclusive se chegou inicialmente pelo streaming, e que a anti-junção compara identidade e origem. | O leitor explica a diferença entre união no staging e complemento na view, sem somar duas vezes nem imaginar exclusão do raw. R13 distingue saldo quente não nulo de existência de eventos quentes: deltas podem se cancelar, e a view filtra os pares abaixo do ponto de reposição. Não interpretar zero nessa consulta como prova automática de ausência de streaming. | **Aplicado.** A caixa da view tem o exemplo 100 + (−38) = 62 → 62 + 0 = 62, rotulado como didático; a diferença entre os dois encontros; quem absorve (o `dbt-build`, não a sincronização); que a linha quente fica; o sentido de `quantity_from_batch` e da anti-junção por identidade e origem; e que zero não prova ausência (o filtro do ponto de reposição e os deltas que se cancelam). O R13 diz o mesmo, com `stream_movement_count` como a coluna de presença. |
+| CQ-06 | ajuste | `#l6`, `#g-watermark`, pergunta `#p1`; controles de offset em R10/R44 | **Separar os relógios e os dois usos de “watermark”.** Explicar tempo de evento, registro e processamento com um evento atrasado. Distinguir o `HIGH-WATERMARK` do tópico, uma posição no log, do watermark do Beam, uma estimativa de progresso no tempo de evento. Mostrar a escrita antes do ramo de janelas; a janela de 60 s não é espera obrigatória para gravar cada movimento. Relacionar os 1.200 s à tolerância após o fim da janela no eixo do watermark, não a uma promessa de aceitar qualquer atraso. | O leitor distingue um offset inteiro de um instante, explica por que o dado pode estar gravado antes do alerta e reconhece que a expiração da tolerância do ramo de janelas não apaga o movimento já persistido. Manter hipótese original e configuração vigente com suas procedências, sem alterar o ADR aceito. | **Aplicado.** Caixa nova no L6: os três relógios (`occurred_at`, `recorded_at`, `_stream_extracted_at`); os dois *watermarks* (o `HIGH-WATERMARK` do `rpk`, um *offset*; o do Beam, um instante: maior `occurred_at` − 60 s, ou agora − 60 s com a partição ociosa); a gravação antes das janelas; e os 1.200 s no eixo do *watermark*, com hipótese (ADR-0019, 5 min), medição (mediana 403 s) e valor vigente (`fluxo.yml`) separados. Nenhum ADR mudou. O "Em paralelo" do conceito virou "Depois de gravar, num ramo à parte". Glossário: *watermark* distingue o `HIGH-WATERMARK`; entram tempo de evento, tolerância a atraso e painel. R10 e R44 dizem que o `HIGH-WATERMARK` é um *offset*. |
+| CQ-07 | ajuste | Pergunta `#p1`, L6 e ligação com `#r45` | **Explicar o alerta pela unidade que o código avalia.** O pipeline soma deltas por janela e mantém saldo entre janelas; a travessia é avaliada ao processar painéis, não necessariamente em cada oscilação de cada evento. Explicar abertura/normalização, supressão de painéis apenas de snapshot e marca de correção tardia. Diferenciar o saldo do acumulador e a consulta que incorpora reservas. Os achados D62/D63 já estão no material: aproximar a referência dos pontos em que se descreve o comportamento pretendido, sem apresentá-los como resolvidos. | Uma oscilação compensada dentro do mesmo painel não é prometida como alerta individual. “Destino alcançou o corte” não vira prova de drenagem do alerta. O leitor sabe que não há consumidor automático de reposição no MVP e onde estão as pendências conhecidas. | **Aplicado.** A [*1] explica o alerta pelo painel (soma dos deltas da janela, saldo guardado entre janelas, travessia avaliada painel a painel: oscilação compensada no mesmo minuto não alerta), separa o saldo do alerta do saldo da view (que desconta a reserva) e põe D62/D63 junto do desenho, como pendências abertas. O R45 diz que o corte alcançado não prova o ramo de alerta drenado (D63). A ausência de consumidor de reposição já estava dita. |
+| CQ-08 | ajuste | `#jornada-quente`, título e caixa da view; `#r13` | **Conectar os retratos de validação sem reescrever sua história.** “~7 segundos” descreve um evento de 04/10 até o carimbo no destino, não uma garantia do fluxo inteiro. A caixa da view diz “não capturado nesta validação”, sobre 04/10, enquanto R13 mostra em 12/10 `474` linhas e `214` com parcela quente não nula. Preservar o registro antigo e acrescentar referência explícita à evidência posterior. Rotular expectativa estrutural separadamente dos números históricos de “deve aparecer”. | As duas datas continuam visíveis; o leitor encontra o R13 como observação posterior e não entende que a parcela quente nunca foi observada. Outra execução pode mudar contagens sem, por isso, falhar. Os 7 s não são apresentados como SLA, média ou latência de alerta. | **Aplicado.** O título não promete ~7 s; a parada 3 e o conferir do l6-1 dizem que é a observação de um evento de 04/10 — não SLA, média ou latência de alerta — e que, num evento atrasado de propósito, a diferença inclui o atraso simulado. A caixa da view e a procedência mantêm o "não capturado" de 04/10 e apontam para o R13 de 12/10 (214 de 474). As contagens do R13 passaram a "apareceu", com a expectativa estrutural à parte. |
+| CQ-09 | observação | Possível link para `caminho_quente_por_dentro.html`; `estudo/study_clock.py` | **Conferir a integração real antes de anunciar o complemento como parte da trilha.** Preferir link de ida e volta, mantendo a explicação longa em um lugar. O coletor serve apenas caminhos de `git ls-files`, com a lista carregada na inicialização; o HTML novo ainda não rastreado não entra nessa lista. Além disso, o relógio só é injetado quando `relative == TRAIL`, e o complemento não contém o script. Não presumir que linkar passa a contar o tempo de leitura. Se o Owner quiser essa contagem, tratar a extensão explicitamente; não ampliar silenciosamente a auditoria. Conferir também a estratégia dos links na cópia privada do Artifact. | Se incorporado, o destino abre pelo modo de uso escolhido, retorna à seção de origem e respeita o filtro de arquivos do coletor. A página pode continuar independente e sem relógio, desde que isso seja dito. Caso se inclua medição, conferir as seções registradas e o comportamento do contador. Validar a apresentação no navegador: essa inspeção ficou pendente na entrega do complemento. | **Aplicado, por decisão do Owner (14/10).** O complemento foi revisado e versionado (`3418309`), com volta de cada capítulo para cada um dos seis pontos da trilha que o apontam (`conferir_complemento.py`, com controles positivos). No Artifact (v18), é a segunda página do mesmo Artifact: links `../` para o GitHub `v1.0.0`, menos `pendencias.md`, que vai para a `main` (D62/D63 não existem na `v1.0.0`), e links para a trilha em `index.html`. O relógio conta a leitura nele, com prefixo `cq-` (`bf89ae4`), também decisão do Owner; exercitado num coletor de teste e visto no Artifact. |
+| CQ-10 | observação | Padrão didático para outras jornadas e laboratórios | **Reaproveitar a estrutura “objetivo → previsão → ação → evidência → explicação”.** O aprendizado não termina ao reproduzir uma saída. Perguntas curtas ajudam: “o que mudou?”, “o que esta saída prova?”, “o que ainda não foi verificado?” e “o que mudaria se a mensagem chegasse outra vez?”. A trilha já tem autoavaliações; fortalecer a ligação delas com o objetivo do bloco. Esta é uma sugestão de padrão, não um diagnóstico de que todos os demais laboratórios estejam deficientes. | Aplicar primeiro ao caminho quente. Uma expansão posterior para outros capítulos deve ser delimitada e revisada, preservando os três níveis de aprendizado e as evidências existentes. | **Aplicado ao caminho quente, sem expandir.** Objetivo antes de cada parada, explicação depois da evidência e o exercício j-2 (objetivo, previsão, execução, evidência, explicação). A expansão para outros capítulos fica como sugestão, a delimitar e revisar. |
 
 ### 17.3 Evidências desta rodada e sua natureza
 
@@ -2066,3 +2066,185 @@ para acrescentar uma explicação ou um link.
 **Resposta do Claude Code:** aguardando atuação solicitada pelo Owner. Nenhum item desta rodada
 foi marcado como aplicado, nenhuma pendência do projeto foi encerrada e a trilha não foi alterada
 por este parecer.
+
+### 17.6 Resposta do Claude Code (14/10/2026)
+
+Os dez achados foram aplicados; a coluna *Situação* da §17.2 diz o que entrou em cada um. Esta seção
+traz o que não cabe nela: as decisões do Owner, o que rodou com a saída, o que ficou sem verificar e um
+achado fora do escopo.
+
+**Decisões do Owner, nesta rodada** (perguntadas com alternativas e recomendação):
+
+1. CQ-09: **versionar o complemento e ligá-lo nas duas páginas**, a local e o Artifact.
+2. **Medir no relógio de estudo** a leitura do complemento, com o método atualizado.
+3. CQ-03: **ensaiar o R10 na máquina**, pelos alvos guardados, em vez de só reescrevê-lo.
+
+**Onde está a declaração.** O resumo muda por pares em `data/medicoes/material_estudo/secao11/caminho_quente.py`
+(novo, importado pelo `aplicar.py`, fora do Git). A seção 11 muda em `spec.py` e `spec_c.py`. O
+`secao12/aplicar.py` ganhou `--base <trilha>`, para a seção 12 entrar sobre a seção 11 regenerada; sem
+a opção, continua partindo de `40c6914`. O `publicavel.py` ganhou dois argumentos opcionais, que geram
+a variante do complemento. O complemento é ele mesmo a declaração: HTML escrito à mão, versionado. A
+cadeia ficou assim: `c531b87` → `secao11/aplicar.py` → `secao12/aplicar.py --base` → trilha.
+
+**O que rodou, com a saída.** Evidências em `data/medicoes/material_estudo/20261014_r10/` (fora do Git;
+`indice.tsv` com início, fim e código de cada comando).
+
+Antes de mudar qualquer coisa, a cadeia reproduzia a trilha publicada:
+
+```text
+c531b87 + seção 11 = 9e6f3ac byte a byte
+40c6914 + seção 12 = trilha atual (HEAD) byte a byte
+```
+
+O ensaio do R10. Estado de partida: bancos e Airbyte de pé, *streaming* parado (`Exited`), nenhum
+trabalho em andamento. O `make stream-up` pausou o Airbyte ocioso. A sessão gravada pelo `sessao.py`
+(`R10.txt`, quatro passos, oráculos verdes):
+
+```text
+$ docker exec mvp_ed1_redpanda rpk topic describe mvp.oltp.inventory_movements -p
+PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
+0          0       5      [0]       30051             32551
+$ docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 32300 -n 1 -f '%o\n%v\n' | jq .
+32300
+{
+  "before": null,
+  "after": {
+    "movement_id": "25fe38b8-2957-4c74-beba-12436ac4920c",
+…
+$ docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 29603 -n 1 -f '%o\n%v\n' | jq .
+30051
+{
+  "before": null,
+  "after": {
+    "movement_id": "e7edf640-a974-47ea-b18a-c656f563cfe9",
+…
+```
+
+O *offset* expirado (29603) não dá erro nem aviso: volta a mensagem 30051, a mais antiga retida. É o
+que levou o R10 a imprimir o *offset* lido. As sondas que precederam a sessão, com `timeout` dentro do
+contêiner, para nenhuma ficar presa:
+
+```text
+sonda_offset_expirado (-o 29603, -f '%o %p\n'):  30051 0          · código 0
+sonda_offset_no_fim   (-o 32551 = HIGH-WATERMARK):  sem saída     · código 124 (timeout de 20 s)
+```
+
+O Ctrl-C no terminal não encerra o `rpk` que espera no fim do log (`sonda_ctrl_c`, num pseudoterminal):
+
+```text
+durante: ['170692              /usr/bin/rpk topic consume mvp.oltp.inventory_movements -o 32551 -n 1 -f %o\\n%v\\n']
+depois do Ctrl-C: '^C\r\n\x1b[?2004hbash-5.1$ '
+2 s depois do Ctrl-C: ['170692              /usr/bin/rpk topic consume mvp.oltp.inventory_movements -o 32551 -n 1 -f %o\\n%v\\n']
+```
+
+O processo órfão foi encerrado (`docker exec mvp_ed1_redpanda sh -c 'kill 396'`, código 0; depois,
+"nenhum rpk consume no contêiner"). A retenção efetiva do tópico, que o texto novo cita:
+
+```text
+retention.ms                          604800000      DYNAMIC_TOPIC_CONFIG
+```
+
+Devolução: `make preflight ALVO=trabalho` (nada em andamento), `make stream-pause`, `make airbyte-up`. A
+comparação do `docker ps -a` de partida com o de chegada, por nome e estado, sem o *uptime*: "estado
+igual ao de partida". Nada foi produzido na origem.
+
+A regeneração. As duas vias — só as trocas do resumo sobre a trilha publicada, e a cadeia inteira
+desde `c531b87` — diferem apenas na linha "Seção 11" da procedência, que só o modo completo escreve; a
+seção 12 sai idêntica. A regeneração final é byte a byte a trilha inspecionada no navegador.
+
+```text
+conferir_navegacao.py <trilha>            262 ids, 415 links internos, 56 alvos de ida e volta … navegação: OK
+conferir_navegacao.py <variante publicada>  navegação: OK
+conferir_complemento.py (novo)            6 idas da trilha para 6 capítulos; 15 links do complemento para a trilha;
+                                          17 internos; 19 arquivos do repositório — navegação entre as páginas: OK
+  controle: trilha publicada + complemento com as voltas   → 12 problema(s)
+  controle: trilha nova + complemento do Codex, sem voltas →  6 problema(s)
+varrer_segredos.py (trilha, complemento, variantes, relógio, plano, 20261014_r10, secao11, ferramentas)
+                                          43 arquivo(s), 6 valor(es) secreto(s) do .env procurados, 0 achado(s)
+```
+
+A apresentação, conferida por fotos num Chrome *headless* (perfil temporário, porta 9223): o mapa com a
+seta nova, que não cruza caixa nenhuma; as quatro paradas; a caixa da view; o exercício j-2, com a linha
+de níveis criada pelo JS ("0 de 22 exercícios"); a caixa dos relógios no L6; a [*1]; o R10; e o
+capítulo 03 do complemento, com a volta.
+
+O relógio, exercitado num coletor de teste (porta 8771, registros num diretório à parte, `ESTUDO_DADOS`):
+
+```text
+== complemento: <script>window.RELOGIO_MODO="local";window.RELOGIO_PREFIXO="cq-";</script><script src="/estudo/relogio.js"></script></body>
+== trilha:      <script>window.RELOGIO_MODO="local";</script><script src="/estudo/relogio.js"></script></body>
+== o .env continua fora: 404
+{"minute": "2026-10-14T20:33Z", "section": "cq-tempo", "source": "local"}   ← batida do JS no Chrome headless, rolado até #tempo
+```
+
+O Artifact, republicado na **versão 18** com o complemento como segunda página e as mesmas capacidades
+(`db` com a regra `estudo` só do dono, `user`). A listagem de arquivos dá `caminho_quente_por_dentro.html`
+e `index.html`. No Chrome do Owner, pela extensão, em visitas de menos de 60 s: a trilha abre na v18; o
+link do caminho quente abre o complemento dentro do visor; o selo do complemento mostrou "hoje 0h03",
+lido do banco como dono; e o "Voltar à trilha" cai no `#jornada-quente`. O documento do dia no banco
+continuou com os três minutos de antes (18:09, 20:35 e 20:39, em `diagrama-*`): a visita não gravou
+minuto de teste.
+
+**Achado fora do escopo, já corrigido.** O `make check-offline` falhava na primeira etapa desde
+`e3c226c` (os alvos do `pgcli`, já publicados):
+
+```text
+Makefile:798: PGPASSWORD=$$*** (18 caracteres) [atribuição]
+revisão de segredos: 1 achado(s)
+```
+
+É um falso positivo: para o Make, `"$$$(1)_DB_PASSWORD"` é `$` + `$(1)` + `_DB_PASSWORD`, e a regra de
+referência exige que a forma alcance o fim do valor. Com `"$${$(1)_DB_PASSWORD}"`, a expansão do
+`define` — conferida com um *makefile* auxiliar que imprime a expansão e para em `$(error)`, sem rodar
+alvo — passa de `PGPASSWORD="$SOURCE_DB_PASSWORD"` a `PGPASSWORD="${SOURCE_DB_PASSWORD}"`, o mesmo valor
+no *shell*. Commit próprio (`ba8244a`). Depois dele:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 111 documentos, 1039 links de arquivo, 152 âncoras, 635 citações de ADR — nada quebrado
+507 passed, 4 skipped, 134 deselected in 131.12s (0:02:11)
+check-offline: as três etapas passaram          ← código de saída 0
+```
+
+**Não verificado:**
+
+- O log vazio. Não dá para reproduzi-lo agora: o tópico guarda mensagens até cerca de 19/10. O que o
+  R10 diz sobre ele vem do retrato de 12/10 (`30051`/`30051`) e da sonda no fim do log, que é o mesmo
+  caso para o `rpk`: pedir a partir do `HIGH-WATERMARK`.
+- Uma batida do relógio **gravada** no Artifact a partir do complemento. A visita ficou abaixo de 60 s
+  de propósito; a leitura do banco como dono foi vista, e a escrita é o mesmo código que a trilha já usa.
+- O R43 inteiro: só o último passo foi refeito, relendo a mesma mensagem 32300.
+- O formato padrão do `rpk` (sem `-f`) com *offset* expirado, que a parada 2 do resumo cita. O reset é
+  do consumidor, não do formato; e o JSON padrão traz o campo `offset`.
+- Apresentação em tela estreita, impressão e leitor de tela, nas duas páginas.
+- A compreensão: se a nova redação resolve a dificuldade do Owner, só o estudo vai mostrar.
+
+**Premissas:** a retenção apaga por segmento, por isso o texto diz "cerca de 7 dias"; a mensagem 32300
+do R10 sai do tópico por volta de 19/10, e daí em diante o leitor vê outra, coisa que o roteiro manda
+conferir pela primeira linha.
+
+**Para o Owner fazer:** o coletor do relógio que está rodando desde antes desta entrega (porta 8770)
+leu a lista de arquivos versionados ao subir. Para servir o complemento com o relógio, Ctrl-C nele e
+`python3 CONVERSAS_COM_CHAT/estudo/study_clock.py serve` de novo.
+
+**Observação para o Owner, sem mudança:** o `docs/streaming.md` §2.1 diz que "o conector é configurado
+para inserções". O conector declara `skipped.operations: none` — captura tudo —, e é o decodificador
+(`envelope.py`) que falha em `UPDATE`, `DELETE` e `TRUNCATE`. O efeito é o descrito; a frase é imprecisa
+sobre onde ele acontece. Fica para o dono do documento decidir.
+
+**Onde hesitei.**
+
+- **Trilha e complemento no mesmo *commit*.** Um aponta para o outro; separados, um dos dois ficaria
+  com links pendentes até o *commit* seguinte.
+- **Corrigir o `Makefile` nesta entrega.** Está fora do escopo do parecer, mas o portão de *commit*
+  pede o `check-offline` verde, e ele falhava antes de qualquer mudança minha. A correção não muda o que
+  o alvo executa.
+- **O exercício j-2.** Muda o total da barra de progresso de 21 para 22; o progresso já salvo continua
+  valendo. É a aplicação mínima do CQ-10.
+- **O "deve aparecer" do passo 2 do R10.** É a mensagem 32300 de 14/10, que vai sair por retenção. O
+  rótulo "apareceu" diria que a saída depende do estado, mas o formato — o *offset* e depois o envelope
+  — é o que todo leitor deve ver, e o texto manda trocar o *offset*.
+
+**Commits:** `5819ec3` (o parecer, como veio), `ba8244a` (o `Makefile`), `3418309` (trilha e
+complemento), `bf89ae4` (o relógio) e o desta resposta. Nenhum foi publicado no GitHub: o *push* fica
+para o Owner pedir.
