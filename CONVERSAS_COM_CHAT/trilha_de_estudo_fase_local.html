@@ -446,22 +446,26 @@ p.legenda-erd{font-size:13.5px; color:var(--fg-2)}
   <path d="M831,180 L831,228" class="seta" marker-end="url(#ponta)"/>
   <path d="M782,180 C772,240 772,300 788,330" class="seta tracejado" marker-end="url(#ponta)"/>
   <path d="M872,336 C880,300 878,210 886,182" class="seta tracejado" marker-end="url(#ponta)"/>
+  <path d="M676,436 C780,460 930,440 930,290" class="seta-q tracejado" marker-end="url(#ponta-q)"/>
 </svg>
 </div>
-<p style="font-size:13.5px;color:var(--fg-3)">Setas cinzas: caminho frio (lote). Setas âmbar: caminho quente (contínuo), só para o livro de estoque <code>inventory_movements</code>. Os dois caminhos se encontram em <code>staging</code>, que deduplica por <code>movement_id</code>. Dono documental: <a href="../docs/arquitetura.md">Arquitetura</a>.</p>
+<p style="font-size:13.5px;color:var(--fg-3)">Setas cinzas: caminho frio (lote). Setas âmbar: caminho quente (contínuo), só para o livro de estoque <code>inventory_movements</code>. Os dois caminhos se encontram duas vezes: em <code>staging</code>, que une as duas chegadas e deduplica por <code>movement_id</code> para construir a fato; e na view <code>consumption.skus_below_reorder_point</code>, que soma à fato o que até agora só o caminho quente trouxe (a seta âmbar tracejada). O Airflow orquestra só o caminho frio; o Beam roda à parte, em primeiro plano (<code>make stream-run</code>). Dono documental: <a href="../docs/arquitetura.md">Arquitetura</a>.</p>
 
 <h3>As peças e o papel de cada uma</h3>
 <table>
   <tr><th>Peça</th><th>Papel</th><th>Onde roda</th><th>Porta</th></tr>
   <tr><td>PostgreSQL ×3</td><td>Origem principal, origem legada e armazém, em instâncias separadas como serão no GCP</td><td>Docker Compose</td><td>5432 · 5433 · 5434</td></tr>
-  <tr><td>Airbyte 2.3.0</td><td>Copia as origens para <code>raw</code> e <code>raw_legacy</code> (lote)</td><td>Kubernetes local (<em>kind</em>), instalado pelo <code>abctl</code></td><td>8000</td></tr>
-  <tr><td>dbt 1.12</td><td>Transforma camada a camada, testa, documenta e gera a linhagem</td><td>No <em>host</em> (<code>.venv</code>) e dentro do Airflow</td><td>8080 (catálogo)</td></tr>
-  <tr><td>Airflow 3.2.2</td><td>Orquestra o caminho frio: dependências, histórico, reexecução parcial</td><td>Docker Compose (LocalExecutor)</td><td>8081</td></tr>
-  <tr><td>Debezium + Kafka Connect</td><td>Lê o log de transações (WAL) da origem e publica cada inserção no estoque</td><td>Docker Compose</td><td>8083</td></tr>
-  <tr><td>Redpanda</td><td>Transporte de eventos compatível com Kafka</td><td>Docker Compose</td><td>19092</td></tr>
-  <tr><td>Apache Beam</td><td>Processa os eventos: grava deltas idempotentes e emite alertas</td><td>Processo no <em>host</em> (<code>make stream-run</code>)</td><td>—</td></tr>
+  <tr><td>Airbyte 2.3.0</td><td>Copia as origens para <code>raw</code> e <code>raw_legacy</code> (lote). No caminho quente, traz a carga completa do livro de estoque: a segunda opinião contra a qual o CDC é conferido</td><td>Kubernetes local (<em>kind</em>), instalado pelo <code>abctl</code></td><td>8000</td></tr>
+  <tr><td>dbt 1.12</td><td>Transforma camada a camada, testa, documenta e gera a linhagem. No caminho quente, une as duas chegadas em <code>staging</code>, constrói a fato e a view que soma o que só o fluxo trouxe</td><td>No <em>host</em> (<code>.venv</code>) e dentro do Airflow</td><td>8080 (catálogo)</td></tr>
+  <tr><td>Airflow 3.2.2</td><td>Orquestra o caminho frio: dependências, histórico, reexecução parcial. Não orquestra o Beam, que roda à parte</td><td>Docker Compose (LocalExecutor)</td><td>8081</td></tr>
+  <tr><td>Debezium 3.6</td><td>O conector de CDC: lê uma vez a tabela inteira (o <em>snapshot</em> inicial) e, depois, cada inserção em <code>inventory_movements</code> no WAL, e publica cada uma como mensagem — o envelope</td><td>Dentro do Kafka Connect</td><td>—</td></tr>
+  <tr><td>Kafka Connect</td><td>Executa e administra o conector: a API REST que o configura, as tarefas e a posição no WAL, guardada nos tópicos <code>_mvp_connect_*</code>. Não é uma segunda captura: o Debezium roda dentro dele</td><td>Docker Compose</td><td>8083</td></tr>
+  <tr><td>Redpanda</td><td>Transporte de eventos compatível com Kafka: guarda as mensagens num tópico, em ordem, cada uma num <em>offset</em>, por cerca de 7 dias (a retenção). Movimentos e alertas têm tópicos separados</td><td>Docker Compose</td><td>19092</td></tr>
+  <tr><td>Apache Beam</td><td>A lógica do processamento: lê o tópico, grava cada movimento uma vez (deltas idempotentes) e, num ramo depois da gravação, soma por janela e emite alertas. Nesta máquina, quem executa é o <code>DirectRunner</code>, que delega ao Prism</td><td>Processo no <em>host</em> (<code>make stream-run</code>)</td><td>—</td></tr>
+  <tr><td>Produtor de eventos</td><td>Simula a operação: insere movimentos novos no livro da origem (<code>make stream-produce</code>), com rajadas, atrasados de propósito e transferências</td><td>Processo no <em>host</em></td><td>—</td></tr>
   <tr><td>Make</td><td>A interface de operação: tudo passa por alvos do <code>Makefile</code></td><td>Terminal</td><td>—</td></tr>
 </table>
+<p>Como essas peças se encadeiam no caminho quente — o que entra e o que sai de cada uma, e por que ela existe — está no complemento <a id="ref-cq-mapa-pecas" href="caminho_quente_por_dentro.html#mapa">Caminho quente por dentro, cap. 02</a>.</p>
 
 <h3>O que cabe na máquina ao mesmo tempo</h3>
 <p>Esta estação tem 11 GB de RAM, e Airbyte, Airflow e o <em>streaming</em> não cabem todos juntos (risco <strong>R11</strong>). O projeto define <strong>famílias</strong> que não convivem: <em>batch</em> (Airbyte, com ou sem Airflow) e <em>streaming</em>. Os alvos <code>make airbyte-up</code>, <code>airflow-up</code> e <code>stream-up</code> passam por um <strong><em>preflight</em></strong> que mede a memória, <strong>pausa</strong> a família conflitante (pausar, nunca desmontar) e só então sobe o que você pediu. Nada é pausado com trabalho em andamento.</p>
@@ -654,10 +658,13 @@ has_post_order_repeat      | f                            has_post_order_repeat 
   <details><summary>Conferir</summary><p>Uma linha se o mesmo <code>order_id</code> não existir no legado, duas se existir (o legado tem cerca de 5% do volume, então colisões de ID são comuns nos números baixos). Em <code>raw</code> nada muda além das colunas <code>_airbyte_*</code>; <code>staging</code> renomeia e tipa; <code>trusted</code> aplica regras e empilha; <code>analytics</code> troca IDs por chaves substitutas e fixa o grão; <code>consumption</code> agrega para responder uma pergunta.</p></details>
 </div>
 
-<h3 id="jornada-quente">Caminho quente: um movimento de estoque, em ~7 segundos</h3>
-<p>O livro de estoque (<code>oltp.inventory_movements</code>) só aceita inserções: correção é um evento compensatório, nunca <code>UPDATE</code><span id="ref-p6-quente"> <a class="nota" href="#p6" title="Pergunta 6: evento compensatório">[*6]</a></span>. Isso o torna ideal para <strong>CDC</strong>, a captura de mudanças pelo log de transações. Nesta validação, o produtor (<code>make stream-produce</code>) emitiu eventos novos, e um deles foi seguido:</p>
+<h3 id="jornada-quente">Caminho quente: um movimento de estoque, da origem à view</h3>
+<p><strong>A pergunta de negócio.</strong> Quanto estoque há agora em cada armazém, e quais SKUs estão abaixo do ponto de reposição? O caminho frio responde com o livro inteiro, mas só incorpora uma saída de estoque na próxima sincronização do Airbyte e no próximo <code>dbt-build</code>, que aqui rodam sob demanda. O caminho quente existe para que a resposta incorpore a saída segundos depois de ela acontecer, sem esperar o lote — e só para este domínio: o resto do projeto continua em lote.</p>
+<p><strong>Por que o lote continua.</strong> O livro de estoque (<code>oltp.inventory_movements</code>) só aceita inserções: correção é um evento compensatório, nunca <code>UPDATE</code><span id="ref-p6-quente"> <a class="nota" href="#p6" title="Pergunta 6: evento compensatório">[*6]</a></span>. Isso o torna ideal para <strong>CDC</strong>, a captura de mudanças pelo log de transações. Mas uma captura contínua pode perder algo sem avisar, e por isso o lote também traz o livro inteiro, para conferência. É como um escritório que recebe os avisos de saída ao longo do dia e, no fim, o livro completo: o aviso adianta a informação, o livro confirma que nenhum aviso se perdeu — e o mesmo movimento, chegando pelos dois, não pode virar duas saídas.</p>
+<p><strong>O que seguir um movimento demonstra.</strong> As quatro paradas abaixo acompanham um mesmo movimento, pela mesma identidade (<code>movement_id</code>), da origem à fato. Cada parada prova uma coisa e ainda não prova a seguinte. Nesta validação, o produtor (<code>make stream-produce</code>) emitiu eventos novos, e um deles foi seguido. O problema, as peças e simulações das duas chegadas estão, com mais vagar, no complemento <a id="ref-cq-proposta-jornada" href="caminho_quente_por_dentro.html#proposta">Caminho quente por dentro</a>.</p>
 
 <h4>1 · Origem</h4>
+<p><strong>Objetivo:</strong> ver o movimento no livro da origem. <strong>Prova</strong> que ele existe, com a identidade (<code>movement_id</code>) e a posição no livro (<code>event_sequence</code>); <strong>não prova</strong> que foi capturado.</p>
 <span class="rotulo-saida">saída real · 04/10/2026</span>
 <pre class="saida">movement_id        | 19a5f610-86c3-4ca6-bb8a-433c4514b222
 event_sequence     | 15904
@@ -669,6 +676,7 @@ occurred_at        | 2026-10-04 05:41:59.19675+00</pre>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r09-quente1" href="#r09">▶ passo a passo · R09</a></p>
 
 <h4>2 · Transporte: o envelope do Debezium no tópico <code>mvp.oltp.inventory_movements</code></h4>
+<p><strong>Objetivo:</strong> ver a mensagem que a captura publicou. <strong>Prova</strong> que o movimento foi capturado e está no tópico; <strong>não prova</strong> que o Beam o gravou. Ler o tópico não aciona o Beam nem apaga a mensagem.</p>
 <pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 29603 -n 1</pre>
 <span class="rotulo-saida">saída real · 04/10/2026 (campos selecionados)</span>
 <pre class="saida">{
@@ -681,8 +689,11 @@ occurred_at        | 2026-10-04 05:41:59.19675+00</pre>
             "quantity_delta": -38, "occurred_at": "2026-10-04T05:41:59.196750Z" }
 }</pre>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r10-quente2" href="#r10">▶ passo a passo · R10</a></p>
+<p><strong>Como ler o envelope.</strong> <code>op: "c"</code> é a operação no banco — uma inserção —, não uma entrada de estoque: o fato de negócio está em <code>after.movement_type</code>, aqui <code>sale_dispatch</code>, uma saída por despacho, com <code>quantity_delta</code> −38. <code>after</code> é a linha como ficou depois da operação. Quatro números localizam o mesmo movimento, cada um num sistema: <code>movement_id</code> é a identidade, a chave que a deduplicação usa; <code>event_sequence</code> (15904), a posição no livro da origem; <code>source.lsn</code> (256676784), a posição da operação no WAL do PostgreSQL; e o <em>offset</em> (29603), a posição da mensagem na partição do tópico. Só o primeiro identifica o movimento; os outros três são endereços, e um não substitui o outro.</p>
+<p>O <em>offset</em> 29603 já saiu do tópico, que guarda as mensagens por cerca de 7 dias. Repetir hoje o comando acima devolve, sem aviso, outra mensagem: a mais antiga que ainda está lá. O R10 mostra como ver o intervalo que o tópico guarda e conferir qual <em>offset</em> veio. O envelope, campo a campo, está no <a id="ref-cq-evento-quente2" href="caminho_quente_por_dentro.html#evento">complemento, cap. 03</a>.</p>
 
 <h4>3 · Destino quente: <code>raw.inventory_movements_stream</code>, gravado pelo Beam</h4>
+<p><strong>Objetivo:</strong> ver o movimento gravado pelo Beam no destino quente. <strong>Prova</strong> a gravação; <strong>não prova</strong> que ele já está na fato, nem que um alerta saiu.</p>
 <span class="rotulo-saida">saída real · 04/10/2026</span>
 <pre class="saida">movement_id           | 19a5f610-86c3-4ca6-bb8a-433c4514b222
 quantity_delta        | -38
@@ -691,8 +702,10 @@ _stream_lsn           | 256676784
 _stream_from_snapshot | f
 _stream_extracted_at  | 2026-10-04 05:42:06.282212+00     ← ~7 s depois da origem</pre>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r11-quente3" href="#r11">▶ passo a passo · R11</a></p>
+<p><strong>O que a linha guarda.</strong> Além do movimento, o destino guarda de onde ele veio: <code>_stream_offset</code> e <code>_stream_lsn</code> são os mesmos 29603 e 256676784 do envelope, e <code>_stream_from_snapshot</code> diz se ele veio da carga inicial. Servem para ligar a linha à mensagem, não para identificar o movimento. A linha fica aqui mesmo depois que o tópico descarta a mensagem. Os ~7 s são deste evento de 04/10, da ocorrência (<code>occurred_at</code>) à gravação no destino (<code>_stream_extracted_at</code>): uma observação, não prazo garantido, nem média, nem o tempo até um alerta.</p>
 
 <h4>4 · O caminho frio traz o mesmo evento, e os dois se encontram</h4>
+<p><strong>Objetivo:</strong> ver o mesmo movimento chegar pelo lote e os dois caminhos virarem uma linha só. <strong>Prova</strong> a consolidação: em <code>staging</code>, uma linha com as duas marcas de chegada; na fato, uma vez só. <strong>Não prova</strong> que um alerta saiu: o alerta é outro ramo do Beam (L6).</p>
 <p>Depois do <code>make sync-airbyte</code> (carga completa do livro) e do <code>make dbt-build</code>:</p>
 <span class="rotulo-saida">saída real · 04/10/2026</span>
 <pre class="saida">raw.inventory_movements                  _airbyte_extracted_at | 2026-10-04 05:47:09.418+00
@@ -704,8 +717,22 @@ analytics.fact_inventory_movement        movement_type         | sale_dispatch
 <p class="ir-roteiro"><a class="roteiro" id="ref-r12-quente4" href="#r12">▶ passo a passo · R12</a></p>
 
 <div class="caixa info"><span class="titulo">A view que soma os dois caminhos</span>
-<p><code>consumption.skus_below_reorder_point</code> calcula o saldo como <strong>o que a fato já absorveu + o que só existe no caminho quente</strong> e mostra as duas parcelas separadas (<code>quantity_from_batch</code>, <code>quantity_from_stream</code>). A fronteira é a ausência do <code>movement_id</code> na fato, não um horário. Depois do <code>dbt-build</code> desta validação, a parcela quente era zero em todas as 540 linhas, porque a fato já tinha absorvido tudo. Para vê-la diferente de zero, consulte a view entre o <code>stream-run</code> e o próximo <code>dbt-build</code>. <span class="selo nao">não capturado nesta validação</span></p></div>
+<p><code>consumption.skus_below_reorder_point</code> é o segundo ponto de encontro, e faz outra coisa que o <code>staging</code>: em vez de unir as duas chegadas, calcula o saldo como <strong>o que a fato já absorveu + o que só existe no caminho quente</strong> e mostra as duas parcelas separadas (<code>quantity_from_batch</code>, <code>quantity_from_stream</code>). Um exemplo didático, com números inventados: um SKU com 100 unidades na fato recebe pelo fluxo uma saída de 38. Antes do <code>dbt-build</code>, a view dá 100 + (−38) = 62; depois dele, 62 + 0 = 62. O saldo não muda; muda a parcela que carrega o movimento.</p>
+<p><strong>Três leituras que enganam.</strong> Quem leva o movimento para a fato é o <code>dbt-build</code>, não a sincronização: o <code>staging</code> lê também o destino quente, então um <code>dbt-build</code> sem <code>sync-airbyte</code> já absorve o movimento, e a sincronização sozinha só atualiza <code>raw.inventory_movements</code>. A linha quente não é apagada: a parcela quente cai a zero porque o <code>movement_id</code> passou a existir na fato — a fronteira é a ausência da identidade na fato, com a origem <code>retail</code>, não um horário. Por isso <code>quantity_from_batch</code> quer dizer "já absorvido pela fato", mesmo que o movimento tenha chegado primeiro pelo fluxo. E zero não prova ausência: a view só mostra pares abaixo do ponto de reposição (25 unidades, descontada a reserva), e os deltas quentes de um par podem se cancelar.</p>
+<p>Depois do <code>dbt-build</code> da validação de 04/10, a parcela quente era zero em todas as 540 linhas, porque a fato já tinha absorvido tudo. Para vê-la diferente de zero, consulte a view entre o <code>stream-run</code> e o próximo <code>dbt-build</code>. <span class="selo nao">não capturado nesta validação</span> Ela foi observada depois, em 12/10, no R13: 214 das 474 linhas com parcela quente diferente de zero. As duas chegadas e a passagem de uma parcela para a outra podem ser simuladas no <a id="ref-cq-laboratorio-view" href="caminho_quente_por_dentro.html#laboratorio">complemento, cap. 04</a>.</p></div>
 <p class="ir-roteiro"><a class="roteiro" id="ref-r13-view" href="#r13">▶ passo a passo · R13</a></p>
+
+<div class="exercicio" data-ex="j-2">
+  <p class="competencia">Consigo dizer, em cada parada do caminho quente, o que a saída prova e o que ainda falta provar.</p>
+  <ol class="passos">
+    <li><strong>Objetivo:</strong> seguir um mesmo <code>movement_id</code> da origem à fato e separar o que cada parada comprova.</li>
+    <li><strong>Preveja:</strong> se a mesma mensagem chegar duas vezes ao Beam, quantas linhas o movimento terá no destino quente? E na fato? O saldo da view muda?</li>
+    <li><strong>Execute</strong> os <a href="#r-jornada">roteiros</a> R09 a R12, ou siga um evento novo pelo R43.</li>
+    <li><strong>Evidência:</strong> em cada parada, anote o que mudou desde a anterior e o que a saída prova.</li>
+    <li><strong>Explique</strong> o que ainda não foi verificado depois da parada 4.</li>
+  </ol>
+  <details><summary>Conferir</summary><p>Uma linha no destino quente e uma na fato, e o saldo não muda: a escrita do Beam barra a segunda entrega pela chave (<code>on conflict do nothing</code>), e o <code>staging</code> deduplica por <code>movement_id</code>. Origem: o movimento existe. Tópico: a captura o publicou. Destino quente: o Beam o gravou, com o <em>offset</em> e o LSN de onde veio. Fato: o lote e o fluxo viraram uma linha só, com as duas marcas de chegada. Ainda não verificado: o alerta, que é outro ramo do Beam e só sai quando o <em>watermark</em> fecha a janela (L6 e a pergunta 1 da seção 10).</p></details>
+</div>
 
 <h3 id="jornada-scd">SCD tipo 2: uma linha do tempo real</h3>
 <p>Uma <strong>dimensão de mudança lenta tipo 2</strong> guarda o histórico: quando um atributo muda, a versão antiga é fechada (<code>valid_to</code>) e nasce uma nova. O dbt faz isso com <code>snapshot</code>. No varejo não há exemplo: <strong>0 de 1.500 clientes</strong> mudaram desde a carga, porque a origem é regerada de forma determinística. O único caso real vem do legado:</p>
@@ -1461,7 +1488,11 @@ backfills no banco de metadados: 0 · arquivo-sinal: ausente · Deleted branch e
 
 <!-- ───────────────────────── L6 ───────────────────────── -->
 <h3 id="l6">L6 · Streaming: Debezium, Redpanda e Beam</h3>
-<p><strong>Conceito.</strong> O PostgreSQL da origem roda com <code>wal_level=logical</code>: cada transação gravada no log (<a class="g" href="#g-wal">WAL</a>) pode ser lida por um consumidor através de um <strong>slot de replicação</strong>. O <strong>Debezium</strong>, um conector do Kafka Connect, lê as inserções em <code>inventory_movements</code> e publica cada uma como mensagem no tópico <code>mvp.oltp.inventory_movements</code> do <strong>Redpanda</strong>. O <strong>Beam</strong> consome o tópico como parte de um <strong>grupo de consumo</strong> (<code>mvp_ed1_beam</code>), grava cada evento uma única vez no destino (<code>on conflict do nothing</code>) e só então confirma o <a class="g" href="#g-offset">offset</a>. Em paralelo, soma os deltas por <strong>janela de 1 minuto em tempo de evento</strong> e emite um alerta quando o saldo de um par armazém/SKU <strong>cruza</strong> 25 unidades.</p>
+<p><strong>Conceito.</strong> O PostgreSQL da origem roda com <code>wal_level=logical</code>: cada transação gravada no log (<a class="g" href="#g-wal">WAL</a>) pode ser lida por um consumidor através de um <strong>slot de replicação</strong>. O <strong>Debezium</strong>, um conector do Kafka Connect, lê as inserções em <code>inventory_movements</code> e publica cada uma como mensagem no tópico <code>mvp.oltp.inventory_movements</code> do <strong>Redpanda</strong>. O <strong>Beam</strong> consome o tópico como parte de um <strong>grupo de consumo</strong> (<code>mvp_ed1_beam</code>), grava cada evento uma única vez no destino (<code>on conflict do nothing</code>) e só então confirma o <a class="g" href="#g-offset">offset</a>. Depois de gravar, num ramo à parte, soma os deltas gravados por <strong>janela de 1 minuto em tempo de evento</strong> e emite um alerta quando o saldo de um par armazém/SKU <strong>cruza</strong> 25 unidades.</p>
+<div class="caixa info"><span class="titulo">Três relógios, e duas coisas chamadas <em>watermark</em></span>
+<p><strong>Os relógios.</strong> Um movimento carrega três instantes: <code>occurred_at</code>, quando aconteceu no negócio — o <a class="g" href="#g-tempo-de-evento">tempo de evento</a>, o eixo das janelas —; <code>recorded_at</code>, quando a origem o registrou; e <code>_stream_extracted_at</code>, quando o Beam o gravou no destino. Num evento atrasado, o primeiro fica para trás dos outros dois: o produtor atrasa de propósito 8% dos eventos, de 90 a 900 s, como uma loja que registra tarde uma venda feita antes. O Beam põe o evento na janela do seu <code>occurred_at</code>, não na da chegada.</p>
+<p><strong>Os dois <em>watermarks</em>.</strong> O <code>HIGH-WATERMARK</code> que o <code>rpk topic describe</code> mostra é um <em>offset</em>: a posição da próxima mensagem a ser escrita na partição, um número inteiro sem relação com o tempo. O <a class="g" href="#g-watermark"><em>watermark</em></a> do Beam é um instante: a estimativa de "não espero mais eventos anteriores a isto", calculada aqui como o maior <code>occurred_at</code> já visto menos 60 s de folga — ou agora menos 60 s, quando a partição fica ociosa. Quando ele passa do fim de uma janela, a janela emite o resultado.</p>
+<p><strong>O que a janela não segura.</strong> A gravação vem antes do ramo de janelas: cada movimento é gravado no destino assim que lido, e a janela de 60 s só agrupa para o alerta, não é uma espera para gravar. Por isso o movimento pode estar no destino, e na view, antes de qualquer alerta. A <a class="g" href="#g-tolerancia">tolerância a atraso</a> de 1.200 s conta depois do fim da janela, no eixo do <em>watermark</em>: um evento que chega dentro dela reabre a janela num painel de correção; depois dela, fica fora do ramo de janelas — mas continua gravado, porque a gravação já aconteceu. Os 1.200 s não prometem aceitar qualquer atraso: cobrem, com folga, o teto de 900 s que a origem declara. O ADR-0019 registrou 5 minutos como hipótese; a medição de 04/09 a derrubou (mediana de 403 s), e o valor vigente, com a procedência, está em <a href="../streaming/fluxo.yml">streaming/fluxo.yml</a>. Um modelo interativo da janela e da tolerância está no <a id="ref-cq-tempo-l6" href="caminho_quente_por_dentro.html#tempo">complemento, cap. 06</a>.</p></div>
 
 <h4>Subir e conferir</h4>
 <pre class="cmd">make stream-up</pre>
@@ -1561,7 +1592,7 @@ Done. PASS=905 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=905</pre>
     <li><strong>Explique</strong> o que são <code>op</code>, <code>lsn</code> e <code>snapshot</code> no envelope.</li>
   </ol>
   <p class="ir-roteiro"><a class="roteiro" id="ref-r43-l61" href="#r43">▶ passo a passo · R43</a></p>
-  <details><summary>Conferir</summary><p><code>op: "c"</code> é uma inserção (<code>"r"</code> seria leitura do <em>snapshot</em> inicial); <code>lsn</code> é a posição da operação no WAL (a transação é o <code>txId</code>); <code>snapshot: "false"</code> diz que veio ao vivo. A diferença entre <code>occurred_at</code> e <code>_stream_extracted_at</code> é a latência de ponta a ponta (~7 s na validação).</p></details>
+  <details><summary>Conferir</summary><p><code>op: "c"</code> é uma inserção (<code>"r"</code> seria leitura do <em>snapshot</em> inicial); <code>lsn</code> é a posição da operação no WAL (a transação é o <code>txId</code>); <code>snapshot: "false"</code> diz que veio ao vivo. A diferença entre <code>occurred_at</code> e <code>_stream_extracted_at</code> é o tempo daquele evento, da ocorrência até a gravação no destino: ~7 s num evento de 04/10, uma observação, não média nem garantia. Num evento atrasado de propósito pelo produtor, ela inclui também o atraso simulado na origem, de 90 a 900 s.</p></details>
 </div>
 <div class="exercicio" data-ex="l6-2">
   <p class="competencia">Consigo provar idempotência com duplicatas de verdade, e não só com contagem.</p>
@@ -1832,7 +1863,8 @@ check: as quatro etapas passaram</pre>
   <dt id="g-logical-date">Data lógica</dt><dd>A data que identifica uma execução agendada. No Airflow 3, a execução manual disparada pela CLI sem <code>--logical-date</code> não tem; a da interface recebe a que o formulário preenche. (L5b, L5c)</dd>
   <dt id="g-lsn">LSN</dt><dd><em>Log Sequence Number</em>: uma posição no WAL do PostgreSQL. No envelope do Debezium, <code>source.lsn</code> é a da operação. (Jornada, L6)</dd>
   <dt id="g-materializacao">Materialização</dt><dd>Como o dbt grava um modelo: view, tabela, incremental, efêmero. (L4)</dd>
-  <dt id="g-offset"><em>Offset</em></dt><dd>A posição de uma mensagem numa partição do tópico. O consumidor confirma até onde processou. (L6)</dd>
+  <dt id="g-offset"><em>Offset</em></dt><dd>A posição de uma mensagem numa partição do tópico. O consumidor confirma até onde processou. É um endereço, não a identidade: uma mensagem repetida no transporte ganha outro <em>offset</em>. (L6)</dd>
+  <dt id="g-painel">Painel</dt><dd>Cada resultado que uma janela do Beam emite: o pontual, quando o <em>watermark</em> passa do fim dela, e um de correção para cada evento atrasado que chega dentro da tolerância. O alerta é avaliado painel a painel. (L6)</dd>
   <dt id="g-preflight">Preflight</dt><dd>A verificação do projeto que mede a memória, vê o que está de pé e pausa a família conflitante antes de subir algo. (L0)</dd>
   <dt id="g-quarentena">Quarentena</dt><dd>O schema onde ficam os registros rejeitados, com código, motivo, valor original e limpo. (L7)</dd>
   <dt id="g-retry">Retry</dt><dd>Nova tentativa automática de uma tarefa que falhou, depois de uma espera. Útil para falha transitória. (L5b)</dd>
@@ -1842,9 +1874,11 @@ check: as quatro etapas passaram</pre>
   <dt id="g-slot">Slot de replicação</dt><dd>Registro no PostgreSQL de um consumidor do WAL. Enquanto existir, o banco guarda o log para ele, e um slot esquecido enche o disco. (L6)</dd>
   <dt id="g-snapshot">Snapshot (duas coisas)</dt><dd>No dbt, o mecanismo de SCD tipo 2. No Debezium, a leitura inicial da tabela inteira antes do fluxo ao vivo (eventos com <code>op: "r"</code>). (L4, L6)</dd>
   <dt id="g-source-system"><code>source_system</code></dt><dd>Coluna que diz de qual origem veio cada linha (<code>retail</code> ou <code>legacy</code>) e entra em todas as chaves depois do empilhamento. (Jornada)</dd>
+  <dt id="g-tempo-de-evento">Tempo de evento</dt><dd>O instante em que o fato aconteceu no negócio (<code>occurred_at</code>), não o da chegada nem o do processamento. É o eixo das janelas do Beam. (L6)</dd>
+  <dt id="g-tolerancia">Tolerância a atraso (<em>allowed lateness</em>)</dt><dd>Quanto tempo depois do fim de uma janela, no eixo do <em>watermark</em>, um evento atrasado ainda gera um painel de correção. Aqui, 1.200 s. Depois dela, o evento fica fora do ramo de janelas, mas continua gravado no destino. (L6)</dd>
   <dt id="g-trigger-rule"><em>Trigger rule</em></dt><dd>Quando uma tarefa roda em função das anteriores: <code>all_success</code> (padrão), <code>all_done</code>, <code>one_failed</code>… (L5b)</dd>
   <dt id="g-wal">WAL</dt><dd><em>Write-Ahead Log</em>: o log de transações do PostgreSQL. Com <code>wal_level=logical</code>, pode ser lido por CDC. (L6)</dd>
-  <dt id="g-watermark"><em>Watermark</em></dt><dd>No Beam, a estimativa de "não espero mais eventos anteriores a este instante". Quando passa do fim de uma janela, a janela fecha. (L6)</dd>
+  <dt id="g-watermark"><em>Watermark</em></dt><dd>No Beam, a estimativa de "não espero mais eventos anteriores a este instante". Quando passa do fim de uma janela, a janela fecha. Não confundir com o <code>HIGH-WATERMARK</code> do <code>rpk topic describe</code>, que é um <em>offset</em>: a posição da próxima mensagem a ser escrita na partição. (L6)</dd>
   <dt id="g-xcom">XCom</dt><dd>Valor pequeno que uma tarefa do Airflow devolve e outra lê. Aqui, o <code>snapshot_id</code> do legado viaja assim até o dbt. (L5a)</dd>
 </dl>
 
@@ -1853,11 +1887,11 @@ check: as quatro etapas passaram</pre>
 <ul>
   <li><strong>Base:</strong> <code>main</code> em <code>23a4ee0</code> (<code>v1.0.0</code>). Ferramentas: dbt-core 1.12.3, <code>abctl</code> v0.30.4 com o <em>chart</em> do Airbyte 2.3.0, Airflow 3.2.2, Debezium 3.6.2, Redpanda v25.2.4, PostgreSQL 16.15, Beam 2.76.</li>
   <li><strong>Seção 12:</strong> os diagramas foram gerados em 13/10/2026, só com leitura, do catálogo do <code>source_db</code>, do <code>legacy_db</code> e do <code>warehouse_db</code> de pé, da quarentena e do <em>manifest</em> do dbt, sobre <code>40c6914</code>. Catálogos, contagens, geradores e o script de interação em <code>data/medicoes/material_estudo/secao12/</code> (fora do Git).</li>
-  <li><strong>Seção 11:</strong> os 50 roteiros e os 9 procedimentos rodaram como estão escritos em 12/10/2026, entre 21:03Z e 00:17Z (UTC), sobre <code>c531b87</code>, com o estado da máquina devolvido igual ao encontrado; os passos de conferência do Git que a segunda revisão do Codex pediu rodaram num ensaio à parte, num clone, em 13/10/2026. Evidências em <code>data/medicoes/material_estudo/20261012_roteiros_*</code> e <code>20261013_roteiros_revisao2</code> (fora do Git); plano, as duas revisões do Codex e a execução em <code>CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md</code>.</li>
+  <li><strong>Seção 11:</strong> os 50 roteiros e os 9 procedimentos rodaram como estão escritos em 12/10/2026, entre 21:03Z e 00:17Z (UTC), sobre <code>c531b87</code>, com o estado da máquina devolvido igual ao encontrado; os passos de conferência do Git que a segunda revisão do Codex pediu rodaram num ensaio à parte, num clone, em 13/10/2026; o R10 e o último passo do R43 foram refeitos num ensaio em 14/10/2026, depois do parecer do Codex sobre o caminho quente. Evidências em <code>data/medicoes/material_estudo/20261012_roteiros_*</code>, <code>20261013_roteiros_revisao2</code> e <code>20261014_r10</code> (fora do Git); plano, as revisões do Codex e a execução em <code>CONVERSAS_COM_CHAT/PLANO_roteiros_passo_a_passo.md</code>.</li>
   <li><strong>Validação:</strong> 04/10/2026, entre 04:08Z e 06:04Z, nas fases A a D do plano, com o estado da máquina devolvido igual ao encontrado (bancos e Airbyte de pé; Airflow e <em>streaming</em> parados).</li>
   <li><strong>Evidências:</strong> cada comando, com início, fim, código de saída real e saída redigida, em <code>data/medicoes/material_estudo/20261004_fase_{a,b,c,d}/indice.tsv</code> (fora do Git). As telas e a inspeção visual de cada uma, em <code>data/medicoes/material_estudo/telas/</code>.</li>
   <li><strong>Marcas permanentes desta validação:</strong> uma captura do legado a mais (a 52), 2.401 eventos novos no livro da origem (2.201 planejados e 200 do teste de alertas), a configuração inicial da interface do Airbyte com dados fictícios, e o histórico no Airflow.</li>
-  <li><strong>Não validado:</strong> Variables e Connections (achado da chave Fernet); a parcela quente da view de reposição diferente de zero; o caminho de reexecução parcial pela interface; <code>make recovery-verify</code> e todo o L8 nesta data (escrito do registro do B5).</li>
+  <li><strong>Não validado:</strong> Variables e Connections (achado da chave Fernet); a parcela quente da view de reposição diferente de zero (observada depois, em 12/10, no R13); o caminho de reexecução parcial pela interface; <code>make recovery-verify</code> e todo o L8 nesta data (escrito do registro do B5).</li>
   <li><strong>O plano e a revisão:</strong> <a href="PLANO_material_de_estudo.md">PLANO_material_de_estudo.md</a>, revisado pelo Codex (§13) e respondido na revisão 2 (§14), com o resultado da execução na §15.</li>
 </ul>
 
@@ -1866,7 +1900,7 @@ check: as quatro etapas passaram</pre>
 
 <h3 id="p1" class="pergunta">[*1] O que é o "tópico de alertas" no mapa?</h3>
 <p>É um tópico do Redpanda, <code>mvp.alerts.inventory_low_stock</code>, onde o Apache Beam publica um aviso quando o saldo de estoque de um par armazém/SKU fica baixo. No mapa, é a caixa no fim do caminho quente: a seta sai do Beam e chega nele.</p>
-<p><strong>O que dispara o alerta.</strong> O Beam lê os movimentos de estoque que o Debezium captura da origem e soma o saldo de cada par armazém/SKU em janelas de 1 minuto. Quando o saldo <strong>cruza</strong> o limiar de 25 unidades, ele escreve um evento no tópico. O nome do tópico e o limiar estão declarados em <a href="../streaming/fluxo.yml">streaming/fluxo.yml</a>. O limiar é um parâmetro, e não uma coluna da origem, porque <code>inventory_balances</code> não tem ponto de reposição.</p>
+<p><strong>O que dispara o alerta.</strong> O Beam lê os movimentos de estoque que o Debezium captura da origem e grava cada um no destino. Depois, num ramo à parte, agrupa os gravados em janelas de 1 minuto de tempo de evento e soma o delta de cada par armazém/SKU em cada janela. Quando uma janela fecha, esse resultado — um <a class="g" href="#g-painel">painel</a> — é somado ao saldo que o Beam guarda para o par, de uma janela para a outra. Se a soma faz o saldo <strong>cruzar</strong> o limiar de 25 unidades, ele escreve um evento no tópico. A travessia é avaliada painel a painel, não evento a evento: uma saída e uma entrada que se compensam dentro do mesmo minuto não geram alerta. O nome do tópico e o limiar estão declarados em <a href="../streaming/fluxo.yml">streaming/fluxo.yml</a>. O limiar é um parâmetro, e não uma coluna da origem, porque <code>inventory_balances</code> não tem ponto de reposição.</p>
 <p><strong>Por que um tópico separado.</strong> Os movimentos vão para uma tabela (<code>raw.inventory_movements_stream</code>). O alerta não vai, porque não é uma linha de dado: é um sinal para outro sistema. Numa empresa, quem leria esse tópico seria, por exemplo, um sistema de reposição ou de notificação. No MVP não existe esse consumidor: quem lê o tópico é só o <code>make stream-alerts</code>, que mostra o conteúdo para conferência.</p>
 <p><strong>Três regras de funcionamento:</strong></p>
 <ul>
@@ -1874,6 +1908,8 @@ check: as quatro etapas passaram</pre>
   <li><strong>A carga inicial não gera alerta.</strong> O <em>snapshot</em> traz dois anos e meio de histórico. Ele serve para montar o saldo, sem avisar sobre estoque baixo de 2024.</li>
   <li><strong>Evento atrasado gera alerta marcado como correção.</strong> Quando um evento atrasado reabre uma janela já fechada, o alerta vem com <code>[correção de atraso]</code>, para quem consome saber que não é um fato novo.</li>
 </ul>
+<p><strong>O alerta e a view não são o mesmo saldo.</strong> O saldo do alerta é o que o Beam acumula: os deltas do destino quente, semeados na subida. A view <code>skus_below_reorder_point</code> soma a fato e o complemento quente e desconta a reserva antes de comparar com 25. Uma linha na view não quer dizer que um alerta acabou de sair, nem o contrário.</p>
+<p><strong>O desenho, com duas pendências abertas.</strong> As regras acima são o comportamento pretendido. A validação de 04/10 achou dois desvios, registrados como decisões pendentes do Owner (D62 e D63, em <code>docs/pendencias.md</code>) e ainda não resolvidos: o saldo do alerta pode contar duas vezes um movimento gravado antes da semente (D62); e o <code>make medir</code> encerra o Beam quando o destino alcança o corte, antes de o ramo de alerta drenar (D63) — destino em dia não prova que todos os alertas saíram. A sequência de travessias, ilustrada, está no <a id="ref-cq-alertas-p1" href="caminho_quente_por_dentro.html#alertas">complemento, cap. 07</a>.</p>
 <p>A saída real e os dois achados sobre esta parte do fluxo estão no <a href="#l6">L6</a>. O dono documental do assunto é <a href="../docs/streaming.md">docs/streaming.md</a> §5, "Ramificação de alerta".</p>
 <p class="voltar">↩ Voltar para <a href="#ref-p1-mapa">o mapa</a> · <a href="#ref-p1-l6">"Alertas: borda, não nível" (L6)</a></p>
 
@@ -2000,7 +2036,8 @@ com um "↩" de volta para cada ponto que aponta para ele.</p>
   Quando a saída depende do estado da máquina — um <code>git status</code>, um banco parado de
   propósito —, o rótulo diz <strong>"apareceu"</strong>: é o que se viu, não o que você deve ver. Os
   passos de conferência do Git que entraram depois da segunda revisão rodaram num ensaio à parte, num
-  clone do repositório, em 13/10/2026, e o rótulo diz isso.</li>
+  clone do repositório, em 13/10/2026, e o rótulo diz isso. O R10 e o último passo do R43 foram refeitos
+  num ensaio em 14/10/2026, depois do parecer do Codex sobre o caminho quente; o rótulo também diz isso.</li>
   <li><strong>Antes de um roteiro</strong>, faça os procedimentos que ele cita (PC-1, PC-2…). Eles estão
   logo abaixo e valem para todos.</li>
   <li><strong>O que subir em cada cenário</strong> é assunto da
@@ -2823,6 +2860,7 @@ Type "help" for help. </pre>
 <section class="roteiro" id="r09">
 <h4><span class="rid">R09</span> Caminho quente 1: o movimento na origem</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r09-quente1">o passo 1 do caminho quente</a></span> · <span><strong>De pé:</strong> os três bancos</span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
+<p><strong>Objetivo:</strong> ver na origem o movimento que a jornada segue. <strong>Prova</strong> que ele está no livro, com a identidade (<code>movement_id</code>) e a posição no livro (<code>event_sequence</code>). <strong>Não prova</strong> que foi capturado (R10) nem gravado no destino (R11).</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-source</pre>
@@ -2868,19 +2906,21 @@ occurred_at        | 2026-10-04 05:41:59.19675+00 </pre>
 <section class="roteiro" id="r10">
 <h4><span class="rid">R10</span> Caminho quente 2: o envelope do Debezium no tópico</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r10-quente2">o passo 2 do caminho quente</a></span> · <span><strong>De pé:</strong> o <em>streaming</em></span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc6">PC-6</a></span></p>
+<p><strong>Objetivo:</strong> ver como a captura publica um movimento no tópico — o envelope do Debezium. <strong>Prova</strong> que o tópico guarda mensagens nesse formato. <strong>Não prova</strong> que o Beam as gravou (R11); e ler o tópico não aciona o Beam nem apaga a mensagem. O tópico guarda cada mensagem por cerca de 7 dias (a retenção que o conector declara, conferida no tópico em 14/10): o movimento <code>…b222</code> da jornada, de 04/10, já saiu dele. Para aprender o formato, qualquer mensagem que ainda esteja lá serve, e é o que este roteiro lê. Para seguir <strong>um mesmo</strong> movimento da origem ao tópico e ao destino, use o R43, que parte de um evento novo.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">docker exec mvp_ed1_redpanda rpk topic describe mvp.oltp.inventory_movements -p</pre>
-<p>Mostra o início (<code>LOG-START-OFFSET</code>) e o fim (<code>HIGH-WATERMARK</code>) do log do tópico. Mensagem com <em>offset</em> abaixo do início <strong>não existe mais</strong>: o Redpanda apaga o que passou da retenção. Em 12/10 o log começava em 30051, então o <em>offset</em> 29603 de 04/10 já tinha saído.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<p>Mostra o intervalo que o tópico ainda guarda. <code>LOG-START-OFFSET</code> é o primeiro <em>offset</em> retido; <code>HIGH-WATERMARK</code> é o <em>offset</em> da <strong>próxima</strong> mensagem a ser escrita, então a última que existe é a de <code>HIGH-WATERMARK − 1</code>. Este <code>HIGH-WATERMARK</code> é uma posição no log, não o <em>watermark</em> do Beam (L6). <strong>Se os dois números forem iguais, o log está vazio:</strong> não há mensagem para ler, e o roteiro termina aqui. Foi o que apareceu em 12/10, antes da produção do R41 (<code>30051</code> e <code>30051</code>). Para ter o que ler, produza eventos (R42) e siga um deles pelo R43; o destino quente (R11) guarda o movimento mesmo depois que o tópico o descarta.</p>
+<span class="rotulo-saida">apareceu · saída real · 14/10/2026</span>
 <pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
-0          0       3      [0]       30051             30051 </pre>
+0          0       5      [0]       30051             32551 </pre>
 </li>
 <li><span class="onde terminal">terminal · raiz do projeto</span>
-<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 32300 -n 1 -f '%v\n' | jq .</pre>
-<p>Lê uma mensagem que ainda está no log. Troque <code>32300</code> por um <em>offset</em> entre o início e o fim do passo anterior — o R43 mostra como achar o de um evento novo. O <code>-f '%v\n'</code> imprime só o valor, e o <code>| jq .</code> só o formata. Procure <code>op</code> (<code>c</code> = inserção), <code>source.lsn</code> (a posição no WAL), <code>source.snapshot</code> e o <code>after</code>.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
-<pre class="saida">{
+<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 32300 -n 1 -f '%o\n%v\n' | jq .</pre>
+<p>Lê uma mensagem de dentro do intervalo. Troque <code>32300</code> por um <em>offset</em> do passo 1: do <code>LOG-START-OFFSET</code> até o <code>HIGH-WATERMARK − 1</code>. O <code>-n 1</code> lê uma só; o <code>-f '%o\n%v\n'</code> imprime o <em>offset</em> lido e, na linha seguinte, o valor; o <code>| jq .</code> só formata. <strong>Confira a primeira linha: ela tem de ser o <em>offset</em> que você pediu</strong> — o passo 3 mostra por quê. Esta mensagem é de outro movimento (<code>…920c</code>, uma entrada de 38 unidades produzida no R42, em 12/10), não do <code>…b222</code> da jornada. No envelope, <code>op</code> <code>c</code> é a operação no banco, uma inserção, e não uma entrada de estoque: o fato de negócio está em <code>after.movement_type</code>. <code>before</code> é nulo e <code>after</code> é a linha depois da operação. <code>source.lsn</code> é a posição da operação no WAL, e <code>source.txId</code>, a transação. <code>source.snapshot</code> <code>false</code> diz que o evento veio ao vivo, não da carga inicial.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 14/10/2026</span>
+<pre class="saida">32300
+{
   "before": null,
   "after": {
     "movement_id": "25fe38b8-2957-4c74-beba-12436ac4920c",
@@ -2904,7 +2944,37 @@ occurred_at        | 2026-10-04 05:41:59.19675+00 </pre>
   "source": {
     "version": "3.6.2.Final",
     "connector": "postgresql",
-… </pre>
+    "name": "mvp",
+    "ts_ms": 1791842682048,
+    "snapshot": "false",
+    "db": "source_db",
+    "sequence": "[\"264026208\",\"264041456\"]",
+    "ts_us": 1791842682048873,
+    "ts_ns": 1791842682048873000,
+    "schema": "oltp",
+    "table": "inventory_movements",
+    "txId": 1417,
+    "lsn": 264041456,
+    "xmin": null,
+    "origin": null,
+    "origin_lsn": null
+  },
+  "transaction": null,
+  "op": "c",
+  "ts_ms": 1791842682095,
+  "ts_us": 1791842682095737,
+  "ts_ns": 1791842682095738000
+} </pre>
+<p class="se-nao"><strong>Se não aparecer:</strong> se o terminal ficar parado, sem saída, o <em>offset</em> pedido é o <code>HIGH-WATERMARK</code> ou maior, e o <code>rpk</code> está esperando uma mensagem nova. Ctrl-C devolve o <em>prompt</em>, mas não encerra o <code>rpk</code>: ele continua esperando dentro do contêiner (medido em 14/10/2026) e termina sozinho quando chegar uma mensagem, ou quando o PC-9 pausar o <em>streaming</em>. Volte ao passo 1 e escolha um <em>offset</em> do intervalo.</p>
+</li>
+<li><span class="onde terminal">terminal · raiz do projeto</span>
+<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 29603 -n 1 -f '%o\n%v\n' | jq .</pre>
+<p>O que acontece com um <em>offset</em> que já saiu: o 29603 da jornada, de 04/10. O <code>rpk</code> não avisa nem falha. Devolve a mensagem mais antiga que ainda está no log, e a primeira linha mostra o <em>offset</em> que veio de fato: <code>30051</code>, outro movimento. É por isso que o passo 2 imprime o <em>offset</em>: sem ele, você leria outra mensagem achando que é a que pediu.</p>
+<span class="rotulo-saida">apareceu · saída real · 14/10/2026 (cortada)</span>
+<pre class="saida">30051
+    "movement_id": "e7edf640-a974-47ea-b18a-c656f563cfe9",
+    "movement_type": "supplier_return",
+    "quantity_delta": -26, </pre>
 </li>
 </ol>
 <p class="voltar">↩ Voltar para <a href="#ref-r10-quente2">o passo 2 do caminho quente</a></p>
@@ -2913,6 +2983,7 @@ occurred_at        | 2026-10-04 05:41:59.19675+00 </pre>
 <section class="roteiro" id="r11">
 <h4><span class="rid">R11</span> Caminho quente 3: o destino quente</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r11-quente3">o passo 3 do caminho quente</a></span> · <span><strong>De pé:</strong> os três bancos</span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
+<p><strong>Objetivo:</strong> ver o movimento gravado pelo Beam no destino quente. <strong>Prova</strong> a gravação, com a procedência da mensagem. <strong>Não prova</strong> a consolidação na fato (R12) nem que um alerta saiu.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
@@ -2929,7 +3000,7 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select movement_id, quantity_delta, _stream_offset, _stream_lsn, _stream_from_snapshot, _stream_extracted_at from raw.inventory_movements_stream where movement_id = '19a5f610-86c3-4ca6-bb8a-433c4514b222';</pre>
-<p>O mesmo movimento, gravado pelo Beam, com a posição no tópico e no WAL.</p>
+<p>O mesmo movimento, gravado pelo Beam. <code>_stream_offset</code> e <code>_stream_lsn</code> são a posição da mensagem no tópico e a da operação no WAL: ligam a linha à mensagem de que ela veio, mas não são chaves de negócio — a identidade é o <code>movement_id</code>. A linha continua aqui mesmo depois que o tópico descarta a mensagem: o <em>offset</em> 29603 já saiu do tópico (R10).</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">-[ RECORD 1 ]---------+-------------------------------------
 movement_id           | 19a5f610-86c3-4ca6-bb8a-433c4514b222
@@ -2957,6 +3028,7 @@ _stream_extracted_at  | 2026-10-04 05:42:06.282212+00 </pre>
 <section class="roteiro" id="r12">
 <h4><span class="rid">R12</span> Caminho quente 4: os dois caminhos se encontram</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r12-quente4">o passo 4 do caminho quente</a></span> · <span><strong>De pé:</strong> os três bancos</span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
+<p><strong>Objetivo:</strong> ver o mesmo movimento chegar pelo lote e os dois caminhos virarem uma linha só. <strong>Prova</strong> a consolidação: uma linha em <code>staging</code>, com as duas marcas de chegada, e uma na fato. <strong>Não prova</strong> que um alerta saiu: o alerta é outro ramo do Beam (L6).</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
@@ -3018,6 +3090,7 @@ quantity_delta | -38 </pre>
 <section class="roteiro" id="r13">
 <h4><span class="rid">R13</span> A parcela quente da view de reposição</h4>
 <p class="meta"><span><strong>Aparece em:</strong> <a href="#ref-r13-view">a caixa da view que soma os dois caminhos</a></span> · <span><strong>De pé:</strong> os três bancos; eventos novos do <em>streaming</em> que o <code>dbt-build</code> ainda não absorveu</span> · <span><strong>Muda estado:</strong> nada</span> · <span><strong>Antes:</strong> <a href="#pc1">PC-1</a>, <a href="#pc2">PC-2</a></span></p>
+<p><strong>Objetivo:</strong> ver a view somar o que a fato já absorveu com o que só o caminho quente trouxe. As contagens mudam a cada execução — dependem de quantos eventos a fato ainda não absorveu —, e por isso as saídas abaixo dizem <strong>apareceu</strong>: outra execução pode dar outros números sem que nada esteja errado. O que vale em qualquer execução é a estrutura: em cada linha, <code>quantity_on_hand</code> = <code>quantity_from_batch</code> + <code>quantity_from_stream</code>; e, para um par que esteja no passo 3 e no passo 4, a soma e a contagem do passo 4 batem com <code>quantity_from_stream</code> e <code>stream_movement_count</code>.</p>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make psql-warehouse</pre>
@@ -3028,8 +3101,8 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select count(*) as linhas, count(*) filter (where quantity_from_stream &lt;&gt; 0) as com_parcela_quente from consumption.skus_below_reorder_point;</pre>
-<p>Quantas linhas da view têm parte do saldo vinda só do caminho quente.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<p>Quantas linhas da view têm saldo quente diferente de zero. Zero aqui não prova que não há eventos quentes: a view só mostra pares abaixo do ponto de reposição, e os deltas quentes de um par podem se cancelar. Para saber se há eventos, olhe <code>stream_movement_count</code>.</p>
+<span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
 <pre class="saida"> linhas | com_parcela_quente
 --------+--------------------
     474 |                214
@@ -3037,8 +3110,8 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select warehouse_name, sku, quantity_on_hand, quantity_from_batch, quantity_from_stream, stream_movement_count from consumption.skus_below_reorder_point where quantity_from_stream &lt;&gt; 0 order by stream_movement_count desc, sku limit 5;</pre>
-<p>As linhas com mais movimentos quentes: o saldo é a soma das duas parcelas.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<p>As linhas com mais movimentos quentes: o saldo é a soma das duas parcelas. <code>quantity_from_batch</code> quer dizer "já absorvido pela fato" — inclusive o que chegou primeiro pelo fluxo e um <code>dbt-build</code> já levou para lá.</p>
+<span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
 <pre class="saida"> warehouse_name |     sku     | quantity_on_hand | quantity_from_batch | quantity_from_stream | stream_movement_count
 ----------------+-------------+------------------+---------------------+----------------------+-----------------------
  CD Recife      | SKU-0000062 |               19 |                   5 |                   14 |                     5
@@ -3050,8 +3123,8 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde psql">psql · warehouse_db=#</span>
 <pre class="cmd sem-prompt">select w.warehouse_name, p.sku, sum(s.quantity_delta) as delta_so_no_quente, count(*) as eventos from raw.inventory_movements_stream s join analytics.dim_warehouse w on w.source_system = 'retail' and w.warehouse_natural_key = s.warehouse_id join analytics.dim_product p on p.source_system = 'retail' and p.product_natural_key = s.product_variant_id and p.is_current where not exists (select 1 from analytics.fact_inventory_movement f where f.source_system = 'retail' and f.movement_id = s.movement_id) group by 1, 2 order by 4 desc, 2 limit 5;</pre>
-<p>Confira a conta por fora: os deltas que estão no destino quente e ainda não na fato (o <em>anti-join</em> do <code>not exists</code>). Para um par que aparece nas duas saídas — CD Recife / SKU-0000062 na validação —, a soma e a contagem batem com <code>quantity_from_stream</code> e <code>stream_movement_count</code>. Um par só aparece na view se estiver abaixo do ponto de reposição.</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
+<p>Confira a conta por fora: os deltas que estão no destino quente e ainda não na fato (o <em>anti-join</em> do <code>not exists</code>, que compara identidade e origem, não horário). Para um par que aparece nas duas saídas — CD Recife / SKU-0000062 na validação —, a soma e a contagem batem com <code>quantity_from_stream</code> e <code>stream_movement_count</code>. Um par só aparece na view se estiver abaixo do ponto de reposição.</p>
+<span class="rotulo-saida">apareceu · saída real · 12/10/2026</span>
 <pre class="saida"> warehouse_name |     sku     | delta_so_no_quente | eventos
 ----------------+-------------+--------------------+---------
  CD São Paulo   | SKU-0000042 |                 -9 |       5
@@ -4886,28 +4959,14 @@ occurred_at        | 2026-10-12 22:04:42.005735+00 </pre>
 <p class="sem-saida">Não aparece nada: o próximo <em>prompt</em> volta direto.</p>
 </li>
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
-<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 32300 -n 1 -f '%v\n' | jq .</pre>
-<p>Troque <code>32300</code> pelo seu <em>offset</em>: o envelope do Debezium tem o mesmo <code>movement_id</code>, <code>op</code> <code>c</code> (inserção), o <code>lsn</code> do WAL e <code>snapshot</code> <code>false</code> (evento ao vivo).</p>
-<span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
-<pre class="saida">{
-  "before": null,
-  "after": {
+<pre class="cmd">docker exec mvp_ed1_redpanda rpk topic consume mvp.oltp.inventory_movements -o 32300 -n 1 -f '%o\n%v\n' | jq .</pre>
+<p>Troque <code>32300</code> pelo seu <em>offset</em>. A primeira linha é o <em>offset</em> lido: tem de ser o que você pediu — um <em>offset</em> que já saiu por retenção volta, sem aviso, como a mensagem mais antiga do log (R10). O envelope do Debezium tem o mesmo <code>movement_id</code>, <code>op</code> <code>c</code> (inserção), o <code>lsn</code> do WAL e <code>snapshot</code> <code>false</code> (evento ao vivo). O mesmo movimento no destino, na origem e no tópico: é isso que prova o rastreamento.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 14/10/2026, a mesma mensagem relida (cortada)</span>
+<pre class="saida">32300
     "movement_id": "25fe38b8-2957-4c74-beba-12436ac4920c",
-    "event_sequence": 18351,
-    "idempotency_key": "purchase:GR-STR-004651:3:533:5",
-    "warehouse_id": 3,
-    "product_variant_id": 533,
-    "movement_type": "purchase_receipt",
-    "quantity_delta": 38,
-    "unit_cost": "1870.8057",
-    "source_type": "purchase",
-    "source_id": "GR-STR-004651",
-    "correlation_id": null,
-    "causation_id": "af0a33f9-b590-4c0a-aff9-f184d00bc675",
-    "aggregate_version": 5,
-    "occurred_at": "2026-10-12T22:04:42.005735Z",
-    "recorded_at": "2026-10-12T22:04:42.005735Z",
-… </pre>
+    "snapshot": "false",
+    "lsn": 264041456,
+  "op": "c", </pre>
 </li>
 </ol>
 <p class="voltar">↩ Voltar para <a href="#ref-r43-l61">o exercício l6-1</a></p>
@@ -4978,7 +5037,7 @@ Type "help" for help. </pre>
 </li>
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
 <pre class="cmd">docker exec mvp_ed1_redpanda rpk topic describe mvp.oltp.inventory_movements -p</pre>
-<p>O novo fim do log (<code>HIGH-WATERMARK</code>), já com as duplicatas.</p>
+<p>O novo fim do log (<code>HIGH-WATERMARK</code>), já com as duplicatas. É um <em>offset</em>, não o <em>watermark</em> do Beam.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">PARTITION  LEADER  EPOCH  REPLICAS  LOG-START-OFFSET  HIGH-WATERMARK
 0          0       4      [0]       30051             32551 </pre>
@@ -5048,7 +5107,7 @@ Type "help" for help. </pre>
 <ol class="passos-r">
 <li><span class="onde terminal">segundo terminal · raiz do projeto</span>
 <pre class="cmd">make stream-alerts</pre>
-<p>Depois do R44: os alertas do intervalo são a diferença. Zero também é resultado: o ramo de alerta só emite quando o <em>watermark</em> fecha as janelas, e pode demorar uns minutos. O saldo dentro do alerta tem um defeito conhecido, ainda em aberto (D62).</p>
+<p>Depois do R44: os alertas do intervalo são a diferença. Zero também é resultado: o ramo de alerta só emite quando o <em>watermark</em> fecha as janelas, e pode demorar uns minutos. O saldo dentro do alerta tem um defeito conhecido, ainda em aberto (D62). E o destino ter alcançado o corte no R42 não prova que o ramo de alerta terminou (D63).</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
 <pre class="saida">2026-10-12 20:44:34,677 INFO apache_beam.io.gcp.bigquery: No module named google.cloud.bigquery_storage_v1. As a result, the ReadFromBigQuery transform *CANNOT* be used with `method=DIRECT_READ`.
 %4|1791848674.695|OFFSET|rdkafka#consumer-1| [thrd:main]: mvp.alerts.inventory_low_stock [0]: offset reset (at offset 0 (leader epoch -1), broker 0) to cached BEGINNING offset offset 14 (leader epoch -1): fetch failed due to requested offset not available on the broker: Broker: Offset out of range
