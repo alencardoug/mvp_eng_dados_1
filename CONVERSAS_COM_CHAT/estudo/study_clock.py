@@ -38,6 +38,10 @@ REPO = HERE.parents[1]
 LIVE = Path(os.environ.get("ESTUDO_DADOS") or REPO / "data" / "estudo")  # ESTUDO_DADOS: só para testes
 PUBLIC = HERE / "registros"
 TRAIL = "CONVERSAS_COM_CHAT/trilha_de_estudo_fase_local.html"
+# O complemento da trilha (desde 14/10/2026): conta como estudo na trilha, com as seções prefixadas por `cq-`,
+# porque os capítulos dele repetem ids da trilha (`mapa`, `glossario`).
+COMPANION = "CONVERSAS_COM_CHAT/caminho_quente_por_dentro.html"
+COMPANION_PREFIX = "cq-"
 ARCHIVE = Path.home() / "Projetos" / "_arquivo" / "registros_mvp_eng_dados_1"
 PROJECT_PATHS = ["/home/doug/Projetos/mvp_ed1", str(REPO)]  # o checkout antigo e o atual
 LOCAL_TZ = dt.timezone(dt.timedelta(hours=-3))               # America/Sao_Paulo: sem horário de verão desde 2019
@@ -316,6 +320,12 @@ def trail_titles() -> dict[str, str]:
         titles[ident] = html.unescape(re.sub(r"<[^>]+>", "", inner)).strip()
     for ident, inner in re.findall(r'<h[23][^>]*\bid="([^"]+)"[^>]*>(.*?)</h[23]>', text, re.S):
         titles.setdefault(ident, html.unescape(re.sub(r"<[^>]+>", "", inner)).strip())
+    companion = REPO / COMPANION
+    if companion.exists():
+        text = companion.read_text(encoding="utf-8")
+        for ident, inner in re.findall(r'<section class="chapter" id="([^"]+)">.*?<h2>(.*?)</h2>', text, re.S):
+            title = html.unescape(re.sub(r"<[^>]+>", "", inner)).strip()
+            titles[COMPANION_PREFIX + ident] = f"complemento · {title}"
     return titles
 
 
@@ -365,7 +375,8 @@ def cmd_report(_args) -> int:
         d = dt.date.fromisoformat(day)
         lines.append(f"| {d:%d/%m/%Y} | {hm(counts.get('claude_code', 0))} | {hm(counts.get('codex', 0))} | "
                      f"{hm(counts.get('trail', 0))} | {hm(counts.get('terminal', 0))} | **{hm(counts.get('total', 0))}** |")
-    lines += ["", "## O que foi estudado na trilha", ""]
+    lines += ["", "## O que foi estudado na trilha", "",
+              "As seções `cq-…` são do complemento *Caminho quente por dentro*, que conta desde 14/10/2026.", ""]
     if result["sections"]:
         lines += ["| Seção | Tempo com ela na tela |", "|---|---|"]
         for ident, minutes in result["sections"].items():
@@ -457,9 +468,10 @@ class Collector(http.server.BaseHTTPRequestHandler):
             self._send(404, b"nao encontrado", "text/plain; charset=utf-8")
             return
         body = (REPO / relative).read_bytes()
-        if relative == TRAIL:
-            tag = b'<script>window.RELOGIO_MODO="local";</script><script src="/estudo/relogio.js"></script></body>'
-            body = body.replace(b"</body>", tag, 1)
+        if relative in (TRAIL, COMPANION):
+            prefix = f'window.RELOGIO_PREFIXO="{COMPANION_PREFIX}";' if relative == COMPANION else ""
+            tag = f'<script>window.RELOGIO_MODO="local";{prefix}</script><script src="/estudo/relogio.js"></script></body>'
+            body = body.replace(b"</body>", tag.encode(), 1)
         ctype = mimetypes.guess_type(relative)[0] or "text/plain"
         if relative.endswith((".md", ".yml", ".yaml", ".py", ".sql", ".tf", ".toml")):
             ctype = "text/plain"

@@ -6,11 +6,13 @@
  *   "artifact" → o banco do próprio Artifact no claude.ai (coleção "estudo", um documento por dia UTC),
  *                só quando quem vê é o dono da página.
  * Sem modo, o relógio não liga. Nada além do minuto e da seção na tela é registrado.
+ * window.RELOGIO_PREFIXO, quando existe, antecede o id da seção: o complemento da trilha usa "cq-".
  */
 (() => {
   "use strict";
   const MODE = window.RELOGIO_MODO;
   if (MODE !== "local" && MODE !== "artifact") return;
+  const PREFIX = typeof window.RELOGIO_PREFIXO === "string" ? window.RELOGIO_PREFIXO : "";
 
   const IDLE_MS = 5 * 60 * 1000;
   const BEAT_MS = 60 * 1000;
@@ -21,15 +23,16 @@
   }
   const active = () => document.visibilityState === "visible" && Date.now() - lastUse < IDLE_MS;
 
-  // A seção na tela: o último roteiro ou título com id acima de um terço da janela.
-  const anchors = () => Array.from(document.querySelectorAll("section.roteiro[id], h2[id], h3[id]"));
+  // A seção na tela: o último roteiro, capítulo (no complemento) ou título com id acima de um terço da janela.
+  const anchors = () => Array.from(document.querySelectorAll("section.roteiro[id], section.chapter[id], h2[id], h3[id]"));
   function section() {
     const line = innerHeight / 3;
     let current = "";
     for (const el of anchors()) {
       if (el.getBoundingClientRect().top <= line) current = el.id; else break;
     }
-    return /^[A-Za-z0-9_-]{1,60}$/.test(current) ? current : "";
+    const tagged = current ? PREFIX + current : "";
+    return /^[A-Za-z0-9_-]{1,60}$/.test(tagged) ? tagged : "";
   }
 
   // O selo no canto: quanto já foi somado.
@@ -47,7 +50,9 @@
   let todayMin = null;
   let totalMin = null;
   let state = "";
+  let off = "";  // a página não conta: o selo diz isso e não mostra um "hoje" que não avança
   function paint() {
+    if (off) { badge.textContent = off; return; }
     const parts = [`⏱ hoje ${todayMin == null ? "…" : fmt(todayMin)}`];
     if (totalMin != null) parts.push(`total ${fmt(totalMin)}`);
     if (state) parts.push(state);
@@ -132,9 +137,12 @@
   }
 
   (async () => {
-    if (!window.claude || typeof window.claude.use !== "function") return;
+    if (!window.claude || typeof window.claude.use !== "function") {
+      off = "⏱ esta página não conta no relógio"; paint(); return;
+    }
     const [dbNs, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
-    if (!dbNs || !user || !(await user.isOwner())) { badge.remove(); return; }
+    if (!user || !(await user.isOwner())) { badge.remove(); return; }
+    if (!dbNs) { off = "⏱ esta página não conta no relógio"; paint(); return; }
     db = dbNs;
     try { todayMin = await countToday(); } catch (e) { todayMin = 0; }
     paint();

@@ -16,7 +16,7 @@
 | ↳ o Claude trabalhando, você acompanhando | as mesmas | do evento ao seguinte, quando o seguinte não é um pedido seu |
 | ↳ você entre turnos | as mesmas | do último evento até o seu pedido seguinte |
 | Construção e revisão com o Codex | sessões do Codex abertas na pasta do projeto (`~/.codex/sessions/`) | eventos a até 15 min formam um bloco |
-| Estudo na trilha | o relógio da página, local e no Artifact | um minuto conta quando a aba está visível e houve rolagem, clique ou tecla nos últimos 5 min |
+| Estudo na trilha | o relógio da página, local e no Artifact — na trilha e, desde 14/10/2026, no complemento [*Caminho quente por dentro*](../caminho_quente_por_dentro.html) | um minuto conta quando a aba está visível e houve rolagem, clique ou tecla nos últimos 5 min |
 | Execução no terminal | o gancho do bash, só dentro da pasta do projeto | um minuto conta quando houve tecla no terminal nos últimos 5 min: o Enter de cada comando e, enquanto ele roda, as teclas dentro dele (`psql`, contêiner) |
 
 O total é a **união** dos minutos: um minuto em que o Claude trabalhava e você lia a trilha conta uma
@@ -32,11 +32,17 @@ python3 CONVERSAS_COM_CHAT/estudo/study_clock.py serve
 
 Abra `http://127.0.0.1:8770/`. É a mesma trilha, com um selo no canto inferior direito que mostra o
 tempo de hoje e o total somado. Ctrl-C no terminal encerra o coletor. Os links para `docs/` funcionam;
-o coletor só serve arquivos versionados no Git, nunca o `.env` nem o `data/`.
+o coletor só serve arquivos versionados no Git, nunca o `.env` nem o `data/`. O complemento
+(`/CONVERSAS_COM_CHAT/caminho_quente_por_dentro.html`, pelos links da trilha) também ganha o selo e conta
+como estudo na trilha; as seções dele são gravadas com o prefixo `cq-`, porque os capítulos repetem ids da
+trilha (`mapa`, `glossario`). O coletor lê a lista de arquivos ao subir: um que já estava rodando antes de
+o complemento entrar no Git precisa de Ctrl-C e `serve` de novo para servi-lo.
 
 **Estudar no Artifact** (o link privado da trilha no claude.ai): o relógio grava no banco da própria
 página, e só quando quem vê é o dono. Os minutos de lá entram na soma quando o Claude os lê e os
-importa — peça "traga os minutos do Artifact".
+importa — peça "traga os minutos do Artifact". O complemento vai como segunda página do mesmo Artifact,
+com o relógio no mesmo modo; se a página não recebe o banco do Artifact, o selo diz "esta página não conta
+no relógio" em vez de mostrar um tempo que não avança.
 
 **Terminal:** nada a fazer. Nos terminais abertos depois da instalação, cada comando digitado dentro
 da pasta do projeto é registrado e, enquanto ele roda, um vigia anota a cada 20 s se houve tecla
@@ -73,7 +79,8 @@ O `archive` guarda uma cópia das transcrições; o `import` extrai delas os min
   evento numa sessão do Claude ou do Codex, ficam de fora.
 - **O passado tem buracos conhecidos.** As transcrições do Claude Code anteriores a 14/09/2026 foram
   apagadas pela limpeza automática antes de este registro existir; o Codex cobre o projeto desde
-  01/09/2026. O estudo na trilha e no terminal antes de 13/10/2026 não foi medido.
+  01/09/2026. O estudo na trilha e no terminal antes de 13/10/2026 não foi medido, e o do complemento,
+  antes de 14/10/2026.
 - **O terminal vê o histórico do bash e as teclas, não o que elas dizem.** Comandos começados por
   espaço e repetidos idênticos não entram no histórico (`HISTCONTROL=ignoreboth`). Dentro de um `psql`
   ou de um contêiner, conta o minuto com tecla nos últimos 5 min, pelo horário de acesso do
@@ -86,7 +93,7 @@ O `archive` guarda uma cópia das transcrições; o `import` extrai delas os min
 
 ## O que fica público
 
-Minutos de relógio, o identificador da seção da trilha que estava na tela, o nome do programa de cada
+Minutos de relógio, o identificador da seção da trilha (ou, com `cq-`, do capítulo do complemento) que estava na tela, o nome do programa de cada
 comando (`make`, `git`, `docker`…) e o identificador das sessões do Claude e do Codex. Nenhum conteúdo de
 conversa, nenhum comando inteiro, nenhum argumento: senhas digitadas num comando nunca chegam aqui.
 
