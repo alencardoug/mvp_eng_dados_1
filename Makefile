@@ -795,10 +795,10 @@ define pgcli
 	exit 1; \
 }
 @set -a; . ./.env; set +a; \
-	PGPASSWORD="$$$(1)_DB_PASSWORD" \
+	PGPASSWORD="$${$(1)_DB_PASSWORD}" \
 	PGOPTIONS="-c default_transaction_read_only=on -c idle_in_transaction_session_timeout=5min" \
 	exec pgcli --warn all --application-name pgcli --auto-vertical-output \
-		-h localhost -p "$$$(1)_DB_PORT" -U "$$$(1)_DB_USER" -d "$$$(1)_DB_NAME"
+		-h localhost -p "$${$(1)_DB_PORT}" -U "$${$(1)_DB_USER}" -d "$${$(1)_DB_NAME}"
 endef
 
 pgcli-source: require-env ## Abre o pgcli, somente leitura, na origem transacional
