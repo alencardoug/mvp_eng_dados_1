@@ -6,8 +6,13 @@
 <meta name="description" content="Um guia visual e interativo do caminho quente do MVP: PostgreSQL, Debezium, Kafka Connect, Redpanda, Apache Beam, reconciliação e consumo. Exemplos didáticos, fontes do projeto e limites conhecidos.">
 <meta name="theme-color" content="#f4f1e9">
 <title>Caminho quente por dentro — a viagem de um movimento de estoque</title>
+<script>
+try {
+ if (localStorage.getItem('hot-path-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+} catch (_) { /* O tema continua disponível quando o armazenamento está bloqueado. */ }
+</script>
 <style>
-:root{--paper:#f4f1e9;--white:#fffdf7;--ink:#222b27;--muted:#59645c;--line:#d4d7cb;--orange:#b64320;--orange-soft:#f7dfca;--green:#235c4b;--green-soft:#e3eadc;--blue:#365b78;--blue-soft:#e4ebef;--dark:#203c32;--mono:ui-monospace,"Cascadia Code",Consolas,monospace;--sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;--serif:Georgia,"Times New Roman",serif}
+:root{color-scheme:light;--paper:#f4f1e9;--white:#fffdf7;--ink:#222b27;--muted:#59645c;--line:#d4d7cb;--orange:#b64320;--orange-soft:#f7dfca;--green:#235c4b;--green-soft:#e3eadc;--blue:#365b78;--blue-soft:#e4ebef;--dark:#203c32;--mono:ui-monospace,"Cascadia Code",Consolas,monospace;--sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;--serif:Georgia,"Times New Roman",serif}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:95px}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.7 var(--sans)}a{color:var(--green);text-underline-offset:4px}a:hover{color:var(--orange)}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--orange);outline-offset:5px}button{color:inherit}::selection{background:var(--orange-soft)}[hidden]{display:none!important}.skip{position:fixed;left:16px;top:-100px;z-index:100;background:var(--white);padding:12px}.skip:focus{top:12px}
 .topbar{position:sticky;top:0;z-index:20;background:rgba(244,241,233,.97);border-bottom:1px solid var(--line)}.top-inner{max-width:1440px;margin:auto;padding:16px 4vw;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:12px;text-transform:uppercase;letter-spacing:.12em;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);font-weight:750}.brand-mark{width:26px;height:26px;display:grid;place-items:center;border:1px solid var(--orange);color:var(--orange);font-size:18px}.top-links{display:flex;gap:25px;font-size:13px}.top-links a{text-decoration:none}.progress{height:3px;background:var(--line)}.progress span{display:block;height:100%;width:0;background:var(--orange)}
 .wrap{max-width:1320px;margin:auto;padding:0 4vw}.eyebrow,.chapter-number,.label{font:600 11px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.12em}.eyebrow{color:var(--orange)}.hero{display:grid;grid-template-columns:1.15fr 1fr;gap:5vw;align-items:center;padding:80px 0 70px;min-height:640px}.hero h1{font:400 clamp(48px,5.8vw,80px)/1.04 var(--serif);letter-spacing:-.045em;margin:22px 0 26px;max-width:740px}.hero h1 em{color:var(--orange);font-weight:400}.hero .lead{font-size:19px;max-width:48ch;color:var(--muted)}.hero-actions{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:30px 0 20px}.button{border:1px solid var(--green);background:var(--green);color:white;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:11px 18px;font-size:14px;font-weight:650;text-decoration:none;border-radius:3px;min-height:45px}.button:hover{background:var(--dark);color:white}.button.secondary{background:transparent;color:var(--green)}.button.secondary:hover{background:var(--green-soft)}.quiet{font-size:13px;color:var(--muted)}.hero-figure{margin:0;position:relative}.hero-art{width:100%;display:block}.hero-figure figcaption{font:11px/1.6 var(--mono);text-align:center;color:var(--muted);margin-top:10px}.hero-art text{font-family:var(--sans)}
@@ -25,30 +30,47 @@ details{border-top:1px solid var(--line);padding:17px 0}details:last-child{borde
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}}
 @media print{body{background:white;font-size:11pt}.topbar,.toc,.hero-actions,.tool-tabs,.tool-nav,.lab-buttons,.progress,.quiz,.footer,.no-print{display:none!important}.wrap{max-width:none;padding:0}.book{display:block}.hero{padding:20px 0;min-height:0}.hero h1{font-size:40pt}.hero-figure{max-width:330px}.route-strip{margin-bottom:30px}.chapter{break-before:auto;padding-bottom:25px!important;margin-bottom:25px!important}h2,h3{break-after:avoid}.map-panel,.callout,.trace,.lab,.time-lab,.alert-demo{break-inside:avoid}.tool-sheet{min-height:0}.lab,.codebox{background:#eef1eb;color:#1e3025;print-color-adjust:exact}.lab p,.lab .label,.lab .meter-note,.lab-log,.lab table,.lab .equation,.lab-foot,.readout,.code-caption{color:#26382e}.code-content{min-height:0}.map-scroll{overflow:visible}.architecture{min-width:0}.code-content pre{white-space:pre-wrap}.top-links{display:none}a{color:inherit}.pill{font-size:8pt}details>div{display:block!important}.quiz{display:block!important}.answers,.feedback{display:none!important}}
 .voltar-trilha{font-size:14px;margin:18px 0 0;color:var(--muted)}
+
+@media screen {
+ :root[data-theme="dark"]{color-scheme:dark;--paper:#151e1a;--white:#1d2923;--ink:#e8eee7;--muted:#b3c1b5;--line:#435449;--orange:#f2ac83;--orange-soft:#442e23;--green:#9bd0b4;--green-soft:#263d30;--blue:#a3c6e2;--blue-soft:#243744;--dark:#203c32}
+ :root[data-theme="dark"] .topbar{background:rgba(21,30,26,.97)}
+ :root[data-theme="dark"] code{background:#303c33}
+ :root[data-theme="dark"] pre code{background:transparent}
+ :root[data-theme="dark"] .lab code{background:#395347}
+ :root[data-theme="dark"] .pill.known{color:var(--orange)}
+ :root[data-theme="dark"] .status-note{background:var(--orange-soft)}
+ :root[data-theme="dark"] .time-result.expired{background:#303833}
+ :root[data-theme="dark"] .button:not(.secondary),:root[data-theme="dark"] .tool-tab[aria-pressed="true"]{color:var(--paper)}
+ :root[data-theme="dark"] .button:not(.secondary):hover{background:var(--green-soft);color:var(--ink)}
+}
+.theme-toggle{background:var(--white);border:1px solid var(--line);border-radius:3px;padding:6px 10px;min-height:44px;font-size:12px;white-space:nowrap}
+.theme-toggle:hover{background:var(--green-soft)}
+.top-links{align-items:center}
+@media(max-width:520px){.top-inner{flex-wrap:wrap;gap:8px}.top-links{width:100%;justify-content:space-between;gap:8px}}
 </style>
 </head>
 <body>
 <a class="skip" href="#conteudo">Pular para o conteúdo</a>
-<header class="topbar"><div class="top-inner"><a class="brand" href="#inicio"><span class="brand-mark" aria-hidden="true">↗</span> Cadernos de engenharia</a><nav class="top-links" aria-label="Atalhos"><a href="#laboratorio">Experimentar</a><a class="optional" href="#glossario">Glossário</a><a href="trilha_de_estudo_fase_local.html#jornada-quente">Voltar à trilha ↗</a></nav></div><div class="progress" aria-hidden="true"><span id="reading-progress"></span></div></header>
+<header class="topbar"><div class="top-inner"><a class="brand" href="#inicio"><span class="brand-mark" aria-hidden="true">↗</span> Cadernos de engenharia</a><nav class="top-links" aria-label="Atalhos"><button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" hidden>Modo escuro</button><a href="#laboratorio">Experimentar</a><a class="optional" href="#glossario">Glossário</a><a href="trilha_de_estudo_fase_local.html#jornada-quente">Voltar à trilha ↗</a></nav></div><div class="progress" aria-hidden="true"><span id="reading-progress"></span></div></header>
 <div class="wrap" id="inicio">
 <header class="hero">
 <div><div class="eyebrow">MVP de engenharia de dados / guia visual</div><h1>O estoque se move.<br>O dado <em>acompanha.</em></h1><p class="lead">Uma viagem pelo caminho quente: do movimento que nasce no banco à informação que chega à consulta — com transporte, processamento, conferência e memória.</p><div class="hero-actions"><a class="button" href="#proposta">Começar a viagem <span aria-hidden="true">↓</span></a><a href="#mapa" class="quiet">Ir direto ao mapa</a></div><p class="quiet">Leia em sequência. Pare nos experimentos. As ferramentas fazem sentido quando você entende o trabalho de cada uma.</p></div>
 <figure class="hero-figure">
 <svg class="hero-art" viewBox="0 0 470 460" role="img" aria-labelledby="hero-title hero-desc"><title id="hero-title">Uma saída de estoque atravessa o caminho quente</title><desc id="hero-desc">Um armazém com 100 unidades registra a saída de 38. Uma mensagem percorre captura, transporte e processamento. A consulta passa a mostrar 62 unidades. Exemplo didático.</desc>
-<defs><pattern id="grid" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#d0d5c7"/></pattern><marker id="hero-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" fill="none" stroke="#b64320" stroke-width="1.2"/></marker></defs>
+<defs><pattern id="grid" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="var(--line)"/></pattern><marker id="hero-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" fill="none" stroke="var(--orange)" stroke-width="1.2"/></marker></defs>
 <rect x="0" y="0" width="470" height="460" fill="url(#grid)"/>
-<text x="25" y="28" fill="#59645c" font-size="10" letter-spacing="2">UM MOVIMENTO. VÁRIAS EVIDÊNCIAS.</text>
-<path d="M47 144L131 96L215 144V239H47Z" fill="#e3eadc" stroke="#235c4b" stroke-width="1.4"/><path d="M36 151L131 96L226 151M131 96V77M123 77H139" fill="none" stroke="#235c4b" stroke-width="1.4"/>
-<rect x="68" y="167" width="47" height="72" fill="#f4f1e9" stroke="#235c4b"/><path d="M72 177H111M72 187H111M72 197H111M72 207H111" stroke="#a4b7a4"/><rect x="136" y="180" width="24" height="24" fill="#e5c5a6" stroke="#8b6446"/><path d="M148 180V189" stroke="#8b6446"/><rect x="161" y="204" width="27" height="27" fill="#e5c5a6" stroke="#8b6446"/><path d="M175 204V214" stroke="#8b6446"/>
-<text x="130" y="143" text-anchor="middle" fill="#235c4b" font-size="11" font-weight="700">ARMAZÉM 02</text>
-<rect x="19" y="256" width="139" height="65" rx="3" fill="#fffdf7" stroke="#d4d7cb"/><text x="32" y="277" fill="#59645c" font-size="10">SALDO ANTERIOR</text><text x="32" y="305" fill="#222b27" font-size="29">100 <tspan font-size="12">unidades</tspan></text>
-<path d="M220 181H280V118H379" fill="none" stroke="#b64320" stroke-width="1.8" marker-end="url(#hero-arrow)"/>
-<rect x="250" y="158" width="74" height="49" rx="3" fill="#f7dfca" stroke="#b64320" transform="rotate(-8 287 182)"/><text x="287" y="190" text-anchor="middle" font-size="23" fill="#b64320" transform="rotate(-8 287 182)">−38</text>
-<circle cx="379" cy="118" r="26" fill="#fffdf7" stroke="#b64320"/><path d="M369 118H389M379 108V128" stroke="#b64320" stroke-width="1.4"/><text x="379" y="76" text-anchor="middle" font-size="11" fill="#59645c">CAPTURAR</text>
-<path d="M379 145V213" stroke="#b64320" stroke-width="1.8" marker-end="url(#hero-arrow)"/><circle cx="379" cy="241" r="26" fill="#fffdf7" stroke="#b64320"/><path d="M366 232H392M366 241H392M366 250H392" stroke="#b64320" stroke-width="1.4"/><text x="310" y="245" text-anchor="end" font-size="10" fill="#59645c">TRANSPORTAR</text>
-<path d="M379 268V333H310" fill="none" stroke="#b64320" stroke-width="1.8" marker-end="url(#hero-arrow)"/><text x="409" y="313" text-anchor="middle" font-size="10" fill="#59645c" transform="rotate(-90 409 313)">PROCESSAR</text>
-<rect x="190" y="308" width="120" height="93" rx="3" fill="#235c4b"/><text x="204" y="332" fill="#d3e3d3" font-size="10">NA CONSULTA</text><text x="204" y="379" fill="#fffdf7" font-size="47">62</text><path d="M46 363H155" stroke="#aab6a8" stroke-width="1.2" stroke-dasharray="4 5"/><text x="46" y="385" fill="#59645c" font-size="10">100 + (−38)</text>
-<text x="25" y="442" fill="#b64320" font-size="10" letter-spacing="1">EXEMPLO DIDÁTICO · SEM CONEXÃO COM OS BANCOS</text>
+<text x="25" y="28" fill="var(--muted)" font-size="10" letter-spacing="2">UM MOVIMENTO. VÁRIAS EVIDÊNCIAS.</text>
+<path d="M47 144L131 96L215 144V239H47Z" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1.4"/><path d="M36 151L131 96L226 151M131 96V77M123 77H139" fill="none" stroke="var(--green)" stroke-width="1.4"/>
+<rect x="68" y="167" width="47" height="72" fill="var(--paper)" stroke="var(--green)"/><path d="M72 177H111M72 187H111M72 197H111M72 207H111" stroke="#a4b7a4"/><rect x="136" y="180" width="24" height="24" fill="#e5c5a6" stroke="#8b6446"/><path d="M148 180V189" stroke="#8b6446"/><rect x="161" y="204" width="27" height="27" fill="#e5c5a6" stroke="#8b6446"/><path d="M175 204V214" stroke="#8b6446"/>
+<text x="130" y="143" text-anchor="middle" fill="var(--green)" font-size="11" font-weight="700">ARMAZÉM 02</text>
+<rect x="19" y="256" width="139" height="65" rx="3" fill="var(--white)" stroke="var(--line)"/><text x="32" y="277" fill="var(--muted)" font-size="10">SALDO ANTERIOR</text><text x="32" y="305" fill="var(--ink)" font-size="29">100 <tspan font-size="12">unidades</tspan></text>
+<path d="M220 181H280V118H379" fill="none" stroke="var(--orange)" stroke-width="1.8" marker-end="url(#hero-arrow)"/>
+<rect x="250" y="158" width="74" height="49" rx="3" fill="var(--orange-soft)" stroke="var(--orange)" transform="rotate(-8 287 182)"/><text x="287" y="190" text-anchor="middle" font-size="23" fill="var(--orange)" transform="rotate(-8 287 182)">−38</text>
+<circle cx="379" cy="118" r="26" fill="var(--white)" stroke="var(--orange)"/><path d="M369 118H389M379 108V128" stroke="var(--orange)" stroke-width="1.4"/><text x="379" y="76" text-anchor="middle" font-size="11" fill="var(--muted)">CAPTURAR</text>
+<path d="M379 145V213" stroke="var(--orange)" stroke-width="1.8" marker-end="url(#hero-arrow)"/><circle cx="379" cy="241" r="26" fill="var(--white)" stroke="var(--orange)"/><path d="M366 232H392M366 241H392M366 250H392" stroke="var(--orange)" stroke-width="1.4"/><text x="310" y="245" text-anchor="end" font-size="10" fill="var(--muted)">TRANSPORTAR</text>
+<path d="M379 268V333H310" fill="none" stroke="var(--orange)" stroke-width="1.8" marker-end="url(#hero-arrow)"/><text x="409" y="313" text-anchor="middle" font-size="10" fill="var(--muted)" transform="rotate(-90 409 313)">PROCESSAR</text>
+<rect x="190" y="308" width="120" height="93" rx="3" fill="#235c4b"/><text x="204" y="332" fill="#d3e3d3" font-size="10">NA CONSULTA</text><text x="204" y="379" fill="#fffdf7" font-size="47">62</text><path d="M46 363H155" stroke="#aab6a8" stroke-width="1.2" stroke-dasharray="4 5"/><text x="46" y="385" fill="var(--muted)" font-size="10">100 + (−38)</text>
+<text x="25" y="442" fill="var(--orange)" font-size="10" letter-spacing="1">EXEMPLO DIDÁTICO · SEM CONEXÃO COM OS BANCOS</text>
 </svg><figcaption>O saldo muda porque um novo fato chegou.<br>O desafio é fazê-lo chegar sem perder nem somar duas vezes.</figcaption></figure>
 </header>
 <div class="route-strip" aria-label="Objetivos do guia"><div><b>Entender</b><span>por que existe um caminho rápido</span></div><div><b>Acompanhar</b><span>um evento em cada ferramenta</span></div><div><b>Experimentar</b><span>duplicatas, atraso e consolidação</span></div><div><b>Conferir</b><span>o que foi provado em cada parada</span></div></div>
@@ -68,7 +90,7 @@ details{border-top:1px solid var(--line);padding:17px 0}details:last-child{borde
 <section class="chapter" id="mapa"><div class="chapter-number">02 / Cada peça tem um trabalho</div><h2>O mapa completo, sem saltar as conexões.</h2><p class="intro">Capturar, transportar, processar, guardar e consultar são responsabilidades diferentes. O mapa mostra como elas se encaixam.</p>
 <div class="map-panel"><div class="panel-heading"><strong>Da operação ao consumo</strong><span>Em telas pequenas, deslize o diagrama →</span></div><div class="map-scroll" tabindex="0" role="region" aria-label="Mapa completo dos caminhos quente e frio, com rolagem horizontal">
 <svg class="architecture" viewBox="0 0 860 470" role="img" aria-labelledby="arch-title arch-desc"><title id="arch-title">Arquitetura do caminho quente e sua integração com o lote</title><desc id="arch-desc">O produtor insere na origem PostgreSQL. Debezium, executado no Kafka Connect, captura mudanças e publica no Redpanda. Beam lê e grava em raw.inventory_movements_stream. Eventos novos gravados alimentam o ramo de alerta, que publica em outro tópico. Airbyte lê a mesma origem e grava em raw.inventory_movements. As duas tabelas se unem no staging; trusted e analytics são construídos pelo dbt. A view de consumo soma a fato aos movimentos quentes ainda ausentes da fato.</desc>
-<defs><marker id="hot-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#b64320"/></marker><marker id="cold-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#365b78"/></marker></defs>
+<defs><marker id="hot-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="var(--orange)"/></marker><marker id="cold-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="var(--blue)"/></marker></defs>
 <text x="20" y="27" font-size="11" letter-spacing="1.5">CAPTURA CONTÍNUA</text>
 <rect class="node" x="20" y="55" width="130" height="77" rx="3"/><text x="85" y="80" text-anchor="middle" font-size="15" font-weight="650">PostgreSQL</text><text x="85" y="100" text-anchor="middle" class="small">livro na origem</text><text x="85" y="118" text-anchor="middle" class="small">source_db / oltp</text>
 <path class="hot-path" d="M150 94H184" marker-end="url(#hot-arrow)"/>
@@ -194,7 +216,20 @@ occurred_at        2026-10-04 05:41:59.19675+00</code></pre><p class="code-capti
 
 <script>
 "use strict";
-// Conteúdo didático: este script não acessa bancos, serviços, rede ou armazenamento do navegador.
+const themeToggle = document.getElementById('theme-toggle');
+function applyTheme(dark) {
+ document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+ themeToggle.setAttribute('aria-pressed', String(dark));
+ document.querySelector('meta[name="theme-color"]').content = dark ? '#151e1a' : '#f4f1e9';
+}
+applyTheme(document.documentElement.dataset.theme === 'dark');
+themeToggle.hidden = false;
+themeToggle.addEventListener('click', () => {
+ const dark = document.documentElement.dataset.theme !== 'dark';
+ applyTheme(dark);
+ try { localStorage.setItem('hot-path-theme', dark ? 'dark' : 'light'); } catch (_) {}
+});
+// Apenas a preferência de tema é salva no navegador; as simulações não acessam bancos, serviços ou rede.
 // O relógio de estudo, quando aparece, é outro script: o coletor local o injeta ao servir a página,
 // e a variante publicada o traz no modo do Artifact (CONVERSAS_COM_CHAT/estudo/README.md).
 const toolData = [
