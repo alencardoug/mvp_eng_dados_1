@@ -37,6 +37,10 @@ origens:
     destino: raw
     # A réplica é descartável (ADR-0008): o destino pode derrubar a tabela.
     destino_descartavel: true
+    # 36 das 40 tabelas de `oltp`: cada uma entra na etapa que a consome, e
+    # ingerir tabela que nenhum modelo lê é volume sem consumidor. As quatro
+    # ausentes — `price_lists`, `product_prices`, `customer_contacts` e
+    # `customer_preferences` — e o porquê estão na §7 das Perguntas de Negócio.
     tabelas:
 
 

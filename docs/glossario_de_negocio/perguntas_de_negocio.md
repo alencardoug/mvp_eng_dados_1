@@ -13,7 +13,7 @@
 | Método | Perguntas antes do SQL ([ADR-0018](../adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md)) |
 | Quantidade | 16 |
 | Situação | **As 16 com view construída**, todas com `contract: enforced` |
-| Última revisão | 05/09/2026 |
+| Última revisão | 19/10/2026 |
 
 ---
 
@@ -290,3 +290,11 @@ Registrado para que a ausência seja escolha, e não esquecimento:
   Fora do escopo da fase local.
 - **Previsão e série temporal.** O Termo de Abertura não as inclui; o MVP entrega o dado que as
   tornaria possíveis, não os modelos.
+- **Preço de tabela, contatos e preferências do cliente.** Nenhuma das 16 lê `price_lists`,
+  `product_prices`, `customer_contacts` ou `customer_preferences`: a receita vem do preço
+  **praticado**, que vive em `order_items` e não é cópia do preço de tabela
+  ([Modelo de Dados §2.10](../modelo_de_dados.md#210-desvios-deliberados-da-3fn)), e nenhum recorte
+  usa meio de contato ou consentimento. Por isso a origem `retail` não as ingere — tabela entra na
+  ingestão quando um modelo a lê, regra que `test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt`
+  guarda. A origem legada captura as quatro, porque lá o que se reconcilia são as 40
+  ([ADR-0037](../adr/0037-reter-capturas-do-legado-por-acrescimo.md)).

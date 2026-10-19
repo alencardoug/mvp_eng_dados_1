@@ -694,13 +694,22 @@ acontece no bruto real (PKs inteiras e UUIDs limpos) e o bloco da D44 escolheu u
 filhos por isso. Fica registrado como divergência entre duas noções de identidade, não como defeito
 medido; se um dia importar, a decisão é do Owner e pede ADR.
 
-**Quatro tabelas da origem fora da ingestão, sem motivo escrito (04/10/2026).** `customer_contacts`,
+**Quatro tabelas da origem fora da ingestão, sem motivo escrito (04/10/2026) — explicado em 19/10/2026.** `customer_contacts`,
 `customer_preferences`, `price_lists` e `product_prices` não estão em
 [`airbyte/streams.yml`](../airbyte/streams.yml): são 36 de 40 tabelas, e o
 [Dicionário §3](dicionario_de_dados.md#3-linhagem) registra o número, mas nenhum documento diz por
 quê. Não verificado se é escolha (nenhuma pergunta de negócio as lê, como o ADR-0035 decidiu para as
 dimensões) ou omissão. No mesmo arquivo, o comentário de `support_agents` diz "42 linhas"; a origem
 tem 6, medido no mesmo dia. Achado E da validação do material de estudo.
+
+**Explicado em 19/10/2026: é escolha.** A regra "cada tabela entra na etapa que a consome — ingerir
+tabela que nenhum modelo lê é volume sem consumidor" está no `streams.yml` desde a abertura da
+Etapa 5 (55fdf5a), e `test_toda_tabela_do_stream_tem_fonte_declarada_no_dbt` a guarda. Nenhuma das
+16 perguntas lê as quatro, então nenhuma etapa as ingeriu, e o histórico confirma que nunca
+estiveram na origem `retail`. O motivo agora está escrito na
+[§7 das Perguntas de Negócio](glossario_de_negocio/perguntas_de_negocio.md#7-o-que-estas-perguntas-deixam-de-fora),
+e o `streams.yml` aponta para ela. O comentário de `support_agents` passou a dizer as duas
+contagens: 42 na proporção de referência, 6 no volume gerado.
 
 ---
 
