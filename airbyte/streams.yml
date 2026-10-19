@@ -188,7 +188,8 @@ origens:
         chave: [id]
 
       # ── Marketing e atendimento (Etapa 9) ─────────────────────────────────────
-      # `support_agents` são 42 linhas e ainda assim `dedup_history`: a dimensão
+      # `support_agents` são 42 linhas na proporção de referência e 6 no volume
+      # gerado (`geracao.yml`), e ainda assim `dedup_history`: a dimensão
       # dele é SCD tipo 2, e carga completa não deixa histórico para historizar.
       # Tamanho não é o critério do ADR-0015 — mutabilidade é.
       campaigns:
