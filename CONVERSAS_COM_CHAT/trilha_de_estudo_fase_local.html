@@ -3809,6 +3809,18 @@ renomeado as (
 … </pre>
 </li>
 <li><span class="onde terminal">terminal · pasta dbt</span>
+<pre class="cmd">dbt ls --select source:retail.orders --output json --output-keys database schema identifier -q</pre>
+<p>As três partes do nome que o <code>source('retail', 'orders')</code> vira, já juntas no <code>manifest.json</code>: o banco e o schema vêm do bloco da fonte <code>retail</code>; o nome, da tabela <code>orders</code>. O caminho de cada parte, arquivo por arquivo, está no fim deste roteiro.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 22/10/2026</span>
+<pre class="saida">{"database": "warehouse_db", "schema": "raw", "identifier": "orders"} </pre>
+</li>
+<li><span class="onde terminal">terminal · pasta dbt</span>
+<pre class="cmd">dbt compile --inline "{{ source('retail', 'orders') }}" -q</pre>
+<p>Só o <code>source()</code>, compilado: a <em>relation</em> escrita como o Postgres a lê, cada parte entre aspas.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 22/10/2026</span>
+<pre class="saida">"warehouse_db"."raw"."orders" </pre>
+</li>
+<li><span class="onde terminal">terminal · pasta dbt</span>
 <pre class="cmd">dbt ls --select stg_retail__orders --resource-type model --output json --output-keys database schema alias -q</pre>
 <p>As três partes do nome que o <code>ref('stg_retail__orders')</code> vira, cada uma de um lugar: o banco vem do perfil (<code>dbt/profiles.yml</code>, <code>dbname</code>, lido de <code>WAREHOUSE_DB_NAME</code> no <code>.env</code>); o schema, do <code>+schema: staging</code> da pasta em <code>dbt/dbt_project.yml</code>, passado pela macro <code>dbt/macros/generate_schema_name.sql</code>; o nome, do arquivo <code>.sql</code>, porque o modelo não declara <code>alias</code>. Sem <code>--resource-type model</code>, o seletor pega também outros nós com o mesmo nome e devolve mais de um JSON.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 21/10/2026</span>
@@ -3824,6 +3836,73 @@ renomeado as (
 <p>O <code>compile</code> só resolve o Jinja (<code>ref</code>, <code>source</code>, macros, <code>env_var</code>) e devolve o texto do SQL. Não executa nada no banco. Sem <code>--inline</code>, também grava o SQL de cada modelo selecionado em <code>dbt/target/compiled/</code>. Serve para perguntas sobre o SQL: em que o <code>source</code> ou o <code>ref</code> se transformou, como uma macro se expandiu.</p>
 <p>O <code>dbt show</code> do R25 faz o mesmo passo e, depois, executa a consulta e mostra as primeiras linhas (cinco, se não houver <code>--limit</code>). Serve para perguntas sobre os dados. Nenhum dos dois cria ou altera objetos no banco: quem materializa é o <code>dbt run</code> ou o <code>dbt build</code> (o R27). Os dois partem do arquivo como ele está em disco; o que um <code>ref</code> ou um <code>source</code> aponta, porém, é lido como está no banco — o que o último <code>run</code> deixou lá, ou o que o Airbyte carregou.</p>
 <p>Por que <code>source('retail', 'orders')</code> e não <code>raw.orders</code> escrito direto: com o nome cru, a consulta roda igual, mas a tabela deixa de existir para o dbt. A declaração em <code>_retail__sources.yml</code> é o que põe a origem no grafo de linhagem, guarda o endereço num lugar só (o banco vem de <code>WAREHOUSE_DB_NAME</code> e, na fase GCP, vira projeto e <em>dataset</em> do BigQuery), mede o frescor da carga (<code>dbt source freshness</code>, por <code>_airbyte_extracted_at</code>), testa as colunas antes de qualquer transformação, declara retenção e acesso no <code>meta</code> e permite selecionar o que depende dela (<code>--select source:retail.orders+</code>). O <code>source()</code> só aparece na fronteira <code>raw</code> → <code>staging</code>; dali em diante, um modelo cita outro por <code>ref()</code>.</p>
+<p><strong>Do <code>source()</code> ao nome da tabela, arquivo por arquivo.</strong> O nome é montado em pedaços: o primeiro argumento escolhe a fonte, que dá o banco e o schema; o segundo escolhe a tabela, que dá o nome. Os pedaços são juntados quando o dbt lê o projeto (o <em>parse</em>, que todo comando faz antes de qualquer outra coisa). Na compilação, o <code>source()</code> só procura o par já pronto.</p>
+<div class="diagrama" role="img" aria-label="Do source() ao nome da tabela: o argumento retail escolhe o bloco da fonte, que dá banco e schema; o argumento orders escolhe a tabela, que dá o nome; o parse junta os três no manifest, e o adaptador Postgres escreve o nome entre aspas">
+<svg viewBox="0 0 1000 476" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ponta-source" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--fg-3)"/></marker>
+    <marker id="ponta-source-ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker>
+    <marker id="ponta-source-x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--x)"/></marker>
+  </defs>
+  <!-- a chamada -->
+  <rect x="250" y="16" width="500" height="60" rx="8" class="caixa-ac"/>
+  <text x="266" y="37" font-size="12" class="t2">dbt/models/staging/stg_retail__orders.sql · linha 7</text>
+  <text x="266" y="62" font-size="14" style="font-family:var(--mono)">{{ source(<tspan font-weight="700" style="fill:var(--accent)">'retail'</tspan>, <tspan font-weight="700" style="fill:var(--x)">'orders'</tspan>) }}</text>
+  <!-- o .env -->
+  <rect x="20" y="124" width="210" height="116" rx="8" class="caixa-svg"/>
+  <text x="32" y="146" font-size="13" font-weight="700">.env</text>
+  <text x="32" y="168" font-size="12" style="font-family:var(--mono)">WAREHOUSE_DB_NAME</text>
+  <text x="32" y="184" font-size="12" xml:space="preserve" style="font-family:var(--mono)">  =warehouse_db</text>
+  <text x="32" y="208" font-size="12" class="t2">exportado pela sessão (PC-7)</text>
+  <text x="32" y="224" font-size="12" class="t2">ou pelo Makefile, linha 39</text>
+  <!-- o bloco da fonte -->
+  <rect x="270" y="124" width="370" height="116" rx="8" class="caixa-svg" style="stroke:var(--accent)"/>
+  <text x="282" y="146" font-size="13" font-weight="700">_retail__sources.yml · fonte <tspan style="fill:var(--accent)">retail</tspan></text>
+  <text x="282" y="164" font-size="12" class="t2">linhas 4–12 · vale para todas as tabelas da fonte</text>
+  <text x="282" y="188" font-size="11.5" style="font-family:var(--mono)">database: {{ env_var('WAREHOUSE_DB_NAME') }}</text>
+  <text x="282" y="206" font-size="11.5" xml:space="preserve" style="font-family:var(--mono)">          → warehouse_db</text>
+  <text x="282" y="226" font-size="11.5" style="font-family:var(--mono)">schema: raw</text>
+  <!-- a tabela -->
+  <rect x="680" y="124" width="300" height="116" rx="8" class="caixa-svg" style="stroke:var(--x)"/>
+  <text x="692" y="146" font-size="13" font-weight="700">_retail__sources.yml · tabela <tspan style="fill:var(--x)">orders</tspan></text>
+  <text x="692" y="164" font-size="12" class="t2">linha 497</text>
+  <text x="692" y="188" font-size="11.5" style="font-family:var(--mono)">- name: orders</text>
+  <text x="692" y="208" font-size="12" class="t2">sem identifier: o nome é o name;</text>
+  <text x="692" y="224" font-size="12" class="t2">banco e schema, herdados da fonte</text>
+  <!-- setas de cima -->
+  <path d="M384,76 C384,100 455,100 455,122" class="seta" style="stroke:var(--accent)" marker-end="url(#ponta-source-ac)"/>
+  <path d="M467,76 C467,104 830,96 830,122" class="seta" style="stroke:var(--x)" marker-end="url(#ponta-source-x)"/>
+  <path d="M230,182 L268,182" class="seta" marker-end="url(#ponta-source)"/>
+  <!-- o manifest -->
+  <rect x="130" y="292" width="740" height="76" rx="8" class="caixa-svg"/>
+  <text x="146" y="314" font-size="13" font-weight="700">dbt/target/manifest.json · nó source.mvp_ed1.retail.orders</text>
+  <rect x="146" y="326" width="250" height="30" rx="6" class="caixa-ac"/>
+  <text x="158" y="346" font-size="12.5" style="font-family:var(--mono)">database: warehouse_db</text>
+  <rect x="410" y="326" width="170" height="30" rx="6" class="caixa-ac"/>
+  <text x="422" y="346" font-size="12.5" style="font-family:var(--mono)">schema: raw</text>
+  <rect x="594" y="326" width="260" height="30" rx="6" class="caixa-svg" style="stroke:var(--x)"/>
+  <text x="606" y="346" font-size="12.5" style="font-family:var(--mono)">identifier: orders</text>
+  <path d="M455,240 L455,290" class="seta" style="stroke:var(--accent)" marker-end="url(#ponta-source-ac)"/>
+  <path d="M830,240 C830,266 724,266 724,290" class="seta" style="stroke:var(--x)" marker-end="url(#ponta-source-x)"/>
+  <text x="466" y="270" font-size="12" class="t2">parse: junta os pedaços</text>
+  <!-- o nome escrito -->
+  <path d="M500,368 L500,412" class="seta" marker-end="url(#ponta-source)"/>
+  <text x="512" y="394" font-size="12" class="t2">compile: source() procura o par e recebe uma relation</text>
+  <rect x="230" y="414" width="540" height="56" rx="8" class="caixa-ac"/>
+  <text x="246" y="434" font-size="12" class="t2">adaptador dbt-postgres: junta com ponto, aspas em cada parte</text>
+  <text x="246" y="458" font-size="15" font-weight="700" style="font-family:var(--mono)">"warehouse_db"."raw"."orders"</text>
+</svg>
+</div>
+<ol>
+<li><code>.env</code>: <code>WAREHOUSE_DB_NAME=warehouse_db</code>. O dbt não lê o <code>.env</code>; quem o carrega é a sessão. No PC-7 é o <code>set -a; source ../.env; set +a</code>; pelo <code>make</code>, é a variável <code>DBT</code> do <code>Makefile</code> (linha 39), que faz o mesmo. O <code>set -a</code> exporta cada variável lida, e o processo do dbt a herda.</li>
+<li><code>dbt/dbt_project.yml</code>: <code>model-paths: ["models"]</code> manda o dbt varrer <code>dbt/models/</code>, e é assim que ele acha <code>models/staging/_retail__sources.yml</code>. O <code>+schema: staging</code> deste arquivo vale só para modelos: fonte não passa por ele nem pela macro <code>generate_schema_name.sql</code>.</li>
+<li><code>dbt/models/staging/_retail__sources.yml</code>, linhas 4 a 12, o bloco <code>- name: retail</code>: é o que o <code>'retail'</code> escolhe. Declara <code>database: "{{ env_var('WAREHOUSE_DB_NAME') }}"</code>, que o <em>parse</em> resolve para <code>warehouse_db</code> com o valor do passo 1, e <code>schema: raw</code>, literal. Os dois valem para todas as tabelas da fonte.</li>
+<li>Mesmo arquivo, linha 497, <code>- name: orders</code>: é o que o <code>'orders'</code> escolhe. Sem <code>identifier</code>, o nome físico é o próprio <code>name</code>. A tabela poderia declarar <code>database</code> e <code>schema</code> próprios; como não declara, herda os da fonte.</li>
+<li><code>dbt/target/manifest.json</code>: o <em>parse</em> grava os pedaços juntos num nó, <code>source.mvp_ed1.retail.orders</code>, com <code>database</code>, <code>schema</code>, <code>identifier</code> e o <code>relation_name</code> já montado. É o que o segundo comando acima mostra.</li>
+<li><code>dbt/models/staging/stg_retail__orders.sql</code>, linha 7: na compilação, o <code>{{ source('retail', 'orders') }}</code> procura no manifest o par (fonte <code>retail</code>, tabela <code>orders</code>) e devolve uma <em>relation</em>: um objeto com as três partes, não um texto. Um par que não está declarado faz o <em>parse</em> parar com erro, antes de qualquer SQL.</li>
+<li>O adaptador <code>dbt-postgres</code> escreve a <em>relation</em> no SQL: junta as partes com ponto e põe aspas duplas em cada uma, que é o padrão dele, porque o projeto não declara <code>quoting</code>. Sai <code>"warehouse_db"."raw"."orders"</code>, gravado na linha 7 de <code>dbt/target/compiled/mvp_ed1/models/staging/stg_retail__orders.sql</code> e mostrado pelo terceiro comando acima.</li>
+</ol>
+<p>O <code>ref</code> chega ao mesmo banco por outro caminho: a fonte declara o <code>database</code>, e o modelo herda o <code>dbname</code> do perfil. Se a fonte não declarasse, usaria o do perfil, que hoje tem o mesmo valor. E o schema da fonte é literal: <code>raw</code> fica <code>raw</code>, sem passar pela <code>generate_schema_name</code> e sem o <code>schema: analytics</code> do perfil.</p>
 <p class="voltar">↩ Voltar para <a href="#ref-r24-funcao">o L4, a função dbt_</a> · <a href="#ref-r24-compile">o L4, compile</a></p>
 </section>
 
