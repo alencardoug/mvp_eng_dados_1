@@ -4110,6 +4110,7 @@ Type "help" for help. </pre>
 <p class="sem-saida">Não aparece nada: o próximo <em>prompt</em> volta direto.</p>
 </li>
 </ol>
+<p>Falta uma coisa que o <code>find</code> não resolve. Todo comando do dbt regrava <code>dbt/target/manifest.json</code>, e os comandos com <code>--select</code> deste roteiro o deixam só com o SQL compilado dos nós escolhidos. O teste de linhagem lê esse arquivo, e o <code>make check-offline</code> passa a falhar em <code>tests/test_linhagem.py</code> (aconteceu em 21/10/2026). Para devolvê-lo completo, já na <code>main</code>, abra a sessão do dbt (<a href="#pc7">PC-7</a>), rode <code>dbt compile -q</code> sem seletor e digite <code>exit</code>. Ele só escreve em <code>dbt/target/</code>, ignorado pelo Git.</p>
 <p class="voltar">↩ Voltar para <a href="#ref-r29-codigo">o L4, mãos no código</a> · <a href="#ref-r29-l41">o exercício l4-1</a> · <a href="#ref-r29-l42">o exercício l4-2</a></p>
 </section>
 
