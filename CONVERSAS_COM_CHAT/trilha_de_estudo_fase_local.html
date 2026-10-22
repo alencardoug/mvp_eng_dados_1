@@ -3811,6 +3811,7 @@ renomeado as (
 </ol>
 <p>O <code>compile</code> só resolve o Jinja (<code>ref</code>, <code>source</code>, macros, <code>env_var</code>) e devolve o texto do SQL. Não executa nada no banco. Sem <code>--inline</code>, também grava o SQL de cada modelo selecionado em <code>dbt/target/compiled/</code>. Serve para perguntas sobre o SQL: em que o <code>source</code> ou o <code>ref</code> se transformou, como uma macro se expandiu.</p>
 <p>O <code>dbt show</code> do R25 faz o mesmo passo e, depois, executa a consulta e mostra as primeiras linhas (cinco, se não houver <code>--limit</code>). Serve para perguntas sobre os dados. Nenhum dos dois cria ou altera objetos no banco: quem materializa é o <code>dbt run</code> ou o <code>dbt build</code> (o R27). Os dois partem do arquivo como ele está em disco; o que um <code>ref</code> ou um <code>source</code> aponta, porém, é lido como está no banco — o que o último <code>run</code> deixou lá, ou o que o Airbyte carregou.</p>
+<p>Por que <code>source('retail', 'orders')</code> e não <code>raw.orders</code> escrito direto: com o nome cru, a consulta roda igual, mas a tabela deixa de existir para o dbt. A declaração em <code>_retail__sources.yml</code> é o que põe a origem no grafo de linhagem, guarda o endereço num lugar só (o banco vem de <code>WAREHOUSE_DB_NAME</code> e, na fase GCP, vira projeto e <em>dataset</em> do BigQuery), mede o frescor da carga (<code>dbt source freshness</code>, por <code>_airbyte_extracted_at</code>), testa as colunas antes de qualquer transformação, declara retenção e acesso no <code>meta</code> e permite selecionar o que depende dela (<code>--select source:retail.orders+</code>). O <code>source()</code> só aparece na fronteira <code>raw</code> → <code>staging</code>; dali em diante, um modelo cita outro por <code>ref()</code>.</p>
 <p class="voltar">↩ Voltar para <a href="#ref-r24-funcao">o L4, a função dbt_</a> · <a href="#ref-r24-compile">o L4, compile</a></p>
 </section>
 
@@ -3885,7 +3886,7 @@ saldo_da_view_confere_com_o_livro_distinto </pre>
 <ol class="passos-r">
 <li><span class="onde terminal">terminal · raiz do projeto</span>
 <pre class="cmd">make dbt-docs</pre>
-<p>Gera o catálogo e o serve em <code>http://localhost:8080</code>. Ele mesmo abre uma aba no navegador. O terminal fica preso servindo: é normal.</p>
+<p>Gera o catálogo e o serve em <code>http://localhost:8080</code>. Ele mesmo abre uma aba no navegador. O terminal fica preso servindo: é normal. Três linhas <code>code 404</code> logo depois de abrir a página também são normais: o <code>index.html</code> do dbt Docs traz um caminho de ícone e duas expressões do Angular que o navegador pede antes de elas serem trocadas pelo valor. A página funciona; o <code>index.html</code> é gerado e não se corrige à mão.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
 <pre class="saida">21:23:14  Catalog written to /home/doug/Projetos/mvp_eng_dados_1/dbt/target/catalog.json
 Serving docs at 8080
@@ -3972,7 +3973,7 @@ where order_status = 'delivered' </pre>
 </li>
 <li><span class="onde terminal">terminal · pasta dbt</span>
 <pre class="cmd">dbt show --select estudo_pedidos_por_status -q</pre>
-<p>Primeiro, o <a href="#pc7">PC-7</a>, numa aba nova do terminal. Depois, consulte o modelo sem materializá-lo. O <code>show</code> mostra 5 linhas por padrão.</p>
+<p>Primeiro, o <a href="#pc7">PC-7</a>, numa aba nova do terminal. Depois, consulte o modelo sem materializá-lo. O <code>show</code> mostra 5 linhas por padrão. Funciona sem <code>dbt build</code>: o <code>show --select</code> compila o arquivo como está em disco e executa o SQL como consulta avulsa. Nada <code>estudo_pedidos_por_status</code> existe no banco; precisa existir só o que o modelo referencia, a <em>view</em> <code>staging.stg_retail__orders</code>.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026</span>
 <pre class="saida">| order_status | pedidos |  valor_total |
 | ------------ | ------- | ------------ |
@@ -4008,7 +4009,7 @@ group by order_status </pre>
 </li>
 <li><span class="onde terminal">terminal · pasta dbt</span>
 <pre class="cmd">dbt test --select estudo_falha_proposital</pre>
-<p>O teste falha de propósito: ele devolve os pedidos <code>delivered</code>, e um teste singular passa só com zero linhas. O código de saída é 1.</p>
+<p>O teste falha de propósito. Um teste singular é uma consulta que procura problemas: cada linha devolvida é um caso com problema, e o teste passa só com zero linhas. Esta devolve todos os pedidos <code>delivered</code>. Um teste que passa descreve o que não deveria existir, por exemplo <code>where order_total_amount &lt; 0</code>. O código de saída é 1. O nome no <code>--select</code> é o do arquivo, com sublinhado; com outro nome, o dbt avisa que não há nada a executar e não roda teste nenhum.</p>
 <span class="rotulo-saida">deve aparecer · saída real · 12/10/2026 (cortada)</span>
 <pre class="saida">…
 21:21:29    Got 2573 results, configured to fail if != 0
