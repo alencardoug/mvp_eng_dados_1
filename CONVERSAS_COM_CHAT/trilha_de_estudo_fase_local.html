@@ -3808,6 +3808,18 @@ renomeado as (
         customer_id,
 … </pre>
 </li>
+<li><span class="onde terminal">terminal · pasta dbt</span>
+<pre class="cmd">dbt ls --select stg_retail__orders --resource-type model --output json --output-keys database schema alias -q</pre>
+<p>As três partes do nome que o <code>ref('stg_retail__orders')</code> vira, cada uma de um lugar: o banco vem do perfil (<code>dbt/profiles.yml</code>, <code>dbname</code>, lido de <code>WAREHOUSE_DB_NAME</code> no <code>.env</code>); o schema, do <code>+schema: staging</code> da pasta em <code>dbt/dbt_project.yml</code>, passado pela macro <code>dbt/macros/generate_schema_name.sql</code>; o nome, do arquivo <code>.sql</code>, porque o modelo não declara <code>alias</code>. Sem <code>--resource-type model</code>, o seletor pega também outros nós com o mesmo nome e devolve mais de um JSON.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 21/10/2026</span>
+<pre class="saida">{"database": "warehouse_db", "schema": "staging", "alias": "stg_retail__orders"} </pre>
+</li>
+<li><span class="onde terminal">terminal · pasta dbt</span>
+<pre class="cmd">dbt compile --inline "{{ target.name }} | {{ target.database }} | {{ target.schema }}" -q</pre>
+<p>O perfil ativo. O schema do perfil é <code>analytics</code>, e o padrão do dbt juntaria os dois em <code>analytics_staging</code>; a macro do projeto usa o schema declarado como está, e por isso o <code>ref</code> dá <code>staging</code>. Para ver só o resultado final, troque o texto do <code>--inline</code> por <code>select * from {{ ref('stg_retail__orders') }}</code>.</p>
+<span class="rotulo-saida">deve aparecer · saída real · 21/10/2026</span>
+<pre class="saida">local | warehouse_db | analytics </pre>
+</li>
 </ol>
 <p>O <code>compile</code> só resolve o Jinja (<code>ref</code>, <code>source</code>, macros, <code>env_var</code>) e devolve o texto do SQL. Não executa nada no banco. Sem <code>--inline</code>, também grava o SQL de cada modelo selecionado em <code>dbt/target/compiled/</code>. Serve para perguntas sobre o SQL: em que o <code>source</code> ou o <code>ref</code> se transformou, como uma macro se expandiu.</p>
 <p>O <code>dbt show</code> do R25 faz o mesmo passo e, depois, executa a consulta e mostra as primeiras linhas (cinco, se não houver <code>--limit</code>). Serve para perguntas sobre os dados. Nenhum dos dois cria ou altera objetos no banco: quem materializa é o <code>dbt run</code> ou o <code>dbt build</code> (o R27). Os dois partem do arquivo como ele está em disco; o que um <code>ref</code> ou um <code>source</code> aponta, porém, é lido como está no banco — o que o último <code>run</code> deixou lá, ou o que o Airbyte carregou.</p>
