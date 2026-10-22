@@ -3810,7 +3810,7 @@ renomeado as (
 </li>
 </ol>
 <p>O <code>compile</code> só resolve o Jinja (<code>ref</code>, <code>source</code>, macros, <code>env_var</code>) e devolve o texto do SQL. Não executa nada no banco. Sem <code>--inline</code>, também grava o SQL de cada modelo selecionado em <code>dbt/target/compiled/</code>. Serve para perguntas sobre o SQL: em que o <code>source</code> ou o <code>ref</code> se transformou, como uma macro se expandiu.</p>
-<p>O <code>dbt show</code> do R25 faz o mesmo passo e, depois, executa a consulta e mostra as primeiras linhas (cinco, se não houver <code>--limit</code>). Serve para perguntas sobre os dados. Nenhum dos dois cria ou altera objetos no banco: quem materializa é o <code>dbt run</code> ou o <code>dbt build</code> (o R27). Por isso o <code>compile</code> mostra o SQL que sairia do arquivo como ele está em disco, e o <code>show</code> consulta o objeto que o último <code>run</code> deixou no banco.</p>
+<p>O <code>dbt show</code> do R25 faz o mesmo passo e, depois, executa a consulta e mostra as primeiras linhas (cinco, se não houver <code>--limit</code>). Serve para perguntas sobre os dados. Nenhum dos dois cria ou altera objetos no banco: quem materializa é o <code>dbt run</code> ou o <code>dbt build</code> (o R27). Os dois partem do arquivo como ele está em disco; o que um <code>ref</code> ou um <code>source</code> aponta, porém, é lido como está no banco — o que o último <code>run</code> deixou lá, ou o que o Airbyte carregou.</p>
 <p class="voltar">↩ Voltar para <a href="#ref-r24-funcao">o L4, a função dbt_</a> · <a href="#ref-r24-compile">o L4, compile</a></p>
 </section>
 
