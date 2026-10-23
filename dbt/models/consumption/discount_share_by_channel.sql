@@ -15,7 +15,7 @@ select
     ch.channel_type,
     cat.root_category_name,
 
-    count(distinct f.order_id)                      as order_count,
+    count(distinct (f.source_system, f.order_id))   as order_count,
     sum(f.gross_revenue_amount)                     as gross_revenue_amount,
     sum(f.discount_amount)                          as discount_amount,
     sum(f.net_revenue_amount)                       as net_revenue_amount,

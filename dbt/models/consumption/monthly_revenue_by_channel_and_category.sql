@@ -18,7 +18,7 @@ select
     cat.root_category_name,
     cat.category_name,
 
-    count(distinct f.order_id)                      as order_count,
+    count(distinct (f.source_system, f.order_id))   as order_count,
     sum(f.quantity)                                 as unit_count,
     sum(f.gross_revenue_amount)                     as gross_revenue_amount,
     sum(f.discount_amount)                          as discount_amount,

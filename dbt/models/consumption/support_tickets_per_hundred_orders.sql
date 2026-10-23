@@ -56,7 +56,7 @@ pedidos as (
     select
         date_key,
         sales_channel_key,
-        count(distinct order_id)                        as channel_order_count
+        count(distinct (source_system, order_id))       as channel_order_count
     from {{ ref('fact_sales_order_item') }}
     where is_realised
     group by date_key, sales_channel_key

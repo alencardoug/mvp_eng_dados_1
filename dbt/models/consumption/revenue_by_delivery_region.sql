@@ -13,7 +13,7 @@ select
     g.state_name,
     ch.sales_channel_name,
 
-    count(distinct f.order_id)                      as order_count,
+    count(distinct (f.source_system, f.order_id))   as order_count,
     count(distinct f.customer_key)                  as customer_version_count,
     sum(f.quantity)                                 as unit_count,
     sum(f.net_revenue_amount)                       as net_revenue_amount

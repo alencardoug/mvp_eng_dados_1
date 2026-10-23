@@ -20,6 +20,7 @@
 with pedidos as (
 
     select distinct
+        f.source_system,
         f.order_id,
         f.delivered_date_key,
         f.geography_key,

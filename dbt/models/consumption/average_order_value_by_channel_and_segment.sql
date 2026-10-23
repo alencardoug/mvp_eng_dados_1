@@ -15,10 +15,10 @@ select
     ch.sales_channel_name,
     c.customer_segment_name,
 
-    count(distinct f.order_id)                      as order_count,
+    count(distinct (f.source_system, f.order_id))   as order_count,
     sum(f.net_revenue_amount)                       as net_revenue_amount,
     round(
-        sum(f.net_revenue_amount) / nullif(count(distinct f.order_id), 0), 2
+        sum(f.net_revenue_amount) / nullif(count(distinct (f.source_system, f.order_id)), 0), 2
     )                                               as average_order_value
 from {{ ref('fact_sales_order_item') }} f
 join {{ ref('dim_date') }} d using (date_key)

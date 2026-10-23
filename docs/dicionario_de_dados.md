@@ -840,9 +840,9 @@ demais camadas têm a mesma linhagem calculada, não publicada:
 | `month_number` | `analytics.dim_date.month_number` (gerada) |
 | `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
 | `customer_segment_name` | `raw.customer_segments.name` · `raw_legacy.customer_segments.name` |
-| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
 | `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
-| `average_order_value` | `raw.order_items.{discount_amount, order_id, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, order_id, quantity, unit_price}` |
+| `average_order_value` | `raw.order_items.{discount_amount, order_id, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, order_id, quantity, unit_price}` · `trusted.order_items.source_system` (gerada) |
 
 #### `cart_conversion_rate_by_channel`
 
@@ -871,7 +871,7 @@ demais camadas têm a mesma linhagem calculada, não publicada:
 | `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
 | `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
 | `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
-| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
 | `gross_revenue_amount` | `raw.order_items.{quantity, unit_price}` · `raw_legacy.order_items.{quantity, unit_price}` |
 | `discount_amount` | `raw.order_items.discount_amount` · `raw_legacy.order_items.discount_amount` |
 | `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
@@ -922,7 +922,7 @@ demais camadas têm a mesma linhagem calculada, não publicada:
 | `channel_type` | `raw.sales_channels.channel_type` · `raw_legacy.sales_channels.channel_type` |
 | `root_category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
 | `category_name` | `raw.product_categories.name` · `raw_legacy.product_categories.name` |
-| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
 | `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
 | `gross_revenue_amount` | `raw.order_items.{quantity, unit_price}` · `raw_legacy.order_items.{quantity, unit_price}` |
 | `discount_amount` | `raw.order_items.discount_amount` · `raw_legacy.order_items.discount_amount` |
@@ -1036,7 +1036,7 @@ demais camadas têm a mesma linhagem calculada, não publicada:
 | `state_code` | `raw.customer_addresses.state` · `raw_legacy.customer_addresses.state` |
 | `state_name` | `trusted.brazilian_states.state_name` (seed) |
 | `sales_channel_name` | `raw.sales_channels.name` · `raw_legacy.sales_channels.name` |
-| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
 | `customer_version_count` | `raw.customers.id` · `raw_legacy.customers.id` · `snapshots.scd_customer.dbt_valid_from` (gerada) · `trusted.customers.source_system` (gerada) |
 | `unit_count` | `raw.order_items.quantity` · `raw_legacy.order_items.quantity` |
 | `net_revenue_amount` | `raw.order_items.{discount_amount, quantity, unit_price}` · `raw_legacy.order_items.{discount_amount, quantity, unit_price}` |
@@ -1078,8 +1078,8 @@ demais camadas têm a mesma linhagem calculada, não publicada:
 | `high_priority_ticket_count` | `raw.support_tickets.priority` · `raw_legacy.support_tickets.priority` |
 | `reopened_ticket_count` | `raw.ticket_events.event_type` · `raw_legacy.ticket_events.event_type` |
 | `solved_first_time_count` | `raw.ticket_events.{event_type, occurred_at}` · `raw_legacy.ticket_events.{event_type, occurred_at}` |
-| `channel_order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
-| `tickets_per_hundred_orders` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` |
+| `channel_order_count` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
+| `tickets_per_hundred_orders` | `raw.order_items.order_id` · `raw_legacy.order_items.order_id` · `trusted.order_items.source_system` (gerada) |
 | `avg_hours_to_resolution` | `raw.support_tickets.opened_at` · `raw.ticket_events.{event_type, occurred_at}` · `raw_legacy.support_tickets.opened_at` · `raw_legacy.ticket_events.{event_type, occurred_at}` |
 
 #### `top_skus_by_revenue`

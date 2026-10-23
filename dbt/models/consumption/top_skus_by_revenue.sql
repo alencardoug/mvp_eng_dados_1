@@ -7,10 +7,14 @@
 -- O corte em 25 é a pergunta, não uma limitação técnica: a view responde "quais
 -- são os 25 maiores", e mudar o número é mudar a pergunta — o que nasce como
 -- nova versão da view (ADR-0018).
+--
+-- O SKU se agrupa pela origem com a chave natural (macro `empilhado`): as duas
+-- origens numeram produtos a partir de 1, e o mesmo número é outro produto.
 
 with por_sku as (
 
     select
+        p.source_system,
         p.product_natural_key,
         p.sku,
         p.product_name,
@@ -25,7 +29,7 @@ with por_sku as (
     join {{ ref('dim_category') }} cat using (category_key)
     left join {{ ref('dim_brand') }} b using (brand_key)
     where f.is_realised
-    group by 1, 2, 3, 4, 5, 6
+    group by 1, 2, 3, 4, 5, 6, 7
 
 ),
 

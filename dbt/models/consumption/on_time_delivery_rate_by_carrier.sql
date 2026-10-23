@@ -10,7 +10,8 @@
 -- realizadas, e uma remessa que saiu em janeiro e chegou em fevereiro é uma
 -- entrega de fevereiro.
 --
--- A fato está no grão do item; a redução a remessa é o `distinct` abaixo. Sem
+-- A fato está no grão do item; a redução a remessa — a origem com o número,
+-- como em toda identidade (macro `empilhado`) — é o `distinct` abaixo. Sem
 -- ele, uma caixa com seis itens pesaria seis vezes na taxa, e a transportadora
 -- que leva pedidos maiores pareceria melhor ou pior sem que nada tivesse
 -- mudado na pontualidade dela.
@@ -18,6 +19,7 @@
 with remessas as (
 
     select distinct
+        f.source_system,
         f.shipment_id,
         f.delivered_date_key,
         f.carrier_key,

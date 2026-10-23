@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.12 |
-| Última revisão | 18/09/2026 |
+| Versão | 1.13 |
+| Última revisão | 23/10/2026 |
 
 ---
 
@@ -114,6 +114,11 @@ passar por ausência do caso.
   ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
 - verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando
   colunas, tipos ou obrigatoriedade mudam;
+- **identidade composta no consumo**: `tests/test_identidade_no_consumo.py` lê o SQL das views, sem
+  banco, e falha quando uma delas conta, reduz por `distinct`, agrupa ou junta por identificador da
+  origem sem `source_system` ao lado — a regra da macro `empilhado`. O `build` não tem como ver esse
+  erro: a view é válida e só conta a menos. Foi assim que P05 e P06 subcontaram um pedido num grupo
+  cada até 23/10/2026, com 126 `order_id` presentes nas duas origens;
 - para `fact_inventory_movement`, único modelo incremental do projeto
   ([ADR-0016](adr/0016-materializacao-por-camada.md)), **reconciliação contra a reconstrução
   completa**: o resultado incremental e o `--full-refresh` precisam ser idênticos. Este teste já
