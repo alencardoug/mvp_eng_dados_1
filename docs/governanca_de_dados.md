@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.7 |
+| Versão | 2.8 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 23/10/2026 — classificar não é expor: a exposição do dado sintético fica livre (ADR-0049) |
+| Última revisão | 23/10/2026 — classificar não é expor (ADR-0049); o login de leitura, membro de `analyst` (§7) |
 
 ---
 
@@ -216,8 +216,8 @@ Nenhum consumidor de análise recebe acesso direto a `raw`, `raw_legacy`, `stagi
 
 **Implementado e testado desde 18/09/2026.** Os cinco papéis são grupos de privilégio **sem login**
 no armazém, criados por `mvp_ed1.governance.garantir()` antes de todo `make dbt-build` — quem se
-conecta é membro de um deles, e hoje o único login é o superusuário do `.env`, que os assume por
-`set role`; não há senha por papel, como não haverá na fase GCP. A concessão é declarada onde a
+conecta é membro de um deles: o superusuário do `.env`, que os assume por `set role`, e o login de
+leitura, membro de `analyst` (abaixo); não há senha por papel, como não haverá na fase GCP. A concessão é declarada onde a
 camada é declarada: `+grants` por camada no `dbt_project.yml` (quem lê, aplicado pelo dbt objeto a
 objeto ao materializar), `meta.grants` por fonte nos `_sources.yml` (`raw`, `raw_legacy` e
 `governance`, que o dbt não materializa) e `meta.writers` em ambos (quem escreve o schema). O
@@ -235,6 +235,23 @@ por quem é dono do schema, não privilégio do papel. O passo
 seguinte, fora desta entrega, é cada componente conectar-se como membro do próprio papel (Airbyte,
 dbt, Beam e o certificado de captura) — hoje todos usam o superusuário, e a mudança exige subir cada
 ambiente para provar.
+
+**O login de leitura (v1.1.0, 23/10/2026).** O primeiro consumidor que se conecta como membro do
+próprio papel, e não como superusuário: `consumption_reader`, com `WAREHOUSE_READER_USER` e
+`WAREHOUSE_READER_PASSWORD` no `.env` (`make dbt-build` acrescenta as duas a um `.env` que não as
+tenha). É o login por onde um consumidor de fora do armazém — o exportador do `bi-como-codigo` — lê
+as views. `garantir()` o cria e o repõe a cada `make dbt-build`: membro de `analyst` e de nada mais,
+sem *admin option*; nenhum atributo que escale (`superuser`, `createdb`, `createrole`,
+`replication`, `bypassrls`); leitura como padrão da sessão; a senha do `.env`, enviada como
+verificador SCRAM, para que o texto dela nunca chegue ao servidor. E `temporary` sai de `PUBLIC` no
+banco: sem isso, todo login criaria tabela temporária, e "não escreve" teria exceção. A prova é por
+**conexão de verdade** com ele, não por `set role` (`tests/test_acesso.py`): lê toda view de
+`consumption`; é recusado em todo objeto das outras oito camadas; não cria tabela, tabela
+temporária nem schema, mesmo pedindo `read write`; e não assume outro papel nem o superusuário, não
+concede `analyst` nem cria papel. Contraprova na entrega: membro de `transformer`, `createdb` e
+`temporary` devolvido a `PUBLIC` acusaram nos quatro testes, e o `garantir()` seguinte desfez os
+três. Na fase GCP, o equivalente é uma conta de serviço no grupo IAM do `analyst`, autenticada por
+federação de identidade, sem chave guardada.
 
 ---
 

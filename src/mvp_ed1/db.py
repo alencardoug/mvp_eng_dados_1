@@ -39,3 +39,22 @@ def database_url(prefix: str = SOURCE) -> str:
     port = os.environ[f"{prefix}_PORT"]
     name = os.environ[f"{prefix}_NAME"]
     return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{name}"
+
+
+def reader_url() -> str:
+    """URL do login só de leitura (`WAREHOUSE_READER_*`), no banco e na porta do armazém.
+
+    É a conexão de quem consome de fora: lê `consumption` e nada mais
+    (Governança §7). Ausente no `.env`, a mensagem diz o que falta.
+    """
+    ausentes = [v for v in ("WAREHOUSE_READER_USER", "WAREHOUSE_READER_PASSWORD") if not os.environ.get(v)]
+    if ausentes:
+        raise RuntimeError(
+            "variáveis de ambiente ausentes: " + ", ".join(ausentes) + ". "
+            "Acrescente-as ao .env (ver .env.example) e rode `make dbt-build`, que cria o login."
+        )
+    base = database_url(WAREHOUSE)
+    _, resto = base.split("@", 1)
+    user = quote_plus(os.environ["WAREHOUSE_READER_USER"])
+    password = quote_plus(os.environ["WAREHOUSE_READER_PASSWORD"])
+    return f"postgresql+psycopg://{user}:{password}@{resto}"

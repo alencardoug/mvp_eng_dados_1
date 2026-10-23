@@ -16,11 +16,22 @@ aqui: é declarado camada a camada no dbt (`+grants`, `meta.writers`,
 `meta.grants`) e aplicado ao fim de cada execução
 (`macros/aplicar_acesso_por_camada.sql`).
 
+O **login de leitura** nasce aqui pela mesma razão (N4 do plano do
+`bi-como-codigo`, v1.1.0): o primeiro consumidor que se conecta como membro do
+próprio papel, em vez do superusuário. Ver `_garantir_leitor`.
+
 Se a Etapa 11 decidir levar o armazém para o Alembic, esta lista é o que vira
 histórico; até lá, é o que impede DDL solto.
 """
 
 from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import os
+import re
+import secrets
 
 from sqlalchemy import Engine, text
 
@@ -40,6 +51,19 @@ _DESCRICAO_DOS_PAPEIS: dict[str, str] = {
     "analyst": "Lê consumption, e só consumption — o contrato de consumo é a view (ADR-0008).",
     "auditor": "Lê quarantine e governance; não escreve.",
 }
+
+#: Variáveis do `.env` com o login de leitura. O banco, a porta e o host são os
+#: do armazém (`WAREHOUSE_DB_*`): muda só quem se conecta.
+LEITOR_USUARIO = "WAREHOUSE_READER_USER"
+LEITOR_SENHA = "WAREHOUSE_READER_PASSWORD"
+
+#: O papel do leitor — e o único. Membro de `analyst`, ele lê o que `analyst` lê.
+PAPEL_DO_LEITOR = "analyst"
+
+_NOME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+#: A forma que `make env` gera. Mais estreita que o necessário de propósito: a
+#: senha nunca precisa de escape, e uma senha curta ou estranha é recusada.
+_SENHA = re.compile(r"^[A-Za-z0-9]{24,}$")
 
 #: Migrações em ordem: (nome, comandos). Cada comando é idempotente por si.
 MIGRACOES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -115,6 +139,82 @@ def _garantir_papeis(conexao) -> None:
         conexao.execute(text(f"comment on role {papel} is '{_DESCRICAO_DOS_PAPEIS[papel]}'"))
 
 
+def _verificador_scram(senha: str, iteracoes: int = 4096) -> str:
+    """O verificador SCRAM-SHA-256 da senha, calculado aqui (RFC 5802, RFC 7677).
+
+    É o que o PostgreSQL guarda de qualquer forma; mandá-lo pronto faz a senha
+    em texto nunca chegar ao servidor — nem a um log de comandos, se alguém o
+    ligar. É o que o `\\password` do `psql` faz. A normalização SASLprep do RFC
+    não muda nada aqui: `_SENHA` só aceita ASCII alfanumérico."""
+    sal = secrets.token_bytes(16)
+    salgada = hashlib.pbkdf2_hmac("sha256", senha.encode(), sal, iteracoes)
+    cliente = hmac.new(salgada, b"Client Key", hashlib.sha256).digest()
+    servidor = hmac.new(salgada, b"Server Key", hashlib.sha256).digest()
+    b64 = lambda b: base64.b64encode(b).decode()  # noqa: E731
+    return f"SCRAM-SHA-256${iteracoes}:{b64(sal)}${b64(hashlib.sha256(cliente).digest())}:{b64(servidor)}"
+
+
+def leitor_do_ambiente(ambiente: dict[str, str] | None = None) -> tuple[str, str] | None:
+    """`(usuário, senha)` do login de leitura, ou `None` se o `.env` não o declara."""
+    ambiente = os.environ if ambiente is None else ambiente
+    usuario, senha = ambiente.get(LEITOR_USUARIO), ambiente.get(LEITOR_SENHA)
+    if not usuario and not senha:
+        return None
+    if not usuario or not senha:
+        raise RuntimeError(f"defina {LEITOR_USUARIO} e {LEITOR_SENHA} juntos no .env, ou nenhum dos dois")
+    if not _NOME.match(usuario) or usuario in PAPEIS or usuario == ambiente.get("WAREHOUSE_DB_USER"):
+        raise RuntimeError(f"{LEITOR_USUARIO} inválido: um nome novo, minúsculo, que não seja papel nem o superusuário")
+    if not _SENHA.match(senha):
+        raise RuntimeError(f"{LEITOR_SENHA} fora da forma de `make env`: 24 ou mais letras e dígitos")
+    return usuario, senha
+
+
+def _garantir_leitor(conexao, usuario: str, senha: str) -> None:
+    """O login de leitura, inteiro, a cada execução — como os papéis.
+
+    Membro de `analyst` e de nada mais, sem `admin option`; sem nenhum dos
+    atributos que escalam (`superuser`, `createdb`, `createrole`, `replication`,
+    `bypassrls`); leitura como padrão da sessão; e a senha do `.env`, reposta a
+    cada vez, para que o `.env` seja sempre a verdade. O que já estiver diferente
+    é desfeito — o mesmo princípio do `on-run-end`, que revoga o não declarado.
+
+    E `temporary` sai de `PUBLIC` no banco: sem isso, todo login cria tabela
+    temporária, e "não escreve" teria uma exceção. Os demais logins são o
+    superusuário, a quem a revogação não alcança."""
+    conexao.execute(text(
+        f"""
+        do $$
+        begin
+            if not exists (select from pg_roles where rolname = '{usuario}') then
+                create role {usuario} login;
+            end if;
+        end
+        $$
+        """
+    ))
+    # `exec_driver_sql`, e não `text()`: os `:` do verificador virariam parâmetros.
+    # Na falha, o comando não sobe com o erro — ele leva o verificador.
+    try:
+        conexao.exec_driver_sql(
+            f"alter role {usuario} with login inherit nosuperuser nocreatedb nocreaterole noreplication "
+            f"nobypassrls password '{_verificador_scram(senha)}'"
+        )
+    except Exception as erro:
+        raise RuntimeError(f"não foi possível definir o login {usuario}: {type(erro.__cause__ or erro).__name__}") from None
+    conexao.execute(text(f"alter role {usuario} set default_transaction_read_only = on"))
+    outros = conexao.execute(text(
+        "select g.rolname from pg_auth_members m join pg_roles g on g.oid = m.roleid "
+        "join pg_roles u on u.oid = m.member where u.rolname = :u and g.rolname <> :p"
+    ), {"u": usuario, "p": PAPEL_DO_LEITOR}).scalars().all()
+    for papel in outros:
+        conexao.execute(text(f'revoke "{papel}" from {usuario}'))
+    conexao.execute(text(f"revoke admin option for {PAPEL_DO_LEITOR} from {usuario}"))
+    conexao.execute(text(f"grant {PAPEL_DO_LEITOR} to {usuario}"))
+    conexao.execute(text(f"comment on role {usuario} is 'Login só de leitura, membro de {PAPEL_DO_LEITOR}: o consumidor de fora do armazém (v1.1.0).'"))
+    banco = conexao.execute(text("select current_database()")).scalar_one()
+    conexao.execute(text(f'revoke temporary on database "{banco}" from public'))
+
+
 def garantir_papeis(engine: Engine) -> None:
     """Só os papéis, sem as migrações — o que a restauração pede antes do `pg_restore` do armazém.
 
@@ -126,8 +226,10 @@ def garantir_papeis(engine: Engine) -> None:
         _garantir_papeis(conexao)
 
 
-def garantir(engine: Engine) -> list[str]:
-    """Aplica as migrações que faltam e devolve os nomes aplicados nesta chamada."""
+def garantir(engine: Engine, leitor: tuple[str, str] | None = None) -> list[str]:
+    """Aplica as migrações que faltam e devolve os nomes aplicados nesta chamada.
+
+    Com `leitor`, garante também o login de leitura (`_garantir_leitor`)."""
     aplicadas: list[str] = []
     with engine.begin() as conexao:
         conexao.execute(text(f"create schema if not exists {SCHEMA}"))
@@ -148,6 +250,8 @@ def garantir(engine: Engine) -> list[str]:
             conexao.execute(text(f"insert into {SCHEMA}._versions (nome) values (:n)"), {"n": nome})
             aplicadas.append(nome)
         _garantir_papeis(conexao)
+        if leitor is not None:
+            _garantir_leitor(conexao, *leitor)
     return aplicadas
 
 
@@ -177,8 +281,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     engine = create_engine(database_url(WAREHOUSE))
     if args.comando == "garantir":
-        aplicadas = garantir(engine)
+        leitor = leitor_do_ambiente()
+        aplicadas = garantir(engine, leitor)
         print("governance: " + (", ".join(aplicadas) if aplicadas else "nada a aplicar"))
+        if leitor is None:
+            print(f"governance: aviso — sem {LEITOR_USUARIO} no .env, o login de leitura não foi garantido")
     else:
         print("\n".join(versoes(engine)) or "governance: nenhuma migração aplicada")
     return 0

@@ -58,7 +58,11 @@ bancos: o que ele não roda — os testes marcados `integracao`, que precisam do
 O `.env.example` é versionado com as chaves e **sem** valores, e serve para declarar quais chaves
 existem — não para ser copiado e preenchido à mão. `make env` recusa sobrescrever um `.env`
 existente, porque trocar as senhas torna os volumes já criados inacessíveis. Ver
-[Política de Governança de Dados](governanca_de_dados.md#9-tratamento-de-segredos).
+[Política de Governança de Dados](governanca_de_dados.md#9-tratamento-de-segredos). A exceção são
+chaves que nasceram depois do `.env`: `make airflow-up` acrescenta os segredos do Airflow, e
+`make dbt-build` o login de leitura do armazém
+([Governança §7](governanca_de_dados.md#7-regras-de-acesso-por-camada)) — só o que falta, sem
+tocar no resto.
 
 ---
 

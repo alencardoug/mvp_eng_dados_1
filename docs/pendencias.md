@@ -72,7 +72,7 @@ alerta do roteiro pode passar ou falhar por tempo.
 
 **Medido em 04/10/2026.** `airflow connections add` e `airflow variables set` falham com
 `Could not create Fernet object: Fernet key must be 32 url-safe base64-encoded bytes`. O `Makefile`
-gera a chave com 32 caracteres alfanuméricos, em `make env` (linha 172) e em `airflow-up` (linha 466);
+gera a chave com 32 caracteres alfanuméricos, em `make env` e em `airflow-up`;
 o Airflow exige 32 bytes em base64 seguro para URL (44 caracteres). Nunca apareceu porque nada no
 projeto grava Connection nem Variable.
 

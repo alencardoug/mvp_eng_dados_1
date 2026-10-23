@@ -14,8 +14,13 @@ leitura em cada objeto declarado das nove camadas, escrita (criar tabela,
 revertida) em cada schema, e `insert` na tabela de aterrissagem do caminho
 quente. O que a política permite tem de passar; o que ela não permite tem de
 falhar com *permission denied*. `set role` avalia privilégios como se o papel
-tivesse feito o login (PostgreSQL, SET ROLE), e por isso não há senha nova no
-`.env`: quem se conecta é o superusuário, que os assume.
+tivesse feito o login (PostgreSQL, SET ROLE), e por isso não há senha por
+papel no `.env`: quem se conecta é o superusuário, que os assume.
+
+A exceção é o **login de leitura** (`WAREHOUSE_READER_*`, membro de `analyst`),
+e por isso a prova dele é outra: uma conexão de verdade com ele — não `set
+role` a partir do superusuário —, que lê `consumption`, é recusada nas demais
+camadas, não escreve e não escala.
 """
 
 from __future__ import annotations
@@ -30,8 +35,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.pool import NullPool
 
-from mvp_ed1.db import WAREHOUSE, database_url
-from mvp_ed1.governance import PAPEIS
+from mvp_ed1.db import WAREHOUSE, database_url, reader_url
+from mvp_ed1.governance import LEITOR_USUARIO, PAPEIS, PAPEL_DO_LEITOR
 
 pytestmark = pytest.mark.integracao
 
@@ -250,3 +255,83 @@ def test_a_aterrissagem_do_caminho_quente_aceita_so_o_streamer(motor, materializ
         if conseguiu != (papel in EXCECOES[ATERRISSAGEM]["insert"]):
             divergentes.append(f"{papel} {'inseriu' if conseguiu else 'não inseriu'}")
     assert divergentes == []
+
+
+# ── O login de leitura, conectado como ele mesmo ──────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def leitor(motor):
+    """Conexão com o login de leitura — a credencial dele, não `set role` do superusuário."""
+    if not os.environ.get(LEITOR_USUARIO):
+        pytest.fail(f"sem {LEITOR_USUARIO} no .env: acrescente as chaves de .env.example e rode `make dbt-build`")
+    leitor = create_engine(reader_url(), poolclass=NullPool)
+    yield leitor
+    leitor.dispose()
+
+
+def test_o_login_de_leitura_e_membro_so_de_analyst_e_sem_superpoderes(motor) -> None:
+    usuario = os.environ.get(LEITOR_USUARIO)
+    with motor.connect() as conexao:
+        atributos = conexao.execute(text(
+            "select rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls"
+            " from pg_roles where rolname = :u"
+        ), {"u": usuario}).one()
+        papeis = conexao.execute(text(
+            "select g.rolname, m.admin_option from pg_auth_members m join pg_roles g on g.oid = m.roleid"
+            " join pg_roles u on u.oid = m.member where u.rolname = :u"
+        ), {"u": usuario}).all()
+        membros = conexao.execute(text(
+            "select count(*) from pg_auth_members m join pg_roles g on g.oid = m.roleid where g.rolname = :u"
+        ), {"u": usuario}).scalar_one()
+    assert tuple(atributos) == (True, True, False, False, False, False, False)
+    assert [tuple(p) for p in papeis] == [(PAPEL_DO_LEITOR, False)]
+    assert membros == 0, "alguém herda do login de leitura"
+
+
+def test_o_login_de_leitura_le_consumption_e_nada_mais(leitor, materializadas, record_property) -> None:
+    divergentes: list[str] = []
+    with leitor.connect().execution_options(isolation_level="AUTOCOMMIT") as conexao:
+        for schema, tabela in materializadas:
+            conseguiu = _tenta(conexao, f"select 1 from {schema}.{tabela} limit 0")
+            if conseguiu != (schema == "consumption"):
+                divergentes.append(f"{'leu' if conseguiu else 'não leu'} {schema}.{tabela}")
+    record_property("probes", len(materializadas))
+    assert divergentes == [], "\n".join(divergentes[:20])
+    assert {s for s, _ in materializadas} >= {"raw", "staging", "trusted", "analytics", "consumption"}
+
+
+def test_o_login_de_leitura_nao_escreve(leitor, materializadas) -> None:
+    """Privilégio, não só o padrão da sessão: cada tentativa pede `read write` antes e é negada."""
+    tentativas = [f"create table {s}.__probe_do_leitor (x int)" for s in sorted({s for s, _ in materializadas})]
+    tentativas += ["create temporary table __probe_do_leitor (x int)", "create schema __probe_do_leitor"]
+    escreveu: list[str] = []
+    for comando in tentativas:
+        with leitor.connect() as conexao:
+            conexao.execute(text("set transaction read write"))
+            if _tenta(conexao, comando):
+                escreveu.append(comando)
+            conexao.rollback()
+    assert escreveu == []
+    with leitor.connect() as conexao:
+        assert conexao.execute(text("show default_transaction_read_only")).scalar_one() == "on"
+
+
+def test_o_login_de_leitura_nao_escala(leitor) -> None:
+    superusuario = os.environ["WAREHOUSE_DB_USER"]
+    tentativas = [f"set role {p}" for p in PAPEIS if p != PAPEL_DO_LEITOR]
+    tentativas += [
+        f"set role {superusuario}",
+        f"set session authorization {superusuario}",
+        f"alter role {os.environ[LEITOR_USUARIO]} createrole",
+        f"grant {PAPEL_DO_LEITOR} to auditor",
+        "create role __probe_do_leitor",
+    ]
+    escalou: list[str] = []
+    for comando in tentativas:
+        with leitor.connect() as conexao:
+            conexao.execute(text("set transaction read write"))
+            if _tenta(conexao, comando):
+                escalou.append(comando)
+            conexao.rollback()
+    assert escalou == []

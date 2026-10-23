@@ -77,6 +77,16 @@ GARANTIR_REDE = projeto=$$($(CONTEINERES) projeto) \
 	|| docker network create "$${projeto}_default" >/dev/null \
 	|| { echo "ERRO: a rede $${projeto}_default não existe e não consegui criá-la — o Docker respondeu?"; exit 1; }
 
+# O login de leitura (Governança §7) nasce no `garantir()`, e o `.env` de um
+# checkout anterior a ele não tem as chaves: acrescentam-se aqui, como o
+# `airflow-up` faz com os segredos do Airflow. Nunca sobrescreve.
+GARANTIR_LEITOR_NO_ENV = grep -q '^WAREHOUSE_READER_USER=' .env || { \
+	echo "acrescentando o login de leitura do armazém ao .env"; \
+	pw() { LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; }; \
+	{ echo ""; echo "\# Login só de leitura do armazém (v1.1.0) — acrescentado por 'make dbt-build'."; \
+	  echo "WAREHOUSE_READER_USER=consumption_reader"; \
+	  echo "WAREHOUSE_READER_PASSWORD=$$(pw)"; } >> .env; }
+
 # Ponto único de recuperação (Etapa 12, B4). A lógica vive em
 # `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,
 # stream-*, airbyte-* e dbt-rebuild — e a interface de operação é o Makefile
@@ -166,6 +176,8 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "WAREHOUSE_DB_USER=mvp_warehouse"; \
 		echo "WAREHOUSE_DB_PASSWORD=$$(pw)"; \
 		echo "WAREHOUSE_DB_PORT=5434"; \
+		echo "WAREHOUSE_READER_USER=consumption_reader"; \
+		echo "WAREHOUSE_READER_PASSWORD=$$(pw)"; \
 		echo ""; \
 		echo "# Airflow (Etapa 5) — porta e segredos do orquestrador."; \
 		echo "AIRFLOW_PORT=8081"; \
@@ -452,6 +464,7 @@ dbt-build: require-env require-venv ## Roda os modelos dbt e os testes; RESET=1 
 	@# O descarte e o build em linhas separadas, e não ligados por `&&`: o `make`
 	@# executa sob `-n` toda linha em cujo texto aparece `$(MAKE)` — mesmo com o
 	@# `RESET` desligado —, e o `&&` levava junto o `dbt build` (23/09/2026).
+	@$(GARANTIR_LEITOR_NO_ENV)
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.governance garantir
 	@$(if $(filter 1,$(RESET)),$(MAKE) --no-print-directory dbt-drop-snapshots)
 	@$(DBT) build $(if $(filter 1,$(RESET)),--full-refresh) $(DBT_ARGS)
@@ -644,6 +657,7 @@ dbt-rebuild: require-env require-venv ## Reconstrói TUDO sem derrubar os snapsh
 	@# `rejected_legacy_records` lê a própria tabela anterior por
 	@# `adapter.get_relation` e retém tudo que não seja da captura corrente sob
 	@# a impressão vigente. É o mecanismo que acumulou as 63.802 linhas.
+	@$(GARANTIR_LEITOR_NO_ENV)
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.governance garantir
 	@$(DBT) build --full-refresh $(DBT_ARGS)
 
