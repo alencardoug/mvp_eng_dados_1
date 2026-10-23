@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.6 |
+| Versão | 2.7 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 03/10/2026 — o tratamento do segredo achado no histórico passa a ser o ADR-0048 |
+| Última revisão | 23/10/2026 — classificar não é expor: a exposição do dado sintético fica livre (ADR-0049) |
 
 ---
 
@@ -60,16 +60,23 @@ de 4.161 colunas (17,7 %); à tarde, com a classificação derivada dos modelos 
 Os níveis estão fixados em [ADR-0011](adr/0011-classificacao-e-papeis-de-acesso.md). O vocabulário
 é inglês, por ser identificador técnico: cada valor vira nome de *policy tag* no BigQuery.
 
-| Valor de `sensitivity` | Definição | Exemplos no projeto | Regra |
+| Valor de `sensitivity` | Definição | Exemplos no projeto | Exposição |
 |---|---|---|---|
 | `public` | Pode ser exposto sem restrição | Catálogo, contagens agregadas, `product_categories` | Livre |
-| `internal` | Operacional, sem valor sensível | Chaves técnicas, `recorded_at`, identificadores de lote | Livre no repositório |
-| `confidential` | Não pessoal, mas de valor comercial | `unit_cost`, condições de fornecedor, margem | Fora das views de consumo abertas ao perfil de análise |
-| `personal` | Campo que, se fosse real, seria dado pessoal | Nome, e-mail, telefone, endereço, documento — sempre sintéticos | Nunca exibido em exemplos; mascarado nas views de consumo quando não for necessário |
+| `internal` | Operacional, sem valor sensível | Chaves técnicas, `recorded_at`, identificadores de lote | Livre |
+| `confidential` | Não pessoal, mas de valor comercial | `unit_cost`, condições de fornecedor, margem | Livre, por ser sintético |
+| `personal` | Campo que, se fosse real, seria dado pessoal | Nome, e-mail, telefone, endereço, documento — sempre sintéticos | Livre, por ser sintético |
 
-O nível `personal` é aplicado mesmo aos dados sintéticos: o objetivo é exercitar o controle real,
-não presumir que dado simulado dispensa governança. É essa classificação que, na fase GCP, vira
-*policy tag* e passa a **bloquear** o acesso.
+**Classificar não é expor** ([ADR-0049](adr/0049-separar-a-classificacao-da-exposicao.md)). O
+nível declara o que o campo **seria** se o dado fosse real, e por isso vale também para o sintético:
+o objetivo é exercitar o controle real, não presumir que dado simulado dispensa governança. Ele não
+decide quem vê o campo. Como todo dado do projeto é sintético (§3), a exposição é livre em todos os
+níveis — nas views de consumo e fora do armazém —, e quem acessa o quê é decidido por concessão
+(§7), nunca por reclassificação. A liberdade é consequência da §3: com dado real, a decisão não
+valeria.
+
+É essa classificação que, na fase GCP, vira *policy tag* com o controle de acesso ligado — e a
+exposição passa a ser a concessão do IAM a cada grupo (§5.2).
 
 **A proibição de dados reais não é um nível.** Ela vive exclusivamente na
 [seção 3](#3-dados-não-permitidos) — repeti-la aqui criaria dois donos para a mesma regra (**P8**),
@@ -156,7 +163,9 @@ O trabalho já está codificado; a migração consome os mesmos arquivos:
    classificação, disparado quando esse YAML muda
    ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)). A coluna marcada como
    `sensitivity: "personal"` recebe a *tag*, e apenas identidades autorizadas pelo IAM conseguem
-   executar `SELECT` sobre ela. A autenticação do fluxo usa **federação de identidade**: nenhuma
+   executar `SELECT` sobre ela. A autorização é a exposição
+   ([ADR-0049](adr/0049-separar-a-classificacao-da-exposicao.md)): o grupo do `analyst` a recebe nas
+   *tags* do dado sintético, e a negação se prova com uma identidade sem ela. A autenticação do fluxo usa **federação de identidade**: nenhuma
    chave de conta de serviço é armazenada como segredo.
 
 A classificação deixa de ser documental e passa a ser **controle efetivo**, sem que nenhuma

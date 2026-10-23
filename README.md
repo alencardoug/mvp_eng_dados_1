@@ -68,7 +68,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 5 pendentes em 04/10/2026: D62 a D65, levantadas pela validação do material de estudo, e a D43 (adiada para a fase GCP) |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 48 aceitos, 1 pendente (D43, adiada) |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 49 aceitos, 1 pendente (D43, adiada) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.17 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
@@ -76,7 +76,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**48 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**49 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -98,7 +98,9 @@ datamart o que dependia do registro · **a fase local é validada por partes**, 
 *streaming* simultâneos — a concorrência entre os dois é medida na fase GCP · **o CTE de limpeza do legado é materializado no
 PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo · **segredo achado no
 histórico é tratado pelo tipo da credencial** — a local se regenera e se registra, sem reescrever
-o histórico; a de nuvem se revoga e se reescreve, pela mão do Owner.
+o histórico; a de nuvem se revoga e se reescreve, pela mão do Owner · **classificar não é expor** —
+a classificação continua em todo campo, e a exposição do dado sintético é livre, decidida por
+concessão.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
