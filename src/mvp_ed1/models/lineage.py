@@ -26,7 +26,14 @@ que `make check` roda. A linhagem das outras camadas não é versionada: milhare
 de linhas que ninguém revisa mudariam a cada modelo (R14); `tests/test_linhagem.py`
 prova que ela fecha, e `--all` a imprime.
 
-Uso: ``python -m mvp_ed1.models.lineage [--check | --all]`` (também em ``make catalog``).
+── Para quem consome fora do repositório ───────────────────────────────────────
+`--json` entrega o grafo inteiro a quem o lê de fora — o `bi-como-codigo`, que
+não reimplementa a linhagem nem depende do código interno: por coluna, as
+folhas imediatas (um salto, para percorrer o caminho) e as origens terminais,
+com o tipo de cada uma. Manifest com problema não produz JSON, como não
+reescreve o dicionário.
+
+Uso: ``python -m mvp_ed1.models.lineage [--check | --all | --json]`` (também em ``make catalog``).
 """
 
 from __future__ import annotations
@@ -138,6 +145,40 @@ def summary(linhagem: Lineage) -> dict[str, Counter]:
     return totais
 
 
+# ── Para fora do repositório ────────────────────────────────────────────────────
+
+#: Formato do JSON de `--json`. Mudança que quebre quem lê muda o número.
+JSON_FORMAT = 1
+
+_KIND_JSON = {"fonte": "source", "seed": "seed", "gerada": "generated"}
+
+
+def to_json(linhagem: Lineage, manifest: dict) -> dict:
+    """O grafo por coluna: `schema.relação` → coluna → folhas imediatas e origens terminais.
+
+    Identificadores em inglês, como as chaves de `meta:`; listas ordenadas, para
+    que a mesma linhagem dê sempre o mesmo texto."""
+    relacoes: dict[str, dict] = {}
+    for (schema, relacao), colunas in sorted(linhagem.leaves.items()):
+        relacoes[f"{schema}.{relacao}"] = {
+            "columns": {
+                coluna: {
+                    "leaves": sorted(".".join(f) for f in folhas),
+                    "origins": [
+                        {"column": ".".join(o), "kind": _KIND_JSON[linhagem.kind(o)]}
+                        for o in sorted(linhagem.origins(schema, relacao, coluna))
+                    ],
+                }
+                for coluna, folhas in colunas.items()
+            }
+        }
+    return {
+        "format": JSON_FORMAT,
+        "manifest_generated_at": manifest.get("metadata", {}).get("generated_at"),
+        "relations": relacoes,
+    }
+
+
 # ── Travessias que o dbt não enxerga ────────────────────────────────────────────
 
 def _dag_schedule() -> str:
@@ -243,7 +284,8 @@ def render(linhagem: Lineage, manifest: dict) -> str:
         "o empilhamento do ADR-0021. Origem *(seed)* é tabela declarada no Git; *(gerada)* é coluna",
         "que não vem do valor de coluna nenhuma — o calendário, uma contagem de linhas na fato. As",
         "demais camadas têm a mesma linhagem calculada, não publicada:",
-        "`python -m mvp_ed1.models.lineage --all` a imprime.",
+        "`python -m mvp_ed1.models.lineage --all` a imprime, e `--json` a entrega a quem consome",
+        "de fora do repositório, com as folhas imediatas de cada coluna.",
     ]
     views = sorted(
         (no for no in manifest["nodes"].values() if no["resource_type"] == "model" and no["schema"] == CONTRACT_SCHEMA),
@@ -281,6 +323,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"linhagem incompleta ({len(linhagem.problems)} problema(s)): nada é escrito; "
               "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
         return 1
+
+    if "--json" in argv:
+        print(json.dumps(to_json(linhagem, manifest), ensure_ascii=False))
+        return 0
 
     if "--all" in argv:
         for (schema, relacao), colunas in sorted(linhagem.leaves.items()):

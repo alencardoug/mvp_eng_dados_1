@@ -829,7 +829,8 @@ O contrato de consumo, view a view. `raw.*` é a réplica do `oltp` pelo Airbyte
 o empilhamento do ADR-0021. Origem *(seed)* é tabela declarada no Git; *(gerada)* é coluna
 que não vem do valor de coluna nenhuma — o calendário, uma contagem de linhas na fato. As
 demais camadas têm a mesma linhagem calculada, não publicada:
-`python -m mvp_ed1.models.lineage --all` a imprime.
+`python -m mvp_ed1.models.lineage --all` a imprime, e `--json` a entrega a quem consome
+de fora do repositório, com as folhas imediatas de cada coluna.
 
 #### `average_order_value_by_channel_and_segment`
 

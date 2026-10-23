@@ -167,3 +167,65 @@ def test_a_secao_3_do_dicionario_esta_em_dia(linhagem) -> None:
     lin, manifest = linhagem
     texto = l.DICIONARIO.read_text(encoding="utf-8")
     assert l._section(texto) == l.render(lin, manifest), "regenere com make catalog"
+
+
+# ── O JSON para fora do repositório ───────────────────────────────────────────
+
+
+def test_o_json_leva_as_folhas_imediatas_e_as_origens_com_o_tipo() -> None:
+    linhagem = l.Lineage(
+        leaves={
+            ("staging", "a"): {"x": {("raw", "t", "c1")}, "k": set()},
+            ("trusted", "s"): {"uf": set()},
+            ("consumption", "v"): {"z": {("staging", "a", "x"), ("staging", "a", "k"), ("trusted", "s", "uf")}},
+        },
+        seeds={("trusted", "s")},
+    )
+    saida = l.to_json(linhagem, {"metadata": {"generated_at": "2026-10-23T00:00:00Z"}})
+    assert saida["format"] == l.JSON_FORMAT
+    assert saida["manifest_generated_at"] == "2026-10-23T00:00:00Z"
+    assert list(saida["relations"]) == ["consumption.v", "staging.a", "trusted.s"]
+    z = saida["relations"]["consumption.v"]["columns"]["z"]
+    assert z["leaves"] == ["staging.a.k", "staging.a.x", "trusted.s.uf"]
+    assert z["origins"] == [
+        {"column": "raw.t.c1", "kind": "source"},
+        {"column": "staging.a.k", "kind": "generated"},
+        {"column": "trusted.s.uf", "kind": "seed"},
+    ]
+    assert json.loads(json.dumps(saida)) == saida
+
+
+#: As 14 arestas da receita líquida de P01 até `raw` e `raw_legacy`, medidas em 22/10/2026
+#: (M12 do plano do `bi-como-codigo`), na forma `folha → coluna`.
+ARESTAS_DA_RECEITA_DE_P01 = {
+    ("trusted.order_items.net_revenue_amount", "analytics.fact_sales_order_item.net_revenue_amount"),
+    ("analytics.fact_sales_order_item.net_revenue_amount",
+     "consumption.monthly_revenue_by_channel_and_category.net_revenue_amount"),
+    *{(f"raw.order_items.{c}", f"staging.stg_retail__order_items.{c}") for c in ("discount_amount", "quantity", "unit_price")},
+    *{(f"raw_legacy.order_items.{c}", f"trusted.legado__order_items.{c}") for c in ("discount_amount", "quantity", "unit_price")},
+    *{(f"staging.stg_retail__order_items.{c}", "trusted.order_items.net_revenue_amount")
+      for c in ("discount_amount", "quantity", "unit_price")},
+    *{(f"trusted.legado__order_items.{c}", "trusted.order_items.net_revenue_amount")
+      for c in ("discount_amount", "quantity", "unit_price")},
+}
+
+
+def test_o_json_percorrido_salto_a_salto_da_as_arestas_da_receita_de_p01(linhagem) -> None:
+    """Quem lê de fora anda pelas folhas imediatas e chega ao mesmo caminho que o protótipo do M12."""
+    lin, manifest = linhagem
+    relacoes = json.loads(json.dumps(l.to_json(lin, manifest)))["relations"]
+
+    def folhas(coluna: str) -> list[str]:
+        schema, relacao, nome = coluna.split(".")
+        return relacoes.get(f"{schema}.{relacao}", {}).get("columns", {}).get(nome, {}).get("leaves", [])
+
+    arestas, vistos = set(), set()
+    fila = ["consumption.monthly_revenue_by_channel_and_category.net_revenue_amount"]
+    while fila:
+        no = fila.pop()
+        if no not in vistos:
+            vistos.add(no)
+            arestas |= {(f, no) for f in folhas(no)}
+            fila += folhas(no)
+    assert arestas == ARESTAS_DA_RECEITA_DE_P01
+    assert len(vistos) == 15
