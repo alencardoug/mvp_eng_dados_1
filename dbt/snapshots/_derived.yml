@@ -14,7 +14,7 @@ snapshots:
     meta:
       sensitivity: internal
   - name: coupon_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do cupom na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: coupon_code
@@ -120,7 +120,7 @@ snapshots:
     meta:
       sensitivity: internal
   - name: customer_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do cliente na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: customer_code
@@ -242,7 +242,7 @@ snapshots:
     meta:
       sensitivity: internal
   - name: product_variant_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: sku
@@ -274,7 +274,7 @@ snapshots:
     meta:
       sensitivity: internal
   - name: product_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do produto na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: product_code
@@ -294,7 +294,7 @@ snapshots:
     meta:
       sensitivity: public
   - name: product_category_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da categoria na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: leaf_category_name
@@ -312,7 +312,7 @@ snapshots:
     meta:
       sensitivity: public
   - name: brand_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da marca na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: brand_name
@@ -366,7 +366,7 @@ snapshots:
     meta:
       sensitivity: internal
   - name: support_agent_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do atendente na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: agent_code

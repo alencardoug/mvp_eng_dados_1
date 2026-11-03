@@ -32,7 +32,7 @@ models:
           sensitivity: personal
         data_tests: [not_null]
       - name: order_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: subtotal_amount

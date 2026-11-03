@@ -14,7 +14,7 @@ models:
     meta:
       sensitivity: internal
   - name: campaign_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da campanha na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: campaign_code
@@ -72,7 +72,7 @@ models:
     meta:
       sensitivity: internal
   - name: carrier_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da transportadora na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: carrier_code
@@ -122,7 +122,7 @@ models:
     meta:
       sensitivity: internal
   - name: cart_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do carrinho na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: event_type
@@ -177,7 +177,7 @@ models:
     meta:
       sensitivity: internal
   - name: cart_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do carrinho na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: cart_code
@@ -250,7 +250,7 @@ models:
     meta:
       sensitivity: internal
   - name: coupon_redemption_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do resgate de cupom na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: coupon_id
@@ -348,7 +348,7 @@ models:
     meta:
       sensitivity: internal
   - name: coupon_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do cupom na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: coupon_code
@@ -438,7 +438,7 @@ models:
     meta:
       sensitivity: internal
   - name: customer_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do cliente na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: customer_code
@@ -622,7 +622,7 @@ models:
     meta:
       sensitivity: internal
   - name: inventory_balance_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: warehouse_id
@@ -797,7 +797,7 @@ models:
     meta:
       sensitivity: internal
   - name: order_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item do pedido na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: order_id
@@ -855,7 +855,7 @@ models:
     meta:
       sensitivity: internal
   - name: order_status_event_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: order_id
@@ -919,7 +919,7 @@ models:
     meta:
       sensitivity: internal
   - name: order_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do pedido na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: order_number
@@ -1024,7 +1024,7 @@ models:
     meta:
       sensitivity: internal
   - name: payment_method_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do meio de pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: payment_method_code
@@ -1070,7 +1070,7 @@ models:
     meta:
       sensitivity: internal
   - name: payment_transaction_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da transação de pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: transaction_code
@@ -1142,7 +1142,7 @@ models:
     meta:
       sensitivity: internal
   - name: payment_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: payment_code
@@ -1238,7 +1238,7 @@ models:
     meta:
       sensitivity: internal
   - name: product_variant_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: sku
@@ -1270,7 +1270,7 @@ models:
     meta:
       sensitivity: internal
   - name: product_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do produto na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: product_code
@@ -1290,7 +1290,7 @@ models:
     meta:
       sensitivity: public
   - name: product_category_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da categoria na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: leaf_category_name
@@ -1308,7 +1308,7 @@ models:
     meta:
       sensitivity: public
   - name: brand_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da marca na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: brand_name
@@ -1346,7 +1346,7 @@ models:
     meta:
       sensitivity: internal
   - name: purchase_order_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item do pedido de compra na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: purchase_order_id
@@ -1411,7 +1411,7 @@ models:
     meta:
       sensitivity: internal
   - name: purchase_order_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do pedido de compra na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: po_number
@@ -1484,7 +1484,7 @@ models:
     meta:
       sensitivity: internal
   - name: refund_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do reembolso na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: refund_code
@@ -1554,7 +1554,7 @@ models:
     meta:
       sensitivity: internal
   - name: sales_channel_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do canal de venda na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: sales_channel_code
@@ -1594,7 +1594,7 @@ models:
     meta:
       sensitivity: internal
   - name: shipment_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: shipment_id
@@ -1645,7 +1645,7 @@ models:
     meta:
       sensitivity: internal
   - name: shipment_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: shipment_code
@@ -1757,7 +1757,7 @@ models:
     meta:
       sensitivity: internal
   - name: supplier_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do fornecedor na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: supplier_code
@@ -1813,7 +1813,7 @@ models:
     meta:
       sensitivity: internal
   - name: support_agent_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do atendente na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: agent_code
@@ -1874,7 +1874,7 @@ models:
     meta:
       sensitivity: internal
   - name: support_ticket_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do chamado na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: ticket_number
@@ -1990,7 +1990,7 @@ models:
     meta:
       sensitivity: internal
   - name: ticket_event_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do evento do chamado na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: support_ticket_id
@@ -2054,7 +2054,7 @@ models:
     meta:
       sensitivity: internal
   - name: warehouse_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: warehouse_code

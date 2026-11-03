@@ -10,7 +10,7 @@ models:
     domain: compras
   columns:
   - name: goods_receipt_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item do recebimento de mercadoria na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: goods_receipt_id
@@ -54,7 +54,7 @@ models:
     domain: compras
   columns:
   - name: goods_receipt_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do recebimento de mercadoria na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: receipt_number
@@ -102,7 +102,7 @@ models:
     domain: estoque
   columns:
   - name: inventory_balance_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: warehouse_id
@@ -242,7 +242,7 @@ models:
     domain: pagamentos
   columns:
   - name: payment_method_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do meio de pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: payment_method_code
@@ -286,7 +286,7 @@ models:
     domain: pagamentos
   columns:
   - name: payment_transaction_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da transação de pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: transaction_code
@@ -334,7 +334,7 @@ models:
     domain: pagamentos
   columns:
   - name: payment_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do pagamento na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: payment_code
@@ -398,7 +398,7 @@ models:
     domain: compras
   columns:
   - name: purchase_order_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item do pedido de compra na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: purchase_order_id
@@ -446,7 +446,7 @@ models:
     domain: compras
   columns:
   - name: purchase_order_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do pedido de compra na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: po_number
@@ -502,7 +502,7 @@ models:
     domain: pagamentos
   columns:
   - name: refund_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do reembolso na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: refund_code
@@ -554,7 +554,7 @@ models:
     domain: logistica
   columns:
   - name: shipment_item_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do item da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: shipment_id
@@ -594,7 +594,7 @@ models:
     domain: logistica
   columns:
   - name: shipment_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: shipment_code
@@ -662,7 +662,7 @@ models:
     domain: estoque
   columns:
   - name: stock_reservation_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da reserva de estoque na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: reservation_code
@@ -726,7 +726,7 @@ models:
     domain: compras
   columns:
   - name: supplier_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do fornecedor na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: supplier_code
@@ -786,7 +786,7 @@ models:
     domain: estoque
   columns:
   - name: warehouse_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador do armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: warehouse_code

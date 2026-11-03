@@ -83,7 +83,7 @@ models:
         description: Chave substituta da **versão** do cliente (ADR-0017).
         data_tests: [unique, not_null]
       - name: customer_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do cliente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -199,7 +199,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: product_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -244,7 +244,7 @@ models:
         meta:
           sensitivity: public
       - name: product_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do produto na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: launched_at
@@ -260,7 +260,7 @@ models:
         meta:
           sensitivity: internal
       - name: product_category_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da categoria na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: leaf_category_name
@@ -274,7 +274,7 @@ models:
         meta:
           sensitivity: public
       - name: brand_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da marca na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: brand_name
@@ -314,7 +314,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: category_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da categoria na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -348,7 +348,7 @@ models:
         meta:
           sensitivity: internal
       - name: brand_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da marca na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: brand_name
@@ -382,7 +382,7 @@ models:
         meta:
           sensitivity: internal
       - name: sales_channel_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do canal de venda na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: sales_channel_code
@@ -516,7 +516,7 @@ models:
         meta:
           sensitivity: internal
       - name: order_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: order_number
@@ -631,7 +631,7 @@ models:
         meta:
           sensitivity: internal
       - name: cart_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do carrinho na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: occurred_at
@@ -693,7 +693,7 @@ models:
         meta:
           sensitivity: internal
       - name: payment_method_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do meio de pagamento na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: payment_method_code
@@ -731,7 +731,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: supplier_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do fornecedor na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -785,7 +785,7 @@ models:
         meta:
           sensitivity: internal
       - name: warehouse_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do armazém na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: warehouse_code
@@ -887,7 +887,7 @@ models:
         meta:
           sensitivity: internal
       - name: payment_transaction_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da transação de pagamento na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: transaction_code
@@ -994,7 +994,7 @@ models:
         meta:
           sensitivity: internal
       - name: refund_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do reembolso na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: refund_code
@@ -1091,7 +1091,7 @@ models:
         meta:
           sensitivity: internal
       - name: purchase_order_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do pedido de compra na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
       - name: purchase_order_id
@@ -1300,7 +1300,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: carrier_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da transportadora na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1365,7 +1365,7 @@ models:
         description: Prova do grão — uma linha por item de remessa.
         data_tests: [unique, not_null]
       - name: shipment_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item da remessa na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1564,7 +1564,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_status_event_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1683,7 +1683,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: campaign_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da campanha na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1774,7 +1774,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do cupom na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1875,7 +1875,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: support_agent_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do atendente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1962,7 +1962,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_redemption_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do resgate de cupom na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -2111,7 +2111,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: ticket_event_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do evento do chamado na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_tests: [not_null]

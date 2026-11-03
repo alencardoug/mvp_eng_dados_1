@@ -45,7 +45,7 @@ class Supplier(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Cadastro sintético dos fornecedores."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do fornecedor na origem, gerado pelo banco transacional.")
     supplier_code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(INTERNAL, "Chave natural do fornecedor na origem."),
@@ -85,7 +85,7 @@ class PurchaseOrder(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Cabeçalho das ordens de compra enviadas a fornecedores."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do pedido de compra na origem, gerado pelo banco transacional.")
     po_number: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(INTERNAL, "Número da ordem de compra; chave natural."),
@@ -125,7 +125,7 @@ class PurchaseOrderItem(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Produtos, quantidades e custos solicitados ao fornecedor."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do item do pedido de compra na origem, gerado pelo banco transacional.")
     purchase_order_id: Mapped[int] = mapped_column(
         ForeignKey("purchase_orders.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Ordem de compra à qual o item pertence."),
@@ -152,7 +152,7 @@ class GoodsReceipt(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Registro do recebimento físico de uma ordem de compra."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do recebimento de mercadoria na origem, gerado pelo banco transacional.")
     receipt_number: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(INTERNAL, "Número do recebimento; chave natural."),
@@ -186,7 +186,7 @@ class GoodsReceiptItem(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Quantidades efetivamente recebidas por item da ordem de compra."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do item do recebimento de mercadoria na origem, gerado pelo banco transacional.")
     goods_receipt_id: Mapped[int] = mapped_column(
         ForeignKey("goods_receipts.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Recebimento ao qual o item pertence."),

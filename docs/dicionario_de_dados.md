@@ -70,7 +70,7 @@ Segmentos comerciais associáveis ao cadastro do cliente.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do segmento de cliente na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável do segmento, usado como chave natural. |
 | `name` | `varchar(80)` | sim | — | `public` | Nome comercial do segmento. |
 | `description` | `text` | não | — | `public` | Critério de enquadramento do segmento. |
@@ -85,7 +85,7 @@ Cadastro principal do cliente e estado do relacionamento.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do cliente na origem, gerado pelo banco transacional. |
 | `customer_code` | `varchar(32)` | sim | UK | `internal` | Chave natural do cliente na origem; estável entre cargas. |
 | `segment_id` | `bigint` | não | FK | `internal` | Segmento comercial ao qual o cliente pertence. |
 | `first_name` | `varchar(80)` | sim | — | `personal` | Primeiro nome do cliente (sintético). |
@@ -104,7 +104,7 @@ Endereços de cobrança e entrega, com vigência e indicação de principal.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do endereço do cliente na origem, gerado pelo banco transacional. |
 | `customer_id` | `bigint` | sim | FK | `internal` | Cliente dono do endereço. |
 | `address_type` | `varchar(16)` | sim | — | `internal` | Finalidade do endereço: billing ou shipping. |
 | `street` | `varchar(160)` | sim | — | `personal` | Logradouro (sintético). |
@@ -128,7 +128,7 @@ E-mails e telefones sintéticos associados ao cliente.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do contato do cliente na origem, gerado pelo banco transacional. |
 | `customer_id` | `bigint` | sim | FK | `internal` | Cliente dono do contato. |
 | `contact_type` | `varchar(16)` | sim | — | `internal` | Natureza do contato: email, phone ou mobile. |
 | `contact_value` | `varchar(160)` | sim | — | `personal` | Endereço de e-mail ou número de telefone (sintético). |
@@ -144,7 +144,7 @@ Preferências de comunicação, idioma e consentimentos simulados.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da preferência do cliente na origem, gerado pelo banco transacional. |
 | `customer_id` | `bigint` | sim | FK UK | `internal` | Cliente dono das preferências; uma linha por cliente. |
 | `language` | `varchar(10)` | sim | — | `internal` | Idioma preferido, em código BCP 47. |
 | `currency` | `varchar(3)` | sim | — | `public` | Moeda preferida, em código ISO 4217. |
@@ -163,7 +163,7 @@ Marcas associadas aos produtos.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da marca na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável da marca. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome da marca. |
 | `country` | `varchar(2)` | não | — | `public` | País de origem, em código ISO. |
@@ -178,7 +178,7 @@ Hierarquia de categorias e subcategorias do catálogo.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da categoria na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável da categoria; chave natural. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome comercial da categoria. |
 | `parent_id` | `bigint` | não | FK | `public` | Categoria imediatamente superior; nulo na raiz. |
@@ -194,7 +194,7 @@ Listas de preço por canal, moeda e período de vigência.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da lista de preços na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável da lista. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome comercial da lista de preços. |
 | `sales_channel_id` | `bigint` | não | FK | `public` | Canal ao qual a lista se aplica; nulo quando vale para todos. |
@@ -212,7 +212,7 @@ Produto conceitual vendido pelo marketplace.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do produto na origem, gerado pelo banco transacional. |
 | `product_code` | `varchar(32)` | sim | UK | `public` | Chave natural do produto na origem. |
 | `category_id` | `bigint` | sim | FK | `public` | Categoria comercial do produto. |
 | `brand_id` | `bigint` | não | FK | `public` | Marca do produto. |
@@ -230,7 +230,7 @@ SKUs e variações de tamanho, cor ou embalagem.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional. |
 | `product_id` | `bigint` | sim | FK | `public` | Produto do qual a variante deriva. |
 | `sku` | `varchar(40)` | sim | UK | `public` | Código de estoque da variante; chave natural do SKU. |
 | `size` | `varchar(20)` | não | — | `public` | Tamanho da variante. |
@@ -249,7 +249,7 @@ Preço de cada SKU em uma lista e intervalo de vigência.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do preço do produto numa lista na origem, gerado pelo banco transacional. |
 | `price_list_id` | `bigint` | sim | FK | `public` | Lista à qual o preço pertence. |
 | `product_variant_id` | `bigint` | sim | FK | `public` | SKU precificado. |
 | `unit_price` | `numeric(14,4)` | sim | — | `confidential` | Preço unitário de venda na lista e vigência. |
@@ -267,7 +267,7 @@ Cadastro sintético dos fornecedores.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do fornecedor na origem, gerado pelo banco transacional. |
 | `supplier_code` | `varchar(32)` | sim | UK | `internal` | Chave natural do fornecedor na origem. |
 | `legal_name` | `varchar(200)` | sim | — | `confidential` | Razão social do fornecedor (sintética). |
 | `trade_name` | `varchar(200)` | não | — | `public` | Nome fantasia do fornecedor. |
@@ -286,7 +286,7 @@ Cabeçalho das ordens de compra enviadas a fornecedores.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do pedido de compra na origem, gerado pelo banco transacional. |
 | `po_number` | `varchar(32)` | sim | UK | `internal` | Número da ordem de compra; chave natural. |
 | `supplier_id` | `bigint` | sim | FK | `internal` | Fornecedor da ordem. |
 | `status` | `varchar(24)` | sim | — | `internal` | Estado da ordem; transições válidas em Modelo de Dados §4. |
@@ -304,7 +304,7 @@ Registro do recebimento físico de uma ordem de compra.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do recebimento de mercadoria na origem, gerado pelo banco transacional. |
 | `receipt_number` | `varchar(32)` | sim | UK | `internal` | Número do recebimento; chave natural. |
 | `purchase_order_id` | `bigint` | sim | FK | `internal` | Ordem de compra recebida. |
 | `warehouse_id` | `bigint` | sim | FK | `internal` | Armazém que recebeu a mercadoria. |
@@ -320,7 +320,7 @@ Produtos, quantidades e custos solicitados ao fornecedor.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do item do pedido de compra na origem, gerado pelo banco transacional. |
 | `purchase_order_id` | `bigint` | sim | FK | `internal` | Ordem de compra à qual o item pertence. |
 | `product_variant_id` | `bigint` | sim | FK | `internal` | SKU solicitado. |
 | `quantity_ordered` | `integer` | sim | — | `internal` | Quantidade solicitada ao fornecedor. |
@@ -336,7 +336,7 @@ Quantidades efetivamente recebidas por item da ordem de compra.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do item do recebimento de mercadoria na origem, gerado pelo banco transacional. |
 | `goods_receipt_id` | `bigint` | sim | FK | `internal` | Recebimento ao qual o item pertence. |
 | `purchase_order_item_id` | `bigint` | sim | FK | `internal` | Item da ordem de compra correspondente. |
 | `quantity_received` | `integer` | sim | — | `internal` | Quantidade efetivamente recebida. |
@@ -353,7 +353,7 @@ Canais de venda como web, aplicativo e loja física.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do canal de venda na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável do canal. |
 | `name` | `varchar(80)` | sim | — | `public` | Nome do canal de venda. |
 | `channel_type` | `varchar(16)` | sim | — | `public` | Natureza do canal: web, app ou store. |
@@ -368,7 +368,7 @@ Carrinhos abertos, convertidos, abandonados ou expirados.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do carrinho na origem, gerado pelo banco transacional. |
 | `cart_code` | `varchar(40)` | sim | UK | `internal` | Chave natural do carrinho. |
 | `customer_id` | `bigint` | não | FK | `internal` | Cliente dono do carrinho; nulo em sessão anônima. |
 | `sales_channel_id` | `bigint` | sim | FK | `public` | Canal em que o carrinho foi aberto. |
@@ -385,7 +385,7 @@ Produtos e quantidades incluídos nos carrinhos; maior tabela do projeto.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do item do carrinho na origem, gerado pelo banco transacional. |
 | `cart_id` | `bigint` | sim | FK | `internal` | Carrinho ao qual o item pertence. |
 | `product_variant_id` | `bigint` | sim | FK | `internal` | SKU adicionado ao carrinho. |
 | `quantity` | `integer` | sim | — | `internal` | Quantidade do SKU no carrinho. |
@@ -401,7 +401,7 @@ Cabeçalho do pedido: cliente, canal, valores e estado atual.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do pedido na origem, gerado pelo banco transacional. |
 | `order_number` | `varchar(32)` | sim | UK | `internal` | Número do pedido; chave natural. |
 | `customer_id` | `bigint` | sim | FK | `internal` | Cliente que fez o pedido. |
 | `sales_channel_id` | `bigint` | sim | FK | `public` | Canal em que o pedido foi feito. |
@@ -424,7 +424,7 @@ Grão comercial do pedido: um SKU comprado em uma linha.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do item do pedido na origem, gerado pelo banco transacional. |
 | `order_id` | `bigint` | sim | FK | `internal` | Pedido ao qual o item pertence. |
 | `product_variant_id` | `bigint` | sim | FK | `internal` | SKU comprado. |
 | `quantity` | `integer` | sim | — | `internal` | Quantidade comprada do SKU. |
@@ -442,7 +442,7 @@ Histórico temporal das mudanças de estado do pedido.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional. |
 | `order_id` | `bigint` | sim | FK | `internal` | Pedido cujo estado mudou. |
 | `from_status` | `varchar(16)` | não | — | `internal` | Estado anterior; nulo na criação do pedido. |
 | `to_status` | `varchar(16)` | sim | — | `internal` | Estado resultante da transição. |
@@ -458,7 +458,7 @@ Tipos de pagamento aceitos, sem armazenar credenciais.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do meio de pagamento na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável do meio de pagamento. |
 | `name` | `varchar(80)` | sim | — | `public` | Nome do meio de pagamento. |
 | `method_type` | `varchar(20)` | sim | — | `public` | Natureza do meio: cartão, pix, boleto, carteira ou vale. |
@@ -473,7 +473,7 @@ Intenção de pagamento associada ao pedido.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do pagamento na origem, gerado pelo banco transacional. |
 | `payment_code` | `varchar(40)` | sim | UK | `internal` | Chave natural do pagamento. |
 | `order_id` | `bigint` | sim | FK | `internal` | Pedido que o pagamento quita. |
 | `payment_method_id` | `bigint` | sim | FK | `public` | Meio de pagamento utilizado. |
@@ -493,7 +493,7 @@ Tentativas, autorizações, capturas e falhas do pagamento.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da transação de pagamento na origem, gerado pelo banco transacional. |
 | `transaction_code` | `varchar(40)` | sim | UK | `internal` | Chave natural da transação. |
 | `payment_id` | `bigint` | sim | FK | `internal` | Pagamento ao qual a transação pertence. |
 | `transaction_type` | `varchar(20)` | sim | — | `internal` | Operação financeira: authorization, capture, void ou refund. |
@@ -509,7 +509,7 @@ Reembolsos totais ou parciais de transações capturadas.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do reembolso na origem, gerado pelo banco transacional. |
 | `refund_code` | `varchar(40)` | sim | UK | `internal` | Chave natural do reembolso. |
 | `payment_transaction_id` | `bigint` | sim | FK | `internal` | Transação de captura que está sendo revertida. |
 | `amount` | `numeric(14,2)` | sim | — | `confidential` | Valor reembolsado. |
@@ -528,7 +528,7 @@ Centros de distribuição ou locais de estoque.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do armazém na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável do armazém. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome do armazém. |
 | `city` | `varchar(80)` | sim | — | `public` | Cidade do armazém. |
@@ -546,7 +546,7 @@ Saldo atual de cada SKU por armazém.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional. |
 | `warehouse_id` | `bigint` | sim | FK | `internal` | Armazém do saldo. |
 | `product_variant_id` | `bigint` | sim | FK | `internal` | SKU do saldo. |
 | `quantity_on_hand` | `integer` | sim | — | `internal` | Quantidade fisicamente disponível. |
@@ -587,7 +587,7 @@ Reserva de quantidade para carrinhos ou pedidos.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da reserva de estoque na origem, gerado pelo banco transacional. |
 | `reservation_code` | `varchar(40)` | sim | UK | `internal` | Chave natural da reserva. |
 | `warehouse_id` | `bigint` | sim | FK | `internal` | Armazém em que a quantidade está reservada. |
 | `product_variant_id` | `bigint` | sim | FK | `internal` | SKU reservado. |
@@ -609,7 +609,7 @@ Transportadoras sintéticas e suas modalidades.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da transportadora na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável da transportadora. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome da transportadora. |
 | `service_level` | `varchar(16)` | sim | — | `public` | Modalidade: standard, express ou same_day. |
@@ -625,7 +625,7 @@ Remessas criadas para atender pedidos.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da remessa na origem, gerado pelo banco transacional. |
 | `shipment_code` | `varchar(40)` | sim | UK | `internal` | Chave natural da remessa. |
 | `order_id` | `bigint` | sim | FK | `internal` | Pedido que a remessa atende. |
 | `carrier_id` | `bigint` | sim | FK | `public` | Transportadora responsável. |
@@ -646,7 +646,7 @@ Eventos de coleta, trânsito, tentativa e entrega.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do evento de entrega na origem, gerado pelo banco transacional. |
 | `shipment_id` | `bigint` | sim | FK | `internal` | Remessa à qual o evento se refere. |
 | `event_type` | `varchar(24)` | sim | — | `public` | Natureza do evento de entrega. |
 | `occurred_at` | `timestampwithtimezone` | sim | — | `internal` | Momento de negócio do evento. |
@@ -660,7 +660,7 @@ Quantidades de itens de pedido incluídas em cada remessa.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do item da remessa na origem, gerado pelo banco transacional. |
 | `shipment_id` | `bigint` | sim | FK | `internal` | Remessa à qual o item pertence. |
 | `order_item_id` | `bigint` | sim | FK | `internal` | Item de pedido sendo enviado. |
 | `quantity` | `integer` | sim | — | `internal` | Quantidade enviada nesta remessa. |
@@ -676,7 +676,7 @@ Campanhas de marketing e seus períodos de vigência.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador da campanha na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código estável da campanha. |
 | `name` | `varchar(120)` | sim | — | `public` | Nome da campanha. |
 | `objective` | `varchar(20)` | sim | — | `public` | Objetivo comercial da campanha. |
@@ -694,7 +694,7 @@ Cupons, regras de desconto e limites de utilização.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do cupom na origem, gerado pelo banco transacional. |
 | `code` | `varchar(32)` | sim | UK | `public` | Código digitado pelo cliente. |
 | `campaign_id` | `bigint` | sim | FK | `public` | Campanha à qual o cupom pertence. |
 | `discount_type` | `varchar(16)` | sim | — | `public` | Natureza do desconto: percentage ou fixed. |
@@ -714,7 +714,7 @@ Uso efetivo de cupons por cliente e pedido.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do resgate de cupom na origem, gerado pelo banco transacional. |
 | `coupon_id` | `bigint` | sim | FK | `internal` | Cupom utilizado. |
 | `customer_id` | `bigint` | sim | FK | `internal` | Cliente que utilizou o cupom. |
 | `order_id` | `bigint` | sim | FK | `internal` | Pedido em que o cupom foi aplicado. |
@@ -730,7 +730,7 @@ Agentes sintéticos e suas equipes de atendimento.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do atendente na origem, gerado pelo banco transacional. |
 | `agent_code` | `varchar(32)` | sim | UK | `internal` | Chave natural do agente. |
 | `first_name` | `varchar(80)` | sim | — | `personal` | Primeiro nome do agente (sintético). |
 | `last_name` | `varchar(120)` | sim | — | `personal` | Sobrenome do agente (sintético). |
@@ -748,7 +748,7 @@ Solicitações associadas a clientes, pedidos ou entregas.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do chamado na origem, gerado pelo banco transacional. |
 | `ticket_number` | `varchar(32)` | sim | UK | `internal` | Número do chamado; chave natural. |
 | `customer_id` | `bigint` | sim | FK | `internal` | Cliente que abriu o chamado. |
 | `order_id` | `bigint` | não | FK | `internal` | Pedido relacionado ao chamado, quando houver. |
@@ -770,7 +770,7 @@ Interações, atribuições e mudanças de estado do chamado.
 
 | Campo | Tipo | Obrigatório | Chave | Classificação | Descrição |
 |---|---|:---:|:---:|---|---|
-| `id` | `bigint` | sim | PK | `internal` | Chave primária técnica, gerada pelo banco. |
+| `id` | `bigint` | sim | PK | `internal` | Identificador do evento do chamado na origem, gerado pelo banco transacional. |
 | `ticket_id` | `bigint` | sim | FK | `internal` | Chamado ao qual o evento pertence. |
 | `agent_id` | `bigint` | não | FK | `internal` | Agente autor do evento; nulo quando o autor é o cliente. |
 | `event_type` | `varchar(20)` | sim | — | `internal` | Natureza do evento no chamado. |

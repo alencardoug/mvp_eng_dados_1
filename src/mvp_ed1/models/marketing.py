@@ -44,7 +44,7 @@ class Campaign(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Campanhas de marketing e seus períodos de vigência."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da campanha na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável da campanha."),
     )
@@ -83,7 +83,7 @@ class Coupon(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Cupons, regras de desconto e limites de utilização."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do cupom na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código digitado pelo cliente."),
     )
@@ -126,7 +126,7 @@ class CouponRedemption(Base, AppendOnlyMixin):
         table_meta(DOMAIN, "Uso efetivo de cupons por cliente e pedido."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do resgate de cupom na origem, gerado pelo banco transacional.")
     coupon_id: Mapped[int] = mapped_column(
         ForeignKey("coupons.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Cupom utilizado."),

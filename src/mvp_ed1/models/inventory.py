@@ -68,7 +68,7 @@ class Warehouse(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Centros de distribuição ou locais de estoque."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do armazém na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável do armazém."),
     )
@@ -102,7 +102,7 @@ class InventoryBalance(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Saldo atual de cada SKU por armazém."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional.")
     warehouse_id: Mapped[int] = mapped_column(
         ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Armazém do saldo."),
@@ -250,7 +250,7 @@ class StockReservation(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Reserva de quantidade para carrinhos ou pedidos."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da reserva de estoque na origem, gerado pelo banco transacional.")
     reservation_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural da reserva."),
     )

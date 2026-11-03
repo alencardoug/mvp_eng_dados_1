@@ -10,7 +10,7 @@ models:
     domain: logistica
   columns:
   - name: shipment_id
-    description: Chave primária técnica, gerada pelo banco.
+    description: Identificador da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
   - name: shipment_code

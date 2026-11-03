@@ -47,7 +47,7 @@ class Carrier(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Transportadoras sintéticas e suas modalidades."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da transportadora na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável da transportadora."),
     )
@@ -78,7 +78,7 @@ class Shipment(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Remessas criadas para atender pedidos."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da remessa na origem, gerado pelo banco transacional.")
     shipment_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural da remessa."),
     )
@@ -123,7 +123,7 @@ class ShipmentItem(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Quantidades de itens de pedido incluídas em cada remessa."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do item da remessa na origem, gerado pelo banco transacional.")
     shipment_id: Mapped[int] = mapped_column(
         ForeignKey("shipments.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Remessa à qual o item pertence."),
@@ -145,7 +145,7 @@ class DeliveryEvent(Base, AppendOnlyMixin):
         table_meta(DOMAIN, "Eventos de coleta, trânsito, tentativa e entrega."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do evento de entrega na origem, gerado pelo banco transacional.")
     shipment_id: Mapped[int] = mapped_column(
         ForeignKey("shipments.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Remessa à qual o evento se refere."),

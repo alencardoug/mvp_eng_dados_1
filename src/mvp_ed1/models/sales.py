@@ -50,7 +50,7 @@ class SalesChannel(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Canais de venda como web, aplicativo e loja física."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do canal de venda na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável do canal."),
     )
@@ -77,7 +77,7 @@ class Cart(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Carrinhos abertos, convertidos, abandonados ou expirados."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do carrinho na origem, gerado pelo banco transacional.")
     cart_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural do carrinho."),
     )
@@ -110,7 +110,7 @@ class CartItem(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Produtos e quantidades incluídos nos carrinhos; maior tabela do projeto."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do item do carrinho na origem, gerado pelo banco transacional.")
     cart_id: Mapped[int] = mapped_column(
         ForeignKey("carts.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Carrinho ao qual o item pertence."),
@@ -151,7 +151,7 @@ class Order(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Cabeçalho do pedido: cliente, canal, valores e estado atual."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do pedido na origem, gerado pelo banco transacional.")
     order_number: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(INTERNAL, "Número do pedido; chave natural."),
     )
@@ -211,7 +211,7 @@ class OrderItem(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Grão comercial do pedido: um SKU comprado em uma linha."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do item do pedido na origem, gerado pelo banco transacional.")
     order_id: Mapped[int] = mapped_column(
         ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Pedido ao qual o item pertence."),
@@ -249,7 +249,7 @@ class OrderStatusHistory(Base, AppendOnlyMixin):
         table_meta(DOMAIN, "Histórico temporal das mudanças de estado do pedido."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional.")
     order_id: Mapped[int] = mapped_column(
         ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Pedido cujo estado mudou."),

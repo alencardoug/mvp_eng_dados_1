@@ -45,7 +45,7 @@ class PaymentMethod(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Tipos de pagamento aceitos, sem armazenar credenciais."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do meio de pagamento na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável do meio de pagamento."),
     )
@@ -77,7 +77,7 @@ class Payment(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Intenção de pagamento associada ao pedido."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do pagamento na origem, gerado pelo banco transacional.")
     payment_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural do pagamento."),
     )
@@ -121,7 +121,7 @@ class PaymentTransaction(Base, AppendOnlyMixin):
         table_meta(DOMAIN, "Tentativas, autorizações, capturas e falhas do pagamento."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da transação de pagamento na origem, gerado pelo banco transacional.")
     transaction_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural da transação."),
     )
@@ -156,7 +156,7 @@ class Refund(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Reembolsos totais ou parciais de transações capturadas."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do reembolso na origem, gerado pelo banco transacional.")
     refund_code: Mapped[str] = mapped_column(
         String(40), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural do reembolso."),
     )

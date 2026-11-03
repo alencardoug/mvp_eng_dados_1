@@ -40,7 +40,7 @@ class ProductCategory(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Hierarquia de categorias e subcategorias do catálogo."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da categoria na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(PUBLIC, "Código estável da categoria; chave natural."),
@@ -66,7 +66,7 @@ class Brand(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "brands"
     __table_args__ = table_meta(DOMAIN, "Marcas associadas aos produtos.")
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da marca na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável da marca."),
     )
@@ -89,7 +89,7 @@ class Product(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Produto conceitual vendido pelo marketplace."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do produto na origem, gerado pelo banco transacional.")
     product_code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(PUBLIC, "Chave natural do produto na origem."),
@@ -124,7 +124,7 @@ class ProductVariant(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "SKUs e variações de tamanho, cor ou embalagem."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional.")
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="RESTRICT"), nullable=False, index=True,
         info=meta(PUBLIC, "Produto do qual a variante deriva."),
@@ -162,7 +162,7 @@ class PriceList(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Listas de preço por canal, moeda e período de vigência."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da lista de preços na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(PUBLIC, "Código estável da lista."),
     )
@@ -202,7 +202,7 @@ class ProductPrice(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Preço de cada SKU em uma lista e intervalo de vigência."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do preço do produto numa lista na origem, gerado pelo banco transacional.")
     price_list_id: Mapped[int] = mapped_column(
         ForeignKey("price_lists.id", ondelete="RESTRICT"), nullable=False,
         info=meta(PUBLIC, "Lista à qual o preço pertence."),

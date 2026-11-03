@@ -123,7 +123,7 @@ models:
         data_type: bigint
         constraints: [{type: not_null}]
       - name: product_natural_key
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
         data_type: bigint

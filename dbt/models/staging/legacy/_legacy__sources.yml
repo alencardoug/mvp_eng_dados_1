@@ -51,7 +51,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da marca na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -105,7 +105,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da campanha na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -171,7 +171,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da transportadora na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -229,7 +229,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do segmento de cliente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -283,7 +283,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do meio de pagamento na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -337,7 +337,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da categoria na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -395,7 +395,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do canal de venda na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -449,7 +449,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do fornecedor na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: supplier_code
@@ -519,7 +519,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do atendente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: agent_code
@@ -585,7 +585,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do armazém na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -651,7 +651,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do cupom na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -725,7 +725,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do cliente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: customer_code
@@ -795,7 +795,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da lista de preços na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: code
@@ -861,7 +861,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do produto na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: product_code
@@ -927,7 +927,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do pedido de compra na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: po_number
@@ -993,7 +993,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do carrinho na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: cart_code
@@ -1055,7 +1055,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do endereço do cliente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: customer_id
@@ -1145,7 +1145,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do contato do cliente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: customer_id
@@ -1203,7 +1203,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da preferência do cliente na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: customer_id
@@ -1265,7 +1265,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do recebimento de mercadoria na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: receipt_number
@@ -1323,7 +1323,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: product_id
@@ -1393,7 +1393,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do item do carrinho na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: cart_id
@@ -1451,7 +1451,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: warehouse_id
@@ -1595,7 +1595,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do pedido na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: order_number
@@ -1681,7 +1681,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do preço do produto numa lista na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: price_list_id
@@ -1739,7 +1739,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do item do pedido de compra na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: purchase_order_id
@@ -1797,7 +1797,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do resgate de cupom na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: coupon_id
@@ -1847,7 +1847,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do item do recebimento de mercadoria na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: goods_receipt_id
@@ -1901,7 +1901,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do item do pedido na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: order_id
@@ -1967,7 +1967,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: order_id
@@ -2017,7 +2017,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do pagamento na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: payment_code
@@ -2091,7 +2091,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da remessa na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: shipment_code
@@ -2169,7 +2169,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da reserva de estoque na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: reservation_code
@@ -2243,7 +2243,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do evento de entrega na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: shipment_id
@@ -2293,7 +2293,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador da transação de pagamento na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: transaction_code
@@ -2351,7 +2351,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do item da remessa na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: shipment_id
@@ -2401,7 +2401,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do chamado na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: ticket_number
@@ -2483,7 +2483,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do reembolso na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: refund_code
@@ -2545,7 +2545,7 @@ sources:
             meta:
               sensitivity: internal
           - name: id
-            description: "Chave primária técnica, gerada pelo banco."
+            description: "Identificador do evento do chamado na origem, gerado pelo banco transacional."
             meta:
               sensitivity: internal
           - name: ticket_id

@@ -37,7 +37,7 @@ class CustomerSegment(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "customer_segments"
     __table_args__ = table_meta(DOMAIN, "Segmentos comerciais associáveis ao cadastro do cliente.")
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do segmento de cliente na origem, gerado pelo banco transacional.")
     code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(PUBLIC, "Código estável do segmento, usado como chave natural."),
@@ -66,7 +66,7 @@ class Customer(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Cadastro principal do cliente e estado do relacionamento."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do cliente na origem, gerado pelo banco transacional.")
     customer_code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True,
         info=meta(INTERNAL, "Chave natural do cliente na origem; estável entre cargas."),
@@ -117,7 +117,7 @@ class CustomerAddress(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Endereços de cobrança e entrega, com vigência e indicação de principal."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do endereço do cliente na origem, gerado pelo banco transacional.")
     customer_id: Mapped[int] = mapped_column(
         ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, index=True,
         info=meta(INTERNAL, "Cliente dono do endereço."),
@@ -178,7 +178,7 @@ class CustomerContact(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "E-mails e telefones sintéticos associados ao cliente."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do contato do cliente na origem, gerado pelo banco transacional.")
     customer_id: Mapped[int] = mapped_column(
         ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, index=True,
         info=meta(INTERNAL, "Cliente dono do contato."),
@@ -207,7 +207,7 @@ class CustomerPreference(Base, TimestampMixin, SoftDeleteMixin):
         DOMAIN, "Preferências de comunicação, idioma e consentimentos simulados."
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador da preferência do cliente na origem, gerado pelo banco transacional.")
     customer_id: Mapped[int] = mapped_column(
         ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, unique=True,
         info=meta(INTERNAL, "Cliente dono das preferências; uma linha por cliente."),

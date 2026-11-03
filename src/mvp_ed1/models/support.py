@@ -37,7 +37,7 @@ class SupportAgent(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "support_agents"
     __table_args__ = table_meta(DOMAIN, "Agentes sintéticos e suas equipes de atendimento.")
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do atendente na origem, gerado pelo banco transacional.")
     agent_code: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(INTERNAL, "Chave natural do agente."),
     )
@@ -74,7 +74,7 @@ class SupportTicket(Base, TimestampMixin, SoftDeleteMixin):
         table_meta(DOMAIN, "Solicitações associadas a clientes, pedidos ou entregas."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do chamado na origem, gerado pelo banco transacional.")
     ticket_number: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, info=meta(INTERNAL, "Número do chamado; chave natural."),
     )
@@ -122,7 +122,7 @@ class TicketEvent(Base, AppendOnlyMixin):
         table_meta(DOMAIN, "Interações, atribuições e mudanças de estado do chamado."),
     )
 
-    id: Mapped[int] = pk()
+    id: Mapped[int] = pk("Identificador do evento do chamado na origem, gerado pelo banco transacional.")
     ticket_id: Mapped[int] = mapped_column(
         ForeignKey("support_tickets.id", ondelete="RESTRICT"), nullable=False,
         info=meta(INTERNAL, "Chamado ao qual o evento pertence."),

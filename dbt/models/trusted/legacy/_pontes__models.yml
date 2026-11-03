@@ -13,7 +13,7 @@ models:
       owner: data_custodian
     columns:
       - name: brand_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da marca na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -90,7 +90,7 @@ models:
       owner: data_custodian
     columns:
       - name: campaign_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da campanha na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -188,7 +188,7 @@ models:
       owner: data_custodian
     columns:
       - name: carrier_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da transportadora na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -272,7 +272,7 @@ models:
       owner: data_custodian
     columns:
       - name: customer_segment_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do segmento de cliente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -349,7 +349,7 @@ models:
       owner: data_custodian
     columns:
       - name: payment_method_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do meio de pagamento na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -426,7 +426,7 @@ models:
       owner: data_custodian
     columns:
       - name: product_category_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da categoria na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -510,7 +510,7 @@ models:
       owner: data_custodian
     columns:
       - name: sales_channel_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do canal de venda na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -587,7 +587,7 @@ models:
       owner: data_custodian
     columns:
       - name: supplier_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do fornecedor na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -692,7 +692,7 @@ models:
       owner: data_custodian
     columns:
       - name: support_agent_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do atendente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -796,7 +796,7 @@ models:
       owner: data_custodian
     columns:
       - name: warehouse_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do armazém na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -894,7 +894,7 @@ models:
       owner: data_custodian
     columns:
       - name: coupon_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do cupom na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1006,7 +1006,7 @@ models:
       owner: data_custodian
     columns:
       - name: customer_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do cliente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1117,7 +1117,7 @@ models:
       owner: data_custodian
     columns:
       - name: product_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do produto na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1215,7 +1215,7 @@ models:
       owner: data_custodian
     columns:
       - name: purchase_order_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do pedido de compra na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1313,7 +1313,7 @@ models:
       owner: data_custodian
     columns:
       - name: cart_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do carrinho na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1411,7 +1411,7 @@ models:
       owner: data_custodian
     columns:
       - name: customer_address_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do endereço do cliente na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1551,7 +1551,7 @@ models:
       owner: data_custodian
     columns:
       - name: goods_receipt_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do recebimento de mercadoria na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1635,7 +1635,7 @@ models:
       owner: data_custodian
     columns:
       - name: product_variant_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1740,7 +1740,7 @@ models:
       owner: data_custodian
     columns:
       - name: cart_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do carrinho na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1824,7 +1824,7 @@ models:
       owner: data_custodian
     columns:
       - name: inventory_balance_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2069,7 +2069,7 @@ models:
       owner: data_custodian
     columns:
       - name: order_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2202,7 +2202,7 @@ models:
       owner: data_custodian
     columns:
       - name: purchase_order_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do pedido de compra na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2286,7 +2286,7 @@ models:
       owner: data_custodian
     columns:
       - name: coupon_redemption_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do resgate de cupom na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2356,7 +2356,7 @@ models:
       owner: data_custodian
     columns:
       - name: goods_receipt_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do recebimento de mercadoria na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2433,7 +2433,7 @@ models:
       owner: data_custodian
     columns:
       - name: order_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2531,7 +2531,7 @@ models:
       owner: data_custodian
     columns:
       - name: order_status_event_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da mudança de estado do pedido na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2601,7 +2601,7 @@ models:
       owner: data_custodian
     columns:
       - name: payment_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do pagamento na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2713,7 +2713,7 @@ models:
       owner: data_custodian
     columns:
       - name: shipment_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da remessa na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -2832,7 +2832,7 @@ models:
       owner: data_custodian
     columns:
       - name: stock_reservation_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da reserva de estoque na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -3014,7 +3014,7 @@ models:
       owner: data_custodian
     columns:
       - name: payment_transaction_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador da transação de pagamento na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -3098,7 +3098,7 @@ models:
       owner: data_custodian
     columns:
       - name: shipment_item_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do item da remessa na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -3168,7 +3168,7 @@ models:
       owner: data_custodian
     columns:
       - name: support_ticket_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do chamado na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -3294,7 +3294,7 @@ models:
       owner: data_custodian
     columns:
       - name: refund_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do reembolso na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -3385,7 +3385,7 @@ models:
       owner: data_custodian
     columns:
       - name: ticket_event_id
-        description: "Chave primária técnica, gerada pelo banco."
+        description: "Identificador do evento do chamado na origem, gerado pelo banco transacional."
         meta:
           sensitivity: internal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
