@@ -34,16 +34,6 @@ LOCALIDADES: tuple[tuple[str, str, str], ...] = (
     ("Belém", "PA", "660"), ("Manaus", "AM", "690"), ("Vitória", "ES", "290"),
 )
 
-_CATEGORIAS_RAIZ = ("Eletrônicos", "Casa e Cozinha", "Moda", "Esporte e Lazer")
-_CATEGORIAS_MEIO = (
-    "Áudio", "Informática", "Utilidades", "Mobiliário", "Vestuário",
-    "Calçados", "Treino", "Camping",
-)
-_CATEGORIAS_FOLHA = (
-    "Fones de ouvido", "Caixas de som", "Notebooks", "Periféricos", "Panelas",
-    "Organizadores", "Sofás", "Estantes", "Camisetas", "Calças", "Tênis",
-    "Sandálias",
-)
 _LINHAS_DE_PRODUTO = (
     "Compacto", "Profissional", "Essencial", "Premium", "Clássico", "Urbano",
     "Studio", "Traveler", "Max", "Nano", "Prime", "Origem",
@@ -183,9 +173,13 @@ class Provedores:
         Sortear o substantivo independentemente da categoria produzia
         "Notebooks Premium Vidro" dentro de *Fones de ouvido* — e a §5 de Geração
         de Dados exige afinidade entre produto, categoria e preço. O construtor
-        do catálogo deixa a categoria na linha; aqui ela é usada.
+        do catálogo deixa a categoria na linha; aqui ela é usada — e sem ela não
+        há nome, porque a lista de categorias é a árvore declarada, não uma
+        segunda lista aqui.
         """
-        categoria = linha.get("__categoria") or fonte.escolha(_CATEGORIAS_FOLHA)
+        categoria = linha.get("__categoria")
+        if not categoria:
+            raise ValueError("nome_de_produto: a linha não traz a categoria (`__categoria`)")
         return f"{categoria} {fonte.escolha(_LINHAS_DE_PRODUTO)} {fonte.escolha(_MATERIAIS)}"
 
     def p_razao_social(self, fonte: Fonte, linha: dict[str, Any], indice: int) -> str:
@@ -231,6 +225,3 @@ def _sem_acento(texto: str) -> str:
     normalizado = unicodedata.normalize("NFKD", texto)
     return "".join(c for c in normalizado if not unicodedata.combining(c) and (c.isalnum() or c in "._-"))
 
-
-#: Hierarquia de categorias usada pelo construtor do catálogo.
-ARVORE_DE_CATEGORIAS = (_CATEGORIAS_RAIZ, _CATEGORIAS_MEIO, _CATEGORIAS_FOLHA)

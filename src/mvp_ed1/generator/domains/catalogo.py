@@ -1,9 +1,9 @@
 """Domínio de catálogo e preços — 6 tabelas.
 
 Duas regras que não cabem em declaração de coluna moram aqui: a hierarquia de
-categorias, que precisa de pai coerente e `depth` correto, e a vigência de
-preço, que não pode se sobrepor para o mesmo par lista/SKU — a mesma regra que
-a Etapa 5 vai cobrar das dimensões SCD.
+categorias, montada da árvore declarada com pai coerente e `depth` correto, e a
+vigência de preço, que não pode se sobrepor para o mesmo par lista/SKU — a mesma
+regra que a Etapa 5 vai cobrar das dimensões SCD.
 """
 
 from __future__ import annotations
@@ -14,42 +14,26 @@ from decimal import Decimal
 from mvp_ed1.generator.dataset import Dataset
 from mvp_ed1.generator.engine import Motor
 from mvp_ed1.generator.pricing import CHANNEL, READJUSTMENT, SKU_VARIATION
-from mvp_ed1.generator.providers import ARVORE_DE_CATEGORIAS
+from mvp_ed1.generator.config import nos_da_arvore
 from mvp_ed1.generator.rng import preco, repartir
 
 def categorias(motor: Motor, dados: Dataset) -> None:
-    """Árvore de três níveis: `depth` é derivado do pai, nunca sorteado."""
-    fonte = motor.fonte("product_categories")
-    total = motor.linhas("product_categories")
-    raizes, meio, folhas = ARVORE_DE_CATEGORIAS
-
-    quantidades = [max(1, round(total * fracao)) for fracao in (1 / 6, 2 / 6)]
-    quantidades.append(max(1, total - sum(quantidades)))
-
+    """A árvore declarada em `geracao.yml`: `depth` e `parent_id` saem dela, nunca de sorteio."""
+    arvore = motor.config.tabelas["product_categories"].arvore
+    identificador: dict[str, int] = {}
     linhas: list[dict] = []
-    por_nivel: list[list[int]] = []
-    for nivel, (quantidade, nomes) in enumerate(zip(quantidades, (raizes, meio, folhas))):
-        ids_do_nivel: list[int] = []
-        for i in range(quantidade):
-            identificador = len(linhas) + 1
-            sufixo = f" {i // len(nomes) + 1}" if i >= len(nomes) else ""
-            linhas.append(
-                {
-                    "id": identificador,
-                    "code": f"CAT-{identificador:04d}",
-                    "name": f"{nomes[i % len(nomes)]}{sufixo}",
-                    # Pai por rodízio, não por sorteio: sorteando, uma raiz
-                    # pode ficar sem descendente com produto e sumir da
-                    # dimensão inteira — foi o que aconteceu com "Eletrônicos",
-                    # e o `min_rows` promete árvore equilibrada.
-                    "parent_id": por_nivel[nivel - 1][i % len(por_nivel[nivel - 1])] if nivel else None,
-                    "depth": nivel,
-                    "is_active": True,
-                }
-            )
-            ids_do_nivel.append(identificador)
-        por_nivel.append(ids_do_nivel)
-
+    for nome, profundidade, pai in nos_da_arvore(arvore):
+        identificador[nome] = len(linhas) + 1
+        linhas.append(
+            {
+                "id": identificador[nome],
+                "code": f"CAT-{identificador[nome]:04d}",
+                "name": nome,
+                "parent_id": identificador[pai] if pai else None,
+                "depth": profundidade,
+                "is_active": True,
+            }
+        )
     dados.guardar("product_categories", motor.preencher("product_categories", linhas))
 
 

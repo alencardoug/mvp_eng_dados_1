@@ -161,10 +161,30 @@ tabelas:
   # ── Catálogo e preços ──────────────────────────────────────────────────────
   product_categories:
     referencia: 80
-    min_rows: 24
-    motivo: Hierarquia de três níveis com ramificação real — 4 raízes, 8 intermediárias e 12 folhas. Com menos, `depth` nunca chega a 2 e a navegação recursiva fica sem o que exercitar.
+    min_rows: 28
+    motivo: Hierarquia de três níveis com ramificação real — 4 raízes, 8 intermediárias e 16 folhas, o tamanho da árvore abaixo. Com menos, `depth` nunca chega a 2 e a navegação recursiva fica sem o que exercitar.
     origem: processo
-    nota: A profundidade e o `parent_id` saem da montagem da árvore, não de sorteio.
+    nota: A profundidade e o `parent_id` saem da árvore declarada, não de sorteio, e a contagem é o tamanho dela em qualquer escala.
+    processo:
+      # A árvore do catálogo: raiz › intermediária › folhas. Cada folha está sob
+      # a raiz a que pertence — é o eixo da P01, e "Moda › Notebooks" não diz
+      # nada a quem lê (M7 do plano do bi-como-codigo). Toda raiz tem duas
+      # intermediárias, e toda intermediária duas folhas: a árvore continua
+      # equilibrada, e nenhuma raiz fica sem produto. Os produtos só ficam nas
+      # folhas; cada folha tem a sua faixa de preço em `product_variants`.
+      arvore:
+        Eletrônicos:
+          Áudio: [Fones de ouvido, Caixas de som]
+          Informática: [Notebooks, Periféricos]
+        Casa e Cozinha:
+          Utilidades: [Panelas, Organizadores]
+          Mobiliário: [Sofás, Estantes]
+        Moda:
+          Vestuário: [Camisetas, Calças]
+          Calçados: [Tênis, Sandálias]
+        Esporte e Lazer:
+          Treino: [Halteres, Tapetes de ioga]
+          Camping: [Barracas, Sacos de dormir]
 
   brands:
     referencia: 180

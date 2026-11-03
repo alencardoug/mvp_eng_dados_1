@@ -155,8 +155,10 @@ geração precisa produzir:
 **O piso não é reescrito: é derivado.** O motor lê as `CHECK` de enumeração dos próprios modelos e
 já sabe que `carriers` precisa de ao menos três linhas — uma por modalidade — e `payment_methods`
 de seis. Onde a cobertura exige mais do que enumeração, a configuração declara `min_rows` **com o
-motivo escrito na linha**; é o caso de `product_categories`, que precisa de 24 linhas para que a
-hierarquia chegue mesmo ao terceiro nível. Piso sem motivo é recusado na carga da configuração.
+motivo escrito na linha**; é o caso de `product_categories`, cuja contagem é a árvore declarada no
+YAML — 28 nós em três níveis, em qualquer escala —, para que a hierarquia chegue mesmo ao terceiro
+nível e cada folha fique sob a sua raiz. Piso sem motivo é recusado na carga da configuração, e o
+da árvore, quando difere do tamanho dela.
 
 Duas garantias de construção sustentam isso, e nenhuma delas depende de sorte:
 

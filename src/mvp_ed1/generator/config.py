@@ -67,6 +67,56 @@ class Tabela:
     def coluna(self, nome: str) -> dict[str, Any]:
         return self.colunas.get(nome, {})
 
+    @property
+    def arvore(self) -> dict[str, dict[str, list[str]]] | None:
+        """A árvore declarada — raiz › intermediária › folhas —, quando a tabela é uma."""
+        return self.processo.get("arvore")
+
+
+def nos_da_arvore(arvore: dict[str, dict[str, list[str]]]) -> list[tuple[str, int, str | None]]:
+    """`(nome, profundidade, pai)` de cada nó, nível a nível e na ordem declarada.
+
+    Nível a nível, e não em profundidade, para que os identificadores sigam a
+    ordem de sempre: as raízes primeiro, depois as intermediárias, as folhas
+    por último.
+    """
+    raizes = [(raiz, 0, None) for raiz in arvore]
+    meios = [(meio, 1, raiz) for raiz, filhos in arvore.items() for meio in filhos]
+    folhas = [
+        (folha, 2, meio) for filhos in arvore.values() for meio, netas in filhos.items() for folha in netas
+    ]
+    return raizes + meios + folhas
+
+
+def folhas_da_arvore(arvore: dict[str, dict[str, list[str]]]) -> list[str]:
+    return [nome for nome, profundidade, _ in nos_da_arvore(arvore) if profundidade == 2]
+
+
+def _validar_arvore(t: Tabela) -> list[str]:
+    """Três níveis, nomes únicos, e o piso igual ao tamanho — a contagem é a árvore."""
+    arvore = t.arvore
+    if not isinstance(arvore, dict) or not arvore:
+        return [f"{t.nome}: `arvore` precisa ser um mapa não vazio de raízes"]
+    problemas: list[str] = []
+    for raiz, filhos in arvore.items():
+        if not isinstance(filhos, dict) or not filhos:
+            problemas.append(f"{t.nome}: a raiz {raiz!r} precisa de intermediárias")
+            continue
+        for meio, folhas in filhos.items():
+            if not isinstance(folhas, list) or not folhas or not all(isinstance(f, str) and f.strip() for f in folhas):
+                problemas.append(f"{t.nome}: a intermediária {meio!r} precisa de uma lista de folhas com nome")
+    if problemas:
+        return problemas
+    nomes = [nome for nome, _, _ in nos_da_arvore(arvore)]
+    repetidos = sorted({nome for nome in nomes if nomes.count(nome) > 1})
+    if repetidos:
+        problemas.append(f"{t.nome}: nomes repetidos na árvore: {repetidos}")
+    if t.min_rows != len(nomes):
+        problemas.append(
+            f"{t.nome}: `min_rows` é {t.min_rows}, e a árvore tem {len(nomes)} nós — a contagem é a árvore"
+        )
+    return problemas
+
 
 @dataclass(frozen=True)
 class Config:
@@ -108,6 +158,10 @@ class Config:
         """Linhas previstas para a tabela: proporção × fator, nunca abaixo do piso."""
         f = fator if isinstance(fator, (int, float)) else self.fator(fator)
         t = self.tabelas[tabela]
+        if t.arvore is not None:
+            # A árvore não escala: crescer o catálogo seria inventar categorias
+            # que ninguém declarou, ou repetir nomes com sufixo.
+            return len(nos_da_arvore(t.arvore))
         alvo = round(t.referencia / self.divisor_da_referencia * f)
         return max(t.piso, alvo)
 
@@ -137,6 +191,8 @@ def _validar_tabela(t: Tabela) -> list[str]:
         problemas.append(f"{t.nome}: `motivo` sem `min_rows`")
     if t.momento and t.momento not in modelo.columns:
         problemas.append(f"{t.nome}: `momento` aponta para {t.momento!r}, que não existe no modelo")
+    if t.arvore is not None:
+        problemas.extend(_validar_arvore(t))
 
     for coluna, dispensados in t.cobertura_dispensada.items():
         if coluna not in enumeradas:
