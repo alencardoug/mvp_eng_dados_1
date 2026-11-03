@@ -177,7 +177,11 @@ nos modelos SQLAlchemy, e `make catalog` (`models/domains.py`) o escreve no `.ym
 conduzida é a do nome do modelo, e a lista `CONDUCTS` diz qual é onde o nome não diz. O que não conduz
 tabela nenhuma — dimensões, fatos, views de consumo, seeds — tem o `domain` escrito à mão. Os objetos
 gerados por `make legacy-models` declaram o deles no gerador. Domínio à mão num objeto que conduz uma
-tabela vale só com `meta.domain_reason`.
+tabela vale só com `meta.domain_reason`. Os valores são os nove domínios dos modelos SQLAlchemy, mais
+`transversal`, para o que serve a todos e não conduz tabela de domínio nenhum — o calendário e a
+geografia —, e o `legado` dos objetos do gerador. O texto de uma medida diz a aditividade, o que ela
+mede e o grão ou o filtro ("Aditiva — receita líquida dos itens de pedidos realizados, por mês, canal
+e categoria"); o conceito fica no [Glossário de Negócio](glossario_de_negocio/), que a view aponta.
 
 **Como se mede a descrição** (desde 03/11/2026): `tests/test_descricao.py` conta, por camada, as
 colunas que existem no armazém sem descrição no `manifest.json` e os objetos sem `domain` ou `owner`.
