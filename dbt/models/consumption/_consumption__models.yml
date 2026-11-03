@@ -655,7 +655,7 @@ models:
           sensitivity: confidential
         data_type: numeric
       - name: captured_amount
-        description: "Valor capturado nas linhas desta view — hoje sempre zero: a view lê só as transações de autorização, e a captura é outra transação (D67)."
+        description: "Aditiva — valor capturado dos pagamentos, no grupo da primeira autorização aprovada de cada um, por mês, meio de pagamento e parcelas; zero sem captura."
         meta:
           sensitivity: confidential
         data_type: numeric
