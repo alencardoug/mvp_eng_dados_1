@@ -13,9 +13,9 @@
 | Fonte de verdade | Arquivos `.yml` do projeto dbt |
 | Este documento | Índice navegável e registro do que ainda não está no dbt |
 | Como é gerado | `make catalog`, a partir dos modelos SQLAlchemy |
-| Versão | 2.1 |
+| Versão | 2.2 |
 | Situação | Schema `oltp` preenchido; linhagem por coluna e travessias fora do dbt geradas desde 18/09/2026 |
-| Última revisão | 18/09/2026 |
+| Última revisão | 03/11/2026 — a descrição de coluna derivada por transporte (§1) |
 
 ---
 
@@ -23,7 +23,9 @@
 
 A descrição campo a campo **não é digitada aqui**. Ela vive nos arquivos `.yml` do dbt, junto do
 modelo que descreve, conforme o [padrão de metadados](governanca_de_dados.md#51-padrão-de-metadados).
-Manter a descrição ao lado do código é o que impede que catálogo e realidade divirjam.
+Manter a descrição ao lado do código é o que impede que catálogo e realidade divirjam. A da coluna
+que só transporta um valor é herdada da declaração nos modelos SQLAlchemy por `make catalog`; à mão
+se escreve só o texto do que é calculado (a regra está na Governança §5.1).
 
 Este documento cumpre quatro papéis que o dbt não cobre:
 

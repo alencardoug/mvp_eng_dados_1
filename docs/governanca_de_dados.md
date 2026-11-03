@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.8 |
+| Versão | 2.9 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 23/10/2026 — classificar não é expor (ADR-0049); o login de leitura, membro de `analyst` (§7) |
+| Última revisão | 03/11/2026 — a descrição de coluna herdada por transporte e a catraca de descrição e de `domain`/`owner` (§5.1) |
 
 ---
 
@@ -138,7 +138,7 @@ as 4 mil colunas do armazém são transporte, renome, conversão ou combinação
 (`public < internal < confidential < personal`); o que decide o ramo de um `case` não entra, só o que
 vira valor; coluna sem folha (literal, `row_number()`, hash de chave, `count(*)`) e as colunas técnicas
 (`_airbyte_*`, `_stream_*`, `dbt_*`) são `internal`. O `.yml` escrito à mão é preservado linha a
-linha e só o `meta.sensitivity` é inserido ou reescrito; modelo sem `.yml` entra em `_sensitivity.yml`
+linha e só o `meta.sensitivity` é inserido ou reescrito; modelo sem `.yml` entra em `_derived.yml`
 (gerado) no diretório dele — para promovê-lo a um `.yml` à mão, acrescente a entrada e rode
 `make catalog` **antes** do dbt: o gerado perde a entrada e o manual ganha a classificação, sem editar
 o derivado; os `.yml` gerados por `make legacy-models` derivam a mesma declaração no próprio gerador.
@@ -148,6 +148,33 @@ os payloads JSON do legado (`personal` por regra, porque a linhagem não vê o q
 pontes `legado__*` (o nível real de cada coluna extraída do payload). `make check` falha se algum
 `.yml` estiver atrás dos modelos. Seeds são declaração, não derivado: a classificação delas é escrita
 em `dbt/seeds/_seeds.yml`. A regra está provada em `tests/test_classificacao_derivada.py`.
+
+**`description` também é declarada uma vez — e herdada só por transporte** (desde 03/11/2026). O
+texto de cada coluna da origem vive nos modelos SQLAlchemy, ao lado do nível; `make catalog`
+(`models/descriptions.py`) o escreve em cada coluna do armazém que só **transporta** aquele valor:
+referência pura, apelido, ou `cast` de volta ao tipo declarado na origem (`models/transport.py`, que
+lê a forma da expressão a cada salto — a linhagem não basta, porque soma, arredondamento e cópia têm
+a mesma folha). O que **calcula** — agregação, aritmética, função, `case`, comparação, literal —
+significa outra coisa e só tem descrição se alguém a escrever no `.yml`. Numa união, herda-se quando
+todo ramo que transporta chega ao mesmo texto; ramo constante, como o membro desconhecido das
+dimensões, não vota. A ponte do legado só herda pela declaração `meta.description_from` que
+`legacy/ponte.py` gera, apontando a coluna do `stg_retail__*` que ela reproduz — onde o legado põe
+outra coisa no lugar, como a identidade física em `event_sequence`, não há par. As colunas de
+convenção (`source_system`, `is_deleted`) e as que as ferramentas acrescentam (`_airbyte_*`,
+`_stream_*`, `dbt_*`, `legacy_row_id`) têm o texto num bloco `{% docs %}` único
+(`dbt/models/_convencoes.md`), aplicado onde a coluna nasce com **nome e forma** da convenção. Texto à
+mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o herdado o substitui, e a
+troca é impressa. O `persist_docs` leva o texto aos comentários das colunas dos **modelos** no banco;
+as fontes (`raw`, `raw_legacy`), que o dbt não constrói, e os snapshots, sem `persist_docs` ligado, o
+mostram só no catálogo do dbt (medido em 03/11/2026). O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
+`make legacy-models` e `make catalog` de novo — o `make check` acusa a ponte atrasada. A regra está
+provada em `tests/test_descricao_derivada.py`.
+
+**Como se mede a descrição** (desde 03/11/2026): `tests/test_descricao.py` conta, por camada, as
+colunas que existem no armazém sem descrição no `manifest.json` e os objetos sem `domain` ou `owner`.
+É uma catraca de **faltas**, não de percentual: o número tem de ser igual ao teto — coluna nova sem
+texto falha, e a melhora também, até o teto baixar no mesmo *commit*. Os tetos são os medidos na
+entrega que os criou, e o que eles contam está nos próprios testes.
 
 ### 5.2 Materialização da governança na fase GCP
 
