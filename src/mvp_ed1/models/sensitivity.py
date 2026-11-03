@@ -496,9 +496,28 @@ def manual_entries() -> dict[str, tuple[pathlib.Path, dict[str, dict]]]:
     return entradas
 
 
+def generator_entries() -> dict[str, pathlib.Path]:
+    """`modelo → .yml` dos arquivos gerados por `make legacy-models`, **lidos do disco**.
+
+    É o disco, como em `manual_entries`, que diz onde um modelo está documentado:
+    um manifest compilado antes de um `.yml` à mão ser removido ainda aponta o
+    modelo para ele, e decidir por esse `patch_path` deixaria o modelo fora do
+    arquivo gerado sem aviso nenhum.
+    """
+    entradas: dict[str, pathlib.Path] = {}
+    for caminho in sorted(list((DBT / "models").rglob("*.yml")) + list((DBT / "snapshots").rglob("*.yml"))):
+        if caminho.name in GENERATED_FILES or not _is_generated(caminho):
+            continue
+        documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        for entrada in (documento.get("models") or []) + (documento.get("snapshots") or []):
+            entradas[entrada["name"]] = caminho
+    return entradas
+
+
 def plan(manifest: dict, derivation: Derivation) -> Plan:
     resultado = Plan()
     manuais = manual_entries()
+    do_gerador = generator_entries()
     for node_id, colunas in derivation.levels.items():
         no = manifest["nodes"][node_id]
         if no["resource_type"] == "seed":
@@ -522,7 +541,7 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
             if alvo:
                 resultado.patches[caminho][no["name"]] = alvo
             continue
-        if not (no.get("patch_path") and not no["patch_path"].endswith(tuple("/" + g for g in GENERATED_FILES))):
+        if no["name"] not in do_gerador:
             # Arquivo inteiramente gerado: é reescrito por inteiro, então **todo** modelo que
             # lhe pertence entra, mude ou não — um que ficasse de fora por não ter mudado
             # sumiria do arquivo na primeira alteração de outro. Modelo com entrada num .yml
@@ -533,7 +552,7 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
         if not alvo:
             continue
         # Só resta o .yml gerado por `make legacy-models`: a sensibilidade dele é do gerador.
-        caminho = DBT / no["patch_path"].split("://", 1)[1]
+        caminho = do_gerador[no["name"]]
         resultado.left_to_generator.append(f"{no['name']}: {len(alvo)} colunas sem sensitivity em {caminho.relative_to(ROOT)} (gerado)")
 
     # Fontes raw: colunas sob cada tabela de _retail__sources.yml.

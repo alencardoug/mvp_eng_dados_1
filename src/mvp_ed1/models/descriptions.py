@@ -128,7 +128,8 @@ _LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)   # o de C, quando a lib
 
 def _documents() -> list[tuple[pathlib.Path, dict]]:
     """Cada `.yml` do projeto dbt, lido uma vez."""
-    caminhos = sorted(list((DBT / "models").rglob("*.yml")) + list((DBT / "snapshots").rglob("*.yml")) + list((DBT / "seeds").rglob("*.yml")))
+    raiz = sensitivity.DBT                     # na chamada: os testes apontam o projeto para outro diretório
+    caminhos = sorted(list((raiz / "models").rglob("*.yml")) + list((raiz / "snapshots").rglob("*.yml")) + list((raiz / "seeds").rglob("*.yml")))
     return [(c, yaml.load(c.read_text(encoding="utf-8"), Loader=_LOADER) or {}) for c in caminhos]
 
 

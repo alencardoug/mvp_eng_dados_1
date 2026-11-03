@@ -199,6 +199,21 @@ def test_arquivo_gerado_leva_todos_os_modelos_que_lhe_pertencem(tmp_path, monkey
     assert s.stale_generated(plano3) == [arquivo]
 
 
+def test_manifest_atrasado_nao_tira_modelo_do_arquivo_gerado(tmp_path, monkeypatch) -> None:
+    """O manifest aponta o modelo para um `.yml` à mão que já não existe: quem decide é o disco.
+
+    Foi o que um `dbt compile` feito antes de remover o `.yml` à mão produziu em
+    03/11/2026: decidindo pelo `patch_path`, os modelos saíam do gerado sem aviso.
+    """
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models" / "trusted").mkdir(parents=True)
+    removido = "mvp_ed1://models/trusted/_trusted__models.yml"
+    manifest = {"sources": {}, "nodes": {"model.mvp_ed1.a": _no("a", "trusted", {"id": "internal"}, removido)}}
+    plano = s.plan(manifest, s.Derivation(levels={"model.mvp_ed1.a": {"id": "internal"}}))
+    assert plano.generated == {tmp_path / "models" / "trusted" / s.GENERATED_FILE: {"a": {"id": "internal"}}}
+    assert plano.left_to_generator == []
+
+
 def test_derivacao_incompleta_nao_escreve_nem_apaga_nada(tmp_path, monkeypatch, capsys) -> None:
     """Manifest de `dbt parse` (sem SQL compilado) ou SQL que o parser não lê: `main()` recusa antes de tocar em arquivo.
 
