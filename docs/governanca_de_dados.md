@@ -13,7 +13,7 @@
 | Versão | 2.9 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 03/11/2026 — a descrição de coluna herdada por transporte e a catraca de descrição e de `domain`/`owner` (§5.1) |
+| Última revisão | 03/11/2026 — a descrição de coluna herdada por transporte, o `domain` derivado da tabela conduzida, o `owner` por camada e a catraca de descrição e de `domain`/`owner` (§5.1) |
 
 ---
 
@@ -164,11 +164,20 @@ convenção (`source_system`, `is_deleted`) e as que as ferramentas acrescentam 
 `_stream_*`, `dbt_*`, `legacy_row_id`) têm o texto num bloco `{% docs %}` único
 (`dbt/models/_convencoes.md`), aplicado onde a coluna nasce com **nome e forma** da convenção. Texto à
 mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o herdado o substitui, e a
-troca é impressa. O `persist_docs` leva o texto aos comentários das colunas dos **modelos** no banco;
-as fontes (`raw`, `raw_legacy`), que o dbt não constrói, e os snapshots, sem `persist_docs` ligado, o
-mostram só no catálogo do dbt (medido em 03/11/2026). O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
+troca é impressa. O `persist_docs` leva o texto aos comentários das colunas dos modelos e dos
+snapshots no banco; as fontes (`raw`, `raw_legacy`), que o dbt não constrói e o Airbyte recria a cada
+recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
 `make legacy-models` e `make catalog` de novo — o `make check` acusa a ponte atrasada. A regra está
 provada em `tests/test_descricao_derivada.py`.
+
+**`owner` e `domain`, também de uma vez** (desde 03/11/2026). Há um dono só, o `data_custodian`, e
+ele é declarado por camada no `dbt_project.yml` (`+meta`), como a retenção. O `domain` de um objeto de
+`staging`, `trusted`, `snapshots` ou `quarantine` que **conduz** uma tabela da origem é o dela, declarado
+nos modelos SQLAlchemy, e `make catalog` (`models/domains.py`) o escreve no `.yml` do objeto. A tabela
+conduzida é a do nome do modelo, e a lista `CONDUCTS` diz qual é onde o nome não diz. O que não conduz
+tabela nenhuma — dimensões, fatos, views de consumo, seeds — tem o `domain` escrito à mão. Os objetos
+gerados por `make legacy-models` declaram o deles no gerador. Domínio à mão num objeto que conduz uma
+tabela vale só com `meta.domain_reason`.
 
 **Como se mede a descrição** (desde 03/11/2026): `tests/test_descricao.py` conta, por camada, as
 colunas que existem no armazém sem descrição no `manifest.json` e os objetos sem `domain` ou `owner`.
