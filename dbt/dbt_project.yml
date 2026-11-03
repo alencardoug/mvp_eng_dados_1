@@ -145,6 +145,11 @@ models:
 snapshots:
   mvp_ed1:
     +target_schema: snapshots
+    # Descrição de coluna no banco, como nos modelos (N47): só `COMMENT`, sem
+    # tocar no dado nem na memória SCD.
+    +persist_docs:
+      relation: true
+      columns: true
     # Histórico SCD (ADR-0017): o que foi capturado num instante não se
     # reconstrói depois. Permanente. Mantido só pelo dbt, lido por ninguém
     # fora do pipeline (Governança §7).
