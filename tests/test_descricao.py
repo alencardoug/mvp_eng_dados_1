@@ -38,9 +38,10 @@ TETO_SEM_DESCRICAO: dict[str, int] = {
 }
 
 #: Objetos materializados (modelo, snapshot, seed) sem `domain` ou sem `owner`, por camada.
+#: Baixado em 03/11/2026 (etapa 1.8, N46): `owner` por camada e `domain` da tabela conduzida.
 TETO_SEM_DOMINIO: dict[str, int] = {
-    "raw": 0, "raw_legacy": 0, "staging": 37, "trusted": 32, "analytics": 25,
-    "consumption": 16, "quarantine": 1, "snapshots": 4, "governance": 0,
+    "raw": 0, "raw_legacy": 0, "staging": 0, "trusted": 4, "analytics": 25,
+    "consumption": 16, "quarantine": 0, "snapshots": 0, "governance": 0,
 }
 
 

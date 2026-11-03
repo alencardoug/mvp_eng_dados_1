@@ -14,6 +14,8 @@ version: 2
 models:
   # ── Domínio fechado ────────────────────────────────────────────────────────
   - name: stg_retail__customer_segments
+    meta:
+      domain: clientes
     description: Segmentos comerciais de cliente, um por linha.
     columns:
       - name: customer_segment_id
@@ -60,6 +62,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__sales_channels
+    meta:
+      domain: vendas
     description: Canais de venda. Dimensão conformada de `dim_sales_channel`.
     columns:
       - name: sales_channel_id
@@ -109,6 +113,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__product_categories
+    meta:
+      domain: catalogo
     description: Hierarquia de categorias, com profundidade derivada do pai.
     columns:
       - name: product_category_id
@@ -166,6 +172,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__brands
+    meta:
+      domain: catalogo
     description: Marcas do catálogo.
     columns:
       - name: brand_id
@@ -212,6 +220,8 @@ models:
 
   # ── Mutáveis com cursor ────────────────────────────────────────────────────
   - name: stg_retail__customers
+    meta:
+      domain: clientes
     description: >
       Cadastro de clientes. `is_deleted` carrega a exclusão lógica até o
       datamart, conforme o ADR-0015 — a linha não some, ela fica marcada.
@@ -287,6 +297,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__customer_addresses
+    meta:
+      domain: clientes
     description: Endereços com vigência; alimenta `dim_geography`.
     columns:
       - name: customer_address_id
@@ -379,6 +391,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__products
+    meta:
+      domain: catalogo
     columns:
       - name: product_id
         description: "Chave primária técnica, gerada pelo banco."
@@ -444,6 +458,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__product_variants
+    meta:
+      domain: catalogo
     description: SKUs. Grão de produto de `fact_sales_order_item`.
     columns:
       - name: product_variant_id
@@ -511,6 +527,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__carts
+    meta:
+      domain: vendas
     description: Carrinhos. Origem de `fact_cart_event` (ADR-0028).
     columns:
       - name: cart_id
@@ -577,6 +595,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__cart_items
+    meta:
+      domain: vendas
     description: Maior tabela do projeto. Dá o valor do carrinho abandonado.
     columns:
       - name: cart_item_id
@@ -634,6 +654,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__orders
+    meta:
+      domain: vendas
     description: Cabeçalho do pedido. `order_total_amount` viaja como dimensão degenerada.
     columns:
       - name: order_id
@@ -727,6 +749,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__order_items
+    meta:
+      domain: vendas
     description: >
       Grão comercial do pedido, e o grão de `fact_sales_order_item`. Nunca
       recebe exclusão lógica: item de pedido emitido é imutável, e apagá-lo
@@ -802,6 +826,8 @@ models:
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
   - name: stg_retail__carriers
+    meta:
+      domain: logistica
     description: >
       Transportadoras contratadas. A modalidade (`service_level`) é o que fixa a
       promessa de prazo no despacho.
@@ -857,6 +883,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__delivery_events
+    meta:
+      domain: logistica
     description: >
       Livro da entrega. **Fonte** da data de entrega realizada (ADR-0034), e não
       rastro descritivo ao lado de `shipments.delivered_at`.
@@ -912,6 +940,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__order_status_history
+    meta:
+      domain: vendas
     description: >
       Transições de estado do pedido, uma linha por mudança. Grão de
       `fact_order_status_event`.
@@ -966,6 +996,8 @@ models:
 
   # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
   - name: stg_retail__campaigns
+    meta:
+      domain: marketing
     columns:
       - name: campaign_id
         description: "Chave primária técnica, gerada pelo banco."
@@ -1027,6 +1059,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__coupons
+    meta:
+      domain: marketing
     description: >
       Cupons com as três condições que a invariante 12 verifica: vigência, piso
       do pedido e teto de resgates. Nulo em `min_order_amount` é *sem piso*; em
@@ -1104,6 +1138,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__coupon_redemptions
+    meta:
+      domain: marketing
     description: Um resgate por pedido, garantido por índice único na origem.
     columns:
       - name: coupon_redemption_id
@@ -1157,6 +1193,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__support_agents
+    meta:
+      domain: atendimento
     columns:
       - name: support_agent_id
         description: "Chave primária técnica, gerada pelo banco."
@@ -1218,6 +1256,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__support_tickets
+    meta:
+      domain: atendimento
     description: >
       Chamados. `order_id` é nulo em parte deles — nem todo contato nasce de um
       pedido —, e é esse nulo que os exclui da comparação de P16 (ADR-0036).
@@ -1307,6 +1347,8 @@ models:
           sensitivity: internal
 
   - name: stg_retail__ticket_events
+    meta:
+      domain: atendimento
     description: '`support_agent_id` nulo é autor **cliente**, não dado faltando.'
     columns:
       - name: ticket_event_id

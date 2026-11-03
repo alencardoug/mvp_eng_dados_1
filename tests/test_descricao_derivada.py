@@ -174,7 +174,7 @@ def test_texto_a_mao_sem_motivo_e_trocado_e_com_motivo_vale_e_se_propaga(tmp_pat
     sem_motivo = _textos(nos, transportes, {"f": _entrada(yml, "hand", a={"description": "Aditiva — o total."}),
                                             "v": _entrada(yml, "hand", a={})})
     assert sem_motivo.texts[("analytics", "f", "a")] == TEXTO_TOTAL
-    assert sem_motivo.changes == ["f.a: texto à mão sem `description_reason` trocado pelo herdado"]
+    assert sem_motivo.changes == ["f.a: texto sem `description_reason`, diferente do herdado, reescrito"]
     com_motivo = _textos(nos, transportes, {
         "f": _entrada(yml, "hand", a={"description": "Aditiva — o total.", "meta": {"description_reason": "diz a aditividade"}}),
         "v": _entrada(yml, "hand", a={})})
@@ -266,3 +266,62 @@ def test_a_derivacao_guardada_e_refeita_quando_uma_entrada_muda(tmp_path, monkey
     manifest.write_text('{"nodes": {}, "v": 3}')
     s.load(manifest), s.load(manifest)
     assert len(chamadas) == 4                                                              # com problema, não se guarda
+
+
+# ── O domínio (N46) ─────────────────────────────────────────────────────────────
+
+def test_dominio_vem_da_tabela_conduzida_pelo_nome_ou_pela_lista() -> None:
+    from mvp_ed1.models import domains as dm
+    dominios = dm.source_domains()
+    assert dm.conducted_domain("stg_retail__orders", dominios) == dominios["orders"] == "vendas"
+    assert dm.conducted_domain("orders", dominios) == "vendas"
+    assert dm.conducted_domain("scd_customer", dominios) == dominios["customers"]              # pela lista CONDUCTS
+    assert dm.conducted_domain("legacy_selected_capture", dominios) == "legado"                # declarado
+    assert dm.conducted_domain("dim_date", dominios) is None                                   # não conduz tabela: à mão
+
+
+def test_dominio_a_mao_vale_com_motivo_e_o_gerador_nao_e_tocado(tmp_path) -> None:
+    from mvp_ed1.models import domains as dm
+    yml = tmp_path / "_m.yml"
+
+    def manifest(*nomes: str) -> dict:
+        return {"nodes": {f"model.p.{n}": {"resource_type": "model", "name": n, "schema": "staging"} for n in nomes}}
+    disco = {
+        "stg_retail__orders": d.Entry(yml, "hand", {}, {}),
+        "stg_retail__carts": d.Entry(yml, "hand", {}, {"domain": "marketing"}),
+        "stg_retail__coupons": d.Entry(yml, "hand", {}, {"domain": "vendas", "domain_reason": "o cupom é de vendas aqui"}),
+        "stg_retail__brands": d.Entry(tmp_path / "_legacy__models.yml", "generator", {}, {"domain": "legado"}),
+        "stg_retail__warehouses": d.Entry(tmp_path / s.GENERATED_FILE, "derived", {}, {}),
+    }
+    saida = dm.derive_domains(manifest(*disco), disco)
+    assert saida.patches[yml] == {"stg_retail__orders": "vendas", "stg_retail__carts": "vendas"}
+    assert saida.changes == ["stg_retail__carts: domínio à mão `marketing` sem `domain_reason` trocado por `vendas`"]
+    assert saida.generated == {"stg_retail__warehouses": "estoque"}
+
+
+def test_a_escrita_do_dominio_insere_atualiza_e_preserva() -> None:
+    from mvp_ed1.models import domains as dm
+    original = textwrap.dedent("""\
+        models:
+          - name: a
+            description: Sem meta.
+            columns:
+              - name: x
+                meta:
+                  sensitivity: internal
+          - name: b
+            meta:
+              retention: rebuildable
+            columns: []
+          - name: c
+            meta:
+              domain: errado
+    """)
+    escrito = dm.patch_domains(original, {"a": "vendas", "b": "clientes", "c": "estoque"})
+    modelos = {m["name"]: m for m in yaml.safe_load(escrito)["models"]}
+    assert modelos["a"]["meta"] == {"domain": "vendas"} and modelos["a"]["columns"][0]["meta"] == {"sensitivity": "internal"}
+    assert modelos["b"]["meta"] == {"domain": "clientes", "retention": "rebuildable"}
+    assert modelos["c"]["meta"] == {"domain": "estoque"}
+    assert dm.patch_domains(escrito, {"a": "vendas", "b": "clientes", "c": "estoque"}) == escrito
+    gerado = yaml.safe_load(s.render_generated({"t": {"a": "internal"}}, "models", None, {"t": "vendas"}))
+    assert gerado["models"][0]["meta"] == {"domain": "vendas"}

@@ -6,6 +6,8 @@
 version: 2
 snapshots:
 - name: scd_coupon
+  meta:
+    domain: marketing
   columns:
   - name: source_system
     description: '{{ doc("source_system") }}'
@@ -110,6 +112,8 @@ snapshots:
     meta:
       sensitivity: internal
 - name: scd_customer
+  meta:
+    domain: clientes
   columns:
   - name: source_system
     description: '{{ doc("source_system") }}'
@@ -230,6 +234,8 @@ snapshots:
     meta:
       sensitivity: internal
 - name: scd_product
+  meta:
+    domain: catalogo
   columns:
   - name: source_system
     description: '{{ doc("source_system") }}'
@@ -352,6 +358,8 @@ snapshots:
     meta:
       sensitivity: internal
 - name: scd_support_agent
+  meta:
+    domain: atendimento
   columns:
   - name: source_system
     description: '{{ doc("source_system") }}'

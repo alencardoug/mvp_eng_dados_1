@@ -116,6 +116,7 @@ class Entry:
     path: pathlib.Path
     kind: str                                   # "hand" | "derived" (gerado por make catalog) | "generator" (make legacy-models)
     columns: dict[str, dict]
+    meta: dict = field(default_factory=dict)    # o `meta` do modelo, para o domínio (`models/domains.py`)
 
 
 def _text(coluna: dict) -> str:
@@ -152,7 +153,8 @@ def disk_entries(documentos: list[tuple[pathlib.Path, dict]] | None = None) -> d
         tipo = _kind(caminho)
         for chave in ("models", "snapshots", "seeds"):
             for e in documento.get(chave) or []:
-                entradas[e["name"]] = Entry(caminho, tipo, {c["name"]: c for c in e.get("columns") or []})
+                meta = {**(e.get("meta") or {}), **((e.get("config") or {}).get("meta") or {})}
+                entradas[e["name"]] = Entry(caminho, tipo, {c["name"]: c for c in e.get("columns") or []}, meta)
     return entradas
 
 
@@ -255,7 +257,9 @@ def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
                     if escrito != herdado:
                         saida.patches[entrada.path].setdefault(no["name"], {})[coluna] = herdado
                         if escrito:
-                            saida.changes.append(f"{no['name']}.{coluna}: texto à mão sem `description_reason` trocado pelo herdado")
+                            # Herdado que ficou para trás, ou texto à mão sem motivo — o `.yml`
+                            # não distingue os dois, e a regra é a mesma: vale o herdado.
+                            saida.changes.append(f"{no['name']}.{coluna}: texto sem `description_reason`, diferente do herdado, reescrito")
                 else:
                     saida.generated[no["name"]][coluna] = herdado
             elif escrito and entrada and entrada.kind == "hand":

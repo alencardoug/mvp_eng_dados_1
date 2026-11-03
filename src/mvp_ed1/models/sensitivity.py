@@ -619,36 +619,44 @@ def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
     return "\n".join(linhas)
 
 
-def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models", textos: dict[str, dict[str, str]] | None = None) -> str:
-    """O arquivo gerado inteiro: cada modelo com o nível de cada coluna e, quando há, a descrição derivada."""
-    textos = textos or {}
+def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models", textos: dict[str, dict[str, str]] | None = None,
+                     dominios: dict[str, str] | None = None) -> str:
+    """O arquivo gerado inteiro: cada modelo com o domínio, quando ele conduz uma tabela da origem, e o nível
+    e a descrição derivados de cada coluna."""
+    textos, dominios = textos or {}, dominios or {}
 
     def coluna(modelo: str, c: str, n: str) -> dict:
         texto = textos.get(modelo, {}).get(c)
         return {"name": c, **({"description": texto} if texto else {}), "meta": {"sensitivity": n}}
 
     corpo = {"version": 2, chave: [
-        {"name": nome, "columns": [coluna(nome, c, n) for c, n in colunas.items()]}
+        {"name": nome, **({"meta": {"domain": dominios[nome]}} if nome in dominios else {}),
+         "columns": [coluna(nome, c, n) for c, n in colunas.items()]}
         for nome, colunas in sorted(modelos.items())
     ]}
     return GENERATED_HEADER + "\n" + yaml.safe_dump(corpo, sort_keys=False, allow_unicode=True, width=120)
 
 
-def render_files(plano: Plan, textos=None) -> dict[pathlib.Path, str]:
-    """Conteúdo final de cada arquivo que mudaria: a sensibilidade primeiro, a descrição (`descriptions.Texts`) por cima."""
-    from mvp_ed1.models import descriptions
+def render_files(plano: Plan, textos=None, dominios=None) -> dict[pathlib.Path, str]:
+    """Conteúdo final de cada arquivo que mudaria: a sensibilidade primeiro, a descrição (`descriptions.Texts`)
+    e o domínio (`domains.Domains`) por cima."""
+    from mvp_ed1.models import descriptions, domains
     saida: dict[pathlib.Path, str] = {}
     a_descrever = textos.patches if textos is not None else {}
-    for caminho in sorted(set(plano.patches) | set(a_descrever)):
+    a_classificar = dominios.patches if dominios is not None else {}
+    for caminho in sorted(set(plano.patches) | set(a_descrever) | set(a_classificar)):
         texto = caminho.read_text(encoding="utf-8")
         if caminho in plano.patches:
             texto = patch_yaml(texto, plano.patches[caminho])
         if caminho in a_descrever:
             texto = descriptions.patch_descriptions(texto, a_descrever[caminho])
+        if caminho in a_classificar:
+            texto = domains.patch_domains(texto, a_classificar[caminho])
         saida[caminho] = texto
     for caminho, modelos in plano.generated.items():
         saida[caminho] = render_generated(modelos, "snapshots" if caminho.parent.name == "snapshots" else "models",
-                                          textos.generated if textos is not None else None)
+                                          textos.generated if textos is not None else None,
+                                          dominios.generated if dominios is not None else None)
     return saida
 
 
@@ -677,7 +685,7 @@ def main(argv: list[str] | None = None) -> int:
     if not MANIFEST.exists():
         print(f"sem {MANIFEST.relative_to(ROOT)}; rode `make dbt-build` antes", file=sys.stderr)
         return 2
-    from mvp_ed1.models import descriptions
+    from mvp_ed1.models import descriptions, domains
     manifest, derivacao = load()
     for aviso in derivacao.warnings:
         print(f"aviso: {aviso}", file=sys.stderr)
@@ -691,10 +699,12 @@ def main(argv: list[str] | None = None) -> int:
               "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
         return 1
     plano = plan(manifest, derivacao)
-    textos = descriptions.derive_texts(manifest, derivacao)
-    arquivos = render_files(plano, textos)
+    disco = descriptions.disk_entries()
+    textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
+    dominios = domains.derive_domains(manifest, disco)
+    arquivos = render_files(plano, textos, dominios)
 
-    for mudanca in plano.changes + textos.changes:
+    for mudanca in plano.changes + textos.changes + dominios.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)
     for pendente in plano.left_to_generator + textos.problems:
         print(f"gerador: {pendente}", file=sys.stderr)

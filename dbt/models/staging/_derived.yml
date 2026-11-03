@@ -6,6 +6,8 @@
 version: 2
 models:
 - name: stg_retail__goods_receipt_items
+  meta:
+    domain: compras
   columns:
   - name: goods_receipt_item_id
     description: Chave primária técnica, gerada pelo banco.
@@ -48,6 +50,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__goods_receipts
+  meta:
+    domain: compras
   columns:
   - name: goods_receipt_id
     description: Chave primária técnica, gerada pelo banco.
@@ -94,6 +98,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__inventory_balances
+  meta:
+    domain: estoque
   columns:
   - name: inventory_balance_id
     description: Chave primária técnica, gerada pelo banco.
@@ -144,6 +150,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__inventory_movements
+  meta:
+    domain: estoque
   columns:
   - name: movement_id
     description: Chave primária estável do evento.
@@ -230,6 +238,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__payment_methods
+  meta:
+    domain: pagamentos
   columns:
   - name: payment_method_id
     description: Chave primária técnica, gerada pelo banco.
@@ -272,6 +282,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__payment_transactions
+  meta:
+    domain: pagamentos
   columns:
   - name: payment_transaction_id
     description: Chave primária técnica, gerada pelo banco.
@@ -318,6 +330,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__payments
+  meta:
+    domain: pagamentos
   columns:
   - name: payment_id
     description: Chave primária técnica, gerada pelo banco.
@@ -380,6 +394,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__purchase_order_items
+  meta:
+    domain: compras
   columns:
   - name: purchase_order_item_id
     description: Chave primária técnica, gerada pelo banco.
@@ -426,6 +442,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__purchase_orders
+  meta:
+    domain: compras
   columns:
   - name: purchase_order_id
     description: Chave primária técnica, gerada pelo banco.
@@ -480,6 +498,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__refunds
+  meta:
+    domain: pagamentos
   columns:
   - name: refund_id
     description: Chave primária técnica, gerada pelo banco.
@@ -530,6 +550,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__shipment_items
+  meta:
+    domain: logistica
   columns:
   - name: shipment_item_id
     description: Chave primária técnica, gerada pelo banco.
@@ -568,6 +590,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__shipments
+  meta:
+    domain: logistica
   columns:
   - name: shipment_id
     description: Chave primária técnica, gerada pelo banco.
@@ -634,6 +658,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__stock_reservations
+  meta:
+    domain: estoque
   columns:
   - name: stock_reservation_id
     description: Chave primária técnica, gerada pelo banco.
@@ -696,6 +722,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__suppliers
+  meta:
+    domain: compras
   columns:
   - name: supplier_id
     description: Chave primária técnica, gerada pelo banco.
@@ -754,6 +782,8 @@ models:
     meta:
       sensitivity: internal
 - name: stg_retail__warehouses
+  meta:
+    domain: estoque
   columns:
   - name: warehouse_id
     description: Chave primária técnica, gerada pelo banco.

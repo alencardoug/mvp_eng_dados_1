@@ -98,9 +98,13 @@ models:
     # seguinte. `tests/test_acesso.py` assume cada papel e cobra a tabela.
     +grants:
       select: [transformer]
+    # Dono (Governança §5.1, N46): um só no projeto, o mesmo dos modelos
+    # SQLAlchemy (`models/base.py::OWNER`) — declarado uma vez por camada, como
+    # a retenção; o `domain` de cada objeto vem do `.yml` dele.
     +meta:
       retention: rebuildable
       writers: [transformer]
+      owner: data_custodian
     staging:
       +schema: staging
       +materialized: view
@@ -147,6 +151,7 @@ snapshots:
     +meta:
       retention: permanent
       writers: [transformer]
+      owner: data_custodian
     +grants:
       select: [transformer]
 
@@ -158,5 +163,6 @@ seeds:
     +meta:
       retention: rebuildable
       writers: [transformer]
+      owner: data_custodian
     +grants:
       select: [transformer]

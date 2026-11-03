@@ -6,6 +6,8 @@
 version: 2
 models:
 - name: rejected_shipment_deliveries
+  meta:
+    domain: logistica
   columns:
   - name: shipment_id
     description: Chave primária técnica, gerada pelo banco.

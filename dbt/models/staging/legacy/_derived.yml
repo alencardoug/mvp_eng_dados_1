@@ -6,6 +6,8 @@
 version: 2
 models:
 - name: legacy_selected_capture
+  meta:
+    domain: legado
   columns:
   - name: snapshot_id
     meta:
