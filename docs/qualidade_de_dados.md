@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.13 |
-| Última revisão | 23/10/2026 |
+| Versão | 1.14 |
+| Última revisão | 03/11/2026 |
 
 ---
 
@@ -58,7 +58,7 @@ O que o `pytest` cobre é o que o banco **não** consegue dizer:
 | Configuração | A declaração do gerador confere com os modelos: tabela ausente, coluna inexistente, peso que esquece um valor de enumeração, piso sem motivo |
 | Determinismo | A mesma `seed` com a mesma `as_of_date` produz o mesmo conjunto, comparado por impressão digital; sementes diferentes produzem conjuntos diferentes |
 | Cobertura | As 40 tabelas populadas, todo valor de enumeração presente, proporção dentro da tolerância declarada — e o mesmo em um fator vinte vezes menor, que é o que prova que a garantia é do piso e não do volume |
-| Invariantes | As do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: as que atravessam linhas passariam pela carga sem serem notadas; a invariante 13 também é conferida no fator reduzido |
+| Invariantes | As do [Modelo de Dados §4](modelo_de_dados.md#4-invariantes-de-negócio), sobre o conjunto em memória: as que atravessam linhas passariam pela carga sem serem notadas; as invariantes 13 e 14 também são conferidas no fator reduzido |
 | Privacidade | Nenhum e-mail fora de `example.com`, nenhum documento com aparência de válido ([Geração §7](geracao_de_dados.md#7-privacidade-dos-dados-sintéticos)) |
 
 A suíte roda em `make test`. Os testes de integração exigem banco; o que substitui a carga exige
@@ -131,7 +131,9 @@ passar por ausência do caso.
   cada transição observada com a lista de transições legais, a 10 percorre a causalidade do ciclo
   — pedido, despacho, coleta, entrega e devolução — nomeando na falha **qual** elo saiu de ordem, e
   a 12 verifica as três condições do cupom uma a uma, mais uma quarta que só apareceu construindo:
-  o desconto não pode passar do valor do pedido;
+  o desconto não pode passar do valor do pedido, e a 14 compara o lançamento do produto com cada
+  pedido que o vendeu — **só no varejo**: no legado, a conversão de um formato de data pode antecipar
+  um pedido em horas, e cada caso é explicado pelo código de falha que o move;
 - reconciliação de pedidos, pagamentos, estoque e remessas;
 - testes de atualidade dos dados;
 - documentação de fontes, modelos e colunas;

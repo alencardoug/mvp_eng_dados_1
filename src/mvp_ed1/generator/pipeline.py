@@ -53,6 +53,8 @@ PASSOS: tuple[Passo, ...] = (
     # 5. Carrinhos e pedidos.
     ("vendas: carrinhos", vendas.carrinhos),
     ("vendas: pedidos", vendas.pedidos),
+    # O lançamento depende da primeira venda (invariante 14): só agora se sabe qual é.
+    ("catálogo: lançamento", catalogo.lancamento),
     ("marketing: resgates", marketing.resgates),
     # 6. Pagamentos e remessas.
     ("pagamentos: fluxo financeiro", pagamentos.fluxo),

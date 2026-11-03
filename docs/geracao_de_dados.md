@@ -15,9 +15,9 @@
 | Volume | Proporções + fator de escala ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)) |
 | Fator padrão | `dev` (1) |
 | Declaração | [`src/mvp_ed1/generator/geracao.yml`](../src/mvp_ed1/generator/geracao.yml) |
-| Versão | 3.2 |
+| Versão | 3.3 |
 | Situação | Motor da origem principal **implementado e medido** (Etapa 4) |
-| Última revisão | 05/09/2026 |
+| Última revisão | 03/11/2026 |
 
 ---
 
@@ -103,7 +103,10 @@ A ordem respeita as dependências referenciais e a causalidade dos eventos:
    agentes.
 3. **Preços, campanhas e cupons**, com intervalos de vigência.
 4. **Ordens de compra e recebimentos.**
-5. **Carrinhos, pedidos, itens e histórico de estado.**
+5. **Carrinhos, pedidos, itens e histórico de estado** — e, logo depois dos pedidos, o lançamento
+   de cada produto vendido, que cai entre o início do período e a primeira venda dele
+   ([invariante 14](modelo_de_dados.md#4-invariantes-de-negócio)): é o único passo que volta a uma
+   tabela já gerada, porque só depois da venda se sabe quando ela foi.
 6. **Pagamentos, transações e reembolsos**, seguindo o estado de cada pedido.
 7. **Remessas, itens de remessa e eventos de entrega.**
 8. **Livro de estoque, reservas e saldo** — nesta ordem, e depois de tudo que move estoque.

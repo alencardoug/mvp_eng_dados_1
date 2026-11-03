@@ -1,4 +1,4 @@
-"""As treze invariantes de negócio do Modelo de Dados §4.
+"""As catorze invariantes de negócio do Modelo de Dados §4.
 
 Elas são simultaneamente regra de geração e critério de teste — é o que o
 próprio documento diz. Aqui elas são cobradas do conjunto **em memória**, antes
@@ -171,6 +171,23 @@ def test_13_every_shipment_contains_items(request, dataset_fixture) -> None:
     assert {row["id"] for row in data["shipments"]} == {
         row["shipment_id"] for row in data["shipment_items"]
     }
+
+
+@pytest.mark.parametrize("dataset_fixture", ["dados", "dados_reduzidos"])
+def test_14_no_product_is_sold_before_its_launch(request, dataset_fixture) -> None:
+    """Null launch means unknown; a known one is at or before every sale of the product (D65)."""
+    data = request.getfixturevalue(dataset_fixture)
+    product_of = {row["id"]: row["product_id"] for row in data["product_variants"]}
+    launched = {row["id"]: row["launched_at"] for row in data["products"]}
+    placed = {row["id"]: row["placed_at"] for row in data["orders"]}
+    before = [
+        item["id"] for item in data["order_items"]
+        if launched[product_of[item["product_variant_id"]]] is not None
+        and launched[product_of[item["product_variant_id"]]] > placed[item["order_id"]]
+    ]
+    assert before == []
+    # Not vacuous: launches are known, and some sit right at the first sale's window.
+    assert sum(value is not None for value in launched.values()) > 0.8 * len(launched)
 
 
 def test_livro_de_estoque_e_integro(dados: Dataset) -> None:

@@ -56,11 +56,11 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
 | [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.8 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`) |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
-| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.8 — inventário e diagrama **gerados** |
-| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.2 — gerador corrigido na D31 |
+| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.9 — inventário e diagrama **gerados**; invariante 14 na v1.1.0 |
+| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.8 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
-| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.12 — toda fronteira com teste |
+| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.14 — toda fronteira com teste; invariante 14 no varejo |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.14 — o ciclo do zero medido e o ponto de recuperação entregue |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
 | [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 11 achados, todos tratados em 03/10/2026 |

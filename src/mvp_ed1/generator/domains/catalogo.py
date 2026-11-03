@@ -12,7 +12,7 @@ import datetime as dt
 from decimal import Decimal
 
 from mvp_ed1.generator.dataset import Dataset
-from mvp_ed1.generator.engine import Motor
+from mvp_ed1.generator.engine import MARCAS_DE_TEMPO, Motor
 from mvp_ed1.generator.pricing import CHANNEL, READJUSTMENT, SKU_VARIATION, base_range
 from mvp_ed1.generator.config import nos_da_arvore
 from mvp_ed1.generator.rng import preco, repartir
@@ -98,6 +98,47 @@ def produtos(motor: Motor, dados: Dataset) -> None:
                 }
             )
     dados.guardar("product_variants", motor.preencher("product_variants", variantes))
+
+
+def lancamento(motor: Motor, dados: Dataset) -> None:
+    """O lançamento de um produto vendido cai entre o início do período e a primeira venda dele.
+
+    É a invariante 14 do Modelo de Dados §4 — `launched_at` nulo, ou anterior ou
+    igual ao `placed_at` de todo pedido que contém o produto — e a resposta à
+    D65: 3.130 de 7.500 itens do varejo eram vendidos antes do lançamento (N39
+    do plano do `bi-como-codigo`). Por isso este passo roda depois dos pedidos.
+
+    **Nenhum sorteio novo.** O instante que o provedor sorteou no período inteiro
+    é reescalado para a janela entre o início e a primeira venda: um uniforme no
+    período vira um uniforme na janela, e as outras tabelas não mudam por causa
+    deste passo. Produto sem venda mantém o sorteio do período; nulo segue nulo
+    — quer dizer lançamento desconhecido. As marcas de tempo do produto nasceram
+    do lançamento (`momento: launched_at`) e andam junto com ele, pelo mesmo
+    deslocamento.
+    """
+    produto_da_variante = {linha["id"]: linha["product_id"] for linha in dados["product_variants"]}
+    feito_em = {linha["id"]: linha["placed_at"] for linha in dados["orders"]}
+    primeira_venda: dict[int, dt.datetime] = {}
+    for item in dados["order_items"]:
+        produto = produto_da_variante[item["product_variant_id"]]
+        momento = feito_em[item["order_id"]]
+        if produto not in primeira_venda or momento < primeira_venda[produto]:
+            primeira_venda[produto] = momento
+
+    periodo = int((motor.fim - motor.inicio).total_seconds())
+    for produto in dados["products"]:
+        lancado, venda = produto["launched_at"], primeira_venda.get(produto["id"])
+        if lancado is None or venda is None:
+            continue
+        sorteado = int((lancado - motor.inicio).total_seconds())
+        janela = int((venda - motor.inicio).total_seconds())
+        # Inteiro e para baixo: nunca passa da primeira venda.
+        novo = motor.inicio + dt.timedelta(seconds=sorteado * janela // periodo)
+        deslocamento = novo - lancado
+        produto["launched_at"] = novo
+        for coluna in MARCAS_DE_TEMPO:
+            if produto.get(coluna) is not None:
+                produto[coluna] += deslocamento
 
 
 def precos(motor: Motor, dados: Dataset) -> None:

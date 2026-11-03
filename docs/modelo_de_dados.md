@@ -13,9 +13,9 @@
 | Campo | Informação |
 |---|---|
 | Domínio de negócio | Marketplace de varejo *omnichannel* ([ADR-0002](adr/0002-dominio-marketplace-omnichannel.md)) |
-| Versão | 1.8 |
+| Versão | 1.9 |
 | Situação | Vigente — materializações, chaves substitutas e nomenclatura fixadas por ADR |
-| Última revisão | 14/09/2026 |
+| Última revisão | 03/11/2026 |
 
 As contagens de linhas são a **proporção de referência**, não resultados medidos e não compromissos
 de tamanho: elas fixam a razão entre as tabelas, que é o que dá realismo ao domínio. O volume
@@ -712,6 +712,8 @@ são a definição de "dado coerente" neste projeto.
 11. Períodos de vigência de registros SCD tipo 2 não se sobrepõem para a mesma chave natural.
 12. Cupons somente são utilizados dentro da vigência e segundo suas regras de elegibilidade.
 13. Toda remessa contém ao menos um item.
+14. Nenhum produto é vendido antes do lançamento: `launched_at` é nulo — lançamento
+    desconhecido — ou anterior ou igual ao `placed_at` de todo pedido que contém o produto.
 
 ---
 
