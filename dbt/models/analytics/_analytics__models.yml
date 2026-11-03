@@ -83,6 +83,7 @@ models:
         description: Chave substituta da **versão** do cliente (ADR-0017).
         data_tests: [unique, not_null]
       - name: customer_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -97,30 +98,38 @@ models:
       - name: is_deleted
         meta:
           sensitivity: internal
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         description: Exclusão lógica na origem; a linha permanece na dimensão (ADR-0029).
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: customer_code
+        description: "Chave natural do cliente na origem; estável entre cargas."
         meta:
           sensitivity: internal
       - name: first_name
+        description: "Primeiro nome do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: last_name
+        description: "Sobrenome do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: customer_full_name
         meta:
           sensitivity: personal
       - name: customer_document
+        description: "Documento de identificação do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: birth_date
+        description: "Data de nascimento do cliente (sintética)."
         meta:
           sensitivity: personal
       - name: registered_at
+        description: "Momento de negócio do cadastro, distinto de `created_at`."
         meta:
           sensitivity: internal
       - name: first_order_at
@@ -142,30 +151,37 @@ models:
         meta:
           sensitivity: internal
       - name: customer_status
+        description: "Estado do relacionamento: active, inactive, blocked ou pending."
         meta:
           sensitivity: internal
       - name: customer_segment_id
+        description: "Segmento comercial ao qual o cliente pertence."
         meta:
           sensitivity: internal
       - name: customer_segment_code
+        description: "Código estável do segmento, usado como chave natural."
         meta:
           sensitivity: public
       - name: customer_segment_name
         meta:
           sensitivity: public
       - name: city
+        description: "Cidade; alimenta a dimensão de geografia."
         meta:
           sensitivity: public
       - name: state_code
+        description: "Unidade federativa em sigla de duas letras."
         meta:
           sensitivity: public
       - name: country
+        description: "País em código ISO de duas letras."
         meta:
           sensitivity: public
       - name: valid_from
         meta:
           sensitivity: internal
       - name: valid_to
+        description: "{{ doc(\"dbt_valid_to\") }}"
         meta:
           sensitivity: internal
       - name: is_current
@@ -183,6 +199,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: product_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -191,48 +208,63 @@ models:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: sku
+        description: "Código de estoque da variante; chave natural do SKU."
         meta:
           sensitivity: public
       - name: product_code
+        description: "Chave natural do produto na origem."
         meta:
           sensitivity: public
       - name: product_name
+        description: "Nome comercial do produto."
         meta:
           sensitivity: public
       - name: variant_size
+        description: "Tamanho da variante."
         meta:
           sensitivity: public
       - name: variant_color
+        description: "Cor da variante."
         meta:
           sensitivity: public
       - name: variant_package
+        description: "Embalagem ou unidade de venda."
         meta:
           sensitivity: public
       - name: barcode
+        description: "Código de barras da variante (sintético)."
         meta:
           sensitivity: public
       - name: weight_grams
+        description: "Peso em gramas, usado no cálculo de frete."
         meta:
           sensitivity: public
       - name: product_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: launched_at
+        description: "Momento de lançamento comercial."
         meta:
           sensitivity: public
       - name: product_status
+        description: "Estado do produto: draft, active ou discontinued."
         meta:
           sensitivity: internal
       - name: variant_is_active
+        description: "Indica se o SKU continua disponível para venda."
         meta:
           sensitivity: internal
       - name: product_category_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: leaf_category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
       - name: sub_category_name
@@ -242,24 +274,29 @@ models:
         meta:
           sensitivity: public
       - name: brand_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: brand_name
         meta:
           sensitivity: public
       - name: brand_country
+        description: "País de origem, em código ISO."
         meta:
           sensitivity: public
       - name: variant_is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: product_is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: valid_from
         meta:
           sensitivity: internal
       - name: valid_to
+        description: "{{ doc(\"dbt_valid_to\") }}"
         meta:
           sensitivity: internal
       - name: is_current
@@ -277,13 +314,16 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: category_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
       - name: sub_category_name
@@ -293,6 +333,7 @@ models:
         meta:
           sensitivity: public
       - name: category_depth
+        description: "Profundidade na hierarquia, com a raiz em zero."
         meta:
           sensitivity: public
 
@@ -303,15 +344,19 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: brand_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: brand_name
+        description: "Nome da marca."
         meta:
           sensitivity: public
       - name: brand_country
+        description: "País de origem, em código ISO."
         meta:
           sensitivity: public
 
@@ -326,27 +371,34 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_tests:
           - accepted_values:
               values: [web, app, store, unknown]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: sales_channel_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: sales_channel_code
+        description: "Código estável do canal."
         meta:
           sensitivity: public
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se o canal continua operando."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
 
@@ -367,15 +419,18 @@ models:
           - accepted_values:
               values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul, Desconhecido]
       - name: country
+        description: "País em código ISO de duas letras."
         meta:
           sensitivity: public
       - name: state_code
+        description: "Unidade federativa em sigla de duas letras."
         meta:
           sensitivity: public
       - name: state_name
         meta:
           sensitivity: public
       - name: city
+        description: "Cidade; alimenta a dimensão de geografia."
         meta:
           sensitivity: public
 
@@ -408,6 +463,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -443,32 +499,39 @@ models:
         description: '{{ doc("net_revenue") }}'
         data_tests: [not_null]
       - name: quantity
+        description: "Quantidade comprada do SKU."
         meta:
           sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: brand_key
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido ao qual o item pertence."
         meta:
           sensitivity: internal
       - name: order_item_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: order_status
+        description: "Estado atual do pedido; o histórico vive em `order_status_history`."
         meta:
           sensitivity: internal
       - name: order_date
         meta:
           sensitivity: internal
       - name: placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: is_realised
@@ -490,18 +553,22 @@ models:
         meta:
           sensitivity: internal
       - name: unit_price
+        description: "Preço unitário praticado na venda."
         meta:
           sensitivity: confidential
       - name: gross_revenue_amount
         meta:
           sensitivity: confidential
       - name: discount_amount
+        description: "Desconto aplicado a este item."
         meta:
           sensitivity: confidential
       - name: tax_amount
+        description: "Imposto simulado sobre este item."
         meta:
           sensitivity: confidential
       - name: line_total_amount
+        description: "Valor total da linha, já arredondado."
         meta:
           sensitivity: confidential
 
@@ -547,10 +614,12 @@ models:
       - name: customer_key
         meta:
           sensitivity: internal
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         description: Nulo em sessão anônima — o carrinho existe, o cliente não foi identificado.
         data_tests:
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: event_type
+        description: "Estado do carrinho: open, converted, abandoned ou expired."
         meta:
           sensitivity: internal
         data_tests:
@@ -558,9 +627,11 @@ models:
           - accepted_values:
               values: [created, converted, abandoned, expired]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: cart_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: occurred_at
@@ -611,21 +682,26 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: method_type
+        description: "Natureza do meio: cartão, pix, boleto, carteira ou vale."
         meta:
           sensitivity: public
         data_tests:
           - accepted_values:
               values: [credit_card, debit_card, pix, boleto, wallet, voucher]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: payment_method_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: payment_method_code
+        description: "Código estável do meio de pagamento."
         meta:
           sensitivity: public
       - name: payment_method_name
+        description: "Nome do meio de pagamento."
         meta:
           sensitivity: public
       - name: is_card
@@ -635,9 +711,11 @@ models:
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se o meio continua aceito."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
 
@@ -653,31 +731,39 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: supplier_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: supplier_code
+        description: "Chave natural do fornecedor na origem."
         meta:
           sensitivity: internal
       - name: supplier_legal_name
+        description: "Razão social do fornecedor (sintética)."
         meta:
           sensitivity: confidential
       - name: supplier_name
         meta:
           sensitivity: confidential
       - name: supplier_country
+        description: "País do fornecedor, em código ISO."
         meta:
           sensitivity: public
       - name: payment_terms_days
+        description: "Prazo de pagamento negociado, em dias."
         meta:
           sensitivity: confidential
       - name: is_active
+        description: "Indica se o fornecedor continua ativo."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
 
@@ -695,21 +781,27 @@ models:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: warehouse_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: warehouse_code
+        description: "Código estável do armazém."
         meta:
           sensitivity: public
       - name: warehouse_name
+        description: "Nome do armazém."
         meta:
           sensitivity: public
       - name: warehouse_city
+        description: "Cidade do armazém."
         meta:
           sensitivity: public
       - name: warehouse_state
+        description: "Unidade federativa do armazém."
         meta:
           sensitivity: public
       - name: warehouse_state_name
@@ -719,15 +811,19 @@ models:
         meta:
           sensitivity: public
       - name: warehouse_country
+        description: "País, em código ISO."
         meta:
           sensitivity: public
       - name: capacity_units
+        description: "Capacidade máxima em unidades."
         meta:
           sensitivity: confidential
       - name: is_active
+        description: "Indica se o armazém está operando."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
 
@@ -763,54 +859,67 @@ models:
           - not_null
           - relationships: {to: ref('dim_payment_method'), field: payment_method_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: transaction_type
+        description: "Operação financeira: authorization, capture, void ou refund."
         meta:
           sensitivity: internal
         data_tests:
           - accepted_values:
               values: [authorization, capture, void, refund]
       - name: transaction_result
+        description: "Desfecho da operação: succeeded, failed ou pending."
         meta:
           sensitivity: internal
         data_tests:
           - accepted_values:
               values: [succeeded, failed, pending]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: sales_channel_key
         meta:
           sensitivity: internal
       - name: payment_transaction_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: transaction_code
+        description: "Chave natural da transação."
         meta:
           sensitivity: internal
       - name: payment_id
+        description: "Pagamento ao qual a transação pertence."
         meta:
           sensitivity: internal
       - name: payment_code
+        description: "Chave natural do pagamento."
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido que o pagamento quita."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: gateway_response_code
+        description: "Código de retorno do adquirente simulado."
         meta:
           sensitivity: internal
       - name: occurred_at
+        description: "Momento de negócio da operação."
         meta:
           sensitivity: internal
       - name: installments
+        description: "Número de parcelas acordadas."
         meta:
           sensitivity: public
       - name: is_instalment_plan
@@ -829,6 +938,7 @@ models:
         meta:
           sensitivity: internal
       - name: transaction_amount
+        description: "Valor movimentado nesta operação."
         meta:
           sensitivity: confidential
       - name: authorized_amount
@@ -863,48 +973,60 @@ models:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: refund_amount
+        description: "Valor reembolsado."
         meta:
           sensitivity: confidential
         data_tests:
           - not_null
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 0.01}
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: payment_method_key
         meta:
           sensitivity: internal
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
       - name: sales_channel_key
         meta:
           sensitivity: internal
       - name: refund_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: refund_code
+        description: "Chave natural do reembolso."
         meta:
           sensitivity: internal
       - name: payment_transaction_id
+        description: "Transação de captura que está sendo revertida."
         meta:
           sensitivity: internal
       - name: payment_id
+        description: "Pagamento ao qual a transação pertence."
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido que o pagamento quita."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: refund_reason
+        description: "Motivo comercial do reembolso."
         meta:
           sensitivity: internal
       - name: refund_status
+        description: "Estado do reembolso: requested, completed ou rejected."
         meta:
           sensitivity: internal
       - name: refunded_at
+        description: "Momento em que o reembolso foi concluído."
         meta:
           sensitivity: internal
       - name: is_completed
@@ -917,6 +1039,7 @@ models:
         meta:
           sensitivity: internal
       - name: originally_captured_amount
+        description: "Valor movimentado nesta operação."
         meta:
           sensitivity: confidential
       - name: completed_refund_amount
@@ -952,11 +1075,13 @@ models:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: quantity_ordered
+        description: "Quantidade solicitada ao fornecedor."
         meta:
           sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between: {min_value: 1}
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: date_key
@@ -966,21 +1091,27 @@ models:
         meta:
           sensitivity: internal
       - name: purchase_order_item_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: purchase_order_id
+        description: "Ordem de compra à qual o item pertence."
         meta:
           sensitivity: internal
       - name: po_number
+        description: "Número da ordem de compra; chave natural."
         meta:
           sensitivity: internal
       - name: purchase_order_status
+        description: "Estado da ordem; transições válidas em Modelo de Dados §4."
         meta:
           sensitivity: internal
       - name: ordered_at
+        description: "Momento de emissão da ordem."
         meta:
           sensitivity: internal
       - name: expected_at
+        description: "Data prometida de entrega pelo fornecedor."
         meta:
           sensitivity: internal
       - name: first_received_at
@@ -1005,9 +1136,11 @@ models:
         meta:
           sensitivity: internal
       - name: unit_cost
+        description: "Custo unitário negociado."
         meta:
           sensitivity: confidential
       - name: ordered_cost_amount
+        description: "Custo total do item, já arredondado."
         meta:
           sensitivity: confidential
       - name: received_cost_amount
@@ -1046,9 +1179,11 @@ models:
       - name: movement_id
         meta:
           sensitivity: internal
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         description: Chave do evento; é ela que torna o reprocessamento idempotente.
         data_tests: [unique, not_null]
       - name: idempotency_key
+        description: "Chave que impede aplicação duplicada pelo consumidor (ADR-0019)."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1073,6 +1208,7 @@ models:
       - name: quantity_delta
         meta:
           sensitivity: internal
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
         description: '**Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.'
         data_tests: [not_null]
       - name: cogs_amount
@@ -1081,6 +1217,7 @@ models:
         description: '{{ doc("cost_of_goods_sold") }}'
         data_tests: [not_null]
       - name: movement_type
+        description: "Tipo controlado do movimento; determina o sinal da quantidade."
         meta:
           sensitivity: internal
         data_tests:
@@ -1088,27 +1225,34 @@ models:
               values: [purchase_receipt, customer_return, transfer_in, adjustment_in,
                        sale_dispatch, supplier_return, transfer_out, adjustment_out]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: event_sequence
         meta:
           sensitivity: internal
       - name: source_type
+        description: "Processo de negócio que originou o movimento."
         meta:
           sensitivity: internal
       - name: source_id
+        description: "Identificador do registro que causou o movimento."
         meta:
           sensitivity: internal
       - name: correlation_id
+        description: "Agrupa eventos relacionados; obrigatório nos pares de transferência."
         meta:
           sensitivity: internal
       - name: aggregate_version
+        description: "Ordem do evento dentro do par armazém/SKU; sem lacuna nem repetição."
         meta:
           sensitivity: internal
       - name: occurred_at
+        description: "Momento de negócio do movimento; é por ele que o Beam janela (ADR-0019)."
         meta:
           sensitivity: internal
       - name: recorded_at
+        description: "Momento em que a origem registrou o evento; base da leitura incremental."
         meta:
           sensitivity: internal
       - name: movement_date
@@ -1130,6 +1274,7 @@ models:
         meta:
           sensitivity: internal
       - name: unit_cost
+        description: "Custo unitário, quando aplicável ao tipo."
         meta:
           sensitivity: confidential
       - name: movement_cost_amount
@@ -1155,36 +1300,44 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: carrier_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: service_level
         meta:
           sensitivity: public
+          description_reason: "liga a coluna ao conceito do glossário de negócio que ela determina"
         description: '{{ doc("promised_lead_time") }}'
         data_tests:
           - not_null
           - accepted_values: {values: [standard, express, same_day]}
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: carrier_code
+        description: "Código estável da transportadora."
         meta:
           sensitivity: public
       - name: carrier_name
+        description: "Nome da transportadora."
         meta:
           sensitivity: public
       - name: service_level_rank
         meta:
           sensitivity: internal
       - name: tracking_url_template
+        description: "Modelo de URL de rastreio, com marcador do código."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se a transportadora está em uso."
         meta:
           sensitivity: internal
 
@@ -1212,6 +1365,7 @@ models:
         description: Prova do grão — uma linha por item de remessa.
         data_tests: [unique, not_null]
       - name: shipment_item_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1245,6 +1399,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_warehouse'), field: warehouse_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1279,9 +1434,11 @@ models:
       - name: quantity_shipped
         meta:
           sensitivity: internal
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
         description: '**Aditiva** — unidades que viajaram nesta caixa.'
         data_tests: [not_null]
       - name: shipment_status
+        description: "Estado da remessa; transições válidas em Modelo de Dados §4."
         meta:
           sensitivity: internal
         data_tests:
@@ -1289,36 +1446,47 @@ models:
           - accepted_values:
               values: [created, picking, dispatched, in_transit, delivered, returned, lost]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: shipment_id
+        description: "Remessa à qual o item pertence."
         meta:
           sensitivity: internal
       - name: order_item_id
+        description: "Item de pedido sendo enviado."
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido ao qual o item pertence."
         meta:
           sensitivity: internal
       - name: shipment_code
+        description: "Chave natural da remessa."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: tracking_code
+        description: "Código de rastreio junto à transportadora."
         meta:
           sensitivity: internal
       - name: order_status
+        description: "Estado atual do pedido; o histórico vive em `order_status_history`."
         meta:
           sensitivity: internal
       - name: placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: shipped_at
+        description: "Momento do despacho."
         meta:
           sensitivity: internal
       - name: estimated_delivery_at
+        description: "Prazo de entrega prometido ao cliente."
         meta:
           sensitivity: public
       - name: delivered_at
@@ -1358,6 +1526,7 @@ models:
         meta:
           sensitivity: internal
       - name: quantity_ordered
+        description: "Quantidade comprada do SKU."
         meta:
           sensitivity: internal
       - name: shipped_share_of_line
@@ -1395,6 +1564,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_status_event_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1405,6 +1575,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1423,6 +1594,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: to_status
+        description: "Estado resultante da transição."
         meta:
           sensitivity: internal
         data_tests:
@@ -1432,7 +1604,7 @@ models:
       - name: from_status
         meta:
           sensitivity: internal
-        description: Nulo na criação do pedido — a primeira transição não vem de estado nenhum.
+        description: "Estado anterior; nulo na criação do pedido."
         data_tests:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
@@ -1446,30 +1618,37 @@ models:
         description: '**Aditiva** — sempre 1, para que a contagem seja uma soma explícita.'
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido cujo estado mudou."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: change_reason
+        description: "Motivo registrado para a transição."
         meta:
           sensitivity: internal
       - name: status_sequence
         meta:
           sensitivity: internal
       - name: placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: changed_at
+        description: "Momento de negócio da transição."
         meta:
           sensitivity: internal
       - name: previous_changed_at
         meta:
           sensitivity: internal
       - name: current_order_status
+        description: "Estado atual do pedido; o histórico vive em `order_status_history`."
         meta:
           sensitivity: internal
       - name: is_order_creation
@@ -1504,10 +1683,12 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: campaign_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: campaign_objective
+        description: "Objetivo comercial da campanha."
         meta:
           sensitivity: public
         data_tests:
@@ -1515,24 +1696,31 @@ models:
           - accepted_values:
               values: [acquisition, retention, reactivation, clearance]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: campaign_code
+        description: "Código estável da campanha."
         meta:
           sensitivity: public
       - name: campaign_name
+        description: "Nome da campanha."
         meta:
           sensitivity: public
       - name: campaign_valid_from
+        description: "Início da vigência da campanha."
         meta:
           sensitivity: public
       - name: campaign_valid_to
+        description: "Fim da vigência da campanha."
         meta:
           sensitivity: public
       - name: budget_amount
+        description: "Orçamento previsto da campanha."
         meta:
           sensitivity: confidential
       - name: campaign_is_active
+        description: "Indica se a campanha está ativa."
         meta:
           sensitivity: internal
       - name: is_running
@@ -1542,6 +1730,7 @@ models:
         meta:
           sensitivity: public
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
 
@@ -1585,32 +1774,40 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: discount_type
+        description: "Natureza do desconto: percentage ou fixed."
         meta:
           sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [percentage, fixed]}
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: coupon_code
+        description: "Código digitado pelo cliente."
         meta:
           sensitivity: public
       - name: coupon_valid_from
+        description: "Início da vigência do cupom."
         meta:
           sensitivity: public
       - name: coupon_valid_to
+        description: "Fim da vigência do cupom."
         meta:
           sensitivity: public
       - name: max_redemptions
+        description: "Limite total de utilizações; nulo quando ilimitado."
         meta:
           sensitivity: internal
       - name: redemption_count
@@ -1626,30 +1823,38 @@ models:
         meta:
           sensitivity: public
       - name: campaign_id
+        description: "Campanha à qual o cupom pertence."
         meta:
           sensitivity: public
       - name: campaign_code
+        description: "Código estável da campanha."
         meta:
           sensitivity: public
       - name: campaign_name
+        description: "Nome da campanha."
         meta:
           sensitivity: public
       - name: campaign_objective
+        description: "Objetivo comercial da campanha."
         meta:
           sensitivity: public
       - name: discount_value
+        description: "Valor do desconto: percentual quando `percentage`, moeda quando `fixed`."
         meta:
           sensitivity: confidential
       - name: min_order_amount
+        description: "Valor mínimo de pedido para o cupom ser elegível."
         meta:
           sensitivity: public
       - name: coupon_is_active
+        description: "Indica se o cupom continua aceito."
         meta:
           sensitivity: internal
       - name: valid_from
         meta:
           sensitivity: internal
       - name: valid_to
+        description: "{{ doc(\"dbt_valid_to\") }}"
         meta:
           sensitivity: internal
       - name: is_current
@@ -1670,36 +1875,45 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: support_agent_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: agent_team
+        description: "Equipe de atendimento à qual o agente pertence."
         meta:
           sensitivity: public
         data_tests: [not_null]
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: agent_code
+        description: "Chave natural do agente."
         meta:
           sensitivity: internal
       - name: agent_first_name
+        description: "Primeiro nome do agente (sintético)."
         meta:
           sensitivity: personal
       - name: agent_last_name
+        description: "Sobrenome do agente (sintético)."
         meta:
           sensitivity: personal
       - name: agent_full_name
         meta:
           sensitivity: personal
       - name: agent_email
+        description: "E-mail corporativo do agente (sintético)."
         meta:
           sensitivity: personal
       - name: hired_at
+        description: "Início do período de atuação do agente."
         meta:
           sensitivity: internal
       - name: handled_ticket_count
@@ -1709,12 +1923,14 @@ models:
         meta:
           sensitivity: internal
       - name: agent_is_active
+        description: "Indica se o agente continua atuando."
         meta:
           sensitivity: internal
       - name: valid_from
         meta:
           sensitivity: internal
       - name: valid_to
+        description: "{{ doc(\"dbt_valid_to\") }}"
         meta:
           sensitivity: internal
       - name: is_current
@@ -1746,12 +1962,14 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_redemption_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: order_id
         meta:
           sensitivity: internal
+          description_reason: "acrescenta ao significado herdado a restrição que o teste deste modelo cobra"
         description: >
           Um cupom por pedido — **por origem**. A unicidade está no teste de
           combinação do modelo: dois sistemas numeram pedidos a partir de 1, e
@@ -1776,6 +1994,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_campaign'), field: campaign_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1801,33 +2020,42 @@ models:
       - name: coupon_discount_amount
         meta:
           sensitivity: confidential
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
         description: '**Aditiva** — desconto efetivamente concedido.'
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: coupon_id
+        description: "Cupom utilizado."
         meta:
           sensitivity: internal
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
       - name: coupon_code
+        description: "Código digitado pelo cliente."
         meta:
           sensitivity: public
       - name: discount_type
+        description: "Natureza do desconto: percentage ou fixed."
         meta:
           sensitivity: public
       - name: campaign_objective
+        description: "Objetivo comercial da campanha."
         meta:
           sensitivity: public
       - name: redemption_sequence
         meta:
           sensitivity: internal
       - name: redeemed_at
+        description: "Momento de negócio da utilização."
         meta:
           sensitivity: internal
       - name: placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: is_within_validity
@@ -1852,9 +2080,11 @@ models:
         meta:
           sensitivity: internal
       - name: order_subtotal_amount
+        description: "Soma dos itens antes de desconto, frete e imposto."
         meta:
           sensitivity: confidential
       - name: order_total_amount
+        description: "Valor total do pedido; reconcilia os demais campos."
         meta:
           sensitivity: confidential
       - name: discount_share_of_order
@@ -1881,6 +2111,7 @@ models:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: ticket_event_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -1891,6 +2122,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: customer_key
+        description: "Chave substituta da **versão** do cliente (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1923,6 +2155,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_geography'), field: geography_key}
       - name: ticket_event_type
+        description: "Natureza do evento no chamado."
         meta:
           sensitivity: internal
         data_tests:
@@ -1935,39 +2168,50 @@ models:
         description: '**Aditiva** — sempre 1, para que a contagem de eventos seja uma soma explícita.'
         data_tests: [not_null]
       - name: source_system
+        description: "{{ doc(\"source_system\") }}"
         meta:
           sensitivity: internal
       - name: support_ticket_id
+        description: "Chamado ao qual o evento pertence."
         meta:
           sensitivity: internal
       - name: ticket_number
+        description: "Número do chamado; chave natural."
         meta:
           sensitivity: internal
       - name: order_id
+        description: "Pedido relacionado ao chamado, quando houver."
         meta:
           sensitivity: internal
       - name: ticket_category
+        description: "Motivo do chamado."
         meta:
           sensitivity: public
       - name: ticket_priority
+        description: "Prioridade atribuída ao chamado."
         meta:
           sensitivity: internal
       - name: ticket_status
+        description: "Estado atual do chamado."
         meta:
           sensitivity: internal
       - name: event_sequence
         meta:
           sensitivity: internal
       - name: occurred_at
+        description: "Momento de negócio do evento."
         meta:
           sensitivity: internal
       - name: opened_at
+        description: "Momento de abertura do chamado."
         meta:
           sensitivity: internal
       - name: closed_at
+        description: "Momento de encerramento do chamado."
         meta:
           sensitivity: internal
       - name: order_placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: is_ticket_creation

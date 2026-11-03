@@ -32,10 +32,12 @@ models:
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_type: text
@@ -44,6 +46,7 @@ models:
           sensitivity: public
         data_type: text
       - name: category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
         data_type: text
@@ -87,6 +90,7 @@ models:
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
@@ -119,14 +123,17 @@ models:
         data_type: bigint
         constraints: [{type: not_null}]
       - name: product_natural_key
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: sku
+        description: "Código de estoque da variante; chave natural do SKU."
         meta:
           sensitivity: public
         data_type: text
       - name: product_name
+        description: "Nome comercial do produto."
         meta:
           sensitivity: public
         data_type: text
@@ -139,12 +146,14 @@ models:
           sensitivity: public
         data_type: text
       - name: brand_name
+        description: "Nome da marca."
         meta:
           sensitivity: public
         data_type: text
       - name: is_deleted
         meta:
           sensitivity: internal
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         description: SKU saiu do catálogo; a venda histórica dele continua contando (ADR-0029).
         data_type: boolean
       - name: unit_count
@@ -184,6 +193,7 @@ models:
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
@@ -228,6 +238,7 @@ models:
           sensitivity: public
         data_type: text
       - name: state_code
+        description: "Unidade federativa em sigla de duas letras."
         meta:
           sensitivity: public
         data_type: text
@@ -236,6 +247,7 @@ models:
           sensitivity: public
         data_type: text
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
@@ -275,10 +287,12 @@ models:
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_type: text
@@ -328,10 +342,12 @@ models:
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_type: text
@@ -443,18 +459,22 @@ models:
           sensitivity: internal
         data_type: text
       - name: sku
+        description: "Código de estoque da variante; chave natural do SKU."
         meta:
           sensitivity: public
         data_type: text
       - name: product_name
+        description: "Nome comercial do produto."
         meta:
           sensitivity: public
         data_type: text
       - name: category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
         data_type: text
       - name: warehouse_name
+        description: "Nome do armazém."
         meta:
           sensitivity: public
         data_type: text
@@ -502,14 +522,17 @@ models:
           sensitivity: internal
         data_type: integer
       - name: payment_method_name
+        description: "Nome do meio de pagamento."
         meta:
           sensitivity: public
         data_type: text
       - name: method_type
+        description: "Natureza do meio: cartão, pix, boleto, carteira ou vale."
         meta:
           sensitivity: public
         data_type: text
       - name: installments
+        description: "Número de parcelas acordadas."
         meta:
           sensitivity: public
         data_type: integer
@@ -556,6 +579,7 @@ models:
           sensitivity: internal
         data_type: integer
       - name: payment_method_name
+        description: "Nome do meio de pagamento."
         meta:
           sensitivity: public
         data_type: text
@@ -591,6 +615,7 @@ models:
       contract: {enforced: true}
     columns:
       - name: warehouse_name
+        description: "Nome do armazém."
         meta:
           sensitivity: public
         data_type: text
@@ -599,14 +624,17 @@ models:
           sensitivity: public
         data_type: text
       - name: sku
+        description: "Código de estoque da variante; chave natural do SKU."
         meta:
           sensitivity: public
         data_type: text
       - name: product_name
+        description: "Nome comercial do produto."
         meta:
           sensitivity: public
         data_type: text
       - name: category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
         data_type: text
@@ -694,15 +722,18 @@ models:
         data_type: text
         constraints: [{type: not_null}]
       - name: carrier_name
+        description: "Nome da transportadora."
         meta:
           sensitivity: public
         data_type: text
       - name: service_level
         meta:
           sensitivity: public
+          description_reason: "liga a coluna ao conceito do glossário de negócio que ela determina"
         description: '{{ doc("promised_lead_time") }}'
         data_type: text
       - name: warehouse_name
+        description: "Nome do armazém."
         meta:
           sensitivity: public
         data_type: text
@@ -772,15 +803,18 @@ models:
           sensitivity: public
         data_type: text
       - name: state_code
+        description: "Unidade federativa em sigla de duas letras."
         meta:
           sensitivity: public
         data_type: text
       - name: service_level
         meta:
           sensitivity: public
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         description: Modalidade da remessa que **fechou** o ciclo.
         data_type: text
       - name: carrier_name
+        description: "Nome da transportadora."
         meta:
           sensitivity: public
         data_type: text
@@ -836,10 +870,12 @@ models:
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_type: text
@@ -903,6 +939,7 @@ models:
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
         data_type: text

@@ -313,8 +313,8 @@ def main(argv: list[str] | None = None) -> int:
     if not MANIFEST.exists():
         print(f"sem {MANIFEST.relative_to(ROOT)}; rode `make dbt-build` antes", file=sys.stderr)
         return 2
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    linhagem = build(manifest)
+    manifest, derivacao = sensitivity.load()      # a mesma leitura da classificação, guardada (RV2-10)
+    linhagem = build(manifest, derivacao)
     for problema in linhagem.problems:
         print(f"linhagem: {problema}", file=sys.stderr)
     if linhagem.problems:

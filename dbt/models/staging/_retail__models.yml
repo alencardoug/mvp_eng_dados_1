@@ -1,9 +1,11 @@
 version: 2
 
-# Testes da camada `staging`. Não há descrição de coluna aqui: o dono desse
-# conteúdo é o Dicionário de Dados, gerado dos modelos SQLAlchemy por
-# `make catalog`. Repetir a descrição em YAML criaria a segunda cópia que o
-# princípio **P8** proíbe, e ela divergiria na primeira alteração de modelo.
+# Testes da camada `staging`. A descrição de coluna que aparece aqui é
+# **derivada**: o texto é declarado nos modelos SQLAlchemy e `make catalog` o
+# escreve em cada coluna que só transporta aquele valor (Governança §5.1). Não
+# a edite à mão — sem `meta.description_reason`, a próxima geração a reescreve,
+# e o `make check` acusa o `.yml` atrasado. Uma cópia gerada e conferida não é a
+# segunda declaração que o princípio **P8** proíbe.
 #
 # O que vive aqui é o que o dicionário não sabe: a **chave** de cada modelo, as
 # relações que precisam fechar e os valores que cada enumeração aceita depois da
@@ -15,35 +17,45 @@ models:
     description: Segmentos comerciais de cliente, um por linha.
     columns:
       - name: customer_segment_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_segment_code
+        description: "Código estável do segmento, usado como chave natural."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: customer_segment_name
+        description: "Nome comercial do segmento."
         meta:
           sensitivity: public
       - name: customer_segment_description
+        description: "Critério de enquadramento do segmento."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se o segmento continua em uso."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -51,10 +63,12 @@ models:
     description: Canais de venda. Dimensão conformada de `dim_sales_channel`.
     columns:
       - name: sales_channel_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: channel_type
+        description: "Natureza do canal: web, app ou store."
         meta:
           sensitivity: public
         data_tests:
@@ -62,27 +76,35 @@ models:
           - accepted_values:
               values: [web, app, store]
       - name: sales_channel_code
+        description: "Código estável do canal."
         meta:
           sensitivity: public
       - name: sales_channel_name
+        description: "Nome do canal de venda."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se o canal continua operando."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -90,10 +112,12 @@ models:
     description: Hierarquia de categorias, com profundidade derivada do pai.
     columns:
       - name: product_category_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: parent_product_category_id
+        description: "Categoria imediatamente superior; nulo na raiz."
         meta:
           sensitivity: public
         data_tests:
@@ -101,6 +125,7 @@ models:
               to: ref('stg_retail__product_categories')
               field: product_category_id
       - name: category_depth
+        description: "Profundidade na hierarquia, com a raiz em zero."
         meta:
           sensitivity: public
         data_tests:
@@ -108,27 +133,35 @@ models:
               min_value: 0
               max_value: 3
       - name: product_category_code
+        description: "Código estável da categoria; chave natural."
         meta:
           sensitivity: public
       - name: product_category_name
+        description: "Nome comercial da categoria."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se a categoria continua em uso."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -136,34 +169,44 @@ models:
     description: Marcas do catálogo.
     columns:
       - name: brand_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: brand_code
+        description: "Código estável da marca."
         meta:
           sensitivity: public
       - name: brand_name
+        description: "Nome da marca."
         meta:
           sensitivity: public
       - name: brand_country
+        description: "País de origem, em código ISO."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se a marca continua ativa no catálogo."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -174,14 +217,17 @@ models:
       datamart, conforme o ADR-0015 — a linha não some, ela fica marcada.
     columns:
       - name: customer_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_code
+        description: "Chave natural do cliente na origem; estável entre cargas."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_segment_id
+        description: "Segmento comercial ao qual o cliente pertence."
         meta:
           sensitivity: internal
         data_tests:
@@ -189,6 +235,7 @@ models:
               to: ref('stg_retail__customer_segments')
               field: customer_segment_id
       - name: customer_status
+        description: "Estado do relacionamento: active, inactive, blocked ou pending."
         meta:
           sensitivity: internal
         data_tests:
@@ -196,36 +243,46 @@ models:
           - accepted_values:
               values: [active, inactive, blocked, pending]
       - name: first_name
+        description: "Primeiro nome do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: last_name
+        description: "Sobrenome do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: customer_full_name
         meta:
           sensitivity: personal
       - name: customer_document
+        description: "Documento de identificação do cliente (sintético)."
         meta:
           sensitivity: personal
       - name: birth_date
+        description: "Data de nascimento do cliente (sintética)."
         meta:
           sensitivity: personal
       - name: registered_at
+        description: "Momento de negócio do cadastro, distinto de `created_at`."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -233,10 +290,12 @@ models:
     description: Endereços com vigência; alimenta `dim_geography`.
     columns:
       - name: customer_address_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_id
+        description: "Cliente dono do endereço."
         meta:
           sensitivity: internal
         data_tests:
@@ -245,74 +304,94 @@ models:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: address_type
+        description: "Finalidade do endereço: billing ou shipping."
         meta:
           sensitivity: internal
         data_tests:
           - accepted_values:
               values: [billing, shipping]
       - name: state
+        description: "Unidade federativa em sigla de duas letras."
         meta:
           sensitivity: public
         data_tests:
           - dbt_expectations.expect_column_value_lengths_to_equal:
               value: 2
       - name: street
+        description: "Logradouro (sintético)."
         meta:
           sensitivity: personal
       - name: street_number
+        description: "Número do endereço (sintético)."
         meta:
           sensitivity: personal
       - name: complement
+        description: "Complemento do endereço (sintético)."
         meta:
           sensitivity: personal
       - name: district
+        description: "Bairro (sintético)."
         meta:
           sensitivity: personal
       - name: city
+        description: "Cidade; alimenta a dimensão de geografia."
         meta:
           sensitivity: public
       - name: postal_code
+        description: "Código postal (sintético)."
         meta:
           sensitivity: personal
       - name: country
+        description: "País em código ISO de duas letras."
         meta:
           sensitivity: public
       - name: is_primary
+        description: "Endereço principal do cliente para o tipo indicado."
         meta:
           sensitivity: internal
       - name: valid_from
+        description: "Início da vigência do endereço."
         meta:
           sensitivity: internal
       - name: valid_to
+        description: "Fim da vigência; nulo enquanto vigente."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
   - name: stg_retail__products
     columns:
       - name: product_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: product_code
+        description: "Chave natural do produto na origem."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: product_category_id
+        description: "Categoria comercial do produto."
         meta:
           sensitivity: public
         data_tests:
@@ -321,36 +400,46 @@ models:
               to: ref('stg_retail__product_categories')
               field: product_category_id
       - name: product_status
+        description: "Estado do produto: draft, active ou discontinued."
         meta:
           sensitivity: internal
         data_tests:
           - accepted_values:
               values: [draft, active, discontinued]
       - name: brand_id
+        description: "Marca do produto."
         meta:
           sensitivity: public
       - name: product_name
+        description: "Nome comercial do produto."
         meta:
           sensitivity: public
       - name: product_description
+        description: "Descrição comercial do produto."
         meta:
           sensitivity: public
       - name: launched_at
+        description: "Momento de lançamento comercial."
         meta:
           sensitivity: public
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -358,14 +447,17 @@ models:
     description: SKUs. Grão de produto de `fact_sales_order_item`.
     columns:
       - name: product_variant_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: sku
+        description: "Código de estoque da variante; chave natural do SKU."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: product_id
+        description: "Produto do qual a variante deriva."
         meta:
           sensitivity: public
         data_tests:
@@ -374,36 +466,47 @@ models:
               to: ref('stg_retail__products')
               field: product_id
       - name: variant_size
+        description: "Tamanho da variante."
         meta:
           sensitivity: public
       - name: variant_color
+        description: "Cor da variante."
         meta:
           sensitivity: public
       - name: variant_package
+        description: "Embalagem ou unidade de venda."
         meta:
           sensitivity: public
       - name: barcode
+        description: "Código de barras da variante (sintético)."
         meta:
           sensitivity: public
       - name: weight_grams
+        description: "Peso em gramas, usado no cálculo de frete."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se o SKU continua disponível para venda."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -411,14 +514,17 @@ models:
     description: Carrinhos. Origem de `fact_cart_event` (ADR-0028).
     columns:
       - name: cart_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_code
+        description: "Chave natural do carrinho."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_status
+        description: "Estado do carrinho: open, converted, abandoned ou expired."
         meta:
           sensitivity: internal
         data_tests:
@@ -426,6 +532,7 @@ models:
           - accepted_values:
               values: [open, converted, abandoned, expired]
       - name: customer_id
+        description: "Cliente dono do carrinho; nulo em sessão anônima."
         meta:
           sensitivity: internal
         data_tests:
@@ -433,30 +540,39 @@ models:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: sales_channel_id
+        description: "Canal em que o carrinho foi aberto."
         meta:
           sensitivity: public
       - name: cart_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: cart_expires_at
+        description: "Momento previsto de expiração."
         meta:
           sensitivity: internal
       - name: cart_converted_at
+        description: "Momento da conversão em pedido."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -464,10 +580,12 @@ models:
     description: Maior tabela do projeto. Dá o valor do carrinho abandonado.
     columns:
       - name: cart_item_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_id
+        description: "Carrinho ao qual o item pertence."
         meta:
           sensitivity: internal
         data_tests:
@@ -476,33 +594,42 @@ models:
               to: ref('stg_retail__carts')
               field: cart_id
       - name: quantity
+        description: "Quantidade do SKU no carrinho."
         meta:
           sensitivity: internal
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
       - name: product_variant_id
+        description: "SKU adicionado ao carrinho."
         meta:
           sensitivity: internal
       - name: unit_price
+        description: "Preço unitário vigente no momento em que o item foi adicionado."
         meta:
           sensitivity: confidential
       - name: added_at
+        description: "Momento em que o item entrou no carrinho."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -510,16 +637,19 @@ models:
     description: Cabeçalho do pedido. `order_total_amount` viaja como dimensão degenerada.
     columns:
       - name: order_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_number
+        description: "Número do pedido; chave natural."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: cart_id
         meta:
           sensitivity: internal
+          description_reason: "acrescenta ao significado herdado a restrição que o teste deste modelo cobra"
         description: Único quando preenchido — um carrinho converte em no máximo um pedido.
         data_tests:
           - unique
@@ -527,6 +657,7 @@ models:
               to: ref('stg_retail__carts')
               field: cart_id
       - name: customer_id
+        description: "Cliente que fez o pedido."
         meta:
           sensitivity: internal
         data_tests:
@@ -535,6 +666,7 @@ models:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: order_status
+        description: "Estado atual do pedido; o histórico vive em `order_status_history`."
         meta:
           sensitivity: internal
         data_tests:
@@ -542,42 +674,55 @@ models:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: sales_channel_id
+        description: "Canal em que o pedido foi feito."
         meta:
           sensitivity: public
       - name: placed_at
+        description: "Momento de negócio em que o pedido foi feito."
         meta:
           sensitivity: internal
       - name: currency
+        description: "Moeda do pedido, em código ISO 4217."
         meta:
           sensitivity: public
       - name: subtotal_amount
+        description: "Soma dos itens antes de desconto, frete e imposto."
         meta:
           sensitivity: confidential
       - name: order_discount_amount
+        description: "Desconto total aplicado ao pedido."
         meta:
           sensitivity: confidential
       - name: shipping_amount
+        description: "Valor de frete cobrado."
         meta:
           sensitivity: confidential
       - name: order_tax_amount
+        description: "Imposto simulado sobre o pedido."
         meta:
           sensitivity: confidential
       - name: order_total_amount
+        description: "Valor total do pedido; reconcilia os demais campos."
         meta:
           sensitivity: confidential
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -588,10 +733,12 @@ models:
       faria `subtotal_amount` deixar de bater com a soma dos itens.
     columns:
       - name: order_item_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
+        description: "Pedido ao qual o item pertence."
         meta:
           sensitivity: internal
         data_tests:
@@ -600,6 +747,7 @@ models:
               to: ref('stg_retail__orders')
               field: order_id
       - name: product_variant_id
+        description: "SKU comprado."
         meta:
           sensitivity: internal
         data_tests:
@@ -608,6 +756,7 @@ models:
               to: ref('stg_retail__product_variants')
               field: product_variant_id
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
         data_tests:
@@ -615,30 +764,39 @@ models:
               values: [false]
               quote: false
       - name: quantity
+        description: "Quantidade comprada do SKU."
         meta:
           sensitivity: internal
       - name: unit_price
+        description: "Preço unitário praticado na venda."
         meta:
           sensitivity: confidential
       - name: discount_amount
+        description: "Desconto aplicado a este item."
         meta:
           sensitivity: confidential
       - name: tax_amount
+        description: "Imposto simulado sobre este item."
         meta:
           sensitivity: confidential
       - name: line_total_amount
+        description: "Valor total da linha, já arredondado."
         meta:
           sensitivity: confidential
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -649,41 +807,52 @@ models:
       promessa de prazo no despacho.
     columns:
       - name: carrier_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: carrier_code
+        description: "Código estável da transportadora."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: service_level
+        description: "Modalidade: standard, express ou same_day."
         meta:
           sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [standard, express, same_day]}
       - name: carrier_name
+        description: "Nome da transportadora."
         meta:
           sensitivity: public
       - name: tracking_url_template
+        description: "Modelo de URL de rastreio, com marcador do código."
         meta:
           sensitivity: public
       - name: is_active
+        description: "Indica se a transportadora está em uso."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -695,9 +864,11 @@ models:
       - name: delivery_event_id
         meta:
           sensitivity: internal
+          description_reason: "acrescenta ao significado herdado a restrição que o teste deste modelo cobra"
         description: Único depois da deduplicação de entrega ao menos uma vez.
         data_tests: [unique, not_null]
       - name: shipment_id
+        description: "Remessa à qual o evento se refere."
         meta:
           sensitivity: internal
         data_tests:
@@ -706,6 +877,7 @@ models:
               to: ref('stg_retail__shipments')
               field: shipment_id
       - name: delivery_event_type
+        description: "Natureza do evento de entrega."
         meta:
           sensitivity: public
         data_tests:
@@ -714,22 +886,28 @@ models:
               values: [picked_up, in_transit, out_for_delivery, delivery_attempt,
                        delivered, returned]
       - name: occurred_at
+        description: "Momento de negócio do evento."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: event_location
+        description: "Localidade registrada pela transportadora."
         meta:
           sensitivity: public
       - name: event_description
+        description: "Descrição textual do evento."
         meta:
           sensitivity: public
       - name: source_created_at
+        description: "Momento em que o evento foi registrado na origem."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted_append_only\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -739,10 +917,12 @@ models:
       `fact_order_status_event`.
     columns:
       - name: order_status_event_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
+        description: "Pedido cujo estado mudou."
         meta:
           sensitivity: internal
         data_tests:
@@ -751,6 +931,7 @@ models:
               to: ref('stg_retail__orders')
               field: order_id
       - name: to_status
+        description: "Estado resultante da transição."
         meta:
           sensitivity: internal
         data_tests:
@@ -758,22 +939,28 @@ models:
           - accepted_values:
               values: [pending, paid, picking, shipped, delivered, cancelled, returned]
       - name: changed_at
+        description: "Momento de negócio da transição."
         meta:
           sensitivity: internal
         data_tests: [not_null]
       - name: from_status
+        description: "Estado anterior; nulo na criação do pedido."
         meta:
           sensitivity: internal
       - name: change_reason
+        description: "Motivo registrado para a transição."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento em que o evento foi registrado na origem."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted_append_only\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -781,14 +968,17 @@ models:
   - name: stg_retail__campaigns
     columns:
       - name: campaign_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: campaign_code
+        description: "Código estável da campanha."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: campaign_objective
+        description: "Objetivo comercial da campanha."
         meta:
           sensitivity: public
         data_tests:
@@ -796,33 +986,43 @@ models:
           - accepted_values:
               values: [acquisition, retention, reactivation, clearance]
       - name: campaign_name
+        description: "Nome da campanha."
         meta:
           sensitivity: public
       - name: campaign_valid_from
+        description: "Início da vigência da campanha."
         meta:
           sensitivity: public
       - name: campaign_valid_to
+        description: "Fim da vigência da campanha."
         meta:
           sensitivity: public
       - name: budget_amount
+        description: "Orçamento previsto da campanha."
         meta:
           sensitivity: confidential
       - name: campaign_is_active
+        description: "Indica se a campanha está ativa."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -833,14 +1033,17 @@ models:
       `max_redemptions`, *sem teto*.
     columns:
       - name: coupon_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: coupon_code
+        description: "Código digitado pelo cliente."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: campaign_id
+        description: "Campanha à qual o cupom pertence."
         meta:
           sensitivity: public
         data_tests:
@@ -849,42 +1052,54 @@ models:
               to: ref('stg_retail__campaigns')
               field: campaign_id
       - name: discount_type
+        description: "Natureza do desconto: percentage ou fixed."
         meta:
           sensitivity: public
         data_tests:
           - not_null
           - accepted_values: {values: [percentage, fixed]}
       - name: discount_value
+        description: "Valor do desconto: percentual quando `percentage`, moeda quando `fixed`."
         meta:
           sensitivity: confidential
       - name: min_order_amount
+        description: "Valor mínimo de pedido para o cupom ser elegível."
         meta:
           sensitivity: public
       - name: max_redemptions
+        description: "Limite total de utilizações; nulo quando ilimitado."
         meta:
           sensitivity: internal
       - name: coupon_valid_from
+        description: "Início da vigência do cupom."
         meta:
           sensitivity: public
       - name: coupon_valid_to
+        description: "Fim da vigência do cupom."
         meta:
           sensitivity: public
       - name: coupon_is_active
+        description: "Indica se o cupom continua aceito."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -892,15 +1107,18 @@ models:
     description: Um resgate por pedido, garantido por índice único na origem.
     columns:
       - name: coupon_redemption_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: order_id
         meta:
           sensitivity: internal
+          description_reason: "acrescenta ao significado herdado a restrição que o teste deste modelo cobra"
         description: Único — dois cupons no mesmo pedido tornariam o rateio do desconto ambíguo.
         data_tests: [unique, not_null]
       - name: coupon_id
+        description: "Cupom utilizado."
         meta:
           sensitivity: internal
         data_tests:
@@ -909,6 +1127,7 @@ models:
               to: ref('stg_retail__coupons')
               field: coupon_id
       - name: customer_id
+        description: "Cliente que utilizou o cupom."
         meta:
           sensitivity: internal
         data_tests:
@@ -917,66 +1136,84 @@ models:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: coupon_discount_amount
+        description: "Desconto efetivamente concedido."
         meta:
           sensitivity: confidential
       - name: redeemed_at
+        description: "Momento de negócio da utilização."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento em que o evento foi registrado na origem."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted_append_only\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
   - name: stg_retail__support_agents
     columns:
       - name: support_agent_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: agent_code
+        description: "Chave natural do agente."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: agent_team
+        description: "Equipe de atendimento à qual o agente pertence."
         meta:
           sensitivity: public
         data_tests: [not_null]
       - name: agent_first_name
+        description: "Primeiro nome do agente (sintético)."
         meta:
           sensitivity: personal
       - name: agent_last_name
+        description: "Sobrenome do agente (sintético)."
         meta:
           sensitivity: personal
       - name: agent_full_name
         meta:
           sensitivity: personal
       - name: agent_email
+        description: "E-mail corporativo do agente (sintético)."
         meta:
           sensitivity: personal
       - name: hired_at
+        description: "Início do período de atuação do agente."
         meta:
           sensitivity: internal
       - name: agent_is_active
+        description: "Indica se o agente continua atuando."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -986,14 +1223,17 @@ models:
       pedido —, e é esse nulo que os exclui da comparação de P16 (ADR-0036).
     columns:
       - name: support_ticket_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: ticket_number
+        description: "Número do chamado; chave natural."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: customer_id
+        description: "Cliente que abriu o chamado."
         meta:
           sensitivity: internal
         data_tests:
@@ -1002,6 +1242,7 @@ models:
               to: ref('stg_retail__customers')
               field: customer_id
       - name: ticket_category
+        description: "Motivo do chamado."
         meta:
           sensitivity: public
         data_tests:
@@ -1009,6 +1250,7 @@ models:
           - accepted_values:
               values: [delivery, payment, product, return, account, other]
       - name: ticket_status
+        description: "Estado atual do chamado."
         meta:
           sensitivity: internal
         data_tests:
@@ -1016,39 +1258,51 @@ models:
           - accepted_values:
               values: [open, in_progress, waiting_customer, resolved, closed]
       - name: order_id
+        description: "Pedido relacionado ao chamado, quando houver."
         meta:
           sensitivity: internal
       - name: shipment_id
+        description: "Remessa relacionada ao chamado, quando houver."
         meta:
           sensitivity: internal
       - name: assigned_agent_id
+        description: "Agente responsável pelo chamado no momento."
         meta:
           sensitivity: internal
       - name: ticket_priority
+        description: "Prioridade atribuída ao chamado."
         meta:
           sensitivity: internal
       - name: ticket_subject
+        description: "Assunto escrito pelo cliente (sintético)."
         meta:
           sensitivity: personal
       - name: opened_at
+        description: "Momento de abertura do chamado."
         meta:
           sensitivity: internal
       - name: closed_at
+        description: "Momento de encerramento do chamado."
         meta:
           sensitivity: internal
       - name: source_created_at
+        description: "Momento de criação do registro na origem."
         meta:
           sensitivity: internal
       - name: source_updated_at
+        description: "Momento da última alteração; cursor da carga incremental (ADR-0015)."
         meta:
           sensitivity: internal
       - name: source_deleted_at
+        description: "Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015)."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal
 
@@ -1056,10 +1310,12 @@ models:
     description: '`support_agent_id` nulo é autor **cliente**, não dado faltando.'
     columns:
       - name: ticket_event_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: support_ticket_id
+        description: "Chamado ao qual o evento pertence."
         meta:
           sensitivity: internal
         data_tests:
@@ -1068,6 +1324,7 @@ models:
               to: ref('stg_retail__support_tickets')
               field: support_ticket_id
       - name: ticket_event_type
+        description: "Natureza do evento no chamado."
         meta:
           sensitivity: internal
         data_tests:
@@ -1075,20 +1332,26 @@ models:
           - accepted_values:
               values: [created, assigned, message, status_changed, resolved, reopened]
       - name: support_agent_id
+        description: "Agente autor do evento; nulo quando o autor é o cliente."
         meta:
           sensitivity: internal
       - name: occurred_at
+        description: "Momento de negócio do evento."
         meta:
           sensitivity: internal
       - name: ticket_message
+        description: "Conteúdo da interação (sintético)."
         meta:
           sensitivity: personal
       - name: source_created_at
+        description: "Momento em que o evento foi registrado na origem."
         meta:
           sensitivity: internal
       - name: is_deleted
+        description: "{{ doc(\"is_deleted_append_only\") }}"
         meta:
           sensitivity: internal
       - name: ingested_at
+        description: "{{ doc(\"_airbyte_extracted_at\") }}"
         meta:
           sensitivity: internal

@@ -27,9 +27,12 @@ errada, e a falha entraria no armazém em vez de aparecer aqui.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 
+import sqlglot
+import yaml
 from sqlalchemy import JSON, String, Text, Uuid
 from sqlalchemy.dialects import postgresql
 
@@ -356,15 +359,52 @@ def origens(tabela: str) -> list[tuple[str, list[str]]]:
     return saida
 
 
-def models_yml() -> str:
-    """Declaração das pontes, sem repetir a descrição de coluna do `staging`.
+def pares(tabela: str) -> list[tuple[str, bool]]:
+    """`(apelido, reproduz a coluna do staging)` de cada coluna da ponte — a declaração da herança (N41).
 
-    Cada ponte expõe exatamente as colunas do modelo de `staging` que a gerou, e
-    a descrição delas já vive lá. Copiá-la para cá criaria uma segunda cópia que
-    envelheceria — o que a documentação do projeto trata como defeito. O que
-    esta declaração acrescenta é o que só a ponte sabe: de que tabela do legado
-    ela vem, em que modelo o resultado é empilhado — e a sensibilidade de cada
-    coluna, derivada da declaração dos modelos (`sensibilidades`).
+    A ponte significa o mesmo que a coluna do `stg_retail__*` de mesmo apelido
+    quando a expressão é a dele, traduzida para o JSON: nenhuma coluna de
+    `FORA_DA_ORIGEM` entra nela, nem na derivada que ela recalcula. Onde o
+    legado põe outra coisa no lugar — o carimbo da captura em vez do do Airbyte,
+    a identidade física em vez da sequência técnica (D40) —, o significado é
+    outro, e a coluna não herda.
+    """
+    def toca_o_que_falta(nome: str) -> bool:
+        if nome in FORA_DA_ORIGEM:
+            return True
+        derivada = _derivada(tabela, nome)
+        return derivada is not None and any(toca_o_que_falta(c.name) for c in sqlglot.parse_one(derivada, read="postgres").find_all(sqlglot.exp.Column))
+
+    sql = (ORIGEM / f"stg_retail__{tabela}.sql").read_text(encoding="utf-8")
+    saida = []
+    for item in _projecao(sql):
+        expressao, apelido = _parte(item)
+        nomes = [c.name for c in sqlglot.parse_one(expressao.strip(), read="postgres").find_all(sqlglot.exp.Column)]
+        saida.append((apelido, not any(map(toca_o_que_falta, nomes))))
+    return saida
+
+
+def textos_do_staging() -> dict[str, dict[str, str]]:
+    """`modelo → coluna → descrição` dos `stg_retail__*`, como está nos `.yml` do `staging` — à mão e o gerado."""
+    saida: dict[str, dict[str, str]] = {}
+    for caminho in sorted(ORIGEM.glob("*.yml")):
+        documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        for entrada in documento.get("models") or []:
+            if entrada["name"].startswith("stg_retail__"):
+                saida[entrada["name"]] = {c["name"]: c["description"].strip() for c in entrada.get("columns") or [] if (c.get("description") or "").strip()}
+    return saida
+
+
+def models_yml() -> str:
+    """Declaração das pontes: de onde vêm, onde são empilhadas, e o que cada coluna significa.
+
+    Cada ponte expõe as colunas do modelo de `staging` que a gerou. A descrição
+    delas é **declarada** como a do par (`meta.description_from`, `pares`) e
+    copiada do `.yml` do `staging` — o texto que `make catalog` deriva ali. É uma
+    cópia gerada, e a conferência é de `models/descriptions.py`: texto que não é
+    o do par falha o `make check`, e se corrige regenerando. O resto é o que só a
+    ponte sabe: a tabela do legado de origem, o modelo em que o resultado é
+    empilhado e a sensibilidade de cada coluna (`sensibilidades`).
     """
     onde = {tabela: modelo_trusted for modelo_trusted, tabela in CONDUTORAS.items()}
     onde.update(ENRIQUECIMENTO)
@@ -378,11 +418,22 @@ def models_yml() -> str:
     # Pela mesma razão, a ponte declara a linhagem de cada coluna: sem isso a
     # linhagem por SQL apontaria cada apelido para o payload inteiro das 40
     # tabelas. `lineage` vazio é declaração também — constante, sem origem.
+    textos = textos_do_staging()
+
     def colunas(tabela: str) -> str:
-        de = dict(origens(tabela))
+        de, par = dict(origens(tabela)), dict(pares(tabela))
+        modelo_par = f"stg_retail__{tabela}"
+
+        def descricao(apelido: str) -> str:
+            texto = textos.get(modelo_par, {}).get(apelido) if par[apelido] else None
+            return f"        description: {json.dumps(texto, ensure_ascii=False)}\n" if texto else ""
+
+        def heranca(apelido: str) -> str:
+            return f"\n          description_from: {modelo_par}.{apelido}" if par[apelido] else ""
+
         return "\n".join(
-            f'      - name: {apelido}\n        meta:\n          sensitivity: {nivel}\n'
-            f'          sensitivity_reason: "{motivo}"\n          lineage: [{", ".join(de[apelido])}]'
+            f'      - name: {apelido}\n{descricao(apelido)}        meta:\n          sensitivity: {nivel}\n'
+            f'          sensitivity_reason: "{motivo}"\n          lineage: [{", ".join(de[apelido])}]{heranca(apelido)}'
             for apelido, nivel in sensibilidades(tabela)
         )
 

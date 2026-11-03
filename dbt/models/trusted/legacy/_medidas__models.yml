@@ -19,6 +19,7 @@ models:
         description: Origem do pedido; a principal aparece aqui com zero linhas por não ter quarentena.
         meta:
           sensitivity: internal
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
         data_tests: [not_null]
       - name: divergence_amount
         description: Total declarado menos a soma dos itens que chegaram ao armazém.
@@ -31,9 +32,11 @@ models:
           sensitivity: personal
         data_tests: [not_null]
       - name: order_id
+        description: "Chave primária técnica, gerada pelo banco."
         meta:
           sensitivity: internal
       - name: subtotal_amount
+        description: "Soma dos itens antes de desconto, frete e imposto."
         meta:
           sensitivity: confidential
       - name: items_gross_revenue_amount

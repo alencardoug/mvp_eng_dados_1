@@ -1,36 +1,46 @@
 # Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
-# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
-# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+# classificação e a descrição são derivadas, por linhagem, das declaradas nos
+# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que
+# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
 
 version: 2
 models:
 - name: rejected_shipment_deliveries
   columns:
   - name: shipment_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: shipment_code
+    description: Chave natural da remessa.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que a remessa atende.
     meta:
       sensitivity: internal
   - name: carrier_id
+    description: Transportadora responsável.
     meta:
       sensitivity: public
   - name: warehouse_id
+    description: Armazém de origem da remessa.
     meta:
       sensitivity: internal
   - name: shipment_status
+    description: Estado da remessa; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: shipped_at
+    description: Momento do despacho.
     meta:
       sensitivity: internal
   - name: estimated_delivery_at
+    description: Prazo de entrega prometido ao cliente.
     meta:
       sensitivity: public
   - name: delivered_at_projected
+    description: Momento da entrega efetiva.
     meta:
       sensitivity: internal
   - name: delivery_event_count

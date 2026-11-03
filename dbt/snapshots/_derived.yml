@@ -1,51 +1,66 @@
 # Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
-# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
-# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+# classificação e a descrição são derivadas, por linhagem, das declaradas nos
+# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que
+# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
 
 version: 2
 snapshots:
 - name: scd_coupon
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: coupon_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: coupon_code
+    description: Código digitado pelo cliente.
     meta:
       sensitivity: public
   - name: campaign_id
+    description: Campanha à qual o cupom pertence.
     meta:
       sensitivity: public
   - name: campaign_code
+    description: Código estável da campanha.
     meta:
       sensitivity: public
   - name: campaign_name
+    description: Nome da campanha.
     meta:
       sensitivity: public
   - name: campaign_objective
+    description: Objetivo comercial da campanha.
     meta:
       sensitivity: public
   - name: discount_type
+    description: 'Natureza do desconto: percentage ou fixed.'
     meta:
       sensitivity: public
   - name: discount_value
+    description: 'Valor do desconto: percentual quando `percentage`, moeda quando `fixed`.'
     meta:
       sensitivity: confidential
   - name: min_order_amount
+    description: Valor mínimo de pedido para o cupom ser elegível.
     meta:
       sensitivity: public
   - name: max_redemptions
+    description: Limite total de utilizações; nulo quando ilimitado.
     meta:
       sensitivity: internal
   - name: coupon_valid_from
+    description: Início da vigência do cupom.
     meta:
       sensitivity: public
   - name: coupon_valid_to
+    description: Fim da vigência do cupom.
     meta:
       sensitivity: public
   - name: coupon_is_active
+    description: Indica se o cupom continua aceito.
     meta:
       sensitivity: internal
   - name: redemption_count
@@ -67,74 +82,96 @@ snapshots:
     meta:
       sensitivity: public
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: dbt_scd_id
+    description: '{{ doc("dbt_scd_id") }}'
     meta:
       sensitivity: internal
   - name: dbt_updated_at
+    description: '{{ doc("dbt_updated_at") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_from
+    description: '{{ doc("dbt_valid_from") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_to
+    description: '{{ doc("dbt_valid_to") }}'
     meta:
       sensitivity: internal
 - name: scd_customer
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: customer_code
+    description: Chave natural do cliente na origem; estável entre cargas.
     meta:
       sensitivity: internal
   - name: first_name
+    description: Primeiro nome do cliente (sintético).
     meta:
       sensitivity: personal
   - name: last_name
+    description: Sobrenome do cliente (sintético).
     meta:
       sensitivity: personal
   - name: customer_full_name
     meta:
       sensitivity: personal
   - name: customer_document
+    description: Documento de identificação do cliente (sintético).
     meta:
       sensitivity: personal
   - name: birth_date
+    description: Data de nascimento do cliente (sintética).
     meta:
       sensitivity: personal
   - name: customer_status
+    description: 'Estado do relacionamento: active, inactive, blocked ou pending.'
     meta:
       sensitivity: internal
   - name: registered_at
+    description: Momento de negócio do cadastro, distinto de `created_at`.
     meta:
       sensitivity: internal
   - name: customer_segment_id
+    description: Segmento comercial ao qual o cliente pertence.
     meta:
       sensitivity: internal
   - name: customer_segment_code
+    description: Código estável do segmento, usado como chave natural.
     meta:
       sensitivity: public
   - name: customer_segment_name
+    description: Nome comercial do segmento.
     meta:
       sensitivity: public
   - name: city
+    description: Cidade; alimenta a dimensão de geografia.
     meta:
       sensitivity: public
   - name: state_code
+    description: Unidade federativa em sigla de duas letras.
     meta:
       sensitivity: public
   - name: country
+    description: País em código ISO de duas letras.
     meta:
       sensitivity: public
   - name: first_order_at
@@ -165,74 +202,97 @@ snapshots:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: dbt_scd_id
+    description: '{{ doc("dbt_scd_id") }}'
     meta:
       sensitivity: internal
   - name: dbt_updated_at
+    description: '{{ doc("dbt_updated_at") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_from
+    description: '{{ doc("dbt_valid_from") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_to
+    description: '{{ doc("dbt_valid_to") }}'
     meta:
       sensitivity: internal
 - name: scd_product
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: sku
+    description: Código de estoque da variante; chave natural do SKU.
     meta:
       sensitivity: public
   - name: variant_size
+    description: Tamanho da variante.
     meta:
       sensitivity: public
   - name: variant_color
+    description: Cor da variante.
     meta:
       sensitivity: public
   - name: variant_package
+    description: Embalagem ou unidade de venda.
     meta:
       sensitivity: public
   - name: barcode
+    description: Código de barras da variante (sintético).
     meta:
       sensitivity: public
   - name: weight_grams
+    description: Peso em gramas, usado no cálculo de frete.
     meta:
       sensitivity: public
   - name: variant_is_active
+    description: Indica se o SKU continua disponível para venda.
     meta:
       sensitivity: internal
   - name: product_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: product_code
+    description: Chave natural do produto na origem.
     meta:
       sensitivity: public
   - name: product_name
+    description: Nome comercial do produto.
     meta:
       sensitivity: public
   - name: product_status
+    description: 'Estado do produto: draft, active ou discontinued.'
     meta:
       sensitivity: internal
   - name: launched_at
+    description: Momento de lançamento comercial.
     meta:
       sensitivity: public
   - name: product_category_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: leaf_category_name
+    description: Nome comercial da categoria.
     meta:
       sensitivity: public
   - name: sub_category_name
@@ -242,74 +302,94 @@ snapshots:
     meta:
       sensitivity: public
   - name: category_depth
+    description: Profundidade na hierarquia, com a raiz em zero.
     meta:
       sensitivity: public
   - name: brand_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: brand_name
+    description: Nome da marca.
     meta:
       sensitivity: public
   - name: brand_country
+    description: País de origem, em código ISO.
     meta:
       sensitivity: public
   - name: is_deleted
     meta:
       sensitivity: internal
   - name: variant_is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: product_is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
     meta:
       sensitivity: internal
   - name: dbt_scd_id
+    description: '{{ doc("dbt_scd_id") }}'
     meta:
       sensitivity: internal
   - name: dbt_updated_at
+    description: '{{ doc("dbt_updated_at") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_from
+    description: '{{ doc("dbt_valid_from") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_to
+    description: '{{ doc("dbt_valid_to") }}'
     meta:
       sensitivity: internal
 - name: scd_support_agent
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: support_agent_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: agent_code
+    description: Chave natural do agente.
     meta:
       sensitivity: internal
   - name: agent_first_name
+    description: Primeiro nome do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_last_name
+    description: Sobrenome do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_full_name
     meta:
       sensitivity: personal
   - name: agent_email
+    description: E-mail corporativo do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_team
+    description: Equipe de atendimento à qual o agente pertence.
     meta:
       sensitivity: public
   - name: hired_at
+    description: Início do período de atuação do agente.
     meta:
       sensitivity: internal
   - name: agent_is_active
+    description: Indica se o agente continua atuando.
     meta:
       sensitivity: internal
   - name: handled_ticket_count
@@ -319,23 +399,30 @@ snapshots:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: dbt_scd_id
+    description: '{{ doc("dbt_scd_id") }}'
     meta:
       sensitivity: internal
   - name: dbt_updated_at
+    description: '{{ doc("dbt_updated_at") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_from
+    description: '{{ doc("dbt_valid_from") }}'
     meta:
       sensitivity: internal
   - name: dbt_valid_to
+    description: '{{ doc("dbt_valid_to") }}'
     meta:
       sensitivity: internal

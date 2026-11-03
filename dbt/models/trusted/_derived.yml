@@ -1,36 +1,46 @@
 # Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
-# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
-# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+# classificação e a descrição são derivadas, por linhagem, das declaradas nos
+# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que
+# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
 
 version: 2
 models:
 - name: campaigns
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: campaign_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: campaign_code
+    description: Código estável da campanha.
     meta:
       sensitivity: public
   - name: campaign_name
+    description: Nome da campanha.
     meta:
       sensitivity: public
   - name: campaign_objective
+    description: Objetivo comercial da campanha.
     meta:
       sensitivity: public
   - name: campaign_valid_from
+    description: Início da vigência da campanha.
     meta:
       sensitivity: public
   - name: campaign_valid_to
+    description: Fim da vigência da campanha.
     meta:
       sensitivity: public
   - name: budget_amount
+    description: Orçamento previsto da campanha.
     meta:
       sensitivity: confidential
   - name: campaign_is_active
+    description: Indica se a campanha está ativa.
     meta:
       sensitivity: internal
   - name: is_running
@@ -40,47 +50,60 @@ models:
     meta:
       sensitivity: public
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: carriers
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: carrier_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: carrier_code
+    description: Código estável da transportadora.
     meta:
       sensitivity: public
   - name: carrier_name
+    description: Nome da transportadora.
     meta:
       sensitivity: public
   - name: service_level
+    description: 'Modalidade: standard, express ou same_day.'
     meta:
       sensitivity: public
   - name: service_level_rank
     meta:
       sensitivity: internal
   - name: tracking_url_template
+    description: Modelo de URL de rastreio, com marcador do código.
     meta:
       sensitivity: public
   - name: is_active
+    description: Indica se a transportadora está em uso.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: cart_lifecycle_events
@@ -89,12 +112,15 @@ models:
     meta:
       sensitivity: internal
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: cart_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: event_type
+    description: 'Estado do carrinho: open, converted, abandoned ou expired.'
     meta:
       sensitivity: internal
   - name: occurred_at
@@ -107,9 +133,11 @@ models:
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Cliente dono do carrinho; nulo em sessão anônima.
     meta:
       sensitivity: internal
   - name: sales_channel_id
+    description: Canal em que o carrinho foi aberto.
     meta:
       sensitivity: public
   - name: item_count
@@ -131,35 +159,45 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
 - name: carts
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: cart_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: cart_code
+    description: Chave natural do carrinho.
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Cliente dono do carrinho; nulo em sessão anônima.
     meta:
       sensitivity: internal
   - name: sales_channel_id
+    description: Canal em que o carrinho foi aberto.
     meta:
       sensitivity: public
   - name: cart_status
+    description: 'Estado do carrinho: open, converted, abandoned ou expired.'
     meta:
       sensitivity: internal
   - name: cart_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: cart_expires_at
+    description: Momento previsto de expiração.
     meta:
       sensitivity: internal
   - name: cart_converted_at
+    description: Momento da conversão em pedido.
     meta:
       sensitivity: internal
   - name: item_count
@@ -184,68 +222,88 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: coupon_redemptions
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: coupon_redemption_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: coupon_id
+    description: Cupom utilizado.
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Cliente que utilizou o cupom.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Único — dois cupons no mesmo pedido tornariam o rateio do desconto ambíguo.
     meta:
       sensitivity: internal
   - name: coupon_discount_amount
+    description: Desconto efetivamente concedido.
     meta:
       sensitivity: confidential
   - name: redeemed_at
+    description: Momento de negócio da utilização.
     meta:
       sensitivity: internal
   - name: redemption_sequence
     meta:
       sensitivity: internal
   - name: coupon_code
+    description: Código digitado pelo cliente.
     meta:
       sensitivity: public
   - name: campaign_id
+    description: Campanha à qual o cupom pertence.
     meta:
       sensitivity: public
   - name: campaign_objective
+    description: Objetivo comercial da campanha.
     meta:
       sensitivity: public
   - name: discount_type
+    description: 'Natureza do desconto: percentage ou fixed.'
     meta:
       sensitivity: public
   - name: discount_value
+    description: 'Valor do desconto: percentual quando `percentage`, moeda quando `fixed`.'
     meta:
       sensitivity: confidential
   - name: min_order_amount
+    description: Valor mínimo de pedido para o cupom ser elegível.
     meta:
       sensitivity: public
   - name: max_redemptions
+    description: Limite total de utilizações; nulo quando ilimitado.
     meta:
       sensitivity: internal
   - name: placed_at
+    description: Momento de negócio em que o pedido foi feito.
     meta:
       sensitivity: internal
   - name: order_subtotal_amount
+    description: Soma dos itens antes de desconto, frete e imposto.
     meta:
       sensitivity: confidential
   - name: order_total_amount
+    description: Valor total do pedido; reconcilia os demais campos.
     meta:
       sensitivity: confidential
   - name: is_within_validity
@@ -264,53 +322,69 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
 - name: coupons
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: coupon_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: coupon_code
+    description: Código digitado pelo cliente.
     meta:
       sensitivity: public
   - name: campaign_id
+    description: Campanha à qual o cupom pertence.
     meta:
       sensitivity: public
   - name: campaign_code
+    description: Código estável da campanha.
     meta:
       sensitivity: public
   - name: campaign_name
+    description: Nome da campanha.
     meta:
       sensitivity: public
   - name: campaign_objective
+    description: Objetivo comercial da campanha.
     meta:
       sensitivity: public
   - name: discount_type
+    description: 'Natureza do desconto: percentage ou fixed.'
     meta:
       sensitivity: public
   - name: discount_value
+    description: 'Valor do desconto: percentual quando `percentage`, moeda quando `fixed`.'
     meta:
       sensitivity: confidential
   - name: min_order_amount
+    description: Valor mínimo de pedido para o cupom ser elegível.
     meta:
       sensitivity: public
   - name: max_redemptions
+    description: Limite total de utilizações; nulo quando ilimitado.
     meta:
       sensitivity: internal
   - name: coupon_valid_from
+    description: Início da vigência do cupom.
     meta:
       sensitivity: public
   - name: coupon_valid_to
+    description: Fim da vigência do cupom.
     meta:
       sensitivity: public
   - name: coupon_is_active
+    description: Indica se o cupom continua aceito.
     meta:
       sensitivity: internal
   - name: redemption_count
@@ -332,62 +406,80 @@ models:
     meta:
       sensitivity: public
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: customers
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: customer_code
+    description: Chave natural do cliente na origem; estável entre cargas.
     meta:
       sensitivity: internal
   - name: first_name
+    description: Primeiro nome do cliente (sintético).
     meta:
       sensitivity: personal
   - name: last_name
+    description: Sobrenome do cliente (sintético).
     meta:
       sensitivity: personal
   - name: customer_full_name
     meta:
       sensitivity: personal
   - name: customer_document
+    description: Documento de identificação do cliente (sintético).
     meta:
       sensitivity: personal
   - name: birth_date
+    description: Data de nascimento do cliente (sintética).
     meta:
       sensitivity: personal
   - name: customer_status
+    description: 'Estado do relacionamento: active, inactive, blocked ou pending.'
     meta:
       sensitivity: internal
   - name: registered_at
+    description: Momento de negócio do cadastro, distinto de `created_at`.
     meta:
       sensitivity: internal
   - name: customer_segment_id
+    description: Segmento comercial ao qual o cliente pertence.
     meta:
       sensitivity: internal
   - name: customer_segment_code
+    description: Código estável do segmento, usado como chave natural.
     meta:
       sensitivity: public
   - name: customer_segment_name
+    description: Nome comercial do segmento.
     meta:
       sensitivity: public
   - name: city
+    description: Cidade; alimenta a dimensão de geografia.
     meta:
       sensitivity: public
   - name: state_code
+    description: Unidade federativa em sigla de duas letras.
     meta:
       sensitivity: public
   - name: country
+    description: País em código ISO de duas letras.
     meta:
       sensitivity: public
   - name: first_order_at
@@ -418,35 +510,45 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: delivery_events
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: delivery_event_id
+    description: Único depois da deduplicação de entrega ao menos uma vez.
     meta:
       sensitivity: internal
   - name: shipment_id
+    description: Remessa à qual o evento se refere.
     meta:
       sensitivity: internal
   - name: delivery_event_type
+    description: Natureza do evento de entrega.
     meta:
       sensitivity: public
   - name: occurred_at
+    description: Momento de negócio do evento.
     meta:
       sensitivity: internal
   - name: event_location
+    description: Localidade registrada pela transportadora.
     meta:
       sensitivity: public
   - name: event_description
+    description: Descrição textual do evento.
     meta:
       sensitivity: public
   - name: is_delivery
@@ -468,17 +570,21 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
 - name: geographies
   columns:
   - name: country
+    description: País em código ISO de duas letras.
     meta:
       sensitivity: public
   - name: state_code
+    description: Unidade federativa em sigla de duas letras.
     meta:
       sensitivity: public
   - name: state_name
@@ -488,32 +594,41 @@ models:
     meta:
       sensitivity: public
   - name: city
+    description: Cidade; alimenta a dimensão de geografia.
     meta:
       sensitivity: public
 - name: inventory_balances
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: inventory_balance_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém do saldo.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU do saldo.
     meta:
       sensitivity: internal
   - name: quantity_on_hand
+    description: Quantidade fisicamente disponível.
     meta:
       sensitivity: internal
   - name: quantity_reserved
+    description: Quantidade reservada para carrinhos e pedidos.
     meta:
       sensitivity: internal
   - name: quantity_available
+    description: Quantidade livre para venda; derivada pelo banco.
     meta:
       sensitivity: internal
   - name: last_movement_at
+    description: Momento do último movimento aplicado ao saldo.
     meta:
       sensitivity: internal
   - name: rebuilt_quantity_on_hand
@@ -538,62 +653,79 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: inventory_movements
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: movement_id
+    description: Chave primária estável do evento.
     meta:
       sensitivity: internal
   - name: event_sequence
     meta:
       sensitivity: internal
   - name: idempotency_key
+    description: Chave que impede aplicação duplicada pelo consumidor (ADR-0019).
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém afetado pelo movimento.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU afetado pelo movimento.
     meta:
       sensitivity: internal
   - name: movement_type
+    description: Tipo controlado do movimento; determina o sinal da quantidade.
     meta:
       sensitivity: internal
   - name: source_type
+    description: Processo de negócio que originou o movimento.
     meta:
       sensitivity: internal
   - name: source_id
+    description: Identificador do registro que causou o movimento.
     meta:
       sensitivity: internal
   - name: correlation_id
+    description: Agrupa eventos relacionados; obrigatório nos pares de transferência.
     meta:
       sensitivity: internal
   - name: causation_id
+    description: Evento ou comando que causou este movimento.
     meta:
       sensitivity: internal
   - name: aggregate_version
+    description: Ordem do evento dentro do par armazém/SKU; sem lacuna nem repetição.
     meta:
       sensitivity: internal
   - name: occurred_at
+    description: Momento de negócio do movimento; é por ele que o Beam janela (ADR-0019).
     meta:
       sensitivity: internal
   - name: recorded_at
+    description: Momento em que a origem registrou o evento; base da leitura incremental.
     meta:
       sensitivity: internal
   - name: schema_version
     meta:
       sensitivity: internal
   - name: event_metadata
+    description: Contexto adicional do evento, opcional e limitado a 4 KB.
     meta:
       sensitivity: internal
   - name: is_outbound
@@ -606,6 +738,7 @@ models:
     meta:
       sensitivity: internal
   - name: quantity_delta
+    description: Variação assinada da quantidade; nunca zero.
     meta:
       sensitivity: internal
   - name: quantity_in
@@ -615,6 +748,7 @@ models:
     meta:
       sensitivity: internal
   - name: unit_cost
+    description: Custo unitário, quando aplicável ao tipo.
     meta:
       sensitivity: confidential
   - name: movement_cost_amount
@@ -627,76 +761,97 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que a origem registrou o evento; base da leitura incremental.
     meta:
       sensitivity: internal
 - name: order_items
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: order_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido ao qual o item pertence.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU comprado.
     meta:
       sensitivity: internal
   - name: quantity
+    description: Quantidade comprada do SKU.
     meta:
       sensitivity: internal
   - name: unit_price
+    description: Preço unitário praticado na venda.
     meta:
       sensitivity: confidential
   - name: gross_revenue_amount
     meta:
       sensitivity: confidential
   - name: discount_amount
+    description: Desconto aplicado a este item.
     meta:
       sensitivity: confidential
   - name: net_revenue_amount
     meta:
       sensitivity: confidential
   - name: tax_amount
+    description: Imposto simulado sobre este item.
     meta:
       sensitivity: confidential
   - name: line_total_amount
+    description: Valor total da linha, já arredondado.
     meta:
       sensitivity: confidential
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: order_status_events
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: order_status_event_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido cujo estado mudou.
     meta:
       sensitivity: internal
   - name: from_status
+    description: Estado anterior; nulo na criação do pedido.
     meta:
       sensitivity: internal
   - name: to_status
+    description: Estado resultante da transição.
     meta:
       sensitivity: internal
   - name: changed_at
+    description: Momento de negócio da transição.
     meta:
       sensitivity: internal
   - name: change_reason
+    description: Motivo registrado para a transição.
     meta:
       sensitivity: internal
   - name: status_sequence
@@ -724,53 +879,69 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
 - name: orders
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: order_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: order_number
+    description: Número do pedido; chave natural.
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Cliente que fez o pedido.
     meta:
       sensitivity: internal
   - name: sales_channel_id
+    description: Canal em que o pedido foi feito.
     meta:
       sensitivity: public
   - name: cart_id
+    description: Único quando preenchido — um carrinho converte em no máximo um pedido.
     meta:
       sensitivity: internal
   - name: order_status
+    description: Estado atual do pedido; o histórico vive em `order_status_history`.
     meta:
       sensitivity: internal
   - name: placed_at
+    description: Momento de negócio em que o pedido foi feito.
     meta:
       sensitivity: internal
   - name: currency
+    description: Moeda do pedido, em código ISO 4217.
     meta:
       sensitivity: public
   - name: subtotal_amount
+    description: Soma dos itens antes de desconto, frete e imposto.
     meta:
       sensitivity: confidential
   - name: order_discount_amount
+    description: Desconto total aplicado ao pedido.
     meta:
       sensitivity: confidential
   - name: shipping_amount
+    description: Valor de frete cobrado.
     meta:
       sensitivity: confidential
   - name: order_tax_amount
+    description: Imposto simulado sobre o pedido.
     meta:
       sensitivity: confidential
   - name: order_total_amount
+    description: Valor total do pedido; reconcilia os demais campos.
     meta:
       sensitivity: confidential
   - name: item_count
@@ -807,29 +978,37 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: payment_methods
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: payment_method_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: payment_method_code
+    description: Código estável do meio de pagamento.
     meta:
       sensitivity: public
   - name: payment_method_name
+    description: Nome do meio de pagamento.
     meta:
       sensitivity: public
   - name: method_type
+    description: 'Natureza do meio: cartão, pix, boleto, carteira ou vale.'
     meta:
       sensitivity: public
   - name: is_card
@@ -839,44 +1018,57 @@ models:
     meta:
       sensitivity: public
   - name: is_active
+    description: Indica se o meio continua aceito.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: payment_transactions
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: payment_transaction_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: transaction_code
+    description: Chave natural da transação.
     meta:
       sensitivity: internal
   - name: payment_id
+    description: Pagamento ao qual a transação pertence.
     meta:
       sensitivity: internal
   - name: transaction_type
+    description: 'Operação financeira: authorization, capture, void ou refund.'
     meta:
       sensitivity: internal
   - name: transaction_result
+    description: 'Desfecho da operação: succeeded, failed ou pending.'
     meta:
       sensitivity: internal
   - name: transaction_amount
+    description: Valor movimentado nesta operação.
     meta:
       sensitivity: confidential
   - name: gateway_response_code
+    description: Código de retorno do adquirente simulado.
     meta:
       sensitivity: internal
   - name: occurred_at
+    description: Momento de negócio da operação.
     meta:
       sensitivity: internal
   - name: is_approved
@@ -904,44 +1096,57 @@ models:
     meta:
       sensitivity: confidential
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
 - name: payments
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: payment_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: payment_code
+    description: Chave natural do pagamento.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que o pagamento quita.
     meta:
       sensitivity: internal
   - name: payment_method_id
+    description: Meio de pagamento utilizado.
     meta:
       sensitivity: public
   - name: payment_status
+    description: Estado do pagamento; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: payment_amount
+    description: Valor pretendido do pagamento.
     meta:
       sensitivity: confidential
   - name: currency
+    description: Moeda, em código ISO 4217.
     meta:
       sensitivity: public
   - name: installments
+    description: Número de parcelas acordadas.
     meta:
       sensitivity: public
   - name: authorized_at
+    description: Momento da autorização pelo emissor simulado.
     meta:
       sensitivity: internal
   - name: captured_at
+    description: Momento da captura efetiva do valor.
     meta:
       sensitivity: internal
   - name: transaction_count
@@ -981,62 +1186,81 @@ models:
     meta:
       sensitivity: public
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: product_skus
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: sku
+    description: Código de estoque da variante; chave natural do SKU.
     meta:
       sensitivity: public
   - name: variant_size
+    description: Tamanho da variante.
     meta:
       sensitivity: public
   - name: variant_color
+    description: Cor da variante.
     meta:
       sensitivity: public
   - name: variant_package
+    description: Embalagem ou unidade de venda.
     meta:
       sensitivity: public
   - name: barcode
+    description: Código de barras da variante (sintético).
     meta:
       sensitivity: public
   - name: weight_grams
+    description: Peso em gramas, usado no cálculo de frete.
     meta:
       sensitivity: public
   - name: variant_is_active
+    description: Indica se o SKU continua disponível para venda.
     meta:
       sensitivity: internal
   - name: product_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: product_code
+    description: Chave natural do produto na origem.
     meta:
       sensitivity: public
   - name: product_name
+    description: Nome comercial do produto.
     meta:
       sensitivity: public
   - name: product_status
+    description: 'Estado do produto: draft, active ou discontinued.'
     meta:
       sensitivity: internal
   - name: launched_at
+    description: Momento de lançamento comercial.
     meta:
       sensitivity: public
   - name: product_category_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: leaf_category_name
+    description: Nome comercial da categoria.
     meta:
       sensitivity: public
   - name: sub_category_name
@@ -1046,27 +1270,34 @@ models:
     meta:
       sensitivity: public
   - name: category_depth
+    description: Profundidade na hierarquia, com a raiz em zero.
     meta:
       sensitivity: public
   - name: brand_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: brand_name
+    description: Nome da marca.
     meta:
       sensitivity: public
   - name: brand_country
+    description: País de origem, em código ISO.
     meta:
       sensitivity: public
   - name: is_deleted
     meta:
       sensitivity: internal
   - name: variant_is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: product_is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
@@ -1075,24 +1306,31 @@ models:
 - name: purchase_order_items
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: purchase_order_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: purchase_order_id
+    description: Ordem de compra à qual o item pertence.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU solicitado.
     meta:
       sensitivity: internal
   - name: quantity_ordered
+    description: Quantidade solicitada ao fornecedor.
     meta:
       sensitivity: internal
   - name: unit_cost
+    description: Custo unitário negociado.
     meta:
       sensitivity: confidential
   - name: ordered_cost_amount
+    description: Custo total do item, já arredondado.
     meta:
       sensitivity: confidential
   - name: quantity_received
@@ -1117,41 +1355,53 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: purchase_orders
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: purchase_order_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: po_number
+    description: Número da ordem de compra; chave natural.
     meta:
       sensitivity: internal
   - name: supplier_id
+    description: Fornecedor da ordem.
     meta:
       sensitivity: internal
   - name: purchase_order_status
+    description: Estado da ordem; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: ordered_at
+    description: Momento de emissão da ordem.
     meta:
       sensitivity: internal
   - name: expected_at
+    description: Data prometida de entrega pelo fornecedor.
     meta:
       sensitivity: internal
   - name: currency
+    description: Moeda da ordem, em código ISO 4217.
     meta:
       sensitivity: public
   - name: purchase_order_total_amount
+    description: Valor total da ordem, somando os itens.
     meta:
       sensitivity: confidential
   - name: item_count
@@ -1176,50 +1426,65 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: refunds
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: refund_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: refund_code
+    description: Chave natural do reembolso.
     meta:
       sensitivity: internal
   - name: payment_transaction_id
+    description: Transação de captura que está sendo revertida.
     meta:
       sensitivity: internal
   - name: payment_id
+    description: Pagamento ao qual a transação pertence.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que o pagamento quita.
     meta:
       sensitivity: internal
   - name: refund_amount
+    description: Valor reembolsado.
     meta:
       sensitivity: confidential
   - name: refund_reason
+    description: Motivo comercial do reembolso.
     meta:
       sensitivity: internal
   - name: refund_status
+    description: 'Estado do reembolso: requested, completed ou rejected.'
     meta:
       sensitivity: internal
   - name: refunded_at
+    description: Momento em que o reembolso foi concluído.
     meta:
       sensitivity: internal
   - name: captured_amount
+    description: Valor movimentado nesta operação.
     meta:
       sensitivity: confidential
   - name: captured_at
+    description: Momento de negócio da operação.
     meta:
       sensitivity: internal
   - name: is_completed
@@ -1229,114 +1494,148 @@ models:
     meta:
       sensitivity: confidential
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: sales_channels
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: sales_channel_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: sales_channel_code
+    description: Código estável do canal.
     meta:
       sensitivity: public
   - name: sales_channel_name
+    description: Nome do canal de venda.
     meta:
       sensitivity: public
   - name: channel_type
+    description: 'Natureza do canal: web, app ou store.'
     meta:
       sensitivity: public
   - name: is_active
+    description: Indica se o canal continua operando.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: shipment_items
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: shipment_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: shipment_id
+    description: Remessa à qual o item pertence.
     meta:
       sensitivity: internal
   - name: order_item_id
+    description: Item de pedido sendo enviado.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido ao qual o item pertence.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU comprado.
     meta:
       sensitivity: internal
   - name: quantity_shipped
+    description: Quantidade enviada nesta remessa.
     meta:
       sensitivity: internal
   - name: quantity_ordered
+    description: Quantidade comprada do SKU.
     meta:
       sensitivity: internal
   - name: shipped_share_of_line
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: shipments
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: shipment_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: shipment_code
+    description: Chave natural da remessa.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que a remessa atende.
     meta:
       sensitivity: internal
   - name: carrier_id
+    description: Transportadora responsável.
     meta:
       sensitivity: public
   - name: warehouse_id
+    description: Armazém de origem da remessa.
     meta:
       sensitivity: internal
   - name: shipment_status
+    description: Estado da remessa; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: tracking_code
+    description: Código de rastreio junto à transportadora.
     meta:
       sensitivity: internal
   - name: freight_amount
+    description: Custo de frete da remessa.
     meta:
       sensitivity: confidential
   - name: shipped_at
+    description: Momento do despacho.
     meta:
       sensitivity: internal
   - name: estimated_delivery_at
+    description: Prazo de entrega prometido ao cliente.
     meta:
       sensitivity: public
   - name: delivered_at
@@ -1352,6 +1651,7 @@ models:
     meta:
       sensitivity: internal
   - name: delivered_at_projected
+    description: Momento da entrega efetiva.
     meta:
       sensitivity: internal
   - name: failed_attempt_count
@@ -1391,85 +1691,110 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: suppliers
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: supplier_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: supplier_code
+    description: Chave natural do fornecedor na origem.
     meta:
       sensitivity: internal
   - name: supplier_legal_name
+    description: Razão social do fornecedor (sintética).
     meta:
       sensitivity: confidential
   - name: supplier_trade_name
+    description: Nome fantasia do fornecedor.
     meta:
       sensitivity: public
   - name: supplier_document
+    description: Documento de identificação do fornecedor (sintético).
     meta:
       sensitivity: confidential
   - name: supplier_contact_email
+    description: E-mail de contato comercial (sintético).
     meta:
       sensitivity: personal
   - name: supplier_country
+    description: País do fornecedor, em código ISO.
     meta:
       sensitivity: public
   - name: payment_terms_days
+    description: Prazo de pagamento negociado, em dias.
     meta:
       sensitivity: confidential
   - name: is_active
+    description: Indica se o fornecedor continua ativo.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: support_agents
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: support_agent_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: agent_code
+    description: Chave natural do agente.
     meta:
       sensitivity: internal
   - name: agent_first_name
+    description: Primeiro nome do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_last_name
+    description: Sobrenome do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_full_name
     meta:
       sensitivity: personal
   - name: agent_email
+    description: E-mail corporativo do agente (sintético).
     meta:
       sensitivity: personal
   - name: agent_team
+    description: Equipe de atendimento à qual o agente pertence.
     meta:
       sensitivity: public
   - name: hired_at
+    description: Início do período de atuação do agente.
     meta:
       sensitivity: internal
   - name: agent_is_active
+    description: Indica se o agente continua atuando.
     meta:
       sensitivity: internal
   - name: handled_ticket_count
@@ -1479,53 +1804,69 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: support_tickets
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: support_ticket_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: ticket_number
+    description: Número do chamado; chave natural.
     meta:
       sensitivity: internal
   - name: customer_id
+    description: Cliente que abriu o chamado.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido relacionado ao chamado, quando houver.
     meta:
       sensitivity: internal
   - name: shipment_id
+    description: Remessa relacionada ao chamado, quando houver.
     meta:
       sensitivity: internal
   - name: assigned_agent_id
+    description: Agente responsável pelo chamado no momento.
     meta:
       sensitivity: internal
   - name: ticket_category
+    description: Motivo do chamado.
     meta:
       sensitivity: public
   - name: ticket_priority
+    description: Prioridade atribuída ao chamado.
     meta:
       sensitivity: internal
   - name: ticket_status
+    description: Estado atual do chamado.
     meta:
       sensitivity: internal
   - name: ticket_subject
+    description: Assunto escrito pelo cliente (sintético).
     meta:
       sensitivity: personal
   - name: opened_at
+    description: Momento de abertura do chamado.
     meta:
       sensitivity: internal
   - name: closed_at
+    description: Momento de encerramento do chamado.
     meta:
       sensitivity: internal
   - name: first_event_at
@@ -1577,35 +1918,45 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
 - name: ticket_events
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: ticket_event_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: support_ticket_id
+    description: Chamado ao qual o evento pertence.
     meta:
       sensitivity: internal
   - name: support_agent_id
+    description: Agente autor do evento; nulo quando o autor é o cliente.
     meta:
       sensitivity: internal
   - name: ticket_event_type
+    description: Natureza do evento no chamado.
     meta:
       sensitivity: internal
   - name: occurred_at
+    description: Momento de negócio do evento.
     meta:
       sensitivity: internal
   - name: ticket_message
+    description: Conteúdo da interação (sintético).
     meta:
       sensitivity: personal
   - name: is_ticket_creation
@@ -1633,29 +1984,37 @@ models:
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
 - name: warehouses
   columns:
   - name: source_system
+    description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: warehouse_code
+    description: Código estável do armazém.
     meta:
       sensitivity: public
   - name: warehouse_name
+    description: Nome do armazém.
     meta:
       sensitivity: public
   - name: warehouse_city
+    description: Cidade do armazém.
     meta:
       sensitivity: public
   - name: warehouse_state
+    description: Unidade federativa do armazém.
     meta:
       sensitivity: public
   - name: warehouse_state_name
@@ -1665,20 +2024,26 @@ models:
     meta:
       sensitivity: public
   - name: warehouse_country
+    description: País, em código ISO.
     meta:
       sensitivity: public
   - name: capacity_units
+    description: Capacidade máxima em unidades.
     meta:
       sensitivity: confidential
   - name: is_active
+    description: Indica se o armazém está operando.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal

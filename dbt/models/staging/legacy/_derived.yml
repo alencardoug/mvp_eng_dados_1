@@ -1,0 +1,12 @@
+# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
+# classificação e a descrição são derivadas, por linhagem, das declaradas nos
+# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que
+# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+
+version: 2
+models:
+- name: legacy_selected_capture
+  columns:
+  - name: snapshot_id
+    meta:
+      sensitivity: internal

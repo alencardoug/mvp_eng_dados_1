@@ -237,12 +237,14 @@ migrate-new: require-env require-venv ## Gera rascunho de migração; exige M="m
 	@echo "RASCUNHO gerado. Revise antes de aplicar: o autogenerate não detecta"
 	@echo "renomeação, conversão de tipo nem mudança de constraint (ADR-0010)."
 
-catalog: require-venv ## Regenera dicionário, inventário, diagrama ER, a classificação derivada e a linhagem por coluna
+catalog: require-venv ## Regenera dicionário, inventário, diagrama ER, a classificação e a descrição derivadas e a linhagem por coluna
 	@.venv/bin/python -m mvp_ed1.models.export
-	@# A sensibilidade de cada coluna do armazém é derivada da declarada nos
-	@# modelos, por linhagem do SQL compilado — precisa do manifest de um
+	@# A sensibilidade e a descrição de cada coluna do armazém são derivadas das
+	@# declaradas nos modelos, pelo SQL compilado — precisa do manifest de um
 	@# `make dbt-build` recente. Sem ele, avisa e não escreve nada. A linhagem
-	@# por coluna (Dicionário §3) sai da mesma leitura, logo depois.
+	@# por coluna (Dicionário §3) sai da mesma leitura, guardada em
+	@# dbt/target, logo depois. Texto do staging mudou? A ponte do legado o
+	@# copia: `make legacy-models` e este alvo de novo (Governança §5.1).
 	@.venv/bin/python -m mvp_ed1.models.sensitivity
 	@.venv/bin/python -m mvp_ed1.models.lineage
 
@@ -716,7 +718,7 @@ check: require-env require-venv ## Verificação completa, parando na primeira f
 	@.venv/bin/python -m mvp_ed1.docs_check
 	@echo "── 2/4 dbt build: modelos, testes de dados e reconciliações ──"
 	@$(MAKE) --no-print-directory dbt-build RESET=$(RESET)
-	@echo "── 3/4 classificação derivada e linhagem em dia com os modelos ──"
+	@echo "── 3/4 classificação, descrição e linhagem derivadas em dia com os modelos ──"
 	@.venv/bin/python -m mvp_ed1.models.sensitivity --check
 	@.venv/bin/python -m mvp_ed1.models.lineage --check
 	@echo "── 4/4 pytest: código, contratos e integração ──"

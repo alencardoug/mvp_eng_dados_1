@@ -32,7 +32,7 @@ coluna e para quem a lê depois. É a única forma de exceção, e ela é visív
 ── Onde o resultado é escrito ───────────────────────────────────────────────────
 * modelo documentado num `.yml` escrito à mão: o `meta.sensitivity` é inserido
   ou atualizado **no lugar**, preservando o resto do arquivo linha a linha;
-* modelo sem entrada em `.yml` nenhum: entra em `_sensitivity.yml` no diretório
+* modelo sem entrada em `.yml` nenhum: entra em `_derived.yml` no diretório
   dele — arquivo inteiramente gerado, reescrito com **todos** os modelos que lhe
   pertencem a cada geração, e removido quando não sobra nenhum. Para promover um
   modelo a um `.yml` à mão, acrescente a entrada e rode `make catalog` **antes**
@@ -50,17 +50,23 @@ incompleta — manifest de `dbt parse`, sem SQL compilado, ou SQL que o parser n
 lê — não escreve nem apaga nada, com ou sem `--check`.
 
 As folhas por coluna que esta leitura produz (`Derivation.leaves`) são a mesma
-coisa de que `models/lineage.py` parte para fechar a linhagem até a origem: uma
-leitura do SQL, dois derivados.
+coisa de que `models/lineage.py` parte para fechar a linhagem até a origem; e o
+que cada coluna faz com o valor (`Derivation.carries`, `models/transport.py`) é o
+de que `models/descriptions.py` parte para herdar a descrição. Uma leitura do SQL,
+três derivados — e guardada (`load`), porque o `make check` a pede três vezes. A
+descrição é escrita pelo mesmo `main`, nos mesmos arquivos.
 
-Uso: ``python -m mvp_ed1.models.sensitivity [--check]`` (também em ``make catalog``).
+Uso: ``python -m mvp_ed1.models.sensitivity [--check]`` (também em ``make catalog``):
+escreve, ou confere, a classificação e a descrição.
 """
 
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import pathlib
+import pickle
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -72,7 +78,7 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from mvp_ed1.legacy import schema as legacy_schema
-from mvp_ed1.models import Base
+from mvp_ed1.models import Base, transport
 from mvp_ed1.models.base import SENSITIVITY_LEVELS
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -88,12 +94,19 @@ AIRBYTE_COLUMNS = ("_airbyte_raw_id", "_airbyte_extracted_at", "_airbyte_meta", 
 STREAM_SINKS = {"inventory_movements_stream": "inventory_movements"}
 STREAM_COLUMNS = ("_stream_partition", "_stream_offset", "_stream_lsn", "_stream_from_snapshot", "_stream_extracted_at")
 SNAPSHOT_COLUMNS = ("dbt_scd_id", "dbt_updated_at", "dbt_valid_from", "dbt_valid_to")
-GENERATED_FILE = "_sensitivity.yml"
+GENERATED_FILE = "_derived.yml"
 GENERATED_HEADER = (
     "# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a\n"
-    "# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.\n"
-    "# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.\n"
+    "# classificação e a descrição são derivadas, por linhagem, das declaradas nos\n"
+    "# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que\n"
+    "# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.\n"
 )
+#: Os nomes que o arquivo gerado já teve: até a v1.1.0 ele só levava a sensibilidade.
+#: Um arquivo com o nome antigo é obsoleto, e a geração o remove.
+GENERATED_FILES = (GENERATED_FILE, "_sensitivity.yml")
+#: A derivação guardada entre processos (`load`): o `make check` a pede três
+#: vezes — classificação, linhagem e os testes —, e cada uma custa ~21 s.
+CACHE = DBT / "target" / "mvp_ed1_derivation.pickle"
 
 
 def strictest(levels: list[str]) -> str:
@@ -123,6 +136,28 @@ def source_leaves() -> tuple[dict[str, dict[str, dict[str, str]]], dict[tuple[st
         esquema["raw"][sink] = {c: "text" for c in colunas}
         niveis.update({("raw", sink, c): n for c, n in colunas.items()})
     return esquema, niveis
+
+
+def _sql_type(sa_type) -> str:
+    """O tipo SQLAlchemy na grafia que o `sqlglot` dá ao alvo de um `cast` no PostgreSQL."""
+    from sqlalchemy.dialects import postgresql
+    return exp.DataType.build(sa_type.compile(dialect=postgresql.dialect()), dialect="postgres").sql("postgres")
+
+
+def source_types() -> dict[tuple[str, str, str], str]:
+    """Tipo declarado na origem de cada coluna de `raw`, do caminho quente e de `raw_legacy`.
+
+    Em `raw`, o declarado nos modelos SQLAlchemy — o Airbyte grava mais largo, e o
+    `staging` devolve a coluna ao tipo declarado. Em `raw_legacy`, texto: é o que
+    a tabela do legado é, por desenho.
+    """
+    tipos: dict[tuple[str, str, str], str] = {}
+    for table in Base.metadata.tables.values():
+        tipos.update({("raw", table.name, c.name): _sql_type(c.type) for c in table.columns})
+        tipos.update({("raw_legacy", table.name, c): "TEXT" for c in legacy_schema.colunas(table.name)})
+    for sink, origem in STREAM_SINKS.items():
+        tipos.update({("raw", sink, c.name): _sql_type(c.type) for c in Base.metadata.tables[f"oltp.{origem}"].columns})
+    return tipos
 
 
 # ── A regra do valor, compartilhada ─────────────────────────────────────────────
@@ -170,9 +205,16 @@ def expression_level(sql: str, lookup) -> str:
 
 @dataclass
 class Derivation:
-    """O resultado: nível por coluna de cada nó, as folhas de que cada coluna é feita, e o que não pôde ser derivado."""
+    """O resultado: nível por coluna de cada nó, as folhas de que cada coluna é feita, e o que não pôde ser derivado.
+
+    `carries` diz, por coluna, se ela transporta o valor de outra ou o calcula
+    (`models/transport.py`) — a mesma leitura do SQL, para a herança de descrição;
+    `origin_types`, o tipo declarado na origem de cada coluna que só transporta.
+    """
     levels: dict[str, dict[str, str]] = field(default_factory=dict)      # node_id → coluna → nível
     leaves: dict[str, dict[str, set["Leaf"]]] = field(default_factory=dict)  # node_id → coluna → folhas imediatas
+    carries: dict[str, dict[str, transport.Transport]] = field(default_factory=dict)  # node_id → coluna → transporte
+    origin_types: dict[tuple[str, str, str], str] = field(default_factory=dict)       # (schema, relação, coluna) → tipo
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -217,10 +259,12 @@ def derive(manifest: dict) -> Derivation:
 
     nos = {k: v for k, v in manifest["nodes"].items() if v["resource_type"] in ("model", "seed", "snapshot")}
     banco = next(iter(nos.values()))["database"]
+    saida.origin_types = source_types()
 
     for node_id in _topological(nos):
         no = nos[node_id]
         relacao = no.get("alias") or no["name"]
+        transportes: dict[str, transport.Transport] = {}
         if no["resource_type"] == "seed":
             declarado = {c["name"]: (c.get("meta") or {}).get("sensitivity") for c in no.get("columns", {}).values()}
             colunas = {}
@@ -229,13 +273,22 @@ def derive(manifest: dict) -> Derivation:
                     saida.problems.append(f"{node_id}: coluna `{nome}` da seed sem `sensitivity` em dbt/seeds/_seeds.yml — seed é declaração, não derivado")
                 colunas[nome] = declarado.get(nome) or TECHNICAL
             folhas = {nome: set() for nome in colunas}     # seed é origem: não vem de lugar nenhum
+            transportes = {nome: transport.Computed("seed") for nome in colunas}
         else:
-            folhas = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings)
+            folhas, arvore = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings)
             colunas = {nome: strictest([niveis[f] for f in chaves]) for nome, chaves in folhas.items()}
+            if arvore is not None:
+                transportes = transport.carries_by_output(arvore, (no["schema"], relacao), saida.origin_types.get)
             if no["resource_type"] == "snapshot":
                 colunas.update(dict.fromkeys(SNAPSHOT_COLUMNS, TECHNICAL))
                 folhas.update({c: set() for c in SNAPSHOT_COLUMNS})
+                transportes.update({c: transport.Computed("snapshot_meta") for c in SNAPSHOT_COLUMNS})
         saida.leaves[node_id] = folhas
+        saida.carries[node_id] = {c: transportes.get(c, transport.Computed("unresolved")) for c in folhas}
+        for coluna, t in saida.carries[node_id].items():
+            tipos = {saida.origin_types.get(f) for f in t.leaves} if isinstance(t, transport.Carry) else {None}
+            if len(tipos) == 1 and None not in tipos:
+                saida.origin_types[(no["schema"], relacao, coluna)] = tipos.pop()
         # Exceção declarada e justificada vale — e vale para quem lê o modelo
         # depois: a ponte do legado extrai colunas de um payload JSON pessoal e
         # declara o nível real de cada uma; o que a lê herda esse nível, não o
@@ -250,23 +303,69 @@ def derive(manifest: dict) -> Derivation:
     return saida
 
 
-def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str]) -> dict[str, set["Leaf"]]:
-    """Por coluna de saída do nó, as folhas imediatas — colunas de fonte ou de modelo anterior."""
+def _inputs_digest(manifest: bytes) -> str:
+    """Tudo o que a derivação lê: o manifest, a declaração e o código que a faz, as seeds, o `sqlglot`."""
+    h = hashlib.sha256(manifest)
+    # Os modelos SQLAlchemy, este módulo e o `transport`; não os que leem a derivação depois.
+    leitores = {"descriptions.py", "lineage.py", "export.py"}
+    pacote = pathlib.Path(__file__).resolve().parents[1]           # o código que roda, onde quer que o ROOT aponte
+    codigo = sorted(c for c in (pacote / "models").glob("*.py") if c.name not in leitores)
+    codigo.append(pacote / "legacy" / "schema.py")
+    for caminho in codigo:
+        h.update(caminho.name.encode() + b"\0" + caminho.read_bytes())
+    for caminho in sorted((DBT / "seeds").rglob("*.csv")):
+        with caminho.open("rb") as arquivo:
+            h.update(caminho.name.encode() + b"\0" + arquivo.readline())
+    h.update(f"{sqlglot.__version__}|{sys.version}".encode())
+    return h.hexdigest()
+
+
+def load(manifest_path: pathlib.Path | None = None) -> tuple[dict, Derivation]:
+    """O manifest e a sua derivação — guardada em `CACHE`, refeita quando qualquer entrada muda (RV2-10).
+
+    A chave é o conteúdo de tudo o que `derive` lê, não a data dos arquivos: um
+    `dbt build` que reescreve o manifest igual reaproveita; uma linha mudada num
+    modelo SQLAlchemy, no código da derivação ou no SQL compilado, não. Derivação
+    com problema não é guardada. Guardam-se os campos, e não a instância: rodado
+    como `python -m`, este módulo é `__main__`, e a classe gravada não se abriria
+    em outro processo.
+    """
+    dados = (MANIFEST if manifest_path is None else manifest_path).read_bytes()   # resolvido na chamada, não na definição
+    manifest = json.loads(dados)
+    chave = _inputs_digest(dados)
+    try:
+        with CACHE.open("rb") as arquivo:
+            guardada = pickle.load(arquivo)
+        if guardada.get("key") == chave:
+            return manifest, Derivation(**guardada["fields"])
+    except Exception:  # noqa: BLE001 — cache ausente, de outra versão ou corrompido: deriva de novo
+        pass
+    derivacao = derive(manifest)
+    if not derivacao.problems:
+        provisorio = CACHE.with_name(CACHE.name + ".tmp")
+        with provisorio.open("wb") as arquivo:
+            pickle.dump({"key": chave, "fields": vars(derivacao)}, arquivo)
+        provisorio.replace(CACHE)
+    return manifest, derivacao
+
+
+def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str]) -> tuple[dict[str, set["Leaf"]], exp.Expression | None]:
+    """Por coluna de saída do nó, as folhas imediatas — colunas de fonte ou de modelo anterior —, e a árvore qualificada."""
     sql = no.get("compiled_code") or ""
     if not sql.strip():
         problems.append(f"{no['unique_id']}: sem SQL compilado no manifest; rode `make dbt-build`")
-        return {}
+        return {}, None
     catalogo = {banco: {s: dict(t) for s, t in esquema.items()}}
     try:
         arvore = sqlglot.parse_one(sql, read="postgres")
         qualificada = qualify(arvore, schema=catalogo, dialect="postgres", validate_qualify_columns=False)
     except Exception as erro:  # noqa: BLE001 — o que interessa é o nó e o motivo
         problems.append(f"{no['unique_id']}: não qualificável ({str(erro)[:120]})")
-        return {}
+        return {}, None
     folhas = _leaves_by_output(qualificada, no["unique_id"], (no["schema"], no.get("alias") or no["name"]), niveis, problems, warnings)
     if not folhas:
         problems.append(f"{no['unique_id']}: nenhuma projeção reconhecida no SQL compilado")
-    return folhas
+    return folhas, qualificada
 
 
 Leaf = tuple[str, str, str]
@@ -372,7 +471,7 @@ def _is_generated(path: pathlib.Path) -> bool:
 class Plan:
     """O que mudaria em cada arquivo, e o que ficou de fora."""
     patches: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))   # yml → entrada → coluna → nível
-    generated: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))  # _sensitivity.yml → modelo → coluna → nível
+    generated: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))  # _derived.yml → modelo → coluna → nível
     changes: list[str] = field(default_factory=list)          # valor que muda, para o diff ser lido
     left_to_generator: list[str] = field(default_factory=list)
 
@@ -423,7 +522,7 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
             if alvo:
                 resultado.patches[caminho][no["name"]] = alvo
             continue
-        if not (no.get("patch_path") and not no["patch_path"].endswith("/" + GENERATED_FILE)):
+        if not (no.get("patch_path") and not no["patch_path"].endswith(tuple("/" + g for g in GENERATED_FILES))):
             # Arquivo inteiramente gerado: é reescrito por inteiro, então **todo** modelo que
             # lhe pertence entra, mude ou não — um que ficasse de fora por não ter mudado
             # sumiria do arquivo na primeira alteração de outro. Modelo com entrada num .yml
@@ -520,27 +619,42 @@ def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
     return "\n".join(linhas)
 
 
-def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models") -> str:
+def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models", textos: dict[str, dict[str, str]] | None = None) -> str:
+    """O arquivo gerado inteiro: cada modelo com o nível de cada coluna e, quando há, a descrição derivada."""
+    textos = textos or {}
+
+    def coluna(modelo: str, c: str, n: str) -> dict:
+        texto = textos.get(modelo, {}).get(c)
+        return {"name": c, **({"description": texto} if texto else {}), "meta": {"sensitivity": n}}
+
     corpo = {"version": 2, chave: [
-        {"name": nome, "columns": [{"name": c, "meta": {"sensitivity": n}} for c, n in colunas.items()]}
+        {"name": nome, "columns": [coluna(nome, c, n) for c, n in colunas.items()]}
         for nome, colunas in sorted(modelos.items())
     ]}
     return GENERATED_HEADER + "\n" + yaml.safe_dump(corpo, sort_keys=False, allow_unicode=True, width=120)
 
 
-def render_files(plano: Plan) -> dict[pathlib.Path, str]:
-    """Conteúdo final de cada arquivo que mudaria."""
+def render_files(plano: Plan, textos=None) -> dict[pathlib.Path, str]:
+    """Conteúdo final de cada arquivo que mudaria: a sensibilidade primeiro, a descrição (`descriptions.Texts`) por cima."""
+    from mvp_ed1.models import descriptions
     saida: dict[pathlib.Path, str] = {}
-    for caminho, entradas in plano.patches.items():
-        saida[caminho] = patch_yaml(caminho.read_text(encoding="utf-8"), entradas)
+    a_descrever = textos.patches if textos is not None else {}
+    for caminho in sorted(set(plano.patches) | set(a_descrever)):
+        texto = caminho.read_text(encoding="utf-8")
+        if caminho in plano.patches:
+            texto = patch_yaml(texto, plano.patches[caminho])
+        if caminho in a_descrever:
+            texto = descriptions.patch_descriptions(texto, a_descrever[caminho])
+        saida[caminho] = texto
     for caminho, modelos in plano.generated.items():
-        saida[caminho] = render_generated(modelos, "snapshots" if caminho.parent.name == "snapshots" else "models")
+        saida[caminho] = render_generated(modelos, "snapshots" if caminho.parent.name == "snapshots" else "models",
+                                          textos.generated if textos is not None else None)
     return saida
 
 
 def stale_generated(plano: Plan) -> list[pathlib.Path]:
-    """`_sensitivity.yml` em disco que nenhum modelo mais habita — todos ganharam entrada à mão."""
-    existentes = set((DBT / "models").rglob(GENERATED_FILE)) | set((DBT / "snapshots").rglob(GENERATED_FILE))
+    """Arquivo gerado em disco que nenhum modelo mais habita — todos ganharam entrada à mão —, ou com o nome antigo."""
+    existentes = {c for nome in GENERATED_FILES for raiz in (DBT / "models", DBT / "snapshots") for c in raiz.rglob(nome)}
     return sorted(existentes - set(plano.generated))
 
 
@@ -563,8 +677,8 @@ def main(argv: list[str] | None = None) -> int:
     if not MANIFEST.exists():
         print(f"sem {MANIFEST.relative_to(ROOT)}; rode `make dbt-build` antes", file=sys.stderr)
         return 2
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    derivacao = derive(manifest)
+    from mvp_ed1.models import descriptions
+    manifest, derivacao = load()
     for aviso in derivacao.warnings:
         print(f"aviso: {aviso}", file=sys.stderr)
     for problema in derivacao.problems:
@@ -577,12 +691,14 @@ def main(argv: list[str] | None = None) -> int:
               "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
         return 1
     plano = plan(manifest, derivacao)
-    arquivos = render_files(plano)
+    textos = descriptions.derive_texts(manifest, derivacao)
+    arquivos = render_files(plano, textos)
 
-    for mudanca in plano.changes:
+    for mudanca in plano.changes + textos.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)
-    for pendente in plano.left_to_generator:
+    for pendente in plano.left_to_generator + textos.problems:
         print(f"gerador: {pendente}", file=sys.stderr)
+    pendencias = plano.left_to_generator + textos.problems
 
     mudados = {c: t for c, t in arquivos.items() if not c.exists() or c.read_text(encoding="utf-8") != t}
     obsoletos = stale_generated(plano)
@@ -592,21 +708,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"desatualizado: {caminho.relative_to(ROOT)}", file=sys.stderr)
         for caminho in obsoletos:
             print(f"obsoleto (sem modelo): {caminho.relative_to(ROOT)}", file=sys.stderr)
-        falhou = bool(mudados or obsoletos or plano.left_to_generator)
-        print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; "
+        falhou = bool(mudados or obsoletos or pendencias)
+        print(f"classificação e descrição derivadas de {total} colunas em {len(derivacao.levels)} nós; "
               f"{len(mudados) + len(obsoletos)} arquivo(s) desatualizado(s)")
         return 1 if falhou else 0
 
     for caminho, texto in mudados.items():
         esperado = plano.patches.get(caminho) or plano.generated.get(caminho) or {}
         _verify(caminho, texto, esperado)
+        if caminho in textos.patches:
+            descriptions.verify(caminho, texto, textos.patches[caminho])
+        elif caminho in plano.generated:
+            descriptions.verify(caminho, texto, {m: textos.generated[m] for m in plano.generated[caminho] if m in textos.generated})
         caminho.write_text(texto, encoding="utf-8")
         print(f"escrito: {caminho.relative_to(ROOT)}")
     for caminho in obsoletos:
         caminho.unlink()
         print(f"removido: {caminho.relative_to(ROOT)}")
-    print(f"classificação derivada de {total} colunas em {len(derivacao.levels)} nós; {len(mudados) + len(obsoletos)} arquivo(s) escrito(s)")
-    return 1 if plano.left_to_generator else 0
+    print(f"classificação e descrição derivadas de {total} colunas em {len(derivacao.levels)} nós; {len(mudados) + len(obsoletos)} arquivo(s) escrito(s)")
+    return 1 if pendencias else 0
 
 
 if __name__ == "__main__":

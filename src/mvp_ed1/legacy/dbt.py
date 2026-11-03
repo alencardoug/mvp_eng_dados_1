@@ -309,14 +309,22 @@ def sources_yml() -> str:
     fluxo lê, e campo lido sem dicionário nem sensibilidade é o que a
     definição de pronto proíbe (`CLAUDE.md` §7; achado RV10-11).
     """
+    import json
+
+    from mvp_ed1.models.descriptions import source_texts
     from mvp_ed1.models.sensitivity import source_leaves
 
-    # Coluna a coluna, com a sensibilidade declarada nos modelos SQLAlchemy —
-    # a mesma folha que a linhagem dos modelos usa (`models/sensitivity.py`).
+    # Coluna a coluna, com a sensibilidade e a descrição declaradas nos modelos
+    # SQLAlchemy — a mesma folha que a linhagem dos modelos usa
+    # (`models/sensitivity.py`, `models/descriptions.py`) —, e o texto das
+    # colunas que o Airbyte e a identidade do legado acrescentam.
     _, niveis = source_leaves()
+    textos = source_texts()
     linhas = "\n".join(
         f"      - name: {t}\n        columns:\n" + "\n".join(
-            f"          - name: {c}\n            meta:\n              sensitivity: {n}"
+            f"          - name: {c}\n"
+            + (f"            description: {json.dumps(textos[(camada, tabela, c)], ensure_ascii=False)}\n" if (camada, tabela, c) in textos else "")
+            + f"            meta:\n              sensitivity: {n}"
             for (camada, tabela, c), n in niveis.items() if camada == "raw_legacy" and tabela == t
         )
         for t in schema.tabelas()

@@ -102,13 +102,14 @@ def test_a_declaracao_das_pontes_esta_em_dia() -> None:
 
 @pytest.fixture(scope="module")
 def derivacao() -> tuple[sensitivity.Derivation, dict]:
-    """A leitura do SQL compilado, feita uma vez: é o que custa (~20 s)."""
+    """A leitura do SQL compilado, feita uma vez e guardada (`sensitivity.load`): é o que custa (~20 s)."""
     if not l.MANIFEST.exists():
         pytest.skip("sem dbt/target/manifest.json; rode `make dbt-build`")
     manifest = json.loads(l.MANIFEST.read_text(encoding="utf-8"))
     if not any(no.get("compiled_code") for no in manifest["nodes"].values()):
         pytest.skip("manifest sem SQL compilado; rode `make dbt-build`")
-    return sensitivity.derive(manifest), manifest
+    manifest, derivado = sensitivity.load()
+    return derivado, manifest
 
 
 @pytest.fixture(scope="module")

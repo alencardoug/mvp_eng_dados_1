@@ -1,165 +1,215 @@
 # Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a
-# classificação é derivada, por linhagem, da declarada nos modelos SQLAlchemy.
-# Modelo que ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
+# classificação e a descrição são derivadas, por linhagem, das declaradas nos
+# modelos SQLAlchemy (models/descriptions.py para a descrição). Modelo que
+# ganhar entrada num .yml escrito à mão sai daqui na próxima geração.
 
 version: 2
 models:
 - name: stg_retail__goods_receipt_items
   columns:
   - name: goods_receipt_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: goods_receipt_id
+    description: Recebimento ao qual o item pertence.
     meta:
       sensitivity: internal
   - name: purchase_order_item_id
+    description: Item da ordem de compra correspondente.
     meta:
       sensitivity: internal
   - name: quantity_received
+    description: Quantidade efetivamente recebida.
     meta:
       sensitivity: internal
   - name: unit_cost
+    description: Custo unitário no recebimento.
     meta:
       sensitivity: confidential
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__goods_receipts
   columns:
   - name: goods_receipt_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: receipt_number
+    description: Número do recebimento; chave natural.
     meta:
       sensitivity: internal
   - name: purchase_order_id
+    description: Ordem de compra recebida.
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém que recebeu a mercadoria.
     meta:
       sensitivity: internal
   - name: received_at
+    description: Momento do recebimento físico.
     meta:
       sensitivity: internal
   - name: goods_receipt_status
+    description: 'Estado do recebimento: pending, completed ou rejected.'
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__inventory_balances
   columns:
   - name: inventory_balance_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém do saldo.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU do saldo.
     meta:
       sensitivity: internal
   - name: quantity_on_hand
+    description: Quantidade fisicamente disponível.
     meta:
       sensitivity: internal
   - name: quantity_reserved
+    description: Quantidade reservada para carrinhos e pedidos.
     meta:
       sensitivity: internal
   - name: quantity_available
+    description: Quantidade livre para venda; derivada pelo banco.
     meta:
       sensitivity: internal
   - name: last_movement_at
+    description: Momento do último movimento aplicado ao saldo.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__inventory_movements
   columns:
   - name: movement_id
+    description: Chave primária estável do evento.
     meta:
       sensitivity: internal
   - name: event_sequence
+    description: Ordenação técnica local e paginação; atribuída pelo banco.
     meta:
       sensitivity: internal
   - name: idempotency_key
+    description: Chave que impede aplicação duplicada pelo consumidor (ADR-0019).
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém afetado pelo movimento.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU afetado pelo movimento.
     meta:
       sensitivity: internal
   - name: movement_type
+    description: Tipo controlado do movimento; determina o sinal da quantidade.
     meta:
       sensitivity: internal
   - name: quantity_delta
+    description: Variação assinada da quantidade; nunca zero.
     meta:
       sensitivity: internal
   - name: unit_cost
+    description: Custo unitário, quando aplicável ao tipo.
     meta:
       sensitivity: confidential
   - name: source_type
+    description: Processo de negócio que originou o movimento.
     meta:
       sensitivity: internal
   - name: source_id
+    description: Identificador do registro que causou o movimento.
     meta:
       sensitivity: internal
   - name: correlation_id
+    description: Agrupa eventos relacionados; obrigatório nos pares de transferência.
     meta:
       sensitivity: internal
   - name: causation_id
+    description: Evento ou comando que causou este movimento.
     meta:
       sensitivity: internal
   - name: aggregate_version
+    description: Ordem do evento dentro do par armazém/SKU; sem lacuna nem repetição.
     meta:
       sensitivity: internal
   - name: occurred_at
+    description: Momento de negócio do movimento; é por ele que o Beam janela (ADR-0019).
     meta:
       sensitivity: internal
   - name: recorded_at
+    description: Momento em que a origem registrou o evento; base da leitura incremental.
     meta:
       sensitivity: internal
   - name: schema_version
     meta:
       sensitivity: internal
   - name: event_metadata
+    description: Contexto adicional do evento, opcional e limitado a 4 KB.
     meta:
       sensitivity: internal
   - name: arrived_by_stream
@@ -169,9 +219,11 @@ models:
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que a origem registrou o evento; base da leitura incremental.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
@@ -180,439 +232,578 @@ models:
 - name: stg_retail__payment_methods
   columns:
   - name: payment_method_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: payment_method_code
+    description: Código estável do meio de pagamento.
     meta:
       sensitivity: public
   - name: payment_method_name
+    description: Nome do meio de pagamento.
     meta:
       sensitivity: public
   - name: method_type
+    description: 'Natureza do meio: cartão, pix, boleto, carteira ou vale.'
     meta:
       sensitivity: public
   - name: is_active
+    description: Indica se o meio continua aceito.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__payment_transactions
   columns:
   - name: payment_transaction_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: transaction_code
+    description: Chave natural da transação.
     meta:
       sensitivity: internal
   - name: payment_id
+    description: Pagamento ao qual a transação pertence.
     meta:
       sensitivity: internal
   - name: transaction_type
+    description: 'Operação financeira: authorization, capture, void ou refund.'
     meta:
       sensitivity: internal
   - name: transaction_result
+    description: 'Desfecho da operação: succeeded, failed ou pending.'
     meta:
       sensitivity: internal
   - name: transaction_amount
+    description: Valor movimentado nesta operação.
     meta:
       sensitivity: confidential
   - name: gateway_response_code
+    description: Código de retorno do adquirente simulado.
     meta:
       sensitivity: internal
   - name: occurred_at
+    description: Momento de negócio da operação.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__payments
   columns:
   - name: payment_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: payment_code
+    description: Chave natural do pagamento.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que o pagamento quita.
     meta:
       sensitivity: internal
   - name: payment_method_id
+    description: Meio de pagamento utilizado.
     meta:
       sensitivity: public
   - name: payment_status
+    description: Estado do pagamento; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: payment_amount
+    description: Valor pretendido do pagamento.
     meta:
       sensitivity: confidential
   - name: currency
+    description: Moeda, em código ISO 4217.
     meta:
       sensitivity: public
   - name: installments
+    description: Número de parcelas acordadas.
     meta:
       sensitivity: public
   - name: authorized_at
+    description: Momento da autorização pelo emissor simulado.
     meta:
       sensitivity: internal
   - name: captured_at
+    description: Momento da captura efetiva do valor.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__purchase_order_items
   columns:
   - name: purchase_order_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: purchase_order_id
+    description: Ordem de compra à qual o item pertence.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU solicitado.
     meta:
       sensitivity: internal
   - name: quantity_ordered
+    description: Quantidade solicitada ao fornecedor.
     meta:
       sensitivity: internal
   - name: unit_cost
+    description: Custo unitário negociado.
     meta:
       sensitivity: confidential
   - name: total_cost
+    description: Custo total do item, já arredondado.
     meta:
       sensitivity: confidential
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__purchase_orders
   columns:
   - name: purchase_order_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: po_number
+    description: Número da ordem de compra; chave natural.
     meta:
       sensitivity: internal
   - name: supplier_id
+    description: Fornecedor da ordem.
     meta:
       sensitivity: internal
   - name: purchase_order_status
+    description: Estado da ordem; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: ordered_at
+    description: Momento de emissão da ordem.
     meta:
       sensitivity: internal
   - name: expected_at
+    description: Data prometida de entrega pelo fornecedor.
     meta:
       sensitivity: internal
   - name: currency
+    description: Moeda da ordem, em código ISO 4217.
     meta:
       sensitivity: public
   - name: purchase_order_total_amount
+    description: Valor total da ordem, somando os itens.
     meta:
       sensitivity: confidential
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__refunds
   columns:
   - name: refund_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: refund_code
+    description: Chave natural do reembolso.
     meta:
       sensitivity: internal
   - name: payment_transaction_id
+    description: Transação de captura que está sendo revertida.
     meta:
       sensitivity: internal
   - name: refund_amount
+    description: Valor reembolsado.
     meta:
       sensitivity: confidential
   - name: refund_reason
+    description: Motivo comercial do reembolso.
     meta:
       sensitivity: internal
   - name: refund_status
+    description: 'Estado do reembolso: requested, completed ou rejected.'
     meta:
       sensitivity: internal
   - name: refunded_at
+    description: Momento em que o reembolso foi concluído.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__shipment_items
   columns:
   - name: shipment_item_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: shipment_id
+    description: Remessa à qual o item pertence.
     meta:
       sensitivity: internal
   - name: order_item_id
+    description: Item de pedido sendo enviado.
     meta:
       sensitivity: internal
   - name: quantity_shipped
+    description: Quantidade enviada nesta remessa.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__shipments
   columns:
   - name: shipment_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: shipment_code
+    description: Chave natural da remessa.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que a remessa atende.
     meta:
       sensitivity: internal
   - name: carrier_id
+    description: Transportadora responsável.
     meta:
       sensitivity: public
   - name: warehouse_id
+    description: Armazém de origem da remessa.
     meta:
       sensitivity: internal
   - name: shipment_status
+    description: Estado da remessa; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
   - name: tracking_code
+    description: Código de rastreio junto à transportadora.
     meta:
       sensitivity: internal
   - name: freight_amount
+    description: Custo de frete da remessa.
     meta:
       sensitivity: confidential
   - name: shipped_at
+    description: Momento do despacho.
     meta:
       sensitivity: internal
   - name: estimated_delivery_at
+    description: Prazo de entrega prometido ao cliente.
     meta:
       sensitivity: public
   - name: delivered_at
+    description: Momento da entrega efetiva.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__stock_reservations
   columns:
   - name: stock_reservation_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: reservation_code
+    description: Chave natural da reserva.
     meta:
       sensitivity: internal
   - name: warehouse_id
+    description: Armazém em que a quantidade está reservada.
     meta:
       sensitivity: internal
   - name: product_variant_id
+    description: SKU reservado.
     meta:
       sensitivity: internal
   - name: cart_id
+    description: Carrinho que originou a reserva; nulo quando a origem é um pedido.
     meta:
       sensitivity: internal
   - name: order_id
+    description: Pedido que originou a reserva; nulo quando a origem é um carrinho.
     meta:
       sensitivity: internal
   - name: quantity_reserved
+    description: Quantidade reservada.
     meta:
       sensitivity: internal
   - name: reservation_status
+    description: 'Estado da reserva: active, released, expired ou consumed.'
     meta:
       sensitivity: internal
   - name: expires_at
+    description: Momento em que a reserva expira se não for consumida.
     meta:
       sensitivity: internal
   - name: released_at
+    description: Momento em que a reserva deixou de ocupar saldo.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__suppliers
   columns:
   - name: supplier_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: supplier_code
+    description: Chave natural do fornecedor na origem.
     meta:
       sensitivity: internal
   - name: supplier_legal_name
+    description: Razão social do fornecedor (sintética).
     meta:
       sensitivity: confidential
   - name: supplier_trade_name
+    description: Nome fantasia do fornecedor.
     meta:
       sensitivity: public
   - name: supplier_document
+    description: Documento de identificação do fornecedor (sintético).
     meta:
       sensitivity: confidential
   - name: supplier_contact_email
+    description: E-mail de contato comercial (sintético).
     meta:
       sensitivity: personal
   - name: supplier_country
+    description: País do fornecedor, em código ISO.
     meta:
       sensitivity: public
   - name: payment_terms_days
+    description: Prazo de pagamento negociado, em dias.
     meta:
       sensitivity: confidential
   - name: is_active
+    description: Indica se o fornecedor continua ativo.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
 - name: stg_retail__warehouses
   columns:
   - name: warehouse_id
+    description: Chave primária técnica, gerada pelo banco.
     meta:
       sensitivity: internal
   - name: warehouse_code
+    description: Código estável do armazém.
     meta:
       sensitivity: public
   - name: warehouse_name
+    description: Nome do armazém.
     meta:
       sensitivity: public
   - name: warehouse_city
+    description: Cidade do armazém.
     meta:
       sensitivity: public
   - name: warehouse_state
+    description: Unidade federativa do armazém.
     meta:
       sensitivity: public
   - name: warehouse_country
+    description: País, em código ISO.
     meta:
       sensitivity: public
   - name: capacity_units
+    description: Capacidade máxima em unidades.
     meta:
       sensitivity: confidential
   - name: is_active
+    description: Indica se o armazém está operando.
     meta:
       sensitivity: internal
   - name: source_created_at
+    description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
   - name: source_updated_at
+    description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
   - name: source_deleted_at
+    description: Exclusão lógica; nulo enquanto o registro está ativo (ADR-0015).
     meta:
       sensitivity: internal
   - name: is_deleted
+    description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
   - name: ingested_at
+    description: '{{ doc("_airbyte_extracted_at") }}'
     meta:
       sensitivity: internal
