@@ -12,8 +12,8 @@
 |---|---|
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 5 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D43, adiada de propósito para a fase GCP) |
-| Última revisão | 04/10/2026 |
+| Decisões pendentes | 6 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP) |
+| Última revisão | 03/11/2026 |
 
 ---
 
@@ -103,6 +103,35 @@ invariante 14 e regerar agora.
 
 *Efeito de não decidir:* nenhum teste falha; uma análise de "dias desde o lançamento" daria valores
 negativos.
+
+### D66 — a P13 não conta a remessa entregue cujos itens foram todos rejeitados
+
+**Pergunta:** a P13 passa a ler uma fato no grão da remessa, para contar toda remessa entregue como o
+[ADR-0033](adr/0033-entrega-medida-em-dois-graos.md) a define, ou a definição muda?
+
+**Medido em 23/10 e 03/11/2026,** em sessão somente leitura: 144 remessas legadas entregues em
+`trusted.shipments` e 132 em `analytics.fact_shipment_item`; do varejo, 3.166 nos dois. As 12 que
+faltam são legadas, aceitas como remessa e com o pedido em `trusted`, e nenhum item delas chegou lá:
+os 17 itens da captura selecionada foram rejeitados em cascata (`PARENT_REJECTED`) — 17 itens de
+pedido, 6 variantes e, na raiz, 4 produtos do legado rejeitados por defeito próprio. A view
+`on_time_delivery_rate_by_carrier` reduz a fato do item a remessa com `distinct`, e remessa sem item
+aceito não tem linha para reduzir; o ADR-0033 diz que o denominador são as remessas entregues. As
+consultas e as saídas estão no `bi-como-codigo` — M27, M32 e M38 do
+[plano](https://github.com/alencardoug/bi-como-codigo/blob/c7690fe/PLAN.md#2-what-was-measured),
+onde a questão nasceu como o O6 do
+[roteiro de regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c7690fe/docs/regeneration_runbook.md#7-not-verified-and-observations).
+
+**Decisão de 03/11/2026: fora da v1.1.0.** Corrigir agora reabriria a conciliação da P13 no roteiro
+de regeneração e acrescentaria uma fato no meio da manutenção; a regeneração da v1.1.0 muda o número
+de qualquer forma. Até a decisão, a descrição da view diz qual população é contada.
+
+*Opções:* **(a)** uma fato no grão da remessa, com ADR, lida pela P13 — recomendada: a pontualidade
+é atributo da remessa, e estas passaram pelas regras; o que se rejeitou foi o conteúdo, três níveis
+acima; **(b)** emendar o ADR-0033 e o [glossário](glossario_de_negocio/entrega_no_prazo.md): a
+entrega no prazo conta só a remessa com algum item aceito.
+
+*Efeito de não decidir:* nenhum teste falha; a taxa do ramo legado deixa de fora 12 de 144 remessas
+entregues (8%), e o número muda com a regeneração.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
