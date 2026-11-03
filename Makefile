@@ -130,6 +130,7 @@ endef
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
+        generation-measure generation-compare source-oracle \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -274,6 +275,19 @@ legacy-plan: require-venv ## Mostra o que o legado geraria e injetaria, sem toca
 
 seed-plan: require-venv ## Mostra o plano de volume das 40 tabelas, sem tocar no banco
 	@.venv/bin/python -m mvp_ed1.generator.cli plan $(if $(SCALE),--scale $(SCALE))
+
+generation-measure: require-venv ## T1: gera as duas origens em memória e mede cada tabela, sem tocar banco; SCALE, SEED, AS_OF
+	@.venv/bin/python -m mvp_ed1.recovery.sources measure \
+		$(if $(SCALE),--scale $(SCALE)) $(if $(SEED),--seed $(SEED)) $(if $(AS_OF),--as-of $(AS_OF))
+
+generation-compare: require-venv ## T1: o que muda entre duas medidas da geração — tabelas e chaves do legado; ANTES=, DEPOIS=
+	@test -n '$(ANTES)' && test -n '$(DEPOIS)' || { echo 'ERRO: use make generation-compare ANTES=<medida> DEPOIS=<medida>'; exit 1; }
+	@.venv/bin/python -m mvp_ed1.recovery.sources compare '$(ANTES)' '$(DEPOIS)'
+
+source-oracle: require-env require-venv ## T2: as duas origens, em sessão somente leitura, contra uma medida; MEDIDA=, CALIBRACAO=1
+	@test -n '$(MEDIDA)' || { echo 'ERRO: use make source-oracle MEDIDA=<medida da geração>'; exit 1; }
+	@set -a; . ./.env; set +a; RECOVERY_DIR="$(RECOVERY_DIR)" \
+		.venv/bin/python -m mvp_ed1.recovery.sources oracle '$(MEDIDA)' $(if $(filter 1,$(CALIBRACAO)),--calibration)
 
 size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
 	@$(GERADOR) size-report

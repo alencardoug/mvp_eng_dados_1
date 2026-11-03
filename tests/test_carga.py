@@ -23,6 +23,7 @@ from mvp_ed1.generator.config import Config
 from mvp_ed1.generator.engine import Motor
 from mvp_ed1.generator.writer import ORDEM, DestinoNaoVazio, contagens, escrever
 from mvp_ed1.models import SCHEMA
+from mvp_ed1.recovery import sources
 
 from conftest import FATOR_REDUZIDO
 
@@ -70,6 +71,23 @@ def test_carga_completa_e_recusa_de_destino_ocupado(engine, config: Config) -> N
 
     with pytest.raises(DestinoNaoVazio):
         escrever(engine, dados)
+
+    # A T2 lê do banco o que a T1 mede na memória, na mesma representação: 40
+    # tabelas iguais, e as colunas que o banco gera dentro da regra.
+    lido = sources.read_oltp(engine)
+    assert lido["tables"] == sources.oltp_tables(dados)
+    assert lido["generated"] and all(
+        check["ok"] for checks in lido["generated"].values() for check in checks.values()
+    )
+    # Uma célula trocada com a contagem igual, e um buraco no livro, aparecem.
+    with engine.begin() as conexao:
+        conexao.execute(text(f"update {SCHEMA}.brands set name = name || '!' where id = 1"))
+        conexao.execute(text(f"delete from {SCHEMA}.inventory_movements where event_sequence = 1"))
+    depois = sources.read_oltp(engine)
+    assert depois["tables"]["brands"]["rows"] == lido["tables"]["brands"]["rows"]
+    assert depois["tables"]["brands"]["digest"] != lido["tables"]["brands"]["digest"]
+    assert not depois["generated"]["inventory_movements"]["event_sequence"]["ok"]
+    assert sources.read_oltp(engine, ledger_up_to=0)["tables"]["inventory_movements"]["rows"] == 0
 
     # A sequência de identidade precisa ter avançado com o `COPY`: sem
     # `setval`, o primeiro `INSERT` colidiria com a linha 1.
