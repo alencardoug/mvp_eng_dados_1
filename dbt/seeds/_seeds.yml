@@ -21,6 +21,7 @@ seeds:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_tests:
@@ -28,6 +29,7 @@ seeds:
           - accepted_values:
               values: [Norte, Nordeste, Centro-Oeste, Sudeste, Sul]
       - name: state_name
+        description: "Nome da unidade federativa por extenso."
         meta:
           sensitivity: public
 
@@ -86,6 +88,7 @@ seeds:
         category_code: varchar(20)
     columns:
       - name: category_code
+        description: "Código estável da categoria de chamado; chave natural."
         meta:
           sensitivity: public
         data_tests:
@@ -94,13 +97,16 @@ seeds:
           - accepted_values:
               values: [delivery, payment, product, return, account, other]
       - name: category_name
+        description: "Nome da categoria de chamado."
         meta:
           sensitivity: public
         data_tests: [not_null]
       - name: category_group
+        description: "Grupo que reúne categorias de chamado afins."
         meta:
           sensitivity: public
         data_tests: [not_null]
       - name: description
+        description: "O que a categoria de chamado cobre."
         meta:
           sensitivity: public

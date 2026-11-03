@@ -21,15 +21,18 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -44,6 +47,7 @@ models:
           sensitivity: public
         data_type: text
       - name: root_category_name
+        description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
           sensitivity: public
         data_type: text
@@ -53,22 +57,27 @@ models:
           sensitivity: public
         data_type: text
       - name: order_count
+        description: "Não aditiva entre categorias — pedidos realizados distintos, contados pela origem e pelo número; um pedido com itens de duas categorias conta nas duas."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: unit_count
+        description: "Aditiva — unidades vendidas em pedidos realizados, por mês, canal e categoria."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: gross_revenue_amount
+        description: "Aditiva — receita bruta, antes do desconto, dos itens de pedidos realizados, por mês, canal e categoria."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: discount_amount
+        description: "Aditiva — desconto concedido nos itens de pedidos realizados, por mês, canal e categoria."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida dos itens de pedidos realizados, por mês, canal e categoria."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -81,15 +90,18 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -99,14 +111,17 @@ models:
           sensitivity: public
         data_type: text
       - name: customer_segment_name
+        description: "Nome do segmento do cliente; 'Sem segmento' quando ele não tem um."
         meta:
           sensitivity: public
         data_type: text
       - name: order_count
+        description: "Aditiva — pedidos realizados distintos, contados pela origem e pelo número, por mês, canal e segmento do cliente."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida dos itens de pedidos realizados, por mês, canal e segmento do cliente."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -124,6 +139,7 @@ models:
       contract: {enforced: true}
     columns:
       - name: revenue_rank
+        description: "Posição do SKU pela receita líquida no período, de 1 a 25; empates dividem a posição."
         meta:
           sensitivity: confidential
         data_type: bigint
@@ -144,10 +160,12 @@ models:
           sensitivity: public
         data_type: text
       - name: category_name
+        description: "Nome comercial da categoria do SKU."
         meta:
           sensitivity: public
         data_type: text
       - name: root_category_name
+        description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
           sensitivity: public
         data_type: text
@@ -163,14 +181,17 @@ models:
         description: SKU saiu do catálogo; a venda histórica dele continua contando (ADR-0029).
         data_type: boolean
       - name: unit_count
+        description: "Aditiva — unidades do SKU vendidas em pedidos realizados, no período inteiro."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida do SKU em pedidos realizados, no período inteiro."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: category_net_revenue_amount
+        description: "Não aditiva entre SKUs — receita líquida de toda a categoria do SKU no período, repetida em cada SKU dela."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -188,15 +209,18 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -206,14 +230,17 @@ models:
           sensitivity: public
         data_type: text
       - name: customer_segment_name
+        description: "Nome do segmento do cliente; 'Sem segmento' quando ele não tem um."
         meta:
           sensitivity: public
         data_type: text
       - name: new_customer_count
+        description: "Aditiva — clientes cuja primeira compra realizada caiu no mês, por canal e segmento."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: returning_customer_count
+        description: "Aditiva — desses estreantes, os que fizeram a segunda compra realizada em até 90 dias da primeira."
         meta:
           sensitivity: internal
         data_type: bigint
@@ -231,19 +258,23 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: quarter_number
+        description: "Trimestre do ano, de 1 a 4."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_quarter
+        description: "Ano e trimestre, no formato AAAA-Tn."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_type: text
@@ -253,6 +284,7 @@ models:
           sensitivity: public
         data_type: text
       - name: state_name
+        description: "Nome da unidade federativa por extenso."
         meta:
           sensitivity: public
         data_type: text
@@ -262,18 +294,22 @@ models:
           sensitivity: public
         data_type: text
       - name: order_count
+        description: "Aditiva — pedidos realizados distintos, contados pela origem e pelo número, por estado e região de entrega e trimestre."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: customer_version_count
+        description: "Não aditiva — versões de cliente distintas no grupo: um cliente que mudou de versão conta mais de uma vez, e um que comprou em dois grupos conta nos dois."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: unit_count
+        description: "Aditiva — unidades vendidas em pedidos realizados, por estado e região de entrega e trimestre."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida dos itens de pedidos realizados, por estado e região de entrega e trimestre."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -286,15 +322,18 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -309,22 +348,27 @@ models:
           sensitivity: public
         data_type: text
       - name: root_category_name
+        description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
           sensitivity: public
         data_type: text
       - name: order_count
+        description: "Aditiva — pedidos realizados distintos, contados pela origem e pelo número, por canal e mês."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: gross_revenue_amount
+        description: "Aditiva — receita bruta, antes do desconto, dos itens de pedidos realizados, por canal e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: discount_amount
+        description: "Aditiva — desconto concedido nos itens de pedidos realizados, por canal e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida dos itens de pedidos realizados, por canal e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -344,14 +388,17 @@ models:
       - name: year_month
         meta:
           sensitivity: internal
-        description: Mês em que o **carrinho foi criado**, não em que converteu.
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
+        description: "Mês em que o **carrinho foi criado**, não em que converteu."
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -376,6 +423,7 @@ models:
         description: Denominador da conversão. Carrinho ainda aberto não entra.
         data_type: bigint
       - name: converted_cart_count
+        description: "Aditiva — carrinhos convertidos em pedido, por canal e mês."
         meta:
           sensitivity: internal
         data_type: bigint
@@ -390,10 +438,12 @@ models:
         description: Não aditiva.
         data_type: numeric
       - name: cart_value_amount
+        description: "Aditiva — valor dos carrinhos criados, por canal e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: abandoned_value_amount
+        description: "Aditiva — valor dos carrinhos fechados sem compra, por abandono ou expiração, por canal e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -411,46 +461,57 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM — o da receita, ou o do custo quando o grupo só tem custo."
         meta:
           sensitivity: internal
         data_type: text
       - name: year_number
+        description: "Ano — o da receita, ou o do custo quando o grupo só tem custo."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12 — o da receita, ou o do custo quando o grupo só tem custo."
         meta:
           sensitivity: internal
         data_type: integer
       - name: root_category_name
+        description: "Nome da categoria raiz — o da receita, ou o do custo quando o grupo só tem custo."
         meta:
           sensitivity: public
         data_type: text
       - name: category_name
+        description: "Nome da categoria — o da receita, ou o do custo quando o grupo só tem custo."
         meta:
           sensitivity: public
         data_type: text
       - name: net_revenue_amount
+        description: "Aditiva — receita líquida dos itens de pedidos realizados, por categoria e mês; zero quando o grupo só tem custo."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: cost_of_goods_sold
+        description: "Aditiva — custo das mercadorias vendidas, das saídas de venda do livro de estoque, por categoria e mês; zero sem saída (ADR-0030)."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: gross_profit_amount
+        description: "Aditiva — lucro bruto: a receita líquida menos o custo das mercadorias vendidas, por categoria e mês."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: gross_margin_pct
+        description: "Não aditiva — margem bruta, em %: o lucro bruto sobre a receita líquida; nula sem receita. Recalcula-se a cada recorte."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: unit_count
+        description: "Aditiva — unidades vendidas em pedidos realizados, por categoria e mês; zero quando o grupo só tem custo."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: dispatched_unit_count
+        description: "Aditiva — unidades que saíram em venda no livro de estoque, por categoria e mês."
         meta:
           sensitivity: internal
         data_type: bigint
@@ -465,14 +526,17 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: quarter_number
+        description: "Trimestre do ano, de 1 a 4."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_quarter
+        description: "Ano e trimestre, no formato AAAA-Tn."
         meta:
           sensitivity: internal
         data_type: text
@@ -497,26 +561,32 @@ models:
           sensitivity: public
         data_type: text
       - name: warehouse_region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_type: text
       - name: quantity_out
+        description: "Aditiva — unidades do SKU que saíram em venda do armazém, no trimestre."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: cost_of_goods_sold
+        description: "Aditiva — custo das saídas de venda do SKU no armazém, no trimestre (ADR-0030)."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: quantity_on_hand
+        description: "Semiaditiva — saldo atual do SKU no armazém; zero sem saldo. Soma-se entre armazéns, nunca entre trimestres."
         meta:
           sensitivity: internal
         data_type: integer
       - name: inventory_value_amount
+        description: "Semiaditiva — valor do estoque: o saldo atual vezes o custo unitário médio das saídas de venda; soma-se entre SKUs e armazéns, nunca entre trimestres."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: inventory_turnover
+        description: "Não aditiva — giro: o custo das mercadorias vendidas sobre o valor do estoque, no trimestre; nulo sem estoque valorado."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -530,14 +600,17 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -557,26 +630,32 @@ models:
           sensitivity: public
         data_type: integer
       - name: is_instalment_plan
+        description: "Verdadeiro quando o pagamento é parcelado, em mais de uma parcela."
         meta:
           sensitivity: public
         data_type: boolean
       - name: authorization_attempt_count
+        description: "Aditiva — autorizações tentadas, por mês, meio de pagamento e parcelas."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: approved_authorization_count
+        description: "Aditiva — autorizações aprovadas, por mês, meio de pagamento e parcelas."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: approval_rate_pct
+        description: "Não aditiva — autorizações aprovadas sobre as tentadas, em %; nula sem tentativa. Recalcula-se a cada recorte."
         meta:
           sensitivity: internal
         data_type: numeric
       - name: authorized_amount
+        description: "Aditiva — valor autorizado nas autorizações bem-sucedidas, por mês, meio de pagamento e parcelas."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: captured_amount
+        description: "Valor capturado nas linhas desta view — hoje sempre zero: a view lê só as transações de autorização, e a captura é outra transação (D67)."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -589,14 +668,17 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
@@ -606,22 +688,27 @@ models:
           sensitivity: public
         data_type: text
       - name: refund_reason
+        description: "Motivo do reembolso; 'Sem motivo registrado' quando a origem não o informa."
         meta:
           sensitivity: internal
         data_type: text
       - name: refund_count
+        description: "Aditiva — reembolsos, por mês, meio de pagamento e motivo."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: refunded_amount
+        description: "Aditiva — valor dos reembolsos concluídos, por mês, meio de pagamento e motivo."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: captured_amount
+        description: "Não aditiva entre motivos — valor capturado no mês e no meio de pagamento, de todos os motivos, repetido em cada motivo; zero sem captura."
         meta:
           sensitivity: confidential
         data_type: numeric
       - name: refund_rate_pct
+        description: "Não aditiva — valor reembolsado sobre o capturado no mês e no meio de pagamento, em %; nula sem captura. Recalcula-se a cada recorte."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -644,6 +731,7 @@ models:
           sensitivity: public
         data_type: text
       - name: warehouse_region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_type: text
@@ -663,6 +751,7 @@ models:
           sensitivity: public
         data_type: text
       - name: brand_name
+        description: "Nome da marca do produto; 'Sem marca' quando ele não tem uma."
         meta:
           sensitivity: public
         data_type: text
@@ -674,6 +763,7 @@ models:
           Fotografia não se empilha.
         data_type: integer
       - name: quantity_reserved
+        description: "Semiaditiva — unidades do SKU reservadas agora no armazém; zero sem reserva."
         meta:
           sensitivity: internal
         data_type: integer
@@ -693,10 +783,12 @@ models:
         description: Parcela ainda só no caminho quente, que a próxima execução do dbt absorve.
         data_type: integer
       - name: stream_movement_count
+        description: "Aditiva — movimentos do SKU no armazém que chegaram pelo caminho quente (ADR-0031)."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: reorder_point
+        description: "Ponto de reposição, em unidades: 25 para todo SKU (variável `reorder_point_units`)."
         meta:
           sensitivity: internal
         data_type: integer
@@ -716,6 +808,7 @@ models:
         description: '{{ doc("days_of_cover") }}'
         data_type: numeric
       - name: last_movement_at
+        description: "Instante do último movimento do SKU no armazém."
         meta:
           sensitivity: internal
         data_type: timestamp with time zone
@@ -730,19 +823,24 @@ models:
     description: >
       P13 — Fração de entregas dentro do prazo prometido, por transportadora e
       modalidade, mês a mês. **Grão da remessa**: pedido dividido conta duas
-      vezes, de propósito.
+      vezes, de propósito. Conta as remessas entregues que têm pelo menos um
+      item aceito na fato: uma remessa legada entregue cujos itens foram todos
+      rejeitados em cascata fica de fora (D66).
     config:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
@@ -764,6 +862,7 @@ models:
           sensitivity: public
         data_type: text
       - name: warehouse_region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_type: text
@@ -773,14 +872,17 @@ models:
         description: Denominador — remessas **entregues**, não despachadas.
         data_type: bigint
       - name: on_time_count
+        description: "Aditiva — remessas entregues até o prazo prometido, por mês, transportadora, modalidade e armazém."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: late_count
+        description: "Aditiva — remessas entregues depois do prazo prometido, por mês, transportadora, modalidade e armazém."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: split_order_shipment_count
+        description: "Aditiva — remessas entregues de pedidos divididos em mais de uma remessa."
         meta:
           sensitivity: internal
         data_type: bigint
@@ -795,10 +897,12 @@ models:
         description: '**Não aditiva** — média sobre as atrasadas; positivo é atraso.'
         data_type: numeric
       - name: avg_transit_days
+        description: "Não aditiva — média de dias entre o despacho e a entrega das remessas do grupo; não se recompõe a partir de outras linhas."
         meta:
           sensitivity: internal
         data_type: numeric
       - name: failed_attempt_count
+        description: "Aditiva — tentativas de entrega que falharam, nas remessas entregues do grupo."
         meta:
           sensitivity: public
         data_type: numeric
@@ -814,19 +918,23 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_type: text
@@ -847,14 +955,17 @@ models:
           sensitivity: public
         data_type: text
       - name: order_count
+        description: "Aditiva — pedidos com o ciclo de entrega fechado, por mês, região, unidade federativa, modalidade e transportadora."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: split_order_count
+        description: "Aditiva — desses pedidos, os divididos em mais de uma remessa."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: shipment_count
+        description: "Aditiva — remessas desses pedidos."
         meta:
           sensitivity: internal
         data_type: numeric
@@ -869,6 +980,7 @@ models:
         description: A mediana ao lado da média separa operação lenta de operação irregular.
         data_type: numeric
       - name: max_order_to_delivery_days
+        description: "Não aditiva — o maior ciclo de entrega do grupo, em dias, do pedido à entrega da última remessa."
         meta:
           sensitivity: internal
         data_type: numeric
@@ -887,14 +999,17 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
@@ -910,26 +1025,32 @@ models:
           sensitivity: public
         data_type: text
       - name: support_category_name
+        description: "Nome da categoria de chamado."
         meta:
           sensitivity: public
         data_type: text
       - name: support_category_group
+        description: "Grupo que reúne categorias de chamado afins."
         meta:
           sensitivity: public
         data_type: text
       - name: ticket_count
+        description: "Aditiva — chamados abertos, por mês, canal e categoria de chamado."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: high_priority_ticket_count
+        description: "Aditiva — chamados de prioridade alta ou urgente."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: reopened_ticket_count
+        description: "Aditiva — chamados reabertos pelo menos uma vez."
         meta:
           sensitivity: internal
         data_type: bigint
       - name: solved_first_time_count
+        description: "Aditiva — chamados resolvidos sem reabertura."
         meta:
           sensitivity: internal
         data_type: bigint
@@ -939,6 +1060,7 @@ models:
         description: Denominador do **canal**, repetido em cada linha de categoria.
         data_type: numeric
       - name: tickets_per_hundred_orders
+        description: "Não aditiva — chamados por 100 pedidos realizados do canal no mês. Recalcula-se a cada recorte."
         meta:
           sensitivity: internal
         data_type: numeric
@@ -958,14 +1080,17 @@ models:
       contract: {enforced: true}
     columns:
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
         data_type: integer
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
         data_type: integer
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
         data_type: text
@@ -994,6 +1119,7 @@ models:
           duas vezes.
         data_type: bigint
       - name: repeat_order_count
+        description: "Aditiva — pedidos com recompra em até 90 dias, por mês, canal e por ter ou não chamado."
         meta:
           sensitivity: internal
         data_type: bigint

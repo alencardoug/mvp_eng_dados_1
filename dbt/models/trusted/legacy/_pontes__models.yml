@@ -720,6 +720,7 @@ models:
           lineage: [raw_legacy.support_agents.last_name]
           description_from: stg_retail__support_agents.agent_last_name
       - name: agent_full_name
+        description: "Nome completo do atendente: o primeiro nome e o sobrenome, separados por espaço (sintético)."
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"
@@ -1041,6 +1042,7 @@ models:
           lineage: [raw_legacy.customers.last_name]
           description_from: stg_retail__customers.last_name
       - name: customer_full_name
+        description: "Nome completo do cliente: o primeiro nome e o sobrenome, separados por espaço (sintético)."
         meta:
           sensitivity: personal
           sensitivity_reason: "extraída do payload JSON: nível da coluna de origem, declarado nos modelos SQLAlchemy (legacy/ponte.py)"

@@ -66,9 +66,11 @@ snapshots:
     meta:
       sensitivity: internal
   - name: redemption_count
+    description: Aditiva — número de resgates do cupom; zero quando ele nunca foi usado.
     meta:
       sensitivity: internal
   - name: redeemed_discount_amount
+    description: Aditiva — desconto total concedido nos resgates do cupom; zero quando ele nunca foi usado.
     meta:
       sensitivity: confidential
   - name: first_redeemed_at
@@ -78,9 +80,11 @@ snapshots:
     meta:
       sensitivity: internal
   - name: is_exhausted
+    description: Verdadeiro quando o cupom tem limite de usos e os resgates já o alcançaram.
     meta:
       sensitivity: internal
   - name: is_redeemable_now
+    description: Verdadeiro quando a data de referência do armazém (`as_of_date`, 01/09/2026) cai dentro da vigência do cupom.
     meta:
       sensitivity: public
   - name: is_deleted
@@ -136,6 +140,7 @@ snapshots:
     meta:
       sensitivity: personal
   - name: customer_full_name
+    description: 'Nome completo do cliente: o primeiro nome e o sobrenome, separados por espaço (sintético).'
     meta:
       sensitivity: personal
   - name: customer_document
@@ -179,15 +184,20 @@ snapshots:
     meta:
       sensitivity: public
   - name: first_order_at
+    description: Instante do primeiro pedido realizado do cliente; nulo para quem nunca comprou.
     meta:
       sensitivity: internal
   - name: last_order_at
+    description: Instante do último pedido realizado do cliente; nulo para quem nunca comprou.
     meta:
       sensitivity: internal
   - name: order_count
+    description: Aditiva entre clientes — número de pedidos realizados do cliente; zero para quem nunca comprou.
     meta:
       sensitivity: internal
   - name: lifetime_net_revenue_amount
+    description: Aditiva entre clientes — receita líquida dos itens de todos os pedidos realizados do cliente; zero para quem
+      nunca comprou.
     meta:
       sensitivity: confidential
   - name: second_order_at
@@ -200,9 +210,12 @@ snapshots:
     meta:
       sensitivity: internal
   - name: is_churned
+    description: Verdadeiro quando o cliente já comprou, mas o último pedido realizado é anterior a 180 dias da data de referência
+      do armazém (`active_customer_window_days`).
     meta:
       sensitivity: internal
   - name: days_since_last_order
+    description: Dias entre o último pedido realizado do cliente e a data de referência do armazém; nulo para quem nunca comprou.
     meta:
       sensitivity: internal
   - name: is_deleted
@@ -302,9 +315,12 @@ snapshots:
     meta:
       sensitivity: public
   - name: sub_category_name
+    description: Nome da categoria intermediária da variante, entre a raiz e a folha; nulo quando a categoria da variante
+      é uma raiz.
     meta:
       sensitivity: public
   - name: root_category_name
+    description: Nome da categoria raiz da variante, no topo da árvore de categorias.
     meta:
       sensitivity: public
   - name: category_depth
@@ -324,6 +340,7 @@ snapshots:
     meta:
       sensitivity: public
   - name: is_deleted
+    description: Verdadeiro quando a variante, o seu produto ou a sua categoria foi excluído logicamente na origem (ADR-0029).
     meta:
       sensitivity: internal
   - name: variant_is_deleted
@@ -382,6 +399,7 @@ snapshots:
     meta:
       sensitivity: personal
   - name: agent_full_name
+    description: 'Nome completo do atendente: o primeiro nome e o sobrenome, separados por espaço (sintético).'
     meta:
       sensitivity: personal
   - name: agent_email
@@ -401,9 +419,12 @@ snapshots:
     meta:
       sensitivity: internal
   - name: handled_ticket_count
+    description: Não aditiva entre atendentes — chamados distintos em que o atendente registrou algum evento; um chamado atendido
+      por dois conta para os dois.
     meta:
       sensitivity: internal
   - name: handled_event_count
+    description: Aditiva — eventos de chamado registrados pelo atendente.
     meta:
       sensitivity: internal
   - name: is_deleted

@@ -26,50 +26,65 @@ models:
     description: Calendário do período simulado. Dimensão estática, gerada da série de datas.
     columns:
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: full_date
+        description: "A data, uma linha por dia do calendário do período simulado."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: year_number
+        description: "Ano da data."
         meta:
           sensitivity: internal
       - name: quarter_number
+        description: "Trimestre do ano, de 1 a 4."
         meta:
           sensitivity: internal
       - name: month_number
+        description: "Mês do ano, de 1 a 12."
         meta:
           sensitivity: internal
       - name: month_name
+        description: "Nome do mês por extenso, no idioma do banco."
         meta:
           sensitivity: internal
       - name: year_month
+        description: "Ano e mês, no formato AAAA-MM."
         meta:
           sensitivity: internal
       - name: day_of_month
+        description: "Dia do mês, de 1 a 31."
         meta:
           sensitivity: internal
       - name: day_of_week
+        description: "Dia da semana ISO: 1 é segunda-feira, 7 é domingo."
         meta:
           sensitivity: internal
       - name: day_name
+        description: "Nome do dia da semana por extenso, no idioma do banco."
         meta:
           sensitivity: internal
       - name: iso_week_number
+        description: "Número da semana ISO no ano."
         meta:
           sensitivity: internal
       - name: month_start_date
+        description: "Primeiro dia do mês da data."
         meta:
           sensitivity: internal
       - name: quarter_start_date
+        description: "Primeiro dia do trimestre da data."
         meta:
           sensitivity: internal
       - name: year_start_date
+        description: "Primeiro dia do ano da data."
         meta:
           sensitivity: internal
       - name: is_weekend
+        description: "Verdadeiro no sábado e no domingo."
         meta:
           sensitivity: internal
 
@@ -122,6 +137,7 @@ models:
         meta:
           sensitivity: personal
       - name: customer_full_name
+        description: "Nome completo do cliente: o primeiro nome e o sobrenome, separados por espaço (sintético)."
         meta:
           sensitivity: personal
       - name: customer_document
@@ -137,21 +153,27 @@ models:
         meta:
           sensitivity: internal
       - name: first_order_at
+        description: "Instante do primeiro pedido realizado do cliente; nulo para quem nunca comprou."
         meta:
           sensitivity: internal
       - name: last_order_at
+        description: "Instante do último pedido realizado do cliente; nulo para quem nunca comprou."
         meta:
           sensitivity: internal
       - name: order_count
+        description: "Aditiva entre clientes — número de pedidos realizados do cliente; zero para quem nunca comprou."
         meta:
           sensitivity: internal
       - name: lifetime_net_revenue_amount
+        description: "Aditiva entre clientes — receita líquida dos itens de todos os pedidos realizados do cliente; zero para quem nunca comprou."
         meta:
           sensitivity: confidential
       - name: is_churned
+        description: "Verdadeiro quando o cliente já comprou, mas o último pedido realizado é anterior a 180 dias da data de referência do armazém (`active_customer_window_days`)."
         meta:
           sensitivity: internal
       - name: days_since_last_order
+        description: "Dias entre o último pedido realizado do cliente e a data de referência do armazém; nulo para quem nunca comprou."
         meta:
           sensitivity: internal
       - name: customer_status
@@ -167,6 +189,7 @@ models:
         meta:
           sensitivity: public
       - name: customer_segment_name
+        description: "Nome do segmento do cliente; 'Sem segmento' quando ele não tem um."
         meta:
           sensitivity: public
       - name: city
@@ -182,6 +205,7 @@ models:
         meta:
           sensitivity: public
       - name: valid_from
+        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
@@ -189,6 +213,7 @@ models:
         meta:
           sensitivity: internal
       - name: is_current
+        description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
         meta:
           sensitivity: internal
 
@@ -201,6 +226,7 @@ models:
           chave_natural: product_natural_key
     columns:
       - name: product_key
+        description: "Chave substituta da **versão** da variante do produto: hash de `source_system`, `product_variant_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -210,6 +236,7 @@ models:
           sensitivity: internal
         data_tests: [not_null]
       - name: is_deleted
+        description: "Verdadeiro quando a variante, o seu produto ou a sua categoria foi excluído logicamente na origem (ADR-0029)."
         meta:
           sensitivity: internal
         data_tests: [not_null]
@@ -274,9 +301,11 @@ models:
         meta:
           sensitivity: public
       - name: sub_category_name
+        description: "Nome da categoria intermediária da variante, entre a raiz e a folha; nulo quando a categoria da variante é uma raiz."
         meta:
           sensitivity: public
       - name: root_category_name
+        description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
           sensitivity: public
       - name: brand_id
@@ -284,6 +313,7 @@ models:
         meta:
           sensitivity: internal
       - name: brand_name
+        description: "Nome da marca do produto; 'Sem marca' quando ele não tem uma."
         meta:
           sensitivity: public
       - name: brand_country
@@ -299,6 +329,7 @@ models:
         meta:
           sensitivity: internal
       - name: valid_from
+        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
@@ -306,6 +337,7 @@ models:
         meta:
           sensitivity: internal
       - name: is_current
+        description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
         meta:
           sensitivity: internal
 
@@ -318,6 +350,7 @@ models:
             combination_of_columns: [source_system, category_natural_key]
     columns:
       - name: category_key
+        description: "Chave substituta da categoria: hash de `source_system` e `product_category_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -335,9 +368,11 @@ models:
         meta:
           sensitivity: public
       - name: sub_category_name
+        description: "Nome da categoria intermediária; na categoria que não tem intermediária, o da própria folha."
         meta:
           sensitivity: public
       - name: root_category_name
+        description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
           sensitivity: public
       - name: category_depth
@@ -350,6 +385,7 @@ models:
       domain: catalogo
     columns:
       - name: brand_key
+        description: "Chave substituta da marca: hash de `source_system` e `brand_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -379,6 +415,7 @@ models:
       fato — que some de todo recorte em vez de aparecer agrupada.
     columns:
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -422,10 +459,12 @@ models:
       um membro "Desconhecido" para que a fato nunca fique com chave nula.
     columns:
       - name: geography_key
+        description: "Chave substituta do lugar: hash de país, unidade federativa e cidade; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
         data_tests:
@@ -441,6 +480,7 @@ models:
         meta:
           sensitivity: public
       - name: state_name
+        description: "Nome da unidade federativa por extenso."
         meta:
           sensitivity: public
       - name: city
@@ -473,6 +513,7 @@ models:
         description: Chave do grão. O `unique` abaixo é o que prova o grão declarado.
         data_tests: [unique, not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -486,24 +527,28 @@ models:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: product_key
+        description: "Chave substituta da **versão** da variante do produto: hash de `source_system`, `product_variant_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: category_key
+        description: "Chave substituta da categoria: hash de `source_system` e `product_category_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_category'), field: category_key}
       - name: geography_key
+        description: "Lugar da entrega do pedido em `dim_geography`; o membro desconhecido quando o endereço não casa com nenhum lugar."
         meta:
           sensitivity: public
         data_tests:
@@ -525,6 +570,7 @@ models:
         meta:
           sensitivity: internal
       - name: brand_key
+        description: "Chave substituta da marca: hash de `source_system` e `brand_id` (ADR-0017)."
         meta:
           sensitivity: internal
       - name: order_id
@@ -544,6 +590,7 @@ models:
         meta:
           sensitivity: internal
       - name: order_date
+        description: "Data do pedido, no fuso de São Paulo."
         meta:
           sensitivity: internal
       - name: placed_at
@@ -551,21 +598,27 @@ models:
         meta:
           sensitivity: internal
       - name: is_realised
+        description: "Verdadeiro quando o pedido é venda realizada: pago, em separação, enviado, entregue ou devolvido. O pendente e o cancelado não contam."
         meta:
           sensitivity: internal
       - name: is_cancelled
+        description: "Verdadeiro quando o pedido está cancelado."
         meta:
           sensitivity: internal
       - name: is_from_cart
+        description: "Verdadeiro quando o pedido nasceu de um carrinho; falso em venda direta."
         meta:
           sensitivity: internal
       - name: has_post_order_repeat
+        description: "Verdadeiro quando o cliente fez outro pedido realizado em até 90 dias depois deste (`repeat_purchase_window_days`); nulo enquanto a janela não fechou na data de referência do armazém (ADR-0036)."
         meta:
           sensitivity: internal
       - name: is_repeat_window_closed
+        description: "Verdadeiro quando já se passaram 90 dias do pedido na data de referência do armazém: a janela da recompra pós-pedido está fechada."
         meta:
           sensitivity: internal
       - name: days_to_next_order
+        description: "Dias até o próximo pedido realizado do mesmo cliente; nulo quando não houve outro."
         meta:
           sensitivity: internal
       - name: unit_price
@@ -573,6 +626,7 @@ models:
         meta:
           sensitivity: confidential
       - name: gross_revenue_amount
+        description: "Aditiva — receita bruta da linha: quantidade vezes preço unitário, antes do desconto, arredondada a centavos."
         meta:
           sensitivity: confidential
       - name: discount_amount
@@ -608,22 +662,26 @@ models:
               cart_value_amount: "case when event_type = 'created' then cart_value_amount else 0 end"
     columns:
       - name: cart_event_key
+        description: "Chave substituta do evento do carrinho: hash de `source_system`, `cart_id` e `event_type` — um evento de cada tipo por carrinho (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: event_date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: cart_created_date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -653,39 +711,51 @@ models:
         meta:
           sensitivity: internal
       - name: occurred_at
+        description: "Instante do evento: a criação do carrinho, no evento de criação; a conversão, no de conversão; e, no carrinho que não converteu, o que vier primeiro entre a expiração e a data de referência do armazém."
         meta:
           sensitivity: internal
       - name: event_date
+        description: "Data do evento, no fuso de São Paulo."
         meta:
           sensitivity: internal
       - name: cart_created_date
+        description: "Data da criação do carrinho, no fuso de São Paulo."
         meta:
           sensitivity: internal
       - name: is_anonymous
+        description: "Verdadeiro quando o carrinho não tem cliente identificado — sessão anônima."
         meta:
           sensitivity: internal
       - name: cart_count
+        description: "Aditiva — 1 no evento de criação do carrinho, 0 nos demais: soma-se para contar carrinhos."
         meta:
           sensitivity: internal
       - name: closed_cart_count
+        description: "Aditiva — 1 no evento que fecha o carrinho (conversão, abandono ou expiração), 0 na criação."
         meta:
           sensitivity: internal
       - name: converted_cart_count
+        description: "Aditiva — 1 quando o evento converte o carrinho em pedido, 0 nos demais."
         meta:
           sensitivity: internal
       - name: abandoned_cart_count
+        description: "Aditiva — 1 quando o evento fecha o carrinho sem compra, por abandono ou expiração; 0 nos demais."
         meta:
           sensitivity: internal
       - name: cart_item_count
+        description: "Aditiva — itens do carrinho, no evento de criação; 0 nos demais."
         meta:
           sensitivity: internal
       - name: cart_unit_count
+        description: "Aditiva — unidades do carrinho, no evento de criação; 0 nos demais."
         meta:
           sensitivity: internal
       - name: cart_value_amount
+        description: "Aditiva — valor do carrinho, no evento de criação; 0 nos demais."
         meta:
           sensitivity: confidential
       - name: abandoned_value_amount
+        description: "Aditiva — valor do carrinho fechado sem compra, no evento de abandono ou expiração; 0 nos demais."
         meta:
           sensitivity: confidential
 
@@ -698,6 +768,7 @@ models:
       domain: pagamentos
     columns:
       - name: payment_method_key
+        description: "Chave substituta do meio de pagamento: hash de `source_system` e `payment_method_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -725,9 +796,11 @@ models:
         meta:
           sensitivity: public
       - name: is_card
+        description: "Verdadeiro para cartão de crédito ou de débito."
         meta:
           sensitivity: public
       - name: is_instant
+        description: "Verdadeiro para meio de liquidação imediata: Pix ou cartão de débito."
         meta:
           sensitivity: public
       - name: is_active
@@ -749,6 +822,7 @@ models:
             combination_of_columns: [source_system, supplier_natural_key]
     columns:
       - name: supplier_key
+        description: "Chave substituta do fornecedor: hash de `source_system` e `supplier_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -770,6 +844,7 @@ models:
         meta:
           sensitivity: confidential
       - name: supplier_name
+        description: "Nome do fornecedor: o fantasia, ou a razão social quando não há nome fantasia."
         meta:
           sensitivity: confidential
       - name: supplier_country
@@ -795,10 +870,12 @@ models:
     description: Armazém, com a **mesma** `dim_geography` do endereço de entrega.
     columns:
       - name: warehouse_key
+        description: "Chave substituta do armazém: hash de `source_system` e `warehouse_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: geography_key
+        description: "Lugar do armazém em `dim_geography`; o membro desconhecido quando o endereço não casa com nenhum lugar."
         meta:
           sensitivity: public
         data_tests:
@@ -829,9 +906,11 @@ models:
         meta:
           sensitivity: public
       - name: warehouse_state_name
+        description: "Nome da unidade federativa por extenso."
         meta:
           sensitivity: public
       - name: warehouse_region
+        description: "Região do IBGE a que a unidade federativa pertence."
         meta:
           sensitivity: public
       - name: warehouse_country
@@ -869,16 +948,19 @@ models:
               captured_amount: captured_amount
     columns:
       - name: payment_transaction_key
+        description: "Chave substituta da transação de pagamento: hash de `source_system` e `payment_transaction_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: payment_method_key
+        description: "Chave substituta do meio de pagamento: hash de `source_system` e `payment_method_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -910,6 +992,7 @@ models:
         meta:
           sensitivity: internal
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
       - name: payment_transaction_id
@@ -949,18 +1032,23 @@ models:
         meta:
           sensitivity: public
       - name: is_instalment_plan
+        description: "Verdadeiro quando o pagamento é parcelado, em mais de uma parcela."
         meta:
           sensitivity: public
       - name: attempt_count
+        description: "Aditiva — 1 por transação: soma-se para contar tentativas."
         meta:
           sensitivity: internal
       - name: approved_count
+        description: "Aditiva — 1 quando a transação foi aprovada, 0 nas demais."
         meta:
           sensitivity: internal
       - name: authorization_count
+        description: "Aditiva — 1 quando a transação é uma autorização, 0 nas demais."
         meta:
           sensitivity: internal
       - name: approved_authorization_count
+        description: "Aditiva — 1 quando a transação é uma autorização aprovada, 0 nas demais."
         meta:
           sensitivity: internal
       - name: transaction_amount
@@ -968,12 +1056,15 @@ models:
         meta:
           sensitivity: confidential
       - name: authorized_amount
+        description: "Aditiva — valor autorizado: o da transação quando ela é uma autorização bem-sucedida; zero nas demais."
         meta:
           sensitivity: confidential
       - name: captured_amount
+        description: "Aditiva — valor capturado: o da transação quando ela é uma captura bem-sucedida; zero nas demais."
         meta:
           sensitivity: confidential
       - name: refunded_amount
+        description: "Aditiva — valor estornado: o da transação quando ela é um estorno bem-sucedido; zero nas demais."
         meta:
           sensitivity: confidential
 
@@ -991,10 +1082,12 @@ models:
               refund_amount: refund_amount
     columns:
       - name: refund_key
+        description: "Chave substituta do reembolso: hash de `source_system` e `refund_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1012,6 +1105,7 @@ models:
         meta:
           sensitivity: internal
       - name: payment_method_key
+        description: "Chave substituta do meio de pagamento: hash de `source_system` e `payment_method_id` (ADR-0017)."
         meta:
           sensitivity: internal
       - name: customer_key
@@ -1019,6 +1113,7 @@ models:
         meta:
           sensitivity: internal
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
       - name: refund_id
@@ -1058,12 +1153,15 @@ models:
         meta:
           sensitivity: internal
       - name: is_completed
+        description: "Verdadeiro quando o reembolso foi concluído."
         meta:
           sensitivity: internal
       - name: is_full_refund
+        description: "Verdadeiro quando o reembolso alcança o valor capturado do pagamento."
         meta:
           sensitivity: confidential
       - name: refund_count
+        description: "Aditiva — 1 por reembolso: soma-se para contar reembolsos."
         meta:
           sensitivity: internal
       - name: originally_captured_amount
@@ -1071,6 +1169,7 @@ models:
         meta:
           sensitivity: confidential
       - name: completed_refund_amount
+        description: "Aditiva — valor do reembolso quando ele foi concluído; 0 nos demais."
         meta:
           sensitivity: confidential
 
@@ -1089,16 +1188,19 @@ models:
               received_cost_amount: received_cost_amount
     columns:
       - name: purchase_order_item_key
+        description: "Chave substituta da linha do pedido de compra: hash de `source_system` e `purchase_order_item_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
       - name: supplier_key
+        description: "Chave substituta do fornecedor: hash de `source_system` e `supplier_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_supplier'), field: supplier_key}
       - name: product_key
+        description: "Chave substituta da **versão** da variante do produto: hash de `source_system`, `product_variant_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1115,9 +1217,11 @@ models:
         meta:
           sensitivity: internal
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
       - name: category_key
+        description: "Chave substituta da categoria: hash de `source_system` e `product_category_id` (ADR-0017)."
         meta:
           sensitivity: internal
       - name: purchase_order_item_id
@@ -1145,24 +1249,31 @@ models:
         meta:
           sensitivity: internal
       - name: first_received_at
+        description: "Instante do primeiro recebimento da linha; nulo enquanto nada chegou."
         meta:
           sensitivity: internal
       - name: last_received_at
+        description: "Instante do último recebimento da linha; nulo enquanto nada chegou."
         meta:
           sensitivity: internal
       - name: is_fully_received
+        description: "Verdadeiro quando a quantidade recebida alcança a pedida."
         meta:
           sensitivity: internal
       - name: is_not_received
+        description: "Verdadeiro quando nenhuma unidade da linha foi recebida."
         meta:
           sensitivity: internal
       - name: is_cancelled
+        description: "Verdadeiro quando o pedido de compra está cancelado."
         meta:
           sensitivity: internal
       - name: quantity_received
+        description: "Aditiva — unidades recebidas da linha, somando todos os recebimentos; zero enquanto nada chegou."
         meta:
           sensitivity: internal
       - name: quantity_outstanding
+        description: "Aditiva — unidades pedidas que ainda não chegaram."
         meta:
           sensitivity: internal
       - name: unit_cost
@@ -1174,6 +1285,7 @@ models:
         meta:
           sensitivity: confidential
       - name: received_cost_amount
+        description: "Aditiva — custo do que chegou: a quantidade recebida vezes o custo unitário de cada recebimento, arredondado a centavos."
         meta:
           sensitivity: confidential
 
@@ -1205,6 +1317,7 @@ models:
               cogs_amount: cogs_amount
     columns:
       - name: movement_key
+        description: "Chave substituta do movimento de estoque: hash de `source_system` e `movement_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1220,18 +1333,21 @@ models:
           sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: product_key
+        description: "Chave substituta da **versão** da variante do produto: hash de `source_system`, `product_variant_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: warehouse_key
+        description: "Chave substituta do armazém: hash de `source_system` e `warehouse_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1261,6 +1377,7 @@ models:
         meta:
           sensitivity: internal
       - name: event_sequence
+        description: "Ordem do evento dentro da sua origem. No varejo, a sequência técnica que o banco atribui; no legado, a identidade física da linha na captura — desempate técnico, sem promessa de ordem de negócio (D40)."
         meta:
           sensitivity: internal
       - name: source_type
@@ -1288,21 +1405,27 @@ models:
         meta:
           sensitivity: internal
       - name: movement_date
+        description: "Data do movimento, no fuso de São Paulo."
         meta:
           sensitivity: internal
       - name: is_inbound
+        description: "Verdadeiro quando o movimento é de entrada: todo tipo que não é venda, devolução a fornecedor, transferência de saída ou ajuste de saída."
         meta:
           sensitivity: internal
       - name: is_outbound
+        description: "Verdadeiro quando o movimento é de saída: venda (`sale_dispatch`), devolução a fornecedor, transferência de saída ou ajuste de saída."
         meta:
           sensitivity: internal
       - name: is_sale
+        description: "Verdadeiro quando o movimento é a saída de uma venda (`sale_dispatch`)."
         meta:
           sensitivity: internal
       - name: quantity_in
+        description: "Aditiva — unidades que entraram no movimento; zero numa saída."
         meta:
           sensitivity: internal
       - name: quantity_out
+        description: "Aditiva — unidades que saíram no movimento, em número positivo; zero numa entrada."
         meta:
           sensitivity: internal
       - name: unit_cost
@@ -1310,9 +1433,11 @@ models:
         meta:
           sensitivity: confidential
       - name: movement_cost_amount
+        description: "Aditiva — custo do movimento: a quantidade movimentada, em valor absoluto, vezes o custo unitário (zero sem custo), arredondado a centavos."
         meta:
           sensitivity: confidential
       - name: recording_delay_seconds
+        description: "Segundos entre o instante de negócio do movimento e o seu registro na origem."
         meta:
           sensitivity: internal
 
@@ -1330,6 +1455,7 @@ models:
             combination_of_columns: [source_system, carrier_natural_key]
     columns:
       - name: carrier_key
+        description: "Chave substituta da transportadora: hash de `source_system` e `carrier_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1364,6 +1490,7 @@ models:
         meta:
           sensitivity: public
       - name: service_level_rank
+        description: "Ordem da modalidade, da mais lenta à mais rápida: 1 standard, 2 express, 3 same_day."
         meta:
           sensitivity: internal
       - name: tracking_url_template
@@ -1408,27 +1535,27 @@ models:
       - name: date_key
         meta:
           sensitivity: internal
-        description: Data de **despacho** da remessa.
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
+        description: "Data de **despacho** da remessa."
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: delivered_date_key
         meta:
           sensitivity: internal
-        description: >
-          Data de **chegada**. Nula enquanto a remessa não chega, e o nulo
-          significa *ainda não chegou* — o motivo está no cabeçalho do modelo.
-          Sem `not_null` por isso; o `relationships` continua valendo para as
-          linhas preenchidas.
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
+        description: "Data de **chegada**. Nula enquanto a remessa não chega, e o nulo significa *ainda não chegou* — o motivo está no cabeçalho do modelo. Sem `not_null` por isso; o `relationships` continua valendo para as linhas preenchidas."
         data_tests:
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: carrier_key
+        description: "Chave substituta da transportadora: hash de `source_system` e `carrier_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_carrier'), field: carrier_key}
       - name: warehouse_key
+        description: "Chave substituta do armazém: hash de `source_system` e `warehouse_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1442,18 +1569,21 @@ models:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: product_key
+        description: "Chave substituta da **versão** da variante do produto: hash de `source_system`, `product_variant_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_product'), field: product_key}
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        description: "Lugar da entrega do pedido em `dim_geography`; o membro desconhecido quando o endereço não casa com nenhum lugar."
         meta:
           sensitivity: public
         data_tests:
@@ -1526,39 +1656,51 @@ models:
         meta:
           sensitivity: public
       - name: delivered_at
+        description: "Instante da entrega, o do último evento de entrega da remessa; nulo enquanto ela não foi entregue."
         meta:
           sensitivity: internal
       - name: returned_at
+        description: "Instante da devolução, o do último evento de devolução; nulo sem devolução."
         meta:
           sensitivity: internal
       - name: is_dispatched
+        description: "Verdadeiro quando a remessa saiu do armazém."
         meta:
           sensitivity: internal
       - name: is_delivered
+        description: "Verdadeiro quando a remessa foi entregue."
         meta:
           sensitivity: internal
       - name: is_returned
+        description: "Verdadeiro quando a remessa voltou ao remetente."
         meta:
           sensitivity: internal
       - name: is_lost
+        description: "Verdadeiro quando a remessa está extraviada."
         meta:
           sensitivity: internal
       - name: order_shipment_count
+        description: "Não aditiva entre itens — número de remessas do pedido, repetido em cada item dele."
         meta:
           sensitivity: internal
       - name: delivered_shipment_count
+        description: "Não aditiva entre itens — remessas entregues do pedido, repetidas em cada item dele."
         meta:
           sensitivity: internal
       - name: is_order_cycle_closed
+        description: "Verdadeiro quando todas as remessas do pedido foram entregues e o ciclo de entrega está fechado (ADR-0033)."
         meta:
           sensitivity: internal
       - name: is_cycle_closing_shipment
+        description: "Verdadeiro na remessa que fecha o ciclo de entrega do pedido: a última entregue (ADR-0033)."
         meta:
           sensitivity: internal
       - name: is_split_order
+        description: "Verdadeiro quando o pedido foi dividido em mais de uma remessa."
         meta:
           sensitivity: internal
       - name: order_delivered_at
+        description: "Instante em que a última remessa do pedido foi entregue; nulo enquanto falta alguma."
         meta:
           sensitivity: internal
       - name: quantity_ordered
@@ -1566,15 +1708,19 @@ models:
         meta:
           sensitivity: internal
       - name: shipped_share_of_line
+        description: "Fração da linha do pedido que viajou nesta remessa: a quantidade enviada sobre a pedida, de 0 a 1."
         meta:
           sensitivity: internal
       - name: failed_attempt_count
+        description: "Aditiva — tentativas de entrega da remessa que falharam."
         meta:
           sensitivity: public
       - name: delivery_delay_days
+        description: "Dias entre a entrega e o prazo prometido: positivo é atraso, negativo é adiantamento; nulo sem entrega."
         meta:
           sensitivity: internal
       - name: transit_days
+        description: "Dias entre o despacho e a entrega; nulo enquanto falta um dos dois."
         meta:
           sensitivity: internal
 
@@ -1598,6 +1744,7 @@ models:
               hours_in_previous_status: hours_in_previous_status
     columns:
       - name: order_status_event_key
+        description: "Chave substituta da transição de estado do pedido: hash de `source_system` e `order_status_event_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1607,6 +1754,7 @@ models:
           sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -1620,12 +1768,14 @@ models:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        description: "Lugar da entrega do pedido em `dim_geography`; o membro desconhecido quando o endereço não casa com nenhum lugar."
         meta:
           sensitivity: public
         data_tests:
@@ -1672,6 +1822,7 @@ models:
         meta:
           sensitivity: internal
       - name: status_sequence
+        description: "Posição da transição na história do pedido, por ordem de data (1 é a criação)."
         meta:
           sensitivity: internal
       - name: placed_at
@@ -1683,6 +1834,7 @@ models:
         meta:
           sensitivity: internal
       - name: previous_changed_at
+        description: "Instante da transição anterior do mesmo pedido; nulo na primeira."
         meta:
           sensitivity: internal
       - name: current_order_status
@@ -1690,21 +1842,27 @@ models:
         meta:
           sensitivity: internal
       - name: is_order_creation
+        description: "Verdadeiro na primeira transição do pedido, que não vem de estado nenhum."
         meta:
           sensitivity: internal
       - name: is_current_status
+        description: "Verdadeiro na transição mais recente do pedido — a do estado em que ele está."
         meta:
           sensitivity: internal
       - name: is_terminal_status
+        description: "Verdadeiro quando a transição leva o pedido a um estado final: `cancelled` ou `returned`."
         meta:
           sensitivity: internal
       - name: is_cancellation
+        description: "Verdadeiro quando a transição leva o pedido a `cancelled`."
         meta:
           sensitivity: internal
       - name: is_return
+        description: "Verdadeiro quando a transição leva o pedido a `returned`."
         meta:
           sensitivity: internal
       - name: is_realised
+        description: "Verdadeiro quando o pedido é venda realizada: pago, em separação, enviado, entregue ou devolvido. O pendente e o cancelado não contam."
         meta:
           sensitivity: internal
 
@@ -1719,6 +1877,7 @@ models:
             combination_of_columns: [source_system, campaign_natural_key]
     columns:
       - name: campaign_key
+        description: "Chave substituta da campanha: hash de `source_system` e `campaign_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1764,9 +1923,11 @@ models:
         meta:
           sensitivity: internal
       - name: is_running
+        description: "Verdadeiro quando a data de referência do armazém (`as_of_date`, 01/09/2026) cai dentro da vigência da campanha."
         meta:
           sensitivity: public
       - name: is_finished
+        description: "Verdadeiro quando a vigência da campanha terminou antes de a data de referência do armazém (`as_of_date`, 01/09/2026)."
         meta:
           sensitivity: public
       - name: is_deleted
@@ -1783,21 +1944,26 @@ models:
       agrupamento.
     columns:
       - name: support_category_key
+        description: "Chave substituta da categoria de chamado: hash de `category_code` (ADR-0017)."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: support_category_natural_key
+        description: "Código estável da categoria de chamado; chave natural."
         meta:
           sensitivity: public
         data_tests: [unique, not_null]
       - name: support_category_name
+        description: "Nome da categoria de chamado."
         meta:
           sensitivity: public
         data_tests: [not_null]
       - name: support_category_group
+        description: "Grupo que reúne categorias de chamado afins."
         meta:
           sensitivity: public
       - name: support_category_description
+        description: "O que a categoria de chamado cobre."
         meta:
           sensitivity: public
 
@@ -1814,6 +1980,7 @@ models:
           chave_natural: coupon_natural_key
     columns:
       - name: coupon_key
+        description: "Chave substituta da **versão** do cupom: hash de `source_system`, `coupon_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1855,15 +2022,19 @@ models:
         meta:
           sensitivity: internal
       - name: redemption_count
+        description: "Aditiva — número de resgates do cupom; zero quando ele nunca foi usado."
         meta:
           sensitivity: internal
       - name: redeemed_discount_amount
+        description: "Aditiva — desconto total concedido nos resgates do cupom; zero quando ele nunca foi usado."
         meta:
           sensitivity: confidential
       - name: is_exhausted
+        description: "Verdadeiro quando o cupom tem limite de usos e os resgates já o alcançaram."
         meta:
           sensitivity: internal
       - name: is_redeemable_now
+        description: "Verdadeiro quando a data de referência do armazém (`as_of_date`, 01/09/2026) cai dentro da vigência do cupom."
         meta:
           sensitivity: public
       - name: campaign_id
@@ -1895,6 +2066,7 @@ models:
         meta:
           sensitivity: internal
       - name: valid_from
+        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
@@ -1902,6 +2074,7 @@ models:
         meta:
           sensitivity: internal
       - name: is_current
+        description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
         meta:
           sensitivity: internal
 
@@ -1917,6 +2090,7 @@ models:
           chave_natural: support_agent_natural_key
     columns:
       - name: support_agent_key
+        description: "Chave substituta da **versão** do atendente: hash de `source_system`, `support_agent_id` e do início da vigência da versão (ADR-0017). O membro desconhecido tem chave própria."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -1952,6 +2126,7 @@ models:
         meta:
           sensitivity: personal
       - name: agent_full_name
+        description: "Nome completo do atendente: o primeiro nome e o sobrenome, separados por espaço (sintético)."
         meta:
           sensitivity: personal
       - name: agent_email
@@ -1963,9 +2138,11 @@ models:
         meta:
           sensitivity: internal
       - name: handled_ticket_count
+        description: "Não aditiva entre atendentes — chamados distintos em que o atendente registrou algum evento; um chamado atendido por dois conta para os dois."
         meta:
           sensitivity: internal
       - name: handled_event_count
+        description: "Aditiva — eventos de chamado registrados pelo atendente."
         meta:
           sensitivity: internal
       - name: agent_is_active
@@ -1973,6 +2150,7 @@ models:
         meta:
           sensitivity: internal
       - name: valid_from
+        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
@@ -1980,6 +2158,7 @@ models:
         meta:
           sensitivity: internal
       - name: is_current
+        description: "Verdadeiro na versão vigente — a que não tem fim de vigência. O membro desconhecido é sempre vigente."
         meta:
           sensitivity: internal
 
@@ -2006,6 +2185,7 @@ models:
               coupon_discount_amount: coupon_discount_amount
     columns:
       - name: coupon_redemption_key
+        description: "Chave substituta do resgate de cupom: hash de `source_system` e `coupon_redemption_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -2024,18 +2204,21 @@ models:
           exigi-la do id sozinho reprovaria dado correto.
         data_tests: [not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_date'), field: date_key}
       - name: coupon_key
+        description: "Chave substituta da **versão** do cupom: hash de `source_system`, `coupon_id` e do início da vigência da versão (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_coupon'), field: coupon_key}
       - name: campaign_key
+        description: "Chave substituta da campanha: hash de `source_system` e `campaign_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -2049,12 +2232,14 @@ models:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: sales_channel_key
+        description: "Chave substituta do canal de venda: hash de `source_system` e `sales_channel_id`; o membro desconhecido tem chave própria (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        description: "Lugar da entrega do pedido em `dim_geography`; o membro desconhecido quando o endereço não casa com nenhum lugar."
         meta:
           sensitivity: public
         data_tests:
@@ -2096,6 +2281,7 @@ models:
         meta:
           sensitivity: public
       - name: redemption_sequence
+        description: "Posição do resgate entre os do mesmo cupom, por ordem de data (1 é o primeiro); é ela que mede o limite de usos."
         meta:
           sensitivity: internal
       - name: redeemed_at
@@ -2107,24 +2293,31 @@ models:
         meta:
           sensitivity: internal
       - name: is_within_validity
+        description: "Verdadeiro quando o resgate aconteceu dentro da vigência do cupom."
         meta:
           sensitivity: internal
       - name: is_above_minimum
+        description: "Verdadeiro quando o subtotal do pedido alcança o valor mínimo do cupom, ou o cupom não tem mínimo."
         meta:
           sensitivity: confidential
       - name: is_within_limit
+        description: "Verdadeiro quando o resgate cabe no limite de usos do cupom, pela ordem dos resgates, ou o cupom não tem limite."
         meta:
           sensitivity: internal
       - name: is_discount_bounded
+        description: "Verdadeiro quando o desconto do resgate não passa do subtotal do pedido."
         meta:
           sensitivity: confidential
       - name: order_is_cancelled
+        description: "Verdadeiro quando o pedido está cancelado."
         meta:
           sensitivity: internal
       - name: is_realised
+        description: "Verdadeiro quando o pedido é venda realizada: pago, em separação, enviado, entregue ou devolvido. O pendente e o cancelado não contam."
         meta:
           sensitivity: internal
       - name: redemption_count
+        description: "Aditiva — 1 por resgate: soma-se para contar resgates."
         meta:
           sensitivity: internal
       - name: order_subtotal_amount
@@ -2136,6 +2329,7 @@ models:
         meta:
           sensitivity: confidential
       - name: discount_share_of_order
+        description: "Não aditiva — fração do subtotal do pedido que o cupom descontou, de 0 a 1; nula em pedido sem subtotal."
         meta:
           sensitivity: confidential
 
@@ -2157,6 +2351,7 @@ models:
             # só contagem: as horas até atribuição e resolução nascem na própria fato
     columns:
       - name: support_ticket_event_key
+        description: "Chave substituta do evento de chamado: hash de `source_system` e `ticket_event_id` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests: [unique, not_null]
@@ -2166,6 +2361,7 @@ models:
           sensitivity: internal
         data_tests: [not_null]
       - name: date_key
+        description: "Chave substituta da data: hash de `full_date` (ADR-0017)."
         meta:
           sensitivity: internal
         data_tests:
@@ -2179,6 +2375,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_customer'), field: customer_key}
       - name: support_category_key
+        description: "Chave substituta da categoria de chamado: hash de `category_code` (ADR-0017)."
         meta:
           sensitivity: public
         data_tests:
@@ -2187,7 +2384,8 @@ models:
       - name: support_agent_key
         meta:
           sensitivity: internal
-        description: Membro desconhecido quando o autor do evento é o cliente.
+          description_reason: "diz o papel da coluna neste modelo, que o texto herdado não diz"
+        description: "Membro desconhecido quando o autor do evento é o cliente."
         data_tests:
           - not_null
           - relationships: {to: ref('dim_support_agent'), field: support_agent_key}
@@ -2199,6 +2397,7 @@ models:
           - not_null
           - relationships: {to: ref('dim_sales_channel'), field: sales_channel_key}
       - name: geography_key
+        description: "Lugar do endereço de entrega do cliente em `dim_geography`; o membro desconhecido quando não há endereço que case."
         meta:
           sensitivity: public
         data_tests:
@@ -2246,6 +2445,7 @@ models:
         meta:
           sensitivity: internal
       - name: event_sequence
+        description: "Posição do evento na história do chamado, por ordem de data (1 é a abertura)."
         meta:
           sensitivity: internal
       - name: occurred_at
@@ -2265,44 +2465,58 @@ models:
         meta:
           sensitivity: internal
       - name: is_ticket_creation
+        description: "Verdadeiro quando o evento abre o chamado."
         meta:
           sensitivity: internal
       - name: is_assignment
+        description: "Verdadeiro quando o evento atribui o chamado a um atendente."
         meta:
           sensitivity: internal
       - name: is_message
+        description: "Verdadeiro quando o evento é uma mensagem."
         meta:
           sensitivity: internal
       - name: is_status_change
+        description: "Verdadeiro quando o evento muda o estado do chamado."
         meta:
           sensitivity: internal
       - name: is_resolution
+        description: "Verdadeiro quando o evento resolve o chamado."
         meta:
           sensitivity: internal
       - name: is_reopening
+        description: "Verdadeiro quando o evento reabre o chamado."
         meta:
           sensitivity: internal
       - name: is_from_customer
+        description: "Verdadeiro quando o evento veio do cliente, sem atendente."
         meta:
           sensitivity: internal
       - name: is_closed
+        description: "Verdadeiro quando o chamado está resolvido ou fechado."
         meta:
           sensitivity: internal
       - name: has_order
+        description: "Verdadeiro quando o chamado está ligado a um pedido."
         meta:
           sensitivity: internal
       - name: was_reopened
+        description: "Verdadeiro quando o chamado foi reaberto pelo menos uma vez."
         meta:
           sensitivity: internal
       - name: is_solved_first_time
+        description: "Verdadeiro quando o chamado foi resolvido e nunca reaberto."
         meta:
           sensitivity: internal
       - name: reopening_count
+        description: "Aditiva — vezes que o chamado foi reaberto."
         meta:
           sensitivity: internal
       - name: hours_to_assignment
+        description: "Horas entre a abertura do chamado e a primeira atribuição a um atendente; nulo enquanto ele não foi atribuído."
         meta:
           sensitivity: internal
       - name: hours_to_resolution
+        description: "Horas entre a abertura do chamado e a primeira resolução; nulo enquanto ele não foi resolvido."
         meta:
           sensitivity: internal

@@ -32,9 +32,11 @@ MANIFEST = sensitivity.MANIFEST
 
 #: Colunas materializadas sem descrição, por camada — o medido na entrega da
 #: etapa 1.7 (03/11/2026), já com a herança. Só baixa, e no mesmo commit da melhora.
+#: Baixado em 03/11/2026 (etapa 1.8): o texto escrito das colunas que calculam leva `analytics` e
+#: `consumption` a zero, como a etapa pede; as internas ficam no que sobra delas.
 TETO_SEM_DESCRICAO: dict[str, int] = {
-    "raw": 0, "raw_legacy": 0, "staging": 7, "trusted": 232, "analytics": 215,
-    "consumption": 123, "quarantine": 5, "snapshots": 23, "governance": 0,
+    "raw": 0, "raw_legacy": 0, "staging": 5, "trusted": 125, "analytics": 0,
+    "consumption": 0, "quarantine": 5, "snapshots": 6, "governance": 0,
 }
 
 #: Objetos materializados (modelo, snapshot, seed) sem `domain` ou sem `owner`, por camada.
@@ -114,13 +116,15 @@ def test_herdado_e_escrito_contados_a_parte(manifest, record_property) -> None:
 
 
 def test_contraprovas_no_manifest_real(manifest) -> None:
-    """A receita somada da P01 não herda; o canal herda pela união com a ponte, pela dimensão e pela view;
+    """A receita somada da P01 não herda — o texto dela é o escrito; o canal herda pela união com a ponte, pela dimensão e pela view;
     sem a declaração da ponte, a união deixa de herdar."""
     _, derivacao = sensitivity.load()
     textos = descriptions.derive_texts(manifest, derivacao)
     p01 = ("consumption", "monthly_revenue_by_channel_and_category")
-    assert p01 + ("net_revenue_amount",) not in textos.texts
-    assert textos.undescribed[p01 + ("net_revenue_amount",)] == "sum"
+    soma = p01 + ("net_revenue_amount",)
+    # A soma tem o texto escrito para ela (etapa 1.8), nunca o da coluna somada.
+    assert textos.origin[soma] == "written"
+    assert textos.texts[soma] != textos.texts[("analytics", "fact_sales_order_item", "net_revenue_amount")]
     canal = textos.texts[("staging", "stg_retail__sales_channels", "sales_channel_name")]
     for chave in (("trusted", "sales_channels"), ("analytics", "dim_sales_channel"), p01):
         assert textos.texts[chave + ("sales_channel_name",)] == canal, chave
