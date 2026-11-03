@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from mvp_ed1.generator.dataset import Dataset
 from mvp_ed1.generator.engine import Motor
+from mvp_ed1.generator.pricing import CART, SALE
 from mvp_ed1.generator.rng import cobrir, dinheiro, preco, repartir
 
 #: Máquina de estados do pedido (invariante 9). Cada estado final é o fim de um
@@ -122,7 +123,7 @@ def _itens_de_carrinho(motor: Motor, dados: Dataset, carrinhos_linhas: list[dict
                     "product_variant_id": variante["id"],
                     "quantity": fonte.inteiro(qtd_min, qtd_max),
                     "unit_price": preco(
-                        variante["__preco"] * Decimal(str(fonte.rng.uniform(0.97, 1.03)))
+                        variante["__preco"] * Decimal(str(fonte.rng.uniform(*CART)))
                     ),
                     "added_at": adicionado,
                     "deleted_at": None,
@@ -208,7 +209,7 @@ def _montar_itens(
     itens: list[dict] = []
     for variante in variantes:
         quantidade = fonte.inteiro(1, 3)
-        unitario = preco(variante["__preco"] * Decimal(str(fonte.rng.uniform(0.95, 1.05))))
+        unitario = preco(variante["__preco"] * Decimal(str(fonte.rng.uniform(*SALE))))
         bruto = dinheiro(unitario * quantidade)
         desconto = (
             dinheiro(bruto * Decimal(str(fonte.rng.uniform(0.05, 0.3))))

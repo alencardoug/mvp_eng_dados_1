@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from mvp_ed1.generator.dataset import Dataset
 from mvp_ed1.generator.engine import Motor
+from mvp_ed1.generator.pricing import CHANNEL, READJUSTMENT, SKU_VARIATION
 from mvp_ed1.generator.providers import ARVORE_DE_CATEGORIAS
 from mvp_ed1.generator.rng import preco, repartir
 
@@ -99,7 +100,7 @@ def produtos(motor: Motor, dados: Dataset) -> None:
     for produto, quantidade in zip(produtos_linhas, por_produto):
         base = fonte_v.decimal(preco_min, preco_max, 4)
         for _ in range(quantidade):
-            valor = preco(base * Decimal(str(fonte_v.rng.uniform(0.92, 1.12))))
+            valor = preco(base * Decimal(str(fonte_v.rng.uniform(*SKU_VARIATION))))
             variantes.append(
                 {
                     "product_id": produto["id"],
@@ -192,7 +193,7 @@ def _tabela_de_precos(motor: Motor, dados: Dataset) -> None:
         anterior = linhas[indice]
         virada = motor.relogio.uniforme(fonte, motor.inicio + dt.timedelta(days=60))
         anterior["valid_to"] = virada
-        novo = preco(anterior["unit_price"] * Decimal(str(fonte.rng.uniform(1.02, 1.35))))
+        novo = preco(anterior["unit_price"] * Decimal(str(fonte.rng.uniform(*READJUSTMENT))))
         variantes[indice]["__preco"] = novo
         linhas.append(
             {
@@ -222,7 +223,7 @@ def _tabela_de_precos(motor: Motor, dados: Dataset) -> None:
                     "price_list_id": lista["id"],
                     "product_variant_id": variante["id"],
                     "unit_price": preco(
-                        variante["__preco"] * Decimal(str(fonte.rng.uniform(0.88, 1.06)))
+                        variante["__preco"] * Decimal(str(fonte.rng.uniform(*CHANNEL)))
                     ),
                     "valid_from": motor.inicio,
                     "valid_to": lista["valid_to"],
