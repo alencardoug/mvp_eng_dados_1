@@ -2,6 +2,8 @@ version: 2
 
 seeds:
   - name: brazilian_states
+    meta:
+      domain: transversal
     description: >
       As 27 unidades federativas e a região de cada uma. É dado de referência
       geográfico, não dado gerado: entra por *seed* porque é estável, pequeno e
@@ -30,6 +32,8 @@ seeds:
           sensitivity: public
 
   - name: order_status_transitions
+    meta:
+      domain: vendas
     description: >
       As transições legais da máquina de estados do pedido — de qual estado para
       qual, e qual delas é a criação. É **regra**, não dado observado: o teste
@@ -66,6 +70,8 @@ seeds:
           sensitivity: public
 
   - name: support_categories
+    meta:
+      domain: atendimento
     description: >
       As seis categorias de chamado, com nome legível e agrupamento. É a fonte
       de `dim_support_category`, que é **derivada**: a origem não tem tabela

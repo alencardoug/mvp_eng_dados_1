@@ -14,6 +14,8 @@ version: 2
 
 models:
   - name: monthly_revenue_by_channel_and_category
+    meta:
+      domain: vendas
     description: 'P01 — Receita líquida por mês, canal e categoria. {{ doc("net_revenue") }}'
     config:
       contract: {enforced: true}
@@ -72,6 +74,8 @@ models:
         data_type: numeric
 
   - name: average_order_value_by_channel_and_segment
+    meta:
+      domain: vendas
     description: 'P02 — Ticket médio por canal e segmento. {{ doc("average_order_value") }}'
     config:
       contract: {enforced: true}
@@ -113,6 +117,8 @@ models:
         data_type: numeric
 
   - name: top_skus_by_revenue
+    meta:
+      domain: vendas
     description: P03 — Os 25 SKUs de maior receita e o peso de cada um na sua categoria.
     config:
       contract: {enforced: true}
@@ -175,6 +181,8 @@ models:
         data_type: numeric
 
   - name: new_and_repeat_customers_by_month
+    meta:
+      domain: clientes
     description: 'P04 — Estreias por mês e recompra na janela. {{ doc("repeat_purchase") }}'
     config:
       contract: {enforced: true}
@@ -216,6 +224,8 @@ models:
         data_type: numeric
 
   - name: revenue_by_delivery_region
+    meta:
+      domain: vendas
     description: P05 — Receita e pedidos por estado e região de entrega, por trimestre.
     config:
       contract: {enforced: true}
@@ -269,6 +279,8 @@ models:
         data_type: numeric
 
   - name: discount_share_by_channel
+    meta:
+      domain: vendas
     description: P06 — Desconto concedido como fração da receita bruta, por canal e mês.
     config:
       contract: {enforced: true}
@@ -323,6 +335,8 @@ models:
         data_type: numeric
 
   - name: cart_conversion_rate_by_channel
+    meta:
+      domain: vendas
     description: 'P07 — Conversão de carrinho em pedido. {{ doc("cart_conversion_rate") }}'
     config:
       contract: {enforced: true}
@@ -386,6 +400,8 @@ models:
 
   # ── Etapa 6: financeiro e estoque ─────────────────────────────────────────
   - name: gross_margin_by_category
+    meta:
+      domain: vendas
     description: >
       P08 — Lucro bruto e margem por categoria e mês. Receita e custo vêm de
       fatos diferentes, combinadas por *drill across* na granularidade comum
@@ -439,6 +455,8 @@ models:
           sensitivity: internal
         data_type: bigint
   - name: inventory_turnover_by_sku_and_warehouse
+    meta:
+      domain: estoque
     description: >
       P11 — Giro por SKU e armazém. `quantity_on_hand` é **semiaditiva**:
       soma por armazém e SKU, nunca ao longo do tempo — três meses somados
@@ -503,6 +521,8 @@ models:
           sensitivity: confidential
         data_type: numeric
   - name: payment_approval_rate_by_method
+    meta:
+      domain: pagamentos
     description: >
       P09 — Taxa de aprovação por meio e parcelamento. O denominador é a
       tentativa de autorização, não o pagamento: é o atrito que se quer ver.
@@ -561,6 +581,8 @@ models:
           sensitivity: confidential
         data_type: numeric
   - name: refund_rate_by_reason
+    meta:
+      domain: pagamentos
     description: >
       P10 — Reembolsado como fração do capturado, por motivo e mês.
     config:
@@ -606,6 +628,8 @@ models:
 
   # ── Etapa 7: estoque em tempo real ────────────────────────────────────────
   - name: skus_below_reorder_point
+    meta:
+      domain: estoque
     description: >
       P12 — SKUs abaixo do ponto de reposição agora, por armazém. É a única view
       do projeto que compõe o caminho frio com o quente (ADR-0031): o saldo é o
@@ -701,6 +725,8 @@ models:
   # segunda conta pedidos (ADR-0033). O contrato de cada uma declara o grão no
   # nome das colunas, e a descrição diz qual população cada uma contém.
   - name: on_time_delivery_rate_by_carrier
+    meta:
+      domain: logistica
     description: >
       P13 — Fração de entregas dentro do prazo prometido, por transportadora e
       modalidade, mês a mês. **Grão da remessa**: pedido dividido conta duas
@@ -778,6 +804,8 @@ models:
         data_type: numeric
 
   - name: order_to_delivery_time_by_region
+    meta:
+      domain: logistica
     description: >
       P14 — Tempo médio entre pedido e entrega, por região e modalidade.
       **Grão do pedido**: fecha na última remessa a chegar, e pedido com remessa
@@ -847,6 +875,8 @@ models:
 
   # ── Etapa 9 — relacionamento e atendimento ─────────────────────────────────
   - name: support_tickets_per_hundred_orders
+    meta:
+      domain: atendimento
     description: >
       P15 — Chamados por 100 pedidos, por categoria e canal, mês a mês. O mês é
       o da **abertura** do chamado. `channel_order_count` é do canal e se repete
@@ -919,6 +949,8 @@ models:
         data_type: numeric
 
   - name: repeat_purchase_rate_after_support
+    meta:
+      domain: atendimento
     description: >
       P16 — Recompra em 90 dias depois do pedido, comparando pedidos que geraram
       chamado com os que não geraram. {{ doc("post_order_repeat_purchase") }}

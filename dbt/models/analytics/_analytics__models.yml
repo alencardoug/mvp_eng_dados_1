@@ -21,6 +21,8 @@ version: 2
 models:
   # ── Dimensões ──────────────────────────────────────────────────────────────
   - name: dim_date
+    meta:
+      domain: transversal
     description: Calendário do período simulado. Dimensão estática, gerada da série de datas.
     columns:
       - name: date_key
@@ -72,6 +74,8 @@ models:
           sensitivity: internal
 
   - name: dim_customer
+    meta:
+      domain: clientes
     description: '{{ doc("active_customer") }}'
     data_tests:
       - vigencias_sem_sobreposicao:
@@ -189,6 +193,8 @@ models:
           sensitivity: internal
 
   - name: dim_product
+    meta:
+      domain: catalogo
     description: SKU com produto, categoria e marca. SCD tipo 2.
     data_tests:
       - vigencias_sem_sobreposicao:
@@ -304,6 +310,8 @@ models:
           sensitivity: internal
 
   - name: dim_category
+    meta:
+      domain: catalogo
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -338,6 +346,8 @@ models:
           sensitivity: public
 
   - name: dim_brand
+    meta:
+      domain: catalogo
     columns:
       - name: brand_key
         meta:
@@ -361,6 +371,8 @@ models:
           sensitivity: public
 
   - name: dim_sales_channel
+    meta:
+      domain: vendas
     description: >
       Canal de venda. Carrega um membro "Sem canal" desde a Etapa 9: chamado que
       não nasce de pedido não tem canal, e a alternativa seria chave nula na
@@ -403,6 +415,8 @@ models:
           sensitivity: internal
 
   - name: dim_geography
+    meta:
+      domain: transversal
     description: >
       Geografia conformada — atende a venda aqui e a remessa na Etapa 8. Carrega
       um membro "Desconhecido" para que a fato nunca fique com chave nula.
@@ -436,6 +450,8 @@ models:
 
   # ── Fatos ──────────────────────────────────────────────────────────────────
   - name: fact_sales_order_item
+    meta:
+      domain: vendas
     description: >
       **Grão: uma linha de item de pedido.** Um SKU comprado em um pedido.
       Medidas todas aditivas; valores de nível de pedido não estão aqui, porque
@@ -573,6 +589,8 @@ models:
           sensitivity: confidential
 
   - name: fact_cart_event
+    meta:
+      domain: vendas
     description: >
       **Grão: um evento de ciclo de vida de um carrinho** (ADR-0028). Até dois
       por carrinho, a abertura e o desfecho. As medidas são contadores que valem
@@ -676,6 +694,8 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
 
   - name: dim_payment_method
+    meta:
+      domain: pagamentos
     columns:
       - name: payment_method_key
         meta:
@@ -720,6 +740,8 @@ models:
           sensitivity: internal
 
   - name: dim_supplier
+    meta:
+      domain: compras
     description: Fornecedor. SCD tipo 1 nesta etapa — a divergência do §3.2 está declarada no modelo.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -768,6 +790,8 @@ models:
           sensitivity: internal
 
   - name: dim_warehouse
+    meta:
+      domain: estoque
     description: Armazém, com a **mesma** `dim_geography` do endereço de entrega.
     columns:
       - name: warehouse_key
@@ -828,6 +852,8 @@ models:
           sensitivity: internal
 
   - name: fact_payment_transaction
+    meta:
+      domain: pagamentos
     description: >
       **Grão: uma tentativa ou operação financeira.** A operação recusada fica —
       "quantas tentativas foram precisas para receber" é a pergunta P09, e ela só
@@ -952,6 +978,8 @@ models:
           sensitivity: confidential
 
   - name: fact_refund
+    meta:
+      domain: pagamentos
     description: '**Grão: um reembolso realizado.**'
     data_tests:
       - fato_reconcilia_com_a_condutora:
@@ -1047,6 +1075,8 @@ models:
           sensitivity: confidential
 
   - name: fact_purchase_order_item
+    meta:
+      domain: compras
     description: '**Grão: um item de uma ordem de compra.**'
     data_tests:
       - fato_reconcilia_com_a_condutora:
@@ -1148,6 +1178,8 @@ models:
           sensitivity: confidential
 
   - name: fact_inventory_movement
+    meta:
+      domain: estoque
     description: >
       **Grão: um movimento de um SKU em um armazém.** Única fato `incremental`
       do projeto (ADR-0016), com as quatro proteções obrigatórias: `unique_key`,
@@ -1286,6 +1318,8 @@ models:
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
   - name: dim_carrier
+    meta:
+      domain: logistica
     description: >
       Transportadora e a modalidade que ela presta. SCD tipo 1: a modalidade
       classifica o fato, mas não muda para uma transportadora contratada — o
@@ -1342,6 +1376,8 @@ models:
           sensitivity: internal
 
   - name: fact_shipment_item
+    meta:
+      domain: logistica
     description: >
       **Grão: um item de uma remessa.** Duas datas em papéis diferentes —
       `date_key` é o despacho, `delivered_date_key` é a chegada (ADR-0033). As
@@ -1543,6 +1579,8 @@ models:
           sensitivity: internal
 
   - name: fact_order_status_event
+    meta:
+      domain: vendas
     description: >
       **Grão: uma transição de estado do pedido.** A máquina de estados vista
       como fato: `orders.order_status` diz onde o pedido está hoje, e esta fato
@@ -1672,6 +1710,8 @@ models:
 
   # ── Etapa 9 — relacionamento e histórico ───────────────────────────────────
   - name: dim_campaign
+    meta:
+      domain: marketing
     description: Campanha e objetivo. SCD tipo 1 — o objetivo é fixado na criação e não muda.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -1735,6 +1775,8 @@ models:
           sensitivity: internal
 
   - name: dim_support_category
+    meta:
+      domain: atendimento
     description: >
       Categoria de chamado — **derivada** de uma *seed*, porque a origem só tem
       a lista dentro de um `CHECK` e uma dimensão precisa de nome legível e de
@@ -1760,6 +1802,8 @@ models:
           sensitivity: public
 
   - name: dim_coupon
+    meta:
+      domain: marketing
     description: >
       Cupom. SCD tipo 2 no padrão misto: campanha e regra de desconto
       historizadas, uso acumulado corrente. `redemption_count` **não** entra nas
@@ -1862,6 +1906,8 @@ models:
           sensitivity: internal
 
   - name: dim_support_agent
+    meta:
+      domain: atendimento
     description: >
       Agente. SCD tipo 2 pela **equipe**, que classifica o chamado. Carrega o
       membro desconhecido: `ticket_events.agent_id` é nulo quando o autor é o
@@ -1938,6 +1984,8 @@ models:
           sensitivity: internal
 
   - name: fact_coupon_redemption
+    meta:
+      domain: marketing
     description: >
       **Grão: um uso de cupom**, um por pedido. Duas âncoras temporais de
       propósito — o cupom pela versão do **resgate**, o cliente pela versão da
@@ -2092,6 +2140,8 @@ models:
           sensitivity: confidential
 
   - name: fact_support_ticket_event
+    meta:
+      domain: atendimento
     description: >
       **Grão: um evento de um chamado.** Contar chamados aqui exige
       `count(distinct support_ticket_id)`; `event_count` é o que se soma.

@@ -45,9 +45,13 @@ CONDUCTS: dict[str, str] = {
     "rejected_shipment_deliveries": "delivery_events",
 }
 
-#: Modelo → domínio, para o que é da infraestrutura do legado sem passar pelo gerador.
+#: Modelo → domínio, onde não há tabela conduzida: a infraestrutura do legado fora do
+#: gerador, e o que serve a todos os domínios (`transversal`, N51).
 DECLARED: dict[str, str] = {
     "legacy_selected_capture": "legado",
+    # A origem da dimensão de geografia: estados e regiões servem a clientes,
+    # logística e estoque, e nenhuma tabela da origem a conduz (N51).
+    "geographies": "transversal",
 }
 
 

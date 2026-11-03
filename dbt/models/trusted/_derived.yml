@@ -594,6 +594,8 @@ models:
     meta:
       sensitivity: internal
 - name: geographies
+  meta:
+    domain: transversal
   columns:
   - name: country
     description: País em código ISO de duas letras.
