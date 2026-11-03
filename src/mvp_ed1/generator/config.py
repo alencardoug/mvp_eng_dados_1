@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from mvp_ed1.generator import enums
+from mvp_ed1.generator import enums, pricing
 
 ARQUIVO = Path(__file__).with_name("geracao.yml")
 
@@ -228,6 +228,32 @@ def _validar_tabela(t: Tabela) -> list[str]:
     return problemas
 
 
+def _validar_faixas_por_folha(config: Config) -> list[str]:
+    """Uma faixa de preço por folha da árvore, nem mais nem menos, e larga o bastante."""
+    categorias = config.tabelas.get("product_categories")
+    variantes = config.tabelas.get("product_variants")
+    if categorias is None or variantes is None or categorias.arvore is None:
+        return []
+    faixas = variantes.processo.get("faixa_de_preco_por_folha")
+    if not isinstance(faixas, dict):
+        return ["product_variants: `faixa_de_preco_por_folha` precisa declarar a faixa de cada folha"]
+    folhas = folhas_da_arvore(categorias.arvore)
+    problemas: list[str] = []
+    if sem_faixa := sorted(set(folhas) - set(faixas)):
+        problemas.append(f"product_variants: folhas sem faixa de preço: {sem_faixa}")
+    if sem_folha := sorted(set(faixas) - set(folhas)):
+        problemas.append(f"product_variants: faixa de preço para o que não é folha da árvore: {sem_folha}")
+    for folha, faixa in faixas.items():
+        if not (isinstance(faixa, list) and len(faixa) == 2 and all(isinstance(v, (int, float)) for v in faixa)):
+            problemas.append(f"product_variants: a faixa de {folha!r} precisa ser [mínimo, máximo]")
+            continue
+        try:
+            pricing.base_range(float(faixa[0]), float(faixa[1]))
+        except ValueError as erro:
+            problemas.append(f"product_variants: {folha!r}: {erro}")
+    return problemas
+
+
 def validar(config: Config) -> list[str]:
     """Todos os problemas da configuração, para corrigir de uma vez só."""
     problemas: list[str] = []
@@ -241,6 +267,7 @@ def validar(config: Config) -> list[str]:
 
     for nome in sorted(declaradas & do_modelo):
         problemas.extend(_validar_tabela(config.tabelas[nome]))
+    problemas.extend(_validar_faixas_por_folha(config))
 
     if config.period_start >= config.as_of_date:
         problemas.append("`period_start` precisa ser anterior a `as_of_date`")

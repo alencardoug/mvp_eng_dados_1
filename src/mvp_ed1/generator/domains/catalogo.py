@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from mvp_ed1.generator.dataset import Dataset
 from mvp_ed1.generator.engine import Motor
-from mvp_ed1.generator.pricing import CHANNEL, READJUSTMENT, SKU_VARIATION
+from mvp_ed1.generator.pricing import CHANNEL, READJUSTMENT, SKU_VARIATION, base_range
 from mvp_ed1.generator.config import nos_da_arvore
 from mvp_ed1.generator.rng import preco, repartir
 
@@ -73,7 +73,10 @@ def produtos(motor: Motor, dados: Dataset) -> None:
     produtos_linhas = dados.guardar("products", motor.preencher("products", esqueletos))
 
     processo = motor.config.tabelas["product_variants"].processo
-    preco_min, preco_max = processo["faixa_de_preco"]
+    faixa_interna = {
+        folha: base_range(float(minimo), float(maximo))
+        for folha, (minimo, maximo) in processo["faixa_de_preco_por_folha"].items()
+    }
     margem_min, margem_max = processo["margem_sobre_o_custo"]
 
     fonte_v = motor.fonte("product_variants")
@@ -82,7 +85,8 @@ def produtos(motor: Motor, dados: Dataset) -> None:
 
     variantes: list[dict] = []
     for produto, quantidade in zip(produtos_linhas, por_produto):
-        base = fonte_v.decimal(preco_min, preco_max, 4)
+        # A faixa é da folha do produto, e o sorteio é log-uniforme (N38).
+        base = fonte_v.log_uniforme(*faixa_interna[nome_da_categoria[produto["category_id"]]], 4)
         for _ in range(quantidade):
             valor = preco(base * Decimal(str(fonte_v.rng.uniform(*SKU_VARIATION))))
             variantes.append(

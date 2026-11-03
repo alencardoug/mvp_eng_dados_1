@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import math
 import random
 import uuid
 from decimal import ROUND_HALF_UP, Decimal
@@ -52,6 +53,17 @@ class Fonte:
     def decimal(self, minimo: float, maximo: float, casas: int = 2) -> Decimal:
         passo = _CENTAVO if casas == 2 else Decimal(1).scaleb(-casas)
         return Decimal(str(self.rng.uniform(minimo, maximo))).quantize(passo, ROUND_HALF_UP)
+
+    def log_uniforme(self, minimo: float, maximo: float, casas: int = 2) -> Decimal:
+        """Decimal com o logaritmo uniforme entre os de `minimo` e `maximo`.
+
+        É a forma dos preços de um catálogo: tantos produtos entre R$ 30 e R$ 300
+        quantos entre R$ 300 e R$ 3.000. O sorteio uniforme da mesma faixa poria
+        nove em cada dez acima de R$ 300.
+        """
+        passo = _CENTAVO if casas == 2 else Decimal(1).scaleb(-casas)
+        valor = math.exp(self.rng.uniform(math.log(minimo), math.log(maximo)))
+        return Decimal(str(min(max(valor, minimo), maximo))).quantize(passo, ROUND_HALF_UP)
 
     def chance(self, probabilidade: float) -> bool:
         return self.rng.random() < probabilidade

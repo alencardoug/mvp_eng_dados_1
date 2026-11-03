@@ -67,3 +67,80 @@ def test_a_middle_without_leaves_is_refused(tmp_path) -> None:
     path = _broken(tmp_path, "Camping: [Barracas, Sacos de dormir]", "Camping: []")
     with pytest.raises(ConfiguracaoInvalida, match="lista de folhas"):
         carregar(path)
+
+
+# ── N38: the price range of each leaf ────────────────────────────────────────
+def _leaf_of_variant(dados: Dataset) -> dict[int, str]:
+    category = {row["id"]: row["name"] for row in dados["product_categories"]}
+    product = {row["id"]: category[row["category_id"]] for row in dados["products"]}
+    return {row["id"]: product[row["product_id"]] for row in dados["product_variants"]}
+
+
+@pytest.mark.parametrize("dataset_fixture", ["dados", "dados_reduzidos"])
+def test_every_price_of_a_leaf_stays_in_its_declared_range(request, config: Config, dataset_fixture) -> None:
+    """M8 in memory: the list, channel, readjusted, cart and sale prices — none outside."""
+    from mvp_ed1.generator.pricing import within
+
+    data = request.getfixturevalue(dataset_fixture)
+    ranges = config.tabelas["product_variants"].processo["faixa_de_preco_por_folha"]
+    leaf = _leaf_of_variant(data)
+    outside = [
+        (table, row["unit_price"], leaf[row["product_variant_id"]])
+        for table in ("product_prices", "cart_items", "order_items")
+        for row in data[table]
+        if not within(row["unit_price"], ranges[leaf[row["product_variant_id"]]])
+    ]
+    assert outside == []
+
+
+def test_leaves_with_dearer_ranges_sell_dearer(config: Config, dados: Dataset) -> None:
+    """The axis of P01 gains meaning: the leaf medians follow the declared ranges."""
+    import statistics
+
+    ranges = config.tabelas["product_variants"].processo["faixa_de_preco_por_folha"]
+    leaf = _leaf_of_variant(dados)
+    sold: dict[str, list[float]] = {}
+    for row in dados["order_items"]:
+        sold.setdefault(leaf[row["product_variant_id"]], []).append(float(row["unit_price"]))
+    median = {name: statistics.median(prices) for name, prices in sold.items()}
+    assert median["Notebooks"] > median["Sofás"] > median["Camisetas"] > median["Organizadores"] * 0.9
+    assert median["Notebooks"] > 10 * median["Organizadores"]
+    assert set(median) == set(ranges)
+
+
+def test_the_log_uniform_draw_puts_half_below_the_geometric_middle() -> None:
+    import datetime as dt
+
+    from mvp_ed1.generator.rng import Fonte
+
+    fonte = Fonte(1, dt.date(2026, 9, 1), "teste", "pt_BR")
+    values = [fonte.log_uniforme(30, 3000, 2) for _ in range(20_000)]
+    assert all(30 <= v <= 3000 for v in values)
+    below = sum(v < 300 for v in values) / len(values)
+    assert 0.48 < below < 0.52  # a uniform draw would put 9% below
+
+
+def test_the_base_range_keeps_every_derived_price_inside() -> None:
+    from mvp_ed1.generator.pricing import base_range, envelope
+
+    low, high = envelope()
+    inner = base_range(29.90, 299.90)
+    assert inner[0] * low > 29.90 and inner[1] * high < 299.90
+
+
+def test_a_leaf_without_a_price_range_is_refused(tmp_path) -> None:
+    path = _broken(tmp_path, "        Sacos de dormir: [89.90, 1299.00]\n", "")
+    with pytest.raises(ConfiguracaoInvalida, match="folhas sem faixa de preço"):
+        carregar(path)
+
+
+def test_a_price_range_for_what_is_not_a_leaf_is_refused(tmp_path) -> None:
+    path = _broken(tmp_path, "        Sacos de dormir: [89.90, 1299.00]\n", "        Sacos de dormir: [89.90, 1299.00]\n        Camping: [10.00, 100.00]\n")
+    with pytest.raises(ConfiguracaoInvalida, match="não é folha da árvore"):
+        carregar(path)
+
+
+def test_a_range_too_narrow_for_the_multipliers_is_refused(tmp_path) -> None:
+    path = _broken(tmp_path, "Camisetas: [29.90, 299.90]", "Camisetas: [29.90, 49.90]")
+    with pytest.raises(ConfiguracaoInvalida, match="estreita demais"):
+        carregar(path)

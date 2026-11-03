@@ -210,10 +210,34 @@ tabelas:
     referencia: 6000
     origem: declarativa
     processo:
-      # Preço de tabela do SKU. Larga de propósito: faixa estreita torna toda
-      # análise de ticket médio uma reta. Mexer aqui muda receita, margem e
-      # valor de carrinho abandonado no datamart inteiro.
-      faixa_de_preco: [9.90, 4800.00]
+      # Faixa de preço de cada folha da árvore de categorias, em reais. Ela vale
+      # para **todo** preço de um SKU da folha — o de tabela, o de canal, o
+      # reajustado, o do carrinho e o de venda (decisão do Owner, 03/11/2026):
+      # o preço-base é sorteado na faixa interna que os multiplicadores de
+      # `pricing.py` não conseguem fazer escapar, e por isso a faixa precisa
+      # ser larga — a configuração recusa a que não comporta os multiplicadores.
+      # O sorteio é log-uniforme (N38 do plano do bi-como-codigo): numa faixa de
+      # R$ 30 a R$ 3.000, uniforme poria 90% dos preços acima de R$ 300, e o
+      # log-uniforme põe metade abaixo de R$ 300, como num catálogo de verdade.
+      # Mexer aqui muda receita, margem e valor de carrinho abandonado no
+      # datamart inteiro; uma folha nova na árvore exige a sua faixa aqui.
+      faixa_de_preco_por_folha:
+        Fones de ouvido: [39.90, 2499.00]
+        Caixas de som: [79.90, 3999.00]
+        Notebooks: [1899.00, 14999.00]
+        Periféricos: [29.90, 1499.00]
+        Panelas: [39.90, 1899.00]
+        Organizadores: [14.90, 399.00]
+        Sofás: [899.00, 8999.00]
+        Estantes: [199.00, 2999.00]
+        Camisetas: [29.90, 299.90]
+        Calças: [59.90, 599.90]
+        Tênis: [129.90, 1499.00]
+        Sandálias: [29.90, 399.90]
+        Halteres: [39.90, 1999.00]
+        Tapetes de ioga: [49.90, 499.90]
+        Barracas: [199.90, 3999.00]
+        Sacos de dormir: [89.90, 1299.00]
       # Margem bruta sobre o custo — é o que faz custo e preço serem coerentes
       # entre si, e o que torna `unit_cost` uma informação de verdade.
       margem_sobre_o_custo: [1.25, 2.60]
