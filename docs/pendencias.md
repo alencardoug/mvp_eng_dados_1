@@ -12,7 +12,7 @@
 |---|---|
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 6 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP) |
+| Decisões pendentes | 7 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D67, achada ao escrever as descrições da v1.1.0; D43, adiada de propósito para a fase GCP) |
 | Última revisão | 03/11/2026 |
 
 ---
@@ -132,6 +132,25 @@ entrega no prazo conta só a remessa com algum item aceito.
 
 *Efeito de não decidir:* nenhum teste falha; a taxa do ramo legado deixa de fora 12 de 144 remessas
 entregues (8%), e o número muda com a regeneração.
+
+### D67 — o `captured_amount` da P09 é sempre zero
+
+**Pergunta:** a view `payment_approval_rate_by_method` passa a levar o valor capturado dos pagamentos
+que as autorizações do grupo abriram, ou a coluna sai do contrato?
+
+**Medido em 03/11/2026,** em sessão somente leitura: as 538 linhas da view têm `captured_amount`
+zero, e o `authorized_amount` soma R$ 39.254.835,44. A view lê `analytics.fact_payment_transaction`
+só nas linhas de autorização (`transaction_type = 'authorization'`), e o valor capturado vive nas de
+captura: na fato, as 3.302 capturas somam R$ 36.719.765,95 e as 3.826 autorizações, zero. Achado ao
+escrever a descrição da coluna na etapa 1.8 da v1.1.0; até a decisão, a descrição diz que ela é
+sempre zero, e por quê.
+
+*Opções:* **(a)** levar à view o capturado dos mesmos pagamentos, pelas transações de captura deles
+— recomendada: é correção, como a da contagem com a origem (a coluna passa a ser o que o nome diz),
+cabe antes da regeneração e não muda o tipo do contrato; **(b)** tirar a coluna da view e do
+contrato — a P09 pergunta pela aprovação, não pela captura, mas quem consome a coluna perde-a.
+
+*Efeito de não decidir:* nenhum teste falha; quem lê a coluna lê zero.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
