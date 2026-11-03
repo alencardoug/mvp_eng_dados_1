@@ -17,14 +17,12 @@ igualdade — coluna nova sem classificação derivada ou declarada falha aqui.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 from collections import defaultdict
 
 import pytest
-from sqlalchemy import create_engine, text
+from conftest import CAMADAS
 
-from mvp_ed1.db import WAREHOUSE, database_url
 from mvp_ed1.models.base import SENSITIVITY_LEVELS
 
 pytestmark = pytest.mark.integracao
@@ -32,8 +30,6 @@ pytestmark = pytest.mark.integracao
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST = RAIZ / "dbt" / "target" / "manifest.json"
 
-#: As nove camadas do armazém (ADR-0008 e ADR-0023). Nada fora delas é campo do projeto.
-CAMADAS = ("raw", "raw_legacy", "staging", "trusted", "analytics", "consumption", "quarantine", "snapshots", "governance")
 
 #: Piso de cobertura por camada, em % de colunas materializadas com `sensitivity`
 #: declarada, medido na última entrega que classificou a camada. Levantar é
@@ -65,22 +61,8 @@ def declaradas(manifest: dict) -> dict[tuple[str, str, str], str | None]:
 
 
 @pytest.fixture(scope="module")
-def materializadas() -> set[tuple[str, str, str]]:
-    if not os.environ.get("WAREHOUSE_DB_PASSWORD"):
-        pytest.skip("ambiente sem .env carregado; rode por `make test`")
-    motor = create_engine(database_url(WAREHOUSE))
-    try:
-        with motor.connect() as conexao:
-            linhas = conexao.execute(text(
-                "select table_schema, table_name, column_name from information_schema.columns "
-                "where table_schema = any(:camadas) and table_name not like '%\\_\\_dbt\\_%' "
-                "order by 1, 2, ordinal_position"
-            ), {"camadas": list(CAMADAS)}).all()
-    finally:
-        motor.dispose()
-    if not linhas:
-        pytest.skip("armazém sem camadas materializadas; rode `make dbt-build`")
-    return {(s, t, c.lower()) for s, t, c in linhas}
+def materializadas(colunas_materializadas) -> set[tuple[str, str, str]]:
+    return colunas_materializadas
 
 
 def test_toda_sensibilidade_declarada_usa_o_vocabulario_do_adr_0011(declaradas) -> None:

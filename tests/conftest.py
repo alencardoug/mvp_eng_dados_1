@@ -55,3 +55,32 @@ def engine():
         pytest.skip(f"PostgreSQL indisponível: {erro}")
     yield motor
     motor.dispose()
+
+
+#: As nove camadas do armazém (ADR-0008 e ADR-0023). Nada fora delas é campo do projeto.
+CAMADAS = ("raw", "raw_legacy", "staging", "trusted", "analytics", "consumption", "quarantine", "snapshots", "governance")
+
+
+@pytest.fixture(scope="session")
+def colunas_materializadas() -> set[tuple[str, str, str]]:
+    """`(schema, relação, coluna)` de tudo o que existe nas nove camadas — o inventário das catracas.
+
+    É o banco, e não o `.yml`, que diz o que existe: contar o declarado deixaria
+    passar, sem falhar, a coluna que ninguém declarou (RV2-09).
+    """
+    if not os.environ.get("WAREHOUSE_DB_PASSWORD"):
+        pytest.skip("ambiente sem .env carregado; rode por `make test`")
+    from mvp_ed1.db import WAREHOUSE, database_url
+    motor = create_engine(database_url(WAREHOUSE))
+    try:
+        with motor.connect() as conexao:
+            linhas = conexao.execute(text(
+                "select table_schema, table_name, column_name from information_schema.columns "
+                "where table_schema = any(:camadas) and table_name not like '%\\_\\_dbt\\_%' "
+                "order by 1, 2, ordinal_position"
+            ), {"camadas": list(CAMADAS)}).all()
+    finally:
+        motor.dispose()
+    if not linhas:
+        pytest.skip("armazém sem camadas materializadas; rode `make dbt-build`")
+    return {(s, t, c.lower()) for s, t, c in linhas}
