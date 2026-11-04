@@ -14,6 +14,17 @@ medidas que não existiam:
 * **T2 — o oráculo das origens, só leitura** (`oracle`): o mesmo, lido do
   `source_db` e do `legacy_db`, contra uma medida da T1.
 
+**O H2 compara estados, não lotes** (`compare --before-manifest`). O legado de
+antes da regeneração não era o lote puro: o diário de mutações do manifesto
+dele registra o que se fez no banco depois da carga — na Etapa 11, a remoção de
+`customers` 1, 2 e 3 e a troca de `campaigns.id` 4 por `0x4`. Comparar só os
+lotes não vê que a recarga desfaz essas mutações: no D4 de 04/11/2026 as três
+chaves reapareceram e saíram da memória de exclusões, e o H2 dizia "nenhuma"
+(N56 do plano do `bi-como-codigo`). Com o manifesto do lado de antes, o diário
+é aplicado ao lado de antes — às chaves pela `presenca_apos_commit` de cada
+mutação, aos *hashes* pela cadeia de `expected_legacy` —, e a comparação é do
+estado real de antes com o lote novo.
+
 **Por que contagem não basta** (Capacidade e Recuperação §2.7): um preço válido
 diferente mantém todas as contagens. O que se compara é conteúdo.
 
@@ -244,15 +255,88 @@ def key_transitions(before: Mapping[str, int], after: Mapping[str, int]) -> dict
     return transitions
 
 
-def compare(before: Mapping[str, Any], after: Mapping[str, Any]) -> dict[str, Any]:
+def _pk_values(mutacao: Mapping[str, Any], pk: str) -> list[Any]:
+    """Os valores da chave primária que uma mutação tocou, como o banco os devolveu."""
+    tipo = mutacao["tipo"]
+    if tipo == "remover":
+        return [*mutacao.get("chaves", []), *(d.get(pk) for d in mutacao.get("devolvidas", []))]
+    if tipo == "inserir":
+        return [mutacao.get("devolvida", {}).get(pk)]
+    if tipo == "alterar":
+        if mutacao.get("coluna") != pk:
+            return [mutacao.get("valor_da_chave")]
+        return [mutacao.get("valor_da_chave"),
+                *(a.get("valor") for a in mutacao.get("antes", [])),
+                *(d.get("valor") for d in mutacao.get("devolvidas", []))]
+    raise Refused(f"mutação de tipo desconhecido no diário: {tipo!r}")
+
+
+def apply_mutations(
+    keys: Mapping[str, Mapping[str, Any]], diary: Iterable[Mapping[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """As chaves do legado depois do diário de mutações: o estado do banco, e não o lote puro.
+
+    Cada mutação grava `presenca_apos_commit` — quantas linhas físicas restam,
+    depois do *commit*, de cada chave canônica que ela tocou
+    (`legacy.mutacoes.efeito_liquido`). Aplicadas em ordem sobre a multiplicidade
+    do lote, dão a do banco: zero tira a chave.
+
+    O que o diário não diz, não se inventa. Entrada sem `presenca_apos_commit` é
+    diário encerrado (D44), e uma chave primária tocada que não canoniza muda a
+    contagem das linhas sem identidade, que a presença não registra: as duas
+    recusam, em vez de dar um estado que o banco talvez não tenha.
+    """
+    from mvp_ed1.legacy import remocao
+
+    result = {table: {**found, "keys": dict(found["keys"])} for table, found in keys.items()}
+    for indice, mutacao in enumerate(diary):
+        table = mutacao["tabela"]
+        if "presenca_apos_commit" not in mutacao:
+            raise Refused(f"mutação {indice} ({mutacao['tipo']} em {table}) sem `presenca_apos_commit`: "
+                          "diário encerrado (D44), que não se aplica")
+        if table not in result:
+            raise Refused(f"mutação {indice} em {table}, tabela que a medida não tem")
+        column, kind = remocao.chave(table)
+        for valor in _pk_values(mutacao, column):
+            if remocao.canonizar(None if valor is None else str(valor), kind) is None:
+                raise Refused(f"mutação {indice} ({mutacao['tipo']} em {table}) toca a chave {valor!r}, "
+                              "que não canoniza: a contagem das linhas sem identidade não sai do diário")
+        counts = result[table]["keys"]
+        for key, remaining in mutacao["presenca_apos_commit"].items():
+            if remaining > 0:
+                counts[key] = remaining
+            else:
+                counts.pop(key, None)
+        result[table]["keys"] = dict(sorted(counts.items()))
+    return result
+
+
+def compare(
+    before: Mapping[str, Any], after: Mapping[str, Any], *, before_manifest: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     """H1 e H2: o que muda entre duas gerações dos mesmos parâmetros.
 
     Recusa medidas de formatos ou parâmetros diferentes: com outra semente,
     toda tabela mudaria, e a comparação não diria nada sobre as correções.
+
+    Com `before_manifest` — o manifesto do lote de antes, com o diário de
+    mutações aberto —, o lado de antes é o **estado** do banco: o lote com o
+    diário aplicado, nas chaves e nos *hashes*. Um manifesto de outro lote, ou
+    um diário que não encadeia, recusa.
     """
     for medida in (before, after):
         if medida.get("kind") != "generation":
             raise Refused(f"não é uma medida da geração (T1): kind={medida.get('kind')!r}")
+    mutations: dict[str, Any] | None = None
+    if before_manifest is not None:
+        diary = before_manifest.get("mutacoes", [])
+        expected, problems = expected_legacy(before["legacy"], before_manifest)
+        if problems:
+            raise Refused("o manifesto de antes não descreve o lado de antes: " + "; ".join(problems))
+        before = {**before, "legacy": {**before["legacy"], "tables": expected,
+                                       "keys": apply_mutations(before["legacy"]["keys"], diary)}}
+        mutations = {"batch_hash": before_manifest["lote"]["hash"], "applied": len(diary),
+                     "tables": sorted({m["tabela"] for m in diary})}
     if (before["format"], before["digest_format"]) != (after["format"], after["digest_format"]):
         raise Refused(
             f"formatos diferentes: {before['format']}/{before['digest_format']} × "
@@ -293,6 +377,7 @@ def compare(before: Mapping[str, Any], after: Mapping[str, Any]) -> dict[str, An
         "oltp": {"changed": oltp, "unchanged": sorted(set(after["oltp"]["tables"]) - set(oltp))},
         "legacy": {
             "batch_hash": {"before": before["legacy"]["batch_hash"], "after": after["legacy"]["batch_hash"]},
+            "before_mutations": mutations,
             "changed": legacy,
             "unchanged": sorted(set(after["legacy"]["tables"]) - set(legacy)),
             "keys": keys,
@@ -508,6 +593,10 @@ def _summary_compare(report: Mapping[str, Any]) -> None:
         changed = report[source]["changed"]
         print(f"{source}: {len(changed)} tabelas mudam" + (f" — {', '.join(changed)}" if changed else ""))
     print(f"lote do legado: {report['legacy']['batch_hash']['before']} → {report['legacy']['batch_hash']['after']}")
+    mutations = report["legacy"].get("before_mutations")
+    if mutations is not None:
+        print(f"lado de antes: o lote com o diário de mutações aplicado — {mutations['applied']} mutação(ões)"
+              + (f" em {', '.join(mutations['tables'])}" if mutations["tables"] else ""))
     tables = report["legacy"]["tables_with_key_changes"]
     print(f"chaves do legado: {'nenhuma transição' if not tables else 'mudam em ' + ', '.join(tables)}")
     for table in tables:
@@ -542,6 +631,8 @@ def _arguments() -> argparse.ArgumentParser:
     comparar = sub.add_parser("compare", help="T1: o que muda entre duas medidas")
     comparar.add_argument("before")
     comparar.add_argument("after")
+    comparar.add_argument("--before-manifest", type=pathlib.Path, default=None,
+                          help="o manifesto do lote de antes: o diário de mutações dele entra no lado de antes")
     comparar.add_argument("--out", type=pathlib.Path, default=None)
     oraculo = sub.add_parser("oracle", help="T2: as origens, só leitura, contra uma medida")
     oraculo.add_argument("measure")
@@ -561,7 +652,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "compare":
         try:
-            report = compare(_load(args.before), _load(args.after))
+            manifest = None if args.before_manifest is None else _load(str(args.before_manifest))
+            report = compare(_load(args.before), _load(args.after), before_manifest=manifest)
         except Refused as erro:
             print(f"RECUSADO: {erro}", file=sys.stderr)
             return 2

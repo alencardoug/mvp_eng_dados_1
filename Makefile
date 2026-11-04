@@ -298,9 +298,10 @@ generation-measure: require-venv ## T1: gera as duas origens em memória e mede 
 	@.venv/bin/python -m mvp_ed1.recovery.sources measure \
 		$(if $(SCALE),--scale $(SCALE)) $(if $(SEED),--seed $(SEED)) $(if $(AS_OF),--as-of $(AS_OF))
 
-generation-compare: require-venv ## T1: o que muda entre duas medidas da geração — tabelas e chaves do legado; ANTES=, DEPOIS=
+generation-compare: require-venv ## T1: o que muda entre duas medidas da geração — tabelas e chaves do legado; ANTES=, DEPOIS=, MANIFESTO_ANTES= (o diário de mutações entra no lado de antes)
 	@test -n '$(ANTES)' && test -n '$(DEPOIS)' || { echo 'ERRO: use make generation-compare ANTES=<medida> DEPOIS=<medida>'; exit 1; }
-	@.venv/bin/python -m mvp_ed1.recovery.sources compare '$(ANTES)' '$(DEPOIS)'
+	@.venv/bin/python -m mvp_ed1.recovery.sources compare '$(ANTES)' '$(DEPOIS)' \
+		$(if $(MANIFESTO_ANTES),--before-manifest '$(MANIFESTO_ANTES)')
 
 generation-realism: require-venv ## H3: M7 a M9 (árvore, preço por folha, venda antes do lançamento) sobre a geração em memória; SCALE, SEED, AS_OF
 	@.venv/bin/python -m mvp_ed1.recovery.realism \

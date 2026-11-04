@@ -134,6 +134,63 @@ def test_a_versao_do_catalogo_e_informacao_e_nao_recusa() -> None:
     assert sources.compare(_medida(), depois)["catalog_version"] == {"before": 9, "after": 10}
 
 
+# ── H2 sobre o estado real: o diário de mutações no lado de antes (N56) ──────
+def _diario(*mutacoes, lote: str = "lote") -> dict:
+    """O manifesto de antes com o diário aberto — a mesma forma do `_manifesto` do T2, abaixo."""
+    return {"lote": {"hash": lote}, "mutacoes": list(mutacoes)}
+
+
+def _remover(chaves: list, presenca: dict, antes: dict, depois: dict) -> dict:
+    return {"tipo": "remover", "tabela": "customers", "chave": "id", "chaves": chaves,
+            "devolvidas": [{"legacy_row_id": i, "id": c} for i, c in enumerate(chaves, 1)],
+            "presenca_apos_commit": presenca, "hash_antes": antes, "hash_depois": depois}
+
+
+CLIENTES = {"linhas": 75, "hash": "h2"}
+SEM_O_1 = {"linhas": 74, "hash": "h2-sem-1"}
+
+
+def test_o_diario_no_lado_de_antes_mostra_a_reaparicao_que_os_lotes_nao_veem() -> None:
+    antes, depois = _medida(), _medida()
+    assert sources.compare(antes, depois)["legacy"]["tables_with_key_changes"] == []
+    assert sources.compare(antes, depois)["legacy"]["before_mutations"] is None
+
+    manifesto = _diario(_remover(["1"], {"1": 0}, CLIENTES, SEM_O_1))
+    relatorio = sources.compare(antes, depois, before_manifest=manifesto)
+    assert relatorio["legacy"]["keys"]["customers"]["changed"] == {"added": ["1"]}
+    assert relatorio["legacy"]["tables_with_key_changes"] == ["customers"]
+    assert relatorio["legacy"]["changed"]["customers"] == {"before": SEM_O_1, "after": CLIENTES}
+    assert relatorio["legacy"]["before_mutations"] == {"batch_hash": "lote", "applied": 1, "tables": ["customers"]}
+    assert antes["legacy"]["keys"]["customers"]["keys"] == {"1": 1, "2": 1}, "a medida dada não muda"
+
+
+def test_a_alteracao_que_mantem_a_chave_canonica_muda_o_conteudo_e_nao_a_chave() -> None:
+    alterou = {"tipo": "alterar", "tabela": "customers", "chave": "id", "valor_da_chave": "2", "coluna": "id",
+               "antes": [{"legacy_row_id": 2, "valor": "2"}], "devolvidas": [{"legacy_row_id": 2, "valor": "0x2"}],
+               "presenca_apos_commit": {"2": 1}, "hash_antes": CLIENTES,
+               "hash_depois": {"linhas": 75, "hash": "h2-0x2"}}
+    relatorio = sources.compare(_medida(), _medida(), before_manifest=_diario(alterou))
+    assert relatorio["legacy"]["tables_with_key_changes"] == []
+    assert list(relatorio["legacy"]["changed"]) == ["customers"]
+
+
+def _sem_presenca() -> dict:
+    mutacao = _remover(["1"], {"1": 0}, CLIENTES, SEM_O_1)
+    del mutacao["presenca_apos_commit"]
+    return mutacao
+
+
+@pytest.mark.parametrize("manifesto, motivo", [
+    (_diario(lote="outro"), "descreve o lote outro"),
+    (_diario(_remover(["1"], {"1": 0}, {"linhas": 75, "hash": "x"}, SEM_O_1)), "não encadeia"),
+    (_diario(_sem_presenca()), "sem `presenca_apos_commit`"),
+    (_diario(_remover(["abc"], {}, CLIENTES, SEM_O_1)), "não canoniza"),
+])
+def test_o_diario_que_nao_descreve_o_lado_de_antes_recusa(manifesto, motivo) -> None:
+    with pytest.raises(sources.Refused, match=motivo):
+        sources.compare(_medida(), _medida(), before_manifest=manifesto)
+
+
 # ── T2: o esperado do legado ─────────────────────────────────────────────────
 def _manifesto(*mutacoes, lote: str = "lote") -> dict:
     return {"lote": {"hash": lote}, "mutacoes": list(mutacoes)}
