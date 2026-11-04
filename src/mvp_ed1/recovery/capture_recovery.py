@@ -231,6 +231,19 @@ def opening_barrier(listar: Callable[[], Listing], environ: Mapping[str, str] | 
 
 
 # ── (1) A reconciliação de uma tentativa sem job (runbook §4) ────────────────
+UM_SEGUNDO = dt.timedelta(seconds=1)
+
+
+def _em_segundos(valor: Any) -> bool:
+    """O instante só tem a precisão do segundo — o `startTime` da listagem real do Airbyte (M35).
+
+    Sem fração, o instante real está em qualquer ponto de `[s, s + 1 s)`; o certificado e
+    os dublês têm microssegundos (RVL1-05). Na dúvida, segundo: tratar como exato um
+    instante arredondado é o que decidia errado.
+    """
+    if isinstance(valor, str):
+        return "." not in valor.split("T")[-1]
+    return _instant(valor).microsecond == 0
 @dataclass(frozen=True)
 class Reconciled:
     job: int | None = None
@@ -254,10 +267,26 @@ def reconcile(tentativa: str, armazem: Warehouse, estado: Held, listagem: Listin
         if outra != tentativa and _job_of(linhas) is not None:
             de_outras.add(int(_job_of(linhas)))
     de_outras |= {job for outra, job in estado.associated.items() if outra != tentativa}
-    candidatos = [
-        j for j in listagem.jobs
-        if j.get("started_at") and inicio <= _instant(j["started_at"]) < fim and int(j["id"]) not in de_outras
-    ]
+    candidatos: list[Mapping[str, Any]] = []
+    ambiguos: list[Mapping[str, Any]] = []
+    for j in listagem.jobs:
+        if not j.get("started_at") or int(j["id"]) in de_outras:
+            continue
+        instante = _instant(j["started_at"])
+        if not _em_segundos(j["started_at"]):
+            if inicio <= instante < fim:
+                candidatos.append(j)
+        elif instante + UM_SEGUNDO <= inicio or instante >= fim:
+            continue                                   # o segundo inteiro fora da janela
+        elif inicio <= instante and instante + UM_SEGUNDO <= fim:
+            candidatos.append(j)                       # o segundo inteiro dentro dela
+        else:
+            ambiguos.append(j)                         # o segundo atravessa um limite da janela
+    if ambiguos:
+        return Reconciled(stop=f"tentativa {tentativa}: job(s) {', '.join(str(j['id']) for j in ambiguos)} com "
+                               f"início em segundos no limite da janela — não se decide se é desta tentativa "
+                               "sem a precisão que a listagem não dá; nada se registra nem se abandona, "
+                               "e o Owner decide", window=janela)
     if len(candidatos) > 1:
         return Reconciled(stop=f"tentativa {tentativa}: {len(candidatos)} jobs na janela "
                                f"({', '.join(str(j['id']) for j in candidatos)})", window=janela)
@@ -296,6 +325,7 @@ def recover(
     paradas: list[str] = []
     registradas: list[str] = []
     publicados: list[str] = []
+    associados: dict[str, int | None] = {}
     listagem: Listing | None = None
     with contextlib.ExitStack() as locks:
         with armazem.begin() as conexao:
@@ -306,7 +336,14 @@ def recover(
             except captura.TentativaOcupada:
                 paradas.append(f"tentativa {tentativa} ativa: o lock está com um chamador vivo — espere e rode de novo")
                 continue
-            associado = None
+            if tentativa in estado.rows and visto.certificate.get(tentativa) != estado.rows[tentativa]:
+                # Retomar daqui publicaria a transição sobre o valor alterado, e a barreira só
+                # compararia com ela (RVL1-03): a divergência para antes, sem ser adotada (N34).
+                paradas.append(f"tentativa {tentativa}: o certificado no armazém difere do último registro "
+                               f"dela no livro ({estado.kinds[tentativa]}) — a divergência não se adota; "
+                               "o Owner decide (N34)")
+                continue
+            associado = estado.associated.get(tentativa)
             reconciliacao = None
             if job is not None:
                 estado_do_job = job_state(int(job)) if job_state is not None else None
@@ -333,6 +370,7 @@ def recover(
                     continue
                 associado = achado.job
                 reconciliacao = {"window": list(achado.window or ()), "associated_job": associado}
+            associados[tentativa] = associado
             if tentativa not in estado.rows:
                 registro = ledger.attempt_record(
                     armazem, tentativa, caller={**caller, "phase": "recovery"},
@@ -347,8 +385,10 @@ def recover(
             feito = captura.retomar(legado, armazem, estado_do_job=job_state, agora=agora, apenas={tentativa})
             resultado = feito.get(tentativa)
             if resultado in ("concluida", "abandonada"):
+                # O job associado vai na transição também, ou ela nasce sem o bruto que o primeiro
+                # registro mediu e o T3 recusa uma recuperação íntegra (RVL1-04).
                 registro = ledger.attempt_record(armazem, tentativa, caller={**caller, "phase": "recovery"},
-                                                 kind=ledger.TRANSITION)
+                                                 kind=ledger.TRANSITION, associated_job=associados.get(tentativa))
                 publicados.append(str(ledger.publish(epoca, _record_name(tentativa, ledger.TRANSITION),
                                                      registro).path))
                 transicoes[tentativa] = resultado
