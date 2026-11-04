@@ -188,6 +188,227 @@ Preenchido por quem revisa. Um achado por linha, com veredito.
 | RV19-05 | `tests/test_trechos_gerados.py:15`; `src/mvp_ed1/models/export.py:254` | A suíte nova passa por vacuidade se a declaração `TRECHOS` ficar vazia: `desatualizados()` devolve `[]`, e as duas contraprovas substituem a declaração por seus próprios exemplos. Reproduzido sem editar arquivos: os três testes passam com `TRECHOS = ()`. Acrescentar uma verificação independente de cobertura da declaração, incluindo lista vazia e omissão de um trecho. **A declaração atual está completa**: três trechos neste módulo; a linhagem tem conferência própria. Evidência E5. | `ajuste` | **Corrigido.** Reproduzido: com `TRECHOS = ()` os três testes passavam. Novo `test_todo_trecho_marcado_esta_declarado_uma_vez`: inventaria os marcadores em `docs/**/*.md` e exige `TRECHOS` ∪ {linhagem do Dicionário, trecho 2} igual ao inventário, sem duplicata e sem a linhagem em `TRECHOS`. Contraprovas em memória: real passa; vazio, sem o diagrama, duplicado e linhagem declarada falham. |
 | RV19-06 | `docs/plano_de_desenvolvimento.md:339`; `docs/capacidade_e_recuperacao.md:521` | Resultados foram transcritos em mais de um dono documental: 885 testes no Plano e na Capacidade; o resultado da D65 no Plano e em Pendências; 13.725 eventos na Capacidade e em Streaming. Os números conferem hoje, mas há múltiplas cópias manuais. Manter no Plano os critérios e os vínculos às evidências, e nas demais referências o vínculo ao dono do resultado, conforme `CLAUDE.md` §5 e o roteiro §8. Evidência E6. | `ajuste` | **Corrigido.** Capacidade §2.13: os rótulos de linha não repetem mais `PASS=907`, os 885 testes nem os 13.725 eventos; a linha C3 aponta para o *Streaming* §7.3, dono do evento. Pendências, D65: o resultado no armazém saiu e a entrada aponta para os critérios da versão de manutenção no Plano, que ficam como dono. `rg` dos três números agora: só *Streaming* (13.725) e Plano (885 e o resultado da D65). |
 
+### Rodada 2
+
+Revisão de confirmação em 04/11/2026, restrita a `bd5e3f8..009d743`: `5b7de16`,
+`6be1a6a` e `009d743`. `HEAD` conferido: `009d7437b5286a8aed9eb36a1bdc56cdfe13e52c`.
+As seis respostas da coluna *Situação* foram reproduzidas independentemente. Este parecer
+não constitui aceite do Owner nem revisão da versão inteira.
+
+**Fechados:** **RV19-01** — E1 reexecutado, Capacidade:559–560 (R2-E1); **RV19-02** — `rg -n '^886 passed|8/9|passo 8'` no G7, Capacidade:563–564 (R2-E1); **RV19-03** — E3 reexecutado, sonda de bytes/unidades e comparação com `bd5e3f8`, Capacidade:515–517 e 608–610 (R2-E2); **RV19-04** — diário P6:22 contra Capacidade §2.12:491–493 e texto corrigido:553–558 (R2-E2); **RV19-06** — E6 reexecutado e as duas âncoras conferidas (R2-E4).
+
+**Não fechado: RV19-05.** A declaração real passa, e vazio, omissão simples, duplicação e
+inclusão da linhagem falham como informado; permanece a contraprova com marcador malformado.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV19-2-01 | `tests/test_trechos_gerados.py:23–27` | **RV19-05 parcialmente resolvido.** O inventário conta somente pares completos encontrados pela expressão regular; um marcador sem par desaparece dele. Retirando **em memória** o último `FIM` do Modelo de Dados e a entrada do diagrama em `TRECHOS`, restam dois inícios e um fim, mas o inventário passa e `desatualizados()` retorna `[]`; a suíte inteira desse arquivo dá **`4 passed in 0.13s`**. Um início órfão acrescentado ao documento também passa com a declaração real. Validar integridade e ordem dos marcadores independentemente de `TRECHOS`, com contraprova que rejeite esse desaparecimento. Evidência R2-E3. | `ajuste` | **Corrigido.** Reproduzido: `4 passed` com o último `FIM` do Modelo retirado e o diagrama fora de `TRECHOS`. O inventário agora lê os marcadores um a um (`_pares`): a sequência tem de alternar início e fim, começando no início, e um marcador sem par, fora de ordem ou aninhado derruba o teste com o nome do documento. Contraprovas permanentes: `test_pares_conta_trechos_completos` (0, 1, 2 pares) e `test_contraprova_marcador_sem_par_e_acusado` (fim apagado, início órfão, fora de ordem, aninhado, fim a mais). A tua sonda de R2-E3, repetida: sem o último `FIM` + sem diagrama → falha; início órfão no Modelo → falha. |
+| RV19-2-02 | `tests/test_trechos_gerados.py:26` | **Limite de cobertura observado em RV19-05:** a busca é explicitamente `(export.ROOT / "docs").rglob("*.md")`. Um par completo não declarado acrescentado **em memória** ao `README.md` fica invisível: `real + par não declarado no README: inventário=PASSA; desatualizados=[]`. Hoje os únicos Markdown rastreados com o marcador são os dois documentos em `docs/`; portanto não há omissão atual comprovada fora desse diretório. A garantia não abrange todo Markdown do repositório; ampliar esse alcance é assunto posterior, não condição adicional para esta correção em `docs/`. Evidência R2-E3. | `observação` | **Tratado agora, por ser barato.** O inventário passou de `docs/**/*.md` para todo Markdown rastreado (`git ls-files '*.md'`). A tua sonda do par não declarado no README, repetida: falha, com `(README.md, 0)` sobrando no inventário. Hoje só os dois documentos de `docs/` têm o marcador (`git ls-files '*.md' \| xargs grep -l`). |
+
+#### R2-E1 — objeto comparado e testes do passo 8
+
+E1 reexecutado literalmente; saída:
+
+```text
+4135:WAREHOUSE_DB       646.4 MB
+4138:soma dos três bancos: 723.8 MB
+4123:WAREHOUSE_DB       553.0 MB
+4126:soma dos três bancos: 627.9 MB
+```
+
+`rg -n '^886 passed|8/9|passo 8' data/medicoes/v1_1_0/G7_a1_recovery_restore.txt`:
+
+```text
+316:── 8/9 reconstruindo sem apagar o que acabou de voltar ──
+4075:886 passed, 3 skipped in 365.07s (0:06:05)
+4084:  As oito fronteiras e os testes de dados são do `make check` do passo 8.
+```
+
+O item 2 corrigido identifica `WAREHOUSE_DB` e distingue a soma (Capacidade:559–560):
+
+> 2. **A restauração custou 19m 51s**, 2m 52s a mais que no B5, sobre um armazém (`WAREHOUSE_DB`) de
+>    646,4 MiB contra 553,0 MiB no fim de cada uma — na soma dos três bancos, 723,8 MiB contra 627,9 MiB.
+
+E atribui os testes ao passo certo (Capacidade:563–564):
+
+>    do B5. **Não medido:** quanto do tempo a mais vem dessa memória e quanto do `check` do passo 8,
+>    que rodou 886 testes Python contra 579.
+
+#### R2-E2 — unidades, histórico e comparação com B5
+
+E3 reexecutado: `formatar` continua dividindo por 1024 (`report.py:57`); o medidor divide
+`MemAvailable` por 1024 (`medir.sh:65`) e novamente por 1024 para exibir GB (`medir.sh:190`).
+O tratamento de `docker stats` converte GiB/TiB/KiB para a mesma base (`medir.sh:83–85`).
+Comparação das funções com `git show 7b0bea6:<arquivo>` — o commit do pacote B5:
+
+```text
+docker/medir.sh:_mem_disponivel igual ao commit do pacote B5: True
+docker/medir.sh:_mem_conteineres igual ao commit do pacote B5: True
+docker/medir.sh:_gb igual ao commit do pacote B5: True
+src/mvp_ed1/generator/report.py:formatar igual ao commit do pacote B5: True
+```
+
+Logo, escrever também 8,0 / 6,5 / 1,1 **GiB** nos comparativos novos preserva a base dos
+números de B5. Não é conversão de GB decimal. As seções históricas permanecem intactas.
+
+Sonda Python: comparação literal do prefixo anterior a `### 2.13 ` com
+`git show bd5e3f8:docs/capacidade_e_recuperacao.md`; busca `\b(?:GB|MB)\b` na §2.13;
+`du -sb` para o total, `stat().st_size` para o dump e divisão por `1024**2`:
+
+```text
+Antes da §2.13 idêntico: True
+GB/MB na §2.13: ['o `docker stats` dividem por 1024, e o que as saídas rotulam "GB" e "MB" é GiB e MiB — é assim que']
+Declarações de base binária: 1
+pacote: 39214755 bytes = 37.4 MiB
+warehouse_memoria.dump: 26624372 bytes = 25.4 MiB
+P6: 7832536 / 1024**2 = 7.47 GiB < 8.0 GiB
+```
+
+Não sobrou rótulo GB/MB aplicado a medida na seção nova: a única ocorrência é a explicação
+dos rótulos antigos. `du -sh` devolveu `38M`; `du -sb`, `39214755`. A §3.1:608–610 conserva
+o histórico e apresenta corretamente a medida nova:
+
+> No corte de 25/09/2026: 32 MB, dos quais 20,7 MB são a memória do armazém — a base dessas duas
+> medidas não foi registrada. No de 04/11/2026: 37,4 MiB (39.214.755 bytes), dos quais 25,4 MiB
+> (26.624.372 bytes) são a memória do armazém.
+
+P6:22 foi relido e confirma os 7.832.536 kB / 7,47 GiB. As saídas originais do B5 também
+foram relidas com `rg -n '\| up \|' .../20260925T124819Z_73_l1_up.log` e
+`rg -n '6,5 GB|1,1 GB' .../20260925T134425Z_73_l5_dag_run_refeito.log`:
+
+```text
+55:| up | nada | 0m 07s | 8,0 GB | 0,1 GB | 2 amostras, uma a cada 2,0 s (pausa de 2 s) | 22.0 MB |
+64:| dag-run | Airbyte,Airflow,bancos | 6m 41s | 1,1 GB | 6,5 GB | 95 amostras, uma a cada 4,2 s (pausa de 2 s) | 325.1 MB |
+```
+
+**Confirma-se a comparação numérica da resposta:** havia menos memória disponível no início
+da regeneração. Isso não prova nem refuta isoladamente uma causa para o mínimo durante a DAG:
+P6 é uma leitura inicial, o 8,0 de B5 é o mínimo amostrado no `up`, e a carga restante do
+host não foi controlada. A correção resolve RV19-04 porque retirou a causa e declara
+(Capacidade:557–558):
+
+> com 7,47 GiB livres, menos que os 8,0 GiB do B5. **Não medido:** por que o mínimo livre durante a
+> DAG foi maior, e quanto do 0,5 GiB a mais nos contêineres é das tarefas novas.
+
+#### R2-E3 — contraprovas do inventário, sem editar arquivos
+
+Sonda executada com `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -`, usando `runpy.run_path`
+para carregar o teste novo e `unittest.mock.patch` para substituir somente objetos em memória.
+Para cada caso, foi chamado o próprio `test_todo_trecho_marcado_esta_declarado_uma_vez` e,
+separadamente, `export.desatualizados()`. Saída literal:
+
+```text
+TRECHOS real: [('dicionario_de_dados.md', 0, 'dicionario_markdown'), ('modelo_de_dados.md', 0, 'inventario_markdown'), ('modelo_de_dados.md', 1, 'diagrama_markdown')]
+inventário real: [('docs/dicionario_de_dados.md', 0), ('docs/dicionario_de_dados.md', 1), ('docs/modelo_de_dados.md', 0), ('docs/modelo_de_dados.md', 1)]
+real: inventário=PASSA; desatualizados=[]
+vazio: inventário=FALHA; desatualizados=[]
+sem diagrama: inventário=FALHA; desatualizados=[]
+duplicado: inventário=FALHA; desatualizados=[]
+linhagem declarada: inventário=FALHA; desatualizados=['docs/dicionario_de_dados.md (trecho 2)']
+modelo sem o último FIM: inícios=2fins=1
+sem diagrama + seu marcador final ausente: inventário=PASSA; desatualizados=[]
+real + início órfão no Modelo: inventário=PASSA; desatualizados=[]
+README virtual: inícios=1fins=1
+real + par não declarado no README: inventário=PASSA; desatualizados=[]
+```
+
+As cinco declarações usadas foram `real`, `()`, `real[:-1]`, `real + (real[0],)` e
+`real + ((export.DICIONARIO, 1, lambda: ''),)`. Nos cenários de marcadores, `Path.read_text`
+foi substituído por função que devolvia o texto virtual apenas para o caminho escolhido e
+delegava as demais leituras ao método original. O início órfão foi anexado ao Modelo; o par
+completo, ao README. Ambos usaram `real` sem modificações.
+
+Reprodução completa da lacuna com a suíte, também executada:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+from pathlib import Path
+from unittest.mock import patch
+import pytest
+from mvp_ed1.models import export
+read = Path.read_text
+text = read(export.MODELO, encoding='utf-8')
+head, tail = text.rsplit(export.FIM, 1)
+def altered(path, *args, **kwargs):
+    return head + tail if path == export.MODELO else read(path, *args, **kwargs)
+with patch.object(Path, 'read_text', altered), patch.object(export, 'TRECHOS', export.TRECHOS[:-1]):
+    raise SystemExit(pytest.main(['-q', '-p', 'no:cacheprovider', 'tests/test_trechos_gerados.py']))
+PY
+```
+
+```text
+....                                                                     [100%]
+4 passed in 0.13s
+```
+
+O defeito é da guarda; os documentos reais continuam com quatro pares completos, conferidos
+por `rg -n 'gerado a partir dos modelos|fim do trecho gerado' docs` (E5). A varredura dos
+Markdown retornados por `git ls-files '*.md'`, procurando `export.INICIO`, confirmou:
+
+```text
+Markdown rastreado com marcador inicial: ['docs/dicionario_de_dados.md', 'docs/modelo_de_dados.md']
+```
+
+#### R2-E4 — um dono por resultado e links
+
+E6 reexecutado literalmente; saída:
+
+```text
+docs/plano_de_desenvolvimento.md:339:0 vendidos antes do lançamento, de 7.500 do varejo e de 238 do legado
+docs/plano_de_desenvolvimento.md:339:885 testes Python
+docs/streaming.md:363:13.725 eventos
+```
+
+A busca ampliada desses três resultados em todo `docs/` devolveu as mesmas três ocorrências.
+O resultado da D65 e os 885 testes estão nos critérios da versão de manutenção do Plano;
+os eventos estão em Streaming §7.3. O dado histórico de 3.130 itens na D65 não é o resultado
+novo. Conferência dos links extraídos por `docs_check.ler`, verificando arquivo de destino
+e presença do fragmento em `Documento.ancoras`:
+
+```text
+docs/capacidade_e_recuperacao.md:523 -> streaming.md#73-a-regeneração-da-v110--04112026: True
+docs/pendencias.md:213 -> plano_de_desenvolvimento.md#versão-de-manutenção-v110: True
+```
+
+#### R2-E5 — regressões e limites da rodada
+
+`git show 5b7de16 --format= -- docs/capacidade_e_recuperacao.md docs/pendencias.md` lido
+integralmente. Não foi encontrado número alterado além do pedido: separação armazém/soma,
+886 no passo 8, 7,5 arredondado substituído pelo 7,47 da P6, unidades e bytes do pacote,
+e retirada das cópias de resultados. Os valores de B5 acrescentados ao comparativo já
+constavam da §2.12. A remoção dos rótulos `PASS=907` acompanha a retirada das cópias.
+
+Comparação por Python das colunas de medidas da tabela anterior e posterior, normalizando
+somente GB/GiB e MB/MiB:
+
+```text
+11 linhas: estado, duração, memória, amostras e bancos inalterados: True
+```
+
+Verificações executadas com bytecode e cache do pytest desativados. Saída recortada de
+`PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline`, saída 0:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1099 links de arquivo, 188 âncoras, 664 citações de ADR — nada quebrado
+713 passed, 182 deselected in 149.86s (0:02:29)
+check-offline: as três etapas passaram
+```
+
+`PYTHONDONTWRITEBYTECODE=1 make secrets-history`, saída 0; linha final literal:
+
+```text
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Após a inclusão desta rodada, `docs-check` passou novamente e `git diff --check` não
+produziu saída. Nenhuma regressão foi observada nas verificações executadas; a lacuna da
+guarda reproduzida em R2-E3 permanece como ajuste.
+
+Os 182 testes de integração foram enumerados pelo alvo e não executados. Não houve SQL,
+escrita nos bancos, mudança no estado dos serviços, disparo/pausa da DAG, commit ou push.
+Somente `REVISAO.md` foi editado; os dois arquivos não rastreados já presentes foram preservados.
+
 ### Evidências dos achados
 
 Revisão em 04/11/2026, limitada a `6d93d72..0ce2a23`; dossiê em `bd5e3f8`.
