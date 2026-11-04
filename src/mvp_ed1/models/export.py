@@ -231,6 +231,34 @@ def _substituir(caminho: Path, conteudo: str, ocorrencia: int = 0) -> None:
     print(f"  {caminho.relative_to(ROOT)} atualizado (trecho {ocorrencia + 1})")
 
 
+#: Os trechos que este módulo escreve: documento, ocorrência e o gerador dela.
+#: A ocorrência 1 do Dicionário é a linhagem, de `lineage.py`, com conferência
+#: própria.
+TRECHOS = (
+    (DICIONARIO, 0, dicionario_markdown),
+    (MODELO, 0, inventario_markdown),
+    (MODELO, 1, diagrama_markdown),
+)
+
+
+def desatualizados() -> list[str]:
+    """Os trechos cujo texto no documento difere do que `main` escreveria.
+
+    Lê os mesmos marcadores que `_substituir` e não escreve nada. Sem esta
+    conferência, um derivado esquecido só aparecia no próximo `make catalog`
+    — como o total do plano de volume no Modelo de Dados, que a 1.5 da v1.1.0
+    mudou e só a regeneração reescreveu (592e2cc).
+    """
+    padrao = re.compile(re.escape(INICIO) + r"\n(.*?)\n" + re.escape(FIM), re.DOTALL)
+    divergentes = []
+    for caminho, ocorrencia, gerar in TRECHOS:
+        trechos = padrao.findall(caminho.read_text(encoding="utf-8"))
+        rotulo = f"{caminho.relative_to(ROOT)} (trecho {ocorrencia + 1})"
+        if len(trechos) <= ocorrencia or trechos[ocorrencia] != gerar():
+            divergentes.append(rotulo)
+    return divergentes
+
+
 def main() -> int:
     problemas = validate_metadata()
     if problemas:
@@ -238,9 +266,8 @@ def main() -> int:
         for p in problemas:
             print(f"  - {p}", file=sys.stderr)
         return 1
-    _substituir(DICIONARIO, dicionario_markdown())
-    _substituir(MODELO, inventario_markdown(), ocorrencia=0)
-    _substituir(MODELO, diagrama_markdown(), ocorrencia=1)
+    for caminho, ocorrencia, gerar in TRECHOS:
+        _substituir(caminho, gerar(), ocorrencia=ocorrencia)
     print(
         f"  {len(Base.metadata.tables)} tabelas e "
         f"{sum(len(t.columns) for t in Base.metadata.tables.values())} campos classificados"
