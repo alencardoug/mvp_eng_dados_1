@@ -68,7 +68,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 7 pendentes em 03/11/2026: D62 a D65, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0), a D67 (o `captured_amount` da P09) e a D43 (adiada para a fase GCP) |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 49 aceitos, 2 pendentes (D43 e D66, adiadas) |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 50 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.17 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
@@ -76,7 +76,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**49 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**50 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
@@ -100,7 +100,9 @@ PostgreSQL** — o planejador o embutia em cada referência, a 10× o custo · *
 histórico é tratado pelo tipo da credencial** — a local se regenera e se registra, sem reescrever
 o histórico; a de nuvem se revoga e se reescreve, pela mão do Owner · **classificar não é expor** —
 a classificação continua em todo campo, e a exposição do dado sintético é livre, decidida por
-concessão.
+concessão · **a memória do legado é guardada num livro retido**, fora do banco, e nenhuma captura
+pendente é finalizada sem registro — toda tentativa termina registrada pelo próprio chamador antes
+de qualquer *build*.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 
@@ -131,3 +133,12 @@ máquina, levantou quatro decisões para o Owner, registradas nas Pendências: a
 do alerta do *streaming* (D62), o medidor do *streaming* que encerra antes de o ramo de alerta drenar
 (D63), a chave Fernet do Airflow gerada inválida (D64) e itens vendidos antes do lançamento do produto
 no dado sintético (D65). Nada no código foi alterado.
+
+**A versão de manutenção `v1.1.0` está em curso**, pelo
+[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/PLAN.md#5-part-i--maintenance-release-v110-of-eng_dados),
+que o executa neste repositório: as views contam por identificador com a origem, o gerador ganhou a
+árvore de categorias, a faixa de preço por folha e o lançamento antes da venda (a D65), a P09 lê o
+valor capturado (a D67), e a memória do legado passou a ser registrada num livro retido
+([ADR-0050](docs/adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)). A regeneração das
+origens, que aplica o novo gerador ao armazém, ainda não rodou: até ela, o `make check` falha por
+desenho no teste da invariante 14.

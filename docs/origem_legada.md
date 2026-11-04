@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.8 |
+| Versão | 2.9 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 14/09/2026 |
+| Última revisão | 04/11/2026 — o livro retido da memória e a fase de recuperação, §4.3 (ADR-0050) |
 
 ---
 
@@ -360,7 +360,8 @@ O certificado diz o estado de cada captura **agora**; nada guardava o que ele e 
 ficou contida — e o pacote de recuperação guarda partição e contagens, não o conteúdo do bruto nem
 as linhas do certificado. O **livro retido** (`mvp_ed1.recovery.ledger`) é onde ficam: um
 diretório fora do banco e do Git, nomeado por `LEGACY_LEDGER_DIR` no `.env`, que a CLI e o Airflow
-leem no mesmo lugar.
+leem no mesmo lugar ([ADR-0050](adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md), que
+complementa os itens 4 e 5 do ADR-0044).
 
 - **Épocas.** Cada uma é aberta por uma linha de base — todas as capturas do bruto, o certificado
   inteiro, partição, quarentena, exclusões, `governance._versions` e os *jobs* da conexão legada no

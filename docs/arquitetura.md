@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.5 |
+| Versão | 2.6 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 14/09/2026 |
+| Última revisão | 04/11/2026 — o livro retido da memória do legado no mapa de paridade (ADR-0050) |
 
 ---
 
@@ -190,6 +190,7 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Controle de acesso | *Roles* do PostgreSQL sem login, um por papel; *grants* declarados por camada no dbt (`+grants`, `meta.grants`, `meta.writers`) e aplicados a cada execução ([Governança §7](governanca_de_dados.md#7-regras-de-acesso-por-camada)) | IAM por dataset (uma conta de serviço ou grupo por papel) + o mesmo `+grants` do dbt + *policy tags*, aplicadas a partir do YAML por fluxo automatizado ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) |
 | Catálogo e linhagem | `.yml` do dbt + `dbt docs`; por coluna, o [Dicionário §3](dicionario_de_dados.md#3-linhagem), gerado do SQL compilado | Os mesmos `.yml` publicados no Dataplex; a linhagem por coluna, do mesmo módulo, é o que a Data Lineage API recebe |
 | Certificado de captura do legado | `governance.legacy_captures`, escrita em duas fases por `mvp_ed1.airbyte` ([ADR-0044](adr/0044-certificar-cada-captura-do-legado-por-conteudo.md)) | Tabela homônima no *dataset* `governance`, mesmo módulo, carga em *staging* + `MERGE` pela chave `(tentativa, tabela)`. **Pendente da Etapa 13:** o caminho BigQuery e os seus testes locais com API simulada (resposta parcial, retorno perdido) nascem com o módulo; não existem na fase local — decidido pelo Owner em 15/09/2026 (RV10-08) |
+| Livro retido da memória do legado | Diretório fora do banco e do Git, em épocas, com registro publicado por `link` que falha se o nome existe; *advisory locks* do PostgreSQL na abertura e por tentativa ([ADR-0050](adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)) | *Bucket* do Cloud Storage com escrita condicionada (`ifGenerationMatch=0`) e retenção travada; os locks no Cloud SQL for PostgreSQL, soltos só depois de o *insert* no BigQuery confirmar. **Pendente da Etapa 13**, com o caminho BigQuery do certificado |
 | Exclusão física do legado | Comparação entre capturas certificadas em `raw_legacy`, por PK declarada canonizada pelo tipo ([ADR-0045](adr/0045-detectar-exclusao-fisica-do-legado-no-bruto-retido.md)) | A mesma comparação entre partições por `snapshot_at`, com `SAFE_CAST` aos mesmos tipos |
 | Versionamento de schema | Migrações versionadas | As mesmas migrações + DDL versionado |
 | Infraestrutura | Docker Compose | Terraform |

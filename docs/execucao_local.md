@@ -10,9 +10,9 @@
 | Campo | Informação |
 |---|---|
 | Interface | `Makefile` — a operação inteira acontece no terminal |
-| Versão | 1.17 |
+| Versão | 1.18 |
 | Situação | Operação da Etapa 12 (B0–B4) implementada; o ciclo da §3 está na ordem que o B5 executa e mede. Reconstrução com *streaming* conferida na D31 |
-| Última revisão | 03/10/2026 — resposta à revisão final da Etapa 12 |
+| Última revisão | 04/11/2026 — os alvos da v1.1.0: medidas da geração, oráculo das origens e livro retido (ADR-0050) |
 
 Este documento é, hoje, o **contrato** do que a execução local deve oferecer. Cada alvo é
 preenchido e conferido — executando-o — na etapa em que nasce, conforme o
