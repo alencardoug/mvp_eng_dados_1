@@ -326,6 +326,21 @@ def treatment_record(engine: Engine, *, caller: Mapping[str, Any],
     }
 
 
+def deletion_rows(engine: Engine) -> list[dict[str, Any]] | None:
+    """As linhas da memória de exclusões sem a coluna volátil — `None` sem a tabela, como no oráculo dela."""
+    esquema, tabela = leitura.TABELA_DAS_EXCLUSOES.split(".")
+    with _read_only(engine) as conexao:
+        if tabela not in leitura.tabelas_do_schema(conexao, esquema):
+            return None
+        return [{c: v for c, v in linha.items() if c not in leitura.COLUNAS_VOLATEIS_DAS_EXCLUSOES}
+                for linha in leitura._linhas(conexao, f"select * from {leitura.TABELA_DAS_EXCLUSOES}")]
+
+
+def deletion_keys(engine: Engine) -> list[list[str]] | None:
+    linhas = deletion_rows(engine)
+    return None if linhas is None else sorted([str(r["source_table"]), str(r["business_key"])] for r in linhas)
+
+
 def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *,
                     agora: dt.datetime | None = None) -> dict[str, Any]:
     """A linha de base (T4 na A8, e a de toda época que se abre): a memória inteira, num retrato.
@@ -349,6 +364,8 @@ def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *
         # Armazém sem `dbt build` não tem quarentena: `None`, como as exclusões.
         "quarantine": leitura.oraculo_da_quarentena(engine) if tem_quarentena else None,
         "deletions": leitura.oraculo_das_exclusoes(engine),
+        # As chaves da memória de exclusões, para o T3 aceitar exatamente as que o Owner aceitou (H2).
+        "deletion_keys": deletion_keys(engine),
         "governance_versions": leitura.versoes_do_armazem(engine),
         "airbyte_jobs": sorted(
             ({"id": int(j["id"]), "type": j.get("type"), "status": j.get("status"), "started_at": j.get("started_at")}

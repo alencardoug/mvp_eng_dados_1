@@ -120,6 +120,7 @@ class Memory:
     classification: dict[str, Any] | None
     versions: list[str]
     deletions: dict[str, Any] | None
+    deletion_rows: list[dict[str, Any]] | None = None
 
 
 def _existe(conexao, relacao: str) -> bool:
@@ -159,6 +160,7 @@ def read_memory(engine: Engine) -> Memory:
         classification=leitura.classificacao_corrente(engine),
         versions=leitura.versoes_do_armazem(engine),
         deletions=leitura.oraculo_das_exclusoes(engine),
+        deletion_rows=ledger.deletion_rows(engine),
     )
 
 
@@ -207,8 +209,39 @@ def _compara_bruto(nome: str, esperado: Mapping[str, Any], atual: Mapping[str, A
     return problemas
 
 
+def accepted_removals(comparacao: Mapping[str, Any]) -> set[tuple[str, str]]:
+    """As chaves do legado que a comparação do H2 dá como removidas — as que o Owner aceitou entrar
+    na memória de exclusões (N54 do plano do `bi-como-codigo`)."""
+    return {
+        (tabela, str(chave))
+        for tabela, dados in comparacao["legacy"]["keys"].items()
+        for chave in dados.get("changed", {}).get("removed", [])
+    }
+
+
+def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tuple[str, str]] | None) -> list[str]:
+    if aceitas is None:
+        return ([] if "deletions" not in base or memoria.deletions == base["deletions"]
+                else ["a memória de exclusões mudou desde a linha de base"])
+    if base.get("deletion_keys") is None or memoria.deletion_rows is None:
+        return ["remoções aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]
+    da_base = {tuple(k) for k in base["deletion_keys"]}
+    agora = {(str(r["source_table"]), str(r["business_key"])): r for r in memoria.deletion_rows}
+    problemas = []
+    if set(agora) != da_base | aceitas:
+        faltam = sorted((da_base | aceitas) - set(agora))
+        sobram = sorted(set(agora) - da_base - aceitas)
+        problemas.append(f"memória de exclusões: faltam {faltam[:5]} e sobram {sobram[:5]} "
+                         f"({len(faltam)} e {len(sobram)})")
+    antigas = [r for k, r in agora.items() if k in da_base]
+    if base.get("deletions") and oraculos.digest(antigas) != base["deletions"]["digest"]:
+        problemas.append("memória de exclusões: as linhas da linha de base mudaram")
+    return problemas
+
+
 def check(registros: list[Mapping[str, Any]], memoria: Memory,
-          certificadas_do_livro: list[int] | None = None) -> list[str]:
+          certificadas_do_livro: list[int] | None = None,
+          remocoes_aceitas: set[tuple[str, str]] | None = None) -> list[str]:
     """Os cinco grupos de afirmações. Vazio, a memória está contida (T3)."""
     problemas: list[str] = []
     base = next((r for r in registros if r.get("kind") == "baseline"), None)
@@ -322,8 +355,7 @@ def check(registros: list[Mapping[str, Any]], memoria: Memory,
     # (5) Versões e memória de exclusões.
     if "governance_versions" in base and memoria.versions != base["governance_versions"]:
         problemas.append(f"governance._versions mudou: {base['governance_versions']} → {memoria.versions}")
-    if "deletions" in base and memoria.deletions != base["deletions"]:
-        problemas.append("a memória de exclusões mudou desde a linha de base")
+    problemas += _deletion_problems(base, memoria, remocoes_aceitas)
     return problemas
 
 
@@ -332,6 +364,8 @@ def main(argv: list[str] | None = None) -> int:
                                      description="T3: a memória do legado contra o livro retido, somente leitura.")
     parser.add_argument("--capture-ledger", type=pathlib.Path, default=None,
                         help="o livro de capturas do diário: JSON com 'certified', os jobs certificados do ciclo")
+    parser.add_argument("--accepted-removals", type=pathlib.Path, default=None,
+                        help="a comparação do H2 (`make generation-compare`): as chaves removidas que o Owner aceitou")
     parser.add_argument("--out", type=pathlib.Path, default=None)
     args = parser.parse_args(argv)
 
@@ -345,11 +379,14 @@ def main(argv: list[str] | None = None) -> int:
                 if args.capture_ledger else None)
     armazem = create_engine(database_url(WAREHOUSE))
     try:
-        problemas = check(ledger.records(epoca), read_memory(armazem), do_livro)
+        aceitas = (accepted_removals(json.loads(args.accepted_removals.read_text(encoding="utf-8")))
+                   if args.accepted_removals else None)
+        problemas = check(ledger.records(epoca), read_memory(armazem), do_livro, aceitas)
     finally:
         armazem.dispose()
     relatorio = {"format": 1, "kind": "memory_oracle", "provenance": provenance(), "epoch": str(epoca),
                  "capture_ledger": None if args.capture_ledger is None else str(args.capture_ledger),
+                 "accepted_removals": None if args.accepted_removals is None else str(args.accepted_removals),
                  "ok": not problemas, "problems": problemas}
     for problema in problemas:
         print(f"  PROBLEMA {problema}")

@@ -288,3 +288,52 @@ def test_a_saida_da_linha_de_comando(memoria, tmp_path, monkeypatch) -> None:
     assert json.loads((tmp_path / "t3.json").read_text())["ok"] is True
     livro.write_text(json.dumps({"certified": []}))
     assert mo.main(["--capture-ledger", str(livro), "--out", str(tmp_path / "t3b.json")]) == 1
+
+
+# ── A memória de exclusões, com as remoções aceitas do H2 (N54) ──────────────
+def _remocao(tabela: str, chave: str, payload: str = "p") -> dict:
+    return {"source_table": tabela, "business_key": chave, "last_seen_snapshot_id": 55,
+            "removed_in_snapshot_id": 60, "rows_last_seen": 1, "last_payload": [{"x": payload}]}
+
+
+def _com_exclusoes(linhas_base, linhas_agora):
+    from mvp_ed1.recovery import oraculos
+
+    base = {"deletions": {"linhas": len(linhas_base), "digest": oraculos.digest(linhas_base)},
+            "deletion_keys": sorted([r["source_table"], r["business_key"]] for r in linhas_base)}
+    memoria = mo.Memory(certificate={}, captures={}, certified=[], received={}, selected=None, quarantine=None,
+                        quarantine_by_table={}, classification=None, versions=[],
+                        deletions={"linhas": len(linhas_agora), "digest": oraculos.digest(linhas_agora)},
+                        deletion_rows=linhas_agora)
+    return base, memoria
+
+
+ANTIGA = _remocao("customers", "1")
+ACEITAS = {("inventory_balances", "145"), ("inventory_balances", "146")}
+
+
+def test_sem_aceitas_a_memoria_de_exclusoes_e_igual() -> None:
+    assert mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA]), None) == []
+    assert mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA, _remocao("inventory_balances", "145")]), None)
+
+
+def test_com_aceitas_e_a_linha_de_base_mais_exatamente_elas() -> None:
+    novas = [_remocao("inventory_balances", "145"), _remocao("inventory_balances", "146")]
+    assert mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA, *novas]), ACEITAS) == []
+    sobra = _remocao("inventory_movements", "x")
+    assert any("sobram [('inventory_movements', 'x')]" in p
+               for p in mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA, *novas, sobra]), ACEITAS))
+    assert any("faltam [('inventory_balances', '146')]" in p
+               for p in mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA, novas[0]]), ACEITAS))
+    mudada = _remocao("customers", "1", payload="outro")
+    assert any("as linhas da linha de base mudaram" in p
+               for p in mo._deletion_problems(*_com_exclusoes([ANTIGA], [mudada, *novas]), ACEITAS))
+
+
+def test_as_remocoes_aceitas_saem_da_comparacao_do_h2() -> None:
+    comparacao = {"legacy": {"keys": {
+        "inventory_balances": {"changed": {"removed": ["145", "146"]}},
+        "product_categories": {"changed": {"added": ["25"]}},
+        "brands": {"changed": {}},
+    }}}
+    assert mo.accepted_removals(comparacao) == ACEITAS
