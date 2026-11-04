@@ -172,3 +172,47 @@ def test_o_registro_de_uma_tentativa_certificada_mede_o_que_o_certificado_recebe
 def test_tentativa_que_nao_existe_e_recusada(armazem) -> None:
     with pytest.raises(ledger.LedgerError, match="não existe"):
         ledger.attempt_record(armazem, "nao-existe", caller={})
+
+
+# ── A linha de comando do operador ───────────────────────────────────────────
+@pytest.fixture
+def linha_de_base_sem_banco(tmp_path, monkeypatch):
+    from mvp_ed1 import airbyte
+
+    monkeypatch.setenv(ledger.ENV, str(tmp_path))
+    monkeypatch.setattr(airbyte, "token", lambda: "jwt")
+    monkeypatch.setattr(airbyte, "conexao", lambda _nome, _jwt: "leg")
+    monkeypatch.setattr(ledger, "baseline_record", lambda _engine, jobs: {
+        "format": ledger.FORMAT, "kind": "baseline", "captures": {}, "certificate": {"count": 0},
+        "airbyte_jobs": list(jobs),
+    })
+    listagem = {"data": [
+        {"jobId": 3, "connectionId": "leg", "jobType": "sync", "status": "succeeded", "startTime": "t3"},
+        {"jobId": 4, "connectionId": "oltp", "jobType": "sync", "status": "succeeded", "startTime": "t4"},
+    ]}
+    monkeypatch.setattr(airbyte, "jobs", lambda _jwt, _limite: listagem)
+    return tmp_path, listagem
+
+
+def test_a_linha_de_base_abre_a_epoca_com_os_jobs_da_conexao_legada(linha_de_base_sem_banco) -> None:
+    raiz, _ = linha_de_base_sem_banco
+    assert ledger.main(["baseline"]) == 0
+    epoca = ledger.current_epoch(raiz)
+    assert json.loads((epoca / ledger.BASELINE).read_text())["airbyte_jobs"] == [
+        {"id": 3, "type": "sync", "status": "succeeded", "started_at": "t3"}
+    ]
+
+
+def test_uma_listagem_cheia_recusa_sem_abrir_epoca(linha_de_base_sem_banco) -> None:
+    raiz, listagem = linha_de_base_sem_banco
+    listagem["data"] = [{"jobId": i, "connectionId": "leg"} for i in range(ledger.JOBS_LISTED)]
+    assert ledger.main(["baseline"]) == 2
+    assert ledger.epochs(raiz) == []
+
+
+def test_a_linha_de_base_pede_a_janela_parada() -> None:
+    from test_makefile import RAIZ, _receitas
+
+    receitas = _receitas((RAIZ / "Makefile").read_text(encoding="utf-8"))["ledger-baseline"]
+    janela = next(i for i, l in enumerate(receitas) if "preflight.sh trabalho" in l)
+    assert janela < next(i for i, l in enumerate(receitas) if "mvp_ed1.recovery.ledger baseline" in l)

@@ -87,6 +87,16 @@ GARANTIR_LEITOR_NO_ENV = grep -q '^WAREHOUSE_READER_USER=' .env || { \
 	  echo "WAREHOUSE_READER_USER=consumption_reader"; \
 	  echo "WAREHOUSE_READER_PASSWORD=$$(pw)"; } >> .env; }
 
+# O livro retido da memória do legado (v1.1.0, H6): a raiz em que a CLI e a DAG
+# registram cada tentativa de captura. Um `.env` de antes dele a ganha aqui,
+# com o diretório criado; uma variável vazia faz o `mkdir` falhar — o registro
+# nunca é pulado. O Airflow monta o mesmo diretório, gravável.
+GARANTIR_LIVRO_NO_ENV = grep -q '^LEGACY_LEDGER_DIR=' .env || { \
+	echo "acrescentando a raiz do livro retido da memória do legado ao .env"; \
+	{ echo ""; echo "\# Livro retido da memória do legado (v1.1.0) — acrescentado pelo Makefile."; \
+	  echo "LEGACY_LEDGER_DIR=$(abspath data/memoria_do_legado)"; } >> .env; }; \
+	mkdir -p "$$(grep '^LEGACY_LEDGER_DIR=' .env | tail -1 | cut -d= -f2-)"
+
 # Ponto único de recuperação (Etapa 12, B4). A lógica vive em
 # `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,
 # stream-*, airbyte-* e dbt-rebuild — e a interface de operação é o Makefile
@@ -130,7 +140,7 @@ endef
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
-        generation-measure generation-compare generation-realism source-oracle \
+        generation-measure generation-compare generation-realism ledger-baseline source-oracle \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -180,6 +190,9 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "WAREHOUSE_READER_USER=consumption_reader"; \
 		echo "WAREHOUSE_READER_PASSWORD=$$(pw)"; \
 		echo ""; \
+		echo "# Livro retido da memória do legado (v1.1.0) — fora do Git, montado no Airflow."; \
+		echo "LEGACY_LEDGER_DIR=$(abspath data/memoria_do_legado)"; \
+		echo ""; \
 		echo "# Airflow (Etapa 5) — porta e segredos do orquestrador."; \
 		echo "AIRFLOW_PORT=8081"; \
 		echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
@@ -194,6 +207,7 @@ env: ## Gera um .env com portas padrão e senhas aleatórias (não sobrescreve)
 		echo "KAFKA_CONNECT_PORT=8083"; \
 	} > .env
 	@chmod 600 .env
+	@mkdir -p "$(abspath data/memoria_do_legado)"
 	@echo "'.env' criado com senhas aleatórias e permissão 600."
 
 install: ## Cria o .venv com Python 3.11, instala o projeto em modo editável e os pacotes dbt da trava
@@ -287,6 +301,11 @@ generation-compare: require-venv ## T1: o que muda entre duas medidas da geraç�
 generation-realism: require-venv ## H3: M7 a M9 (árvore, preço por folha, venda antes do lançamento) sobre a geração em memória; SCALE, SEED, AS_OF
 	@.venv/bin/python -m mvp_ed1.recovery.realism \
 		$(if $(SCALE),--scale $(SCALE)) $(if $(SEED),--seed $(SEED)) $(if $(AS_OF),--as-of $(AS_OF))
+
+ledger-baseline: require-env require-venv require-abctl ## T4/H8: abre a época seguinte do livro retido com a linha de base da memória de agora; recusa com trabalho em andamento
+	@$(GARANTIR_LIVRO_NO_ENV)
+	@docker/preflight.sh trabalho || { echo "RECUSADO — há trabalho em andamento: a linha de base pede a janela parada."; exit 1; }
+	@set -a; . ./.env; set +a; $(CREDENCIAIS); .venv/bin/python -m mvp_ed1.recovery.ledger baseline
 
 source-oracle: require-env require-venv ## T2: as duas origens, em sessão somente leitura, contra uma medida; MEDIDA=, CALIBRACAO=1
 	@test -n '$(MEDIDA)' || { echo 'ERRO: use make source-oracle MEDIDA=<medida da geração>'; exit 1; }
@@ -469,6 +488,7 @@ sync-legacy: require-env require-abctl ## Captura o legado -> raw_legacy e a cer
 	@# certificado: origem medida antes, origem e bruto conferidos depois.
 	@# `JOB_EM=<arquivo>` grava o jobId da captura concluída e certificada — é
 	@# como o passo 9 da restauração recebe a identidade do passo 8 (RVE2-01).
+	@$(GARANTIR_LIVRO_NO_ENV)
 	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
 		.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado \
 		$(if $(JOB_EM),--job-em "$(JOB_EM)")
@@ -498,6 +518,7 @@ airflow-up: require-env require-abctl ## Sobe o Airflow local (LocalExecutor, tr
 		  echo "AIRFLOW_PORT=8081"; \
 		  echo "AIRFLOW_JWT_SECRET=$$(pw)"; \
 		  echo "AIRFLOW_FERNET_KEY=$$(pw)"; } >> .env; }
+	@$(GARANTIR_LIVRO_NO_ENV)
 	@$(GARANTIR_REDE)
 	@$(CREDENCIAIS); \
 		AIRFLOW_UID="$$(id -u)" \

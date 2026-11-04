@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -61,6 +63,37 @@ CARENCIA_SEM_JOB = dt.timedelta(hours=1)
 #: *job* é concluída na retomada — fechar um bruto ainda parcial como
 #: `incomplete` seria pior do que deixá-lo pendente.
 EstadoDoJob = Callable[[int], str]
+
+#: O espaço dos *advisory locks* do protocolo de captura, e o do lock de cada
+#: tentativa nele (runbook da regeneração da v1.1.0, H7, RR-39).
+LOCK_DA_TENTATIVA = 7101
+
+
+class TentativaOcupada(Exception):
+    """O lock da tentativa está com outro processo vivo — um chamador ativo."""
+
+
+@contextmanager
+def bloqueio_da_tentativa(armazem: Engine, tentativa: str, *, esperar: bool = True) -> Iterator[None]:
+    """O lock de sessão da tentativa, numa conexão só dele, que morre com o processo.
+
+    Quem o segura é um chamador vivo: a fase de recuperação não abandona uma
+    tentativa cujo lock está tomado, por mais velha que seja (H7). `esperar`
+    falso recusa na hora em vez de esperar. A conexão é descartada no fim, e
+    não devolvida ao *pool*: um lock de sessão esquecido nela seguiria vivo.
+    """
+    conexao = armazem.connect()
+    try:
+        chave = {"ns": LOCK_DA_TENTATIVA, "a": tentativa}
+        if esperar:
+            conexao.execute(text("select pg_advisory_lock(:ns, hashtext(:a))"), chave)
+        elif not conexao.execute(text("select pg_try_advisory_lock(:ns, hashtext(:a))"), chave).scalar_one():
+            raise TentativaOcupada(f"tentativa {tentativa}: o lock está com outro processo")
+        conexao.commit()
+        yield
+    finally:
+        conexao.invalidate()
+        conexao.close()
 
 
 @dataclass(frozen=True)

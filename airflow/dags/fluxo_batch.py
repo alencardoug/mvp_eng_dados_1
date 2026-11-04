@@ -127,6 +127,11 @@ def fluxo_batch():
         from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
         from mvp_ed1.legacy import captura
 
+        from mvp_ed1.recovery import ledger
+
+        # Sem época corrente gravável, a captura terminaria sem registro
+        # possível (H6): falha antes de abrir a tentativa e de disparar o job.
+        ledger.writable_epoch()
         observador = airbyte.estado_do_job(airbyte.token()) if os.environ.get("AIRBYTE_CLIENT_ID") else None
         return captura.iniciar(
             create_engine(database_url(LEGACY)),
@@ -168,6 +173,55 @@ def fluxo_batch():
             )
         return int(certificado["snapshot_id"])
 
+    @task(trigger_rule="all_done")
+    def registrar_captura_do_legado() -> str:
+        """O portão: o registro da tentativa desta execução no livro retido, antes de qualquer build (H6).
+
+        A regeneração da v1.1.0 prova que a memória do legado ficou contida
+        comparando-a com registros tirados antes (`mvp_ed1.recovery.ledger`).
+        Esta DAG captura **e** constrói na mesma execução, e um registro tirado
+        depois dela adotaria o que tivesse mudado a captura no meio-tempo: o
+        registro tem de preceder o primeiro build, e só a DAG o põe aí
+        (decisão N29 do Owner no plano do `bi-como-codigo`).
+
+        Roda depois de `concluir_captura_do_legado` **seja qual for o desfecho
+        dela** (`all_done`): o certificado é registrado como estiver, e é só
+        depois de publicado que a tarefa falha se ele não é `complete` — o
+        registro fica. Uma tentativa ainda sem job, ou com o job em curso, não é
+        registrável: a tarefa falha e ela fica para a recuperação do próximo
+        chamador (H7).
+
+        **Nunca repetida sozinha** (N31): fora da primeira tentativa desta
+        tarefa ela falha sem escrever. Execução que falhou não continua — o §5
+        do runbook, depois a DAG inteira de novo, uma captura nova. Sem
+        `LEGACY_LEDGER_DIR`, sem época corrente, sem escrita ou com o registro
+        já existente, ela falha: o portão nunca é pulado.
+        """
+        from airflow.sdk import get_current_context
+        from sqlalchemy import create_engine
+
+        from mvp_ed1 import airbyte
+        from mvp_ed1.db import WAREHOUSE, database_url
+        from mvp_ed1.recovery import ledger
+
+        contexto = get_current_context()
+        ti = contexto["ti"]
+        tentativa = ti.xcom_pull(task_ids="iniciar_captura_do_legado")
+        observador = airbyte.estado_do_job(airbyte.token()) if os.environ.get("AIRBYTE_CLIENT_ID") else None
+        publicado, registro = ledger.gate(
+            create_engine(database_url(WAREHOUSE)),
+            tentativa,
+            caller={"kind": "dag", "dag_id": ti.dag_id, "task_id": ti.task_id},
+            run_id=contexto["run_id"],
+            try_number=ti.try_number,
+            job_state=observador,
+        )
+        print(f"registro da tentativa {tentativa}: {publicado.path} · sha256 {publicado.sha256}")
+        estado = ledger.certificate_status(registro)
+        if estado != "complete":
+            raise RuntimeError(f"tentativa {tentativa} registrada como {estado}: não é elegível para o build")
+        return publicado.sha256
+
     tentativa = iniciar_captura_do_legado()
     captura_principal = sincronizar.override(task_id="sincronizar_oltp_para_raw")(
         conexao="oltp_para_raw"
@@ -176,6 +230,8 @@ def fluxo_batch():
         conexao="legacy_para_raw_legacy", tentativa=tentativa
     )
     captura_legada = concluir_captura_do_legado(tentativa, captura_legada_sync)
+    registro = registrar_captura_do_legado()
+    captura_legada >> registro
 
     def camada(nome: str, selecao: str, comando: str = "build") -> BashOperator:
         # `--vars` em todas as tarefas, e não só nas do legado: as tarefas são
@@ -228,12 +284,15 @@ def fluxo_batch():
     # que vem depois — a transformação precisa das duas completas, porque o
     # empilhamento do legado se junta ao dado da origem principal.
     #
+    # O portão (`registro`) entra entre a captura certificada e o primeiro
+    # build: `dbt_seed` só começa com a tentativa registrada (H6).
+    #
     # O legado não entra em nenhuma tarefa nova de transformação: as tarefas da
     # DAG são por **camada**, e os modelos dele vivem nas camadas que já existem.
     # É a propriedade que o cabeçalho desta DAG anuncia — acrescentar domínio
     # não acrescenta tarefa —, e a Etapa 10 é o teste dela.
     (
-        [captura_principal, captura_legada]
+        [captura_principal, captura_legada, registro]
         >> semear
         >> staging
         >> trusted

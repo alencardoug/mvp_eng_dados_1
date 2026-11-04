@@ -197,12 +197,23 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
     ordem é o contrato: a origem é medida **antes** de o job nascer, o `job_id`
     é gravado assim que ele nasce, e só depois de ele terminar a origem e o
     bruto são conferidos. Devolve o job e o certificado.
+
+    **O portão da CLI (H6 da regeneração da v1.1.0).** Antes de abrir a
+    tentativa, a época corrente do livro retido precisa existir e aceitar
+    escrita; depois de `concluir`, a tentativa é registrada nela — seja qual
+    for o certificado — antes de o comando voltar, e o comando falha se o
+    registro não for escrito. Toda tentativa que a CLI abre termina registrada
+    por ela mesma.
     """
+    import os
+
     from sqlalchemy import create_engine
 
     from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
     from mvp_ed1.legacy import captura
+    from mvp_ed1.recovery import ledger
 
+    ledger.writable_epoch()
     legado = create_engine(database_url(LEGACY))
     armazem = create_engine(database_url(WAREHOUSE))
     try:
@@ -213,6 +224,8 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
         # que a consulta de andamento repetir.
         job = acompanhar(nascido, jwt) | {"jobId": nascido}
         certificado = captura.concluir(legado, armazem, tentativa)
+        publicado, _ = ledger.gate(armazem, tentativa, caller={"kind": "cli", "pid": os.getpid()})
+        print(f"  registro da tentativa: {publicado.path} · sha256 {publicado.sha256}", flush=True)
     finally:
         legado.dispose()
         armazem.dispose()

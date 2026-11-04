@@ -268,7 +268,18 @@ def test_o_job_que_vale_e_o_do_disparo(monkeypatch):
     monkeypatch.setattr(airbyte, "estado_do_job", lambda _jwt: None)
     monkeypatch.setattr(airbyte, "disparar", lambda *_a, **_k: {"jobId": 44})
     monkeypatch.setattr(airbyte, "acompanhar", lambda _job, _jwt: {"status": "succeeded"})
+    # O portão do livro retido (H6) tem os seus próprios testes, em `test_portoes_da_captura.py`.
+    import pathlib
+
+    from mvp_ed1.recovery import ledger
+
+    portao: list[str] = []
+    monkeypatch.setattr(ledger, "writable_epoch", lambda *_a, **_k: pathlib.Path("."))
+    monkeypatch.setattr(ledger, "gate", lambda _armazem, tentativa, **_k: (
+        portao.append(tentativa) or ledger.Published(pathlib.Path("registro.json"), "0" * 64), {}
+    ))
 
     job, _certificado = airbyte.sincronizar_certificando("id-ficticio", identidade.CONEXAO_LEGADA, "jwt")
 
     assert job["jobId"] == 44 and registrado == [44]
+    assert portao == ["tentativa"]

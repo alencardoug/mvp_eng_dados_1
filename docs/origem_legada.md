@@ -353,6 +353,35 @@ Na DAG, a escolha viaja da sincronização para todas as tarefas de dbt como `le
 um. Sem isso, cada uma das sete invocações reabriria a escolha, e uma carga que chegasse no meio
 faria camadas vizinhas lerem capturas diferentes. `make sync-legacy` passa pelas mesmas duas fases.
 
+### 4.3 O livro retido da memória (v1.1.0)
+
+O certificado diz o estado de cada captura **agora**; nada guardava o que ele e o bruto eram
+**antes**. A regeneração da v1.1.0 troca as duas origens e precisa provar que a memória do armazém
+ficou contida — e o pacote de recuperação guarda partição e contagens, não o conteúdo do bruto nem
+as linhas do certificado. O **livro retido** (`mvp_ed1.recovery.ledger`) é onde ficam: um
+diretório fora do banco e do Git, nomeado por `LEGACY_LEDGER_DIR` no `.env`, que a CLI e o Airflow
+leem no mesmo lugar.
+
+- **Épocas.** Cada uma é aberta por uma linha de base — todas as capturas do bruto, o certificado
+  inteiro, partição, quarentena, exclusões, `governance._versions` e os *jobs* da conexão legada no
+  Airbyte —, e a corrente é a mais nova com linha de base válida. Sem época corrente, nenhuma
+  captura começa. `make ledger-baseline` abre a seguinte.
+- **Os portões.** Toda tentativa termina registrada **pelo próprio chamador**, seja qual for o
+  certificado: a CLI, antes de `make sync-legacy` voltar; a DAG, na tarefa
+  `registrar_captura_do_legado`, entre a captura certificada e `dbt_seed` — nenhum *build* corre
+  sobre captura sem registro. O registro guarda o certificado por inteiro e, por tabela do bruto,
+  contagem, *digest* de todas as colunas e gerações das linhas do *job*. Repetir só o portão é
+  proibido: fora da primeira tentativa da tarefa ele falha sem escrever, e a DAG roda inteira de
+  novo.
+- **Nunca substituído.** Cada registro é publicado por temporário, `fsync` e `link`, que falha se
+  o nome existe.
+
+A especificação completa — os registros de transição e de tratamento, a fase de recuperação que os
+consome e a reconciliação com os *jobs* do Airbyte — é o
+[runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
+no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, o
+registro de tentativa e os dois portões; a fase de recuperação (H7) ainda não.
+
 ---
 
 ## 5. Limpeza e classificação

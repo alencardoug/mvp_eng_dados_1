@@ -56,6 +56,10 @@ x-airflow-comum: &airflow-comum
     AIRBYTE_URL: http://host.docker.internal:8000/api/public/v1
     AIRBYTE_CLIENT_ID: ${AIRBYTE_CLIENT_ID:-}
     AIRBYTE_CLIENT_SECRET: ${AIRBYTE_CLIENT_SECRET:-}
+    # O livro retido da memória do legado (v1.1.0, H6): o portão da DAG
+    # registra nele cada tentativa de captura. Este é o caminho no contêiner;
+    # o do host vem do `.env`, e sem ele o compose se recusa a subir.
+    LEGACY_LEDGER_DIR: /opt/mvp_ed1_ledger
   volumes:
     # ── Montagem por diretório, não o repositório inteiro ────────────────────
     # Montar `..` inteiro colocaria o `.env` dentro do contêiner. Ele é 600 e
@@ -70,6 +74,7 @@ x-airflow-comum: &airflow-comum
     - ../airbyte:/opt/mvp_ed1/airbyte:ro
     - ../docs/glossario_de_negocio:/opt/mvp_ed1/docs/glossario_de_negocio:ro
     - airflow_logs:/opt/airflow/logs
+    - ${LEGACY_LEDGER_DIR:?defina LEGACY_LEDGER_DIR — a raiz do livro retido da memória do legado (make airflow-up a acrescenta)}:/opt/mvp_ed1_ledger
   extra_hosts:
     - "host.docker.internal:host-gateway"
   # O uid do host, não o 50000 da imagem: o `dbt` escreve em `dbt/target` e

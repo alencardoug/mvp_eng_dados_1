@@ -49,7 +49,7 @@ import os
 import pathlib
 import re
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -315,3 +315,117 @@ def gate_record_name(attempt_id: str, *, run_id: str | None = None) -> str:
     """O nome do registro de um portão: pela execução da DAG, ou pela CLI, e pela tentativa."""
     origem = f"dag_{_safe(run_id)}" if run_id else "cli"
     return f"{origem}_{_safe(attempt_id)}_attempt.json"
+
+
+# ── Os portões (H6) ──────────────────────────────────────────────────────────
+class GateRefused(LedgerError):
+    """O portão não registra: tentativa repetida, ou uma tentativa que ainda não tem o que registrar."""
+
+
+def writable_epoch(environ: Mapping[str, str] | None = None) -> pathlib.Path:
+    """A época corrente, provada gravável — o que os dois chamadores conferem antes de abrir tentativa.
+
+    Sem ela, uma captura terminaria sem registro possível e pararia a barreira
+    seguinte (H7, passo 0).
+    """
+    epoca = current_epoch(root(environ))
+    probe_writable(epoca)
+    return epoca
+
+
+def gate(
+    engine: Engine,
+    attempt_id: str | None,
+    *,
+    caller: Mapping[str, Any],
+    run_id: str | None = None,
+    try_number: int = 1,
+    job_state: Callable[[int], str] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> tuple[Published, dict[str, Any]]:
+    """O registro da tentativa do próprio chamador, na época corrente, segurando o lock dela (H6).
+
+    Registra o certificado **como estiver** — `pending` incluído, mas só com o
+    *job* já final, como a T4 pede. Uma tentativa sem *job*, ou com o *job* em
+    curso, não é registrável agora: fica para a fase de recuperação do próximo
+    chamador (H7). Fora da primeira tentativa da tarefa, recusa sem escrever —
+    repetir o portão sozinho tomaria um retrato novo em nome da captura antiga
+    (N31). Devolve o publicado e o registro.
+    """
+    from mvp_ed1.airbyte import CONCLUIDOS
+    from mvp_ed1.legacy import captura
+
+    if try_number != 1:
+        raise GateRefused(
+            f"tentativa {try_number} do portão: repeti-lo sozinho é proibido (N31) — "
+            "siga o §5 do runbook e rode a DAG inteira de novo"
+        )
+    if not attempt_id:
+        raise GateRefused("nenhuma tentativa de captura aberta nesta execução: nada a registrar")
+    epoca = writable_epoch(environ)
+    with captura.bloqueio_da_tentativa(engine, attempt_id):
+        registro = attempt_record(engine, attempt_id, caller={**caller, "run_id": run_id, "try_number": try_number})
+        if {linha["status"] for linha in registro["certificate"]["rows"]} == {captura.PENDING}:
+            job = registro["job_id"]
+            if job is None:
+                raise GateRefused(f"tentativa {attempt_id} pendente sem job: fica para a recuperação (H7)")
+            estado = job_state(job) if job_state is not None else None
+            if estado not in CONCLUIDOS:
+                raise GateRefused(
+                    f"tentativa {attempt_id} pendente com o job {job} "
+                    f"{'sem observador' if estado is None else estado}: fica para a recuperação (H7)"
+                )
+        publicado = publish(epoca, gate_record_name(attempt_id, run_id=run_id), registro)
+    return publicado, registro
+
+
+def certificate_status(registro: Mapping[str, Any]) -> str:
+    """O estado da tentativa no registro: o único, ou `mixed`."""
+    estados = {linha["status"] for linha in registro["certificate"]["rows"]}
+    return estados.pop() if len(estados) == 1 else "mixed"
+
+
+# ── Linha de comando: a linha de base do operador ────────────────────────────
+#: Quantos *jobs* a listagem pede. Uma listagem cheia pode ter deixado *jobs*
+#: de fora, e a reconciliação partiria de um histórico incompleto: recusa.
+JOBS_LISTED = 1000
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`baseline`: abre a época seguinte com a linha de base da memória de agora (T4, A8; H8)."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(prog="python -m mvp_ed1.recovery.ledger")
+    parser.add_argument("command", choices=["baseline"])
+    parser.parse_args(argv)
+
+    from sqlalchemy import create_engine
+
+    from mvp_ed1 import airbyte
+    from mvp_ed1.db import WAREHOUSE, database_url
+    from mvp_ed1.legacy.identidade import CONEXAO_LEGADA
+
+    raiz = root()
+    jwt = airbyte.token()
+    listagem = (airbyte.jobs(jwt, JOBS_LISTED) or {}).get("data", [])
+    if len(listagem) >= JOBS_LISTED:
+        print(f"RECUSADO: a listagem do Airbyte veio cheia ({len(listagem)}); o histórico pode estar incompleto",
+              file=sys.stderr)
+        return 2
+    jobs = legacy_jobs(listagem, airbyte.conexao(CONEXAO_LEGADA, jwt))
+    armazem = create_engine(database_url(WAREHOUSE))
+    try:
+        linha_de_base = baseline_record(armazem, jobs)
+    finally:
+        armazem.dispose()
+    publicado = open_epoch(raiz, linha_de_base)
+    print(f"época aberta: {publicado.path.parent}")
+    print(f"linha de base: {publicado.path} · sha256 {publicado.sha256}")
+    print(f"  {len(linha_de_base['captures'])} capturas no bruto, {linha_de_base['certificate']['count']} linhas "
+          f"de certificado, {len(jobs)} jobs da conexão legada")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
