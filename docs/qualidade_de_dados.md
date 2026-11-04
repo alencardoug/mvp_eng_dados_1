@@ -359,13 +359,18 @@ Nenhuma etapa descarta registros em silêncio: o que não passa vai para quarent
 registrado.
 
 **Onde os testes de fronteira rodam.** Todo teste que compara camadas construídas em tarefas
-diferentes da DAG leva a etiqueta `fronteira` — os quatorze: `retail_empilhado_reconcilia`,
+diferentes da DAG leva a etiqueta `fronteira` — os quinze: `retail_empilhado_reconcilia`,
 `saldo_da_view_confere_com_o_livro_distinto`, `incremental_confere_com_a_reconstrucao_completa`,
-`legado_na_fato_segue_a_captura_corrente` e os dez `fato_reconcilia_com_a_condutora`. A seleção
-indireta do dbt (*eager*) os traria para a tarefa da **primeira** camada que citam, comparando o
-novo com o velho da execução anterior; por isso saem das tarefas por camada e rodam em
-`dbt_fronteiras`, depois de `consumption`. É o mesmo remédio de `legado_reconciliacao`, que compara
-`trusted` com a quarentena. No `make dbt-build` não há o problema: a ordem é a do grafo.
+`legado_na_fato_segue_a_captura_corrente`, `p09_capturado_reconcilia_com_a_fato` e os dez
+`fato_reconcilia_com_a_condutora`. A seleção indireta do dbt (*eager*) os traria para a tarefa da
+**primeira** camada que citam, comparando o novo com o velho da execução anterior — ou com nada: a
+tarefa que refaz uma tabela derruba por `cascade` as views que dependem dela, e a da camada
+seguinte ainda não as recriou. Por isso saem das tarefas por camada e rodam em `dbt_fronteiras`,
+depois de `consumption`. É o mesmo remédio de `legado_reconciliacao`, que compara `trusted` com a
+quarentena. No `make dbt-build` não há o problema: a ordem é a do grafo. Quem confere a regra é
+`tests/test_dbt.py`, sobre o *manifest*: nenhum teste roda, numa tarefa que o seleciona, antes da
+tarefa que constrói um pai dele — a guarda que faltou à P09 da D67 e que o F3 da regeneração da
+v1.1.0 achou, em 04/11/2026, com o consumo vazio.
 
 **Toda fronteira tem teste desde 18/09/2026.** Três nasceram nesse dia — `oltp → raw`, o ramo
 `retail` de `staging → trusted` e a composição da view de saldo — e a fronteira `trusted →

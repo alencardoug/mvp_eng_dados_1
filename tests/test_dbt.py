@@ -7,6 +7,7 @@ quando dois arquivos do repositório passam a discordar um do outro.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 
@@ -19,6 +20,78 @@ DBT = RAIZ / "dbt"
 
 def _carregar(caminho: pathlib.Path) -> dict:
     return yaml.safe_load(caminho.read_text(encoding="utf-8"))
+
+
+# ── As tarefas da DAG e os testes que atravessam camadas ─────────────────────
+#: As tarefas dbt de `fluxo_batch`, na ordem em que rodam: o que cada uma seleciona
+#: (camadas e etiquetas) e o que exclui. `seed` e `snapshots` não rodam teste; a
+#: `fronteiras`, a última, roda só os de etiqueta `fronteira`, com tudo construído.
+#: Espelha `airflow/dags/fluxo_batch.py`, que o teste confere para o espelho não
+#: envelhecer calado.
+TAREFAS_DA_DAG = (
+    ("seed", None, set()),
+    ("staging", ({"staging"}, set()), {"fronteira"}),
+    ("trusted", ({"trusted"}, set()), {"legado_reconciliacao", "fronteira"}),
+    ("quarantine", ({"quarantine"}, {"legado_reconciliacao"}), set()),
+    ("snapshots", None, set()),
+    ("analytics", ({"analytics"}, set()), {"fronteira"}),
+    ("consumption", ({"consumption"}, set()), {"fronteira"}),
+)
+SELECOES_DA_DAG = (
+    'camada("seed", "", comando="seed")',
+    'camada("staging", f"--select staging {fronteira}")',
+    'camada("trusted", f"--select trusted --exclude tag:legado_reconciliacao tag:fronteira")',
+    'camada("quarantine", "--select quarantine tag:legado_reconciliacao")',
+    'camada("snapshots", "", comando="snapshot")',
+    'camada("analytics", f"--select analytics {fronteira}")',
+    'camada("consumption", f"--select consumption {fronteira}")',
+    'camada("fronteiras", "--select tag:fronteira", comando="test")',
+)
+
+
+def _tarefa_que_constroi(no: dict) -> str | None:
+    if no["resource_type"] == "seed":
+        return "seed"
+    if no["resource_type"] == "snapshot":
+        return "snapshots"
+    if no["resource_type"] == "model":
+        return no["fqn"][1]
+    return None
+
+
+def test_teste_que_atravessa_tarefas_da_dag_nunca_roda_antes_de_um_pai() -> None:
+    """A seleção indireta do dbt (*eager*) traz para cada tarefa da DAG todo teste que cite um modelo
+    dela. Rodando ali antes da tarefa que constrói outro pai dele, o teste compara o novo com o velho —
+    ou com nada: a tarefa que refaz uma tabela derruba por `cascade` as views que dependem dela. Foi o
+    que a P09 da D67 encontrou no F3 da regeneração da v1.1.0, com o consumo vazio. O remédio é a
+    etiqueta `fronteira`, que tira o teste das tarefas por camada (Qualidade §7)."""
+    dag = (RAIZ / "airflow" / "dags" / "fluxo_batch.py").read_text(encoding="utf-8")
+    for selecao in SELECOES_DA_DAG:
+        assert selecao in dag, f"a DAG mudou ({selecao!r} não está lá): atualize TAREFAS_DA_DAG"
+    manifest_path = DBT / "target" / "manifest.json"
+    if not manifest_path.exists():
+        pytest.skip("sem dbt/target/manifest.json; rode `make dbt-build`")
+    nos = json.loads(manifest_path.read_text(encoding="utf-8"))["nodes"]
+    ordem = {nome: i for i, (nome, *_) in enumerate(TAREFAS_DA_DAG)}
+    antes_de_um_pai = []
+    for no in nos.values():
+        if no["resource_type"] != "test":
+            continue
+        etiquetas = set(no.get("tags") or [])
+        pais = {_tarefa_que_constroi(nos[p]) for p in no["depends_on"]["nodes"] if p in nos} - {None}
+        for nome, selecao, exclui in TAREFAS_DA_DAG:
+            if selecao is None or etiquetas & exclui:
+                continue
+            camadas, por_etiqueta = selecao
+            if not (pais & camadas or etiquetas & por_etiqueta):
+                continue
+            tardios = sorted(p for p in pais if ordem[p] > ordem[nome])
+            if tardios:
+                antes_de_um_pai.append((no["name"], nome, tardios))
+    assert antes_de_um_pai == [], (
+        "teste que roda numa tarefa da DAG antes da tarefa que constrói um pai dele — leva a etiqueta "
+        f"`fronteira`: {antes_de_um_pai}"
+    )
 
 
 @pytest.fixture(scope="module")
