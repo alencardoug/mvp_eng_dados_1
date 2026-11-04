@@ -60,7 +60,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.8 |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.2 — revalidado na D31 e na regeneração da v1.1.0 |
-| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.14 — toda fronteira com teste; invariante 14 no varejo |
+| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.15 — toda fronteira com teste; invariante 14 no varejo |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.16 — o ciclo do zero e a regeneração da v1.1.0 medidos; o ponto de recuperação da v1.1.0 |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
 | [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 12 achados, todos tratados — o último, um falso positivo, em 04/11/2026 |

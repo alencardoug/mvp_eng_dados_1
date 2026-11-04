@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.14 |
-| Última revisão | 03/11/2026 |
+| Versão | 1.15 |
+| Última revisão | 04/11/2026 — §5, a prova do diário de mutações pulada depois da recarga do legado, declarada |
 
 ---
 
@@ -224,6 +224,16 @@ efeito da geração sobre os dados dependentes foi medido, como registra
   por `classification.py`) — o primeiro uso deles no projeto: capturas fictícias, certificadas pela
   mesma regra do modelo real, cobrindo remoção, inclusão, redução de multiplicidade, sem identidade,
   captura sem mudança, reaparecimento com nova exclusão e anterior incompleta ignorada;
+- o efeito líquido do diário de mutações do lote aparece no intervalo e na memória de exclusões
+  (`test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria`, sobre o armazém real). Sem
+  mutação no diário aberto, não há efeito a conferir, e o teste **pula**. É o estado esperado depois
+  de uma recarga do legado: desde a regeneração da v1.1.0 (04/11/2026), o lote `060c3fc9…` nasceu
+  sem diário, e as duas mutações da Etapa 11 ficaram no diário do lote anterior e nas capturas
+  retidas (N56 do plano do `bi-como-codigo`). A lógica segue coberta em todo `check` pelo ciclo
+  efêmero entre duas certificadas
+  (`test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario`), que trata o pulo como
+  valor e cobra o veredito — passa, falha ou salto — em vez de deixá-lo escapar. A prova real volta
+  a rodar na primeira mutação feita pela CLI do legado;
 - a identidade do vínculo pai tem **sentinela** (`legado_vinculo_nao_diverge_por_representacao`,
   gerado por `remocao.py` das 56 chaves estrangeiras declaradas): a limpeza resolve o pai por
   igualdade textual e a comparação entre capturas pela chave canônica; um filho que só encontra o
