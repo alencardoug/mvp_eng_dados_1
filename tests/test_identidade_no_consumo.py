@@ -16,15 +16,24 @@ forma e escapavam só porque nenhum grupo delas juntava os dois pedidos.
 O SQL dos modelos de `consumption`, sem banco, analisado pelo `sqlglot` — o
 mesmo analisador da linhagem. Identificador é a coluna `*_id` ou
 `*_natural_key`; a chave substituta (`*_key`) já carrega a origem (ADR-0039) e
-fica de fora. Quatro formas, cada uma com a origem obrigatória ao lado:
+fica de fora. Seis formas, cada uma com a origem obrigatória ao lado:
 
 - `count(distinct …)` sobre identificador;
 - `select distinct` que projeta identificador;
+- `distinct on (…)` cuja chave tem identificador — a chave, não a projeção;
 - `group by` que agrupa por identificador, inclusive por posição;
-- igualdade entre identificadores numa junção ou numa subconsulta correlata.
+- janela `partition by` identificador;
+- igualdade entre identificadores numa junção ou numa subconsulta correlata,
+  com a origem igualada **entre os mesmos dois lados**.
 
 Origem fixada por literal (`f.source_system = 'retail'`, ou `'retail' as
 source_system`) conta como origem: é a forma de quem só lê uma delas.
+
+**Limite:** a guarda lê a forma de cada cláusula, não o fluxo entre elas. Uma CTE
+que já perdeu `source_system` e depois reduz por `count(*)` sobre linhas de
+identificadores repetidos, ou um `union` (sem `all`) que deduplica sem a origem,
+passam. As 16 views foram lidas uma a uma na revisão do lote 2 da v1.1.0 sem
+nenhuma dessas formas (RVL2-03); uma view nova que as use precisa ensinar o teste.
 """
 
 from __future__ import annotations
@@ -81,6 +90,19 @@ def _resolver_agrupamento(select: exp.Select, item: exp.Expression) -> exp.Expre
     return item
 
 
+def _origem_correlaciona(condicao: exp.Expression, tabelas: set[str]) -> bool:
+    """A condição iguala a origem entre as mesmas tabelas da igualdade de identificadores,
+    ou fixa a origem por literal (a forma de quem só lê uma delas)."""
+    for igualdade in condicao.find_all(exp.EQ):
+        colunas = [l for l in (igualdade.left, igualdade.right) if isinstance(l, exp.Column) and l.name == ORIGEM]
+        literais = [l for l in (igualdade.left, igualdade.right) if isinstance(l, exp.Literal)]
+        if len(colunas) == 1 and literais:
+            return True
+        if len(colunas) == 2 and {c.table for c in colunas} == tabelas:
+            return True
+    return False
+
+
 def violacoes(sql: str) -> list[str]:
     """Cada uso de identificador sem a origem ao lado, descrito em uma linha."""
     arvore = sqlglot.parse_one(sql, read="postgres")
@@ -96,7 +118,14 @@ def violacoes(sql: str) -> list[str]:
     for select in arvore.find_all(exp.Select):
         projecoes = select.expressions
         saidas = {_nome_de_saida(p) for p in projecoes}
-        if select.args.get("distinct"):
+        distinto = select.args.get("distinct")
+        if distinto and distinto.args.get("on"):
+            # `distinct on (…)` reduz pela chave entre parênteses, não pela projeção (RVL2-03).
+            chave = set().union(*(_colunas(i) | {_nome_de_saida(i)} for i in distinto.args["on"].expressions))
+            if any(map(_e_identificador, chave)) and ORIGEM not in chave:
+                ids = sorted(n for n in chave if _e_identificador(n))
+                achados.append(f"distinct on sem a origem: {', '.join(ids)}")
+        elif distinto:
             if any(map(_e_identificador, saidas)) and ORIGEM not in saidas:
                 ids = sorted(n for n in saidas if _e_identificador(n))
                 achados.append(f"select distinct sem a origem: {', '.join(ids)}")
@@ -109,8 +138,16 @@ def violacoes(sql: str) -> list[str]:
                 ids = sorted(n for n in nomes if _e_identificador(n))
                 achados.append(f"group by sem a origem: {', '.join(ids)}")
 
+    for janela in arvore.find_all(exp.Window):
+        particao = set().union(*(_colunas(i) for i in janela.args.get("partition_by") or []))
+        if any(map(_e_identificador, particao)) and ORIGEM not in particao:
+            ids = sorted(n for n in particao if _e_identificador(n))
+            achados.append(f"janela particionada sem a origem: {', '.join(ids)}")
+
     # Cada igualdade responde à cláusula que a contém de perto — a do `exists`,
-    # não a do `where` de fora que o envolve.
+    # não a do `where` de fora que o envolve. A origem tem de ligar **os mesmos
+    # dois lados** que o identificador liga, ou estar fixada por literal: citá-la
+    # numa igualdade de uma tabela consigo mesma não restringe nada (RVL2-03).
     acusadas: list[exp.Expression] = []
     for igualdade in arvore.find_all(exp.EQ):
         lados = (igualdade.left, igualdade.right)
@@ -118,9 +155,10 @@ def violacoes(sql: str) -> list[str]:
             continue
         clausula = igualdade.find_ancestor(exp.Where, exp.Join)
         condicao = clausula.this if isinstance(clausula, exp.Where) else clausula.args.get("on")
-        if ORIGEM not in _colunas(condicao) and not any(condicao is a for a in acusadas):
-            acusadas.append(condicao)
-            achados.append(f"junção sem a origem: {condicao.sql()}")
+        if _origem_correlaciona(condicao, {l.table for l in lados}) or any(condicao is a for a in acusadas):
+            continue
+        acusadas.append(condicao)
+        achados.append(f"junção sem a origem: {condicao.sql()}")
 
     return achados
 
@@ -156,6 +194,17 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from a where exists (select 1 from b where b.source_system = 'retail'"
          " and b.movement_id = a.movement_id)", 0),
         ("select * from a join b on a.year_month = b.year_month", 0),
+        # RVL2-03: a origem na projeção não entra na chave do `distinct on`
+        ("select distinct on (order_id) source_system, order_id from f", 1),
+        ("select distinct on (source_system, order_id) source_system, order_id from f", 0),
+        # … nem a origem de uma tabela igualada a ela mesma correlaciona os lados
+        ("select * from a join b on a.order_id = b.order_id and a.source_system = a.source_system", 1),
+        ("select * from a join b on a.order_id = b.order_id and b.source_system = c.source_system", 1),
+        ("select * from a join b on b.source_system = a.source_system and a.order_id = b.order_id", 0),
+        # … e a janela particionada pelo identificador funde as duas origens
+        ("select row_number() over (partition by order_id) from f", 1),
+        ("select row_number() over (partition by source_system, order_id) from f", 0),
+        ("select rank() over (partition by year_month order by x) from f", 0),
     ],
 )
 def test_a_guarda_reconhece_cada_forma(sql: str, esperado: int) -> None:
