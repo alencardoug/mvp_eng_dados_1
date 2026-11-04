@@ -144,7 +144,7 @@ endef
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
-        generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment source-oracle \
+        generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -318,6 +318,10 @@ ledger-attempt: require-env require-venv ## T4: o registro de uma tentativa à m
 ledger-treatment: require-env require-venv ## T4: o registro do tratamento corrente e das rejeitadas dele, na época corrente; NOME=<linha>_a<n>_tratamento.json
 	@test -n '$(NOME)' || { echo 'ERRO: use make ledger-treatment NOME=<D3_a1_tratamento.json>'; exit 1; }
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery.ledger treatment --name '$(NOME)'
+
+memory-oracle: require-env require-venv ## T3: a memória do legado contra o livro retido, somente leitura; LIVRO_DE_CAPTURAS=<json com "certified"> do diário
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery.memory_oracle \
+		$(if $(LIVRO_DE_CAPTURAS),--capture-ledger '$(LIVRO_DE_CAPTURAS)')
 
 source-oracle: require-env require-venv ## T2: as duas origens, em sessão somente leitura, contra uma medida; MEDIDA=, CALIBRACAO=1
 	@test -n '$(MEDIDA)' || { echo 'ERRO: use make source-oracle MEDIDA=<medida da geração>'; exit 1; }

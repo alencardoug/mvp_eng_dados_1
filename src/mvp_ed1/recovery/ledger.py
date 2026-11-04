@@ -337,6 +337,8 @@ def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *
     with _read_only(engine) as conexao:
         capturas = measure_captures(conexao)
         certificado = certificate_rows(conexao)
+        esquema, tabela = leitura.TABELA_DA_QUARENTENA.split(".")
+        tem_quarentena = tabela in leitura.tabelas_do_schema(conexao, esquema)
     return {
         "format": FORMAT,
         "kind": "baseline",
@@ -344,7 +346,8 @@ def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *
         "captures": capturas,
         "certificate": certificado,
         "partition": leitura.oraculo_da_particao(engine),
-        "quarantine": leitura.oraculo_da_quarentena(engine),
+        # Armazém sem `dbt build` não tem quarentena: `None`, como as exclusões.
+        "quarantine": leitura.oraculo_da_quarentena(engine) if tem_quarentena else None,
         "deletions": leitura.oraculo_das_exclusoes(engine),
         "governance_versions": leitura.versoes_do_armazem(engine),
         "airbyte_jobs": sorted(
