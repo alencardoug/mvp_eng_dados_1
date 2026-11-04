@@ -963,9 +963,9 @@ de reconstruir do bruto, sem mudar o formato do livro, foi respeitada.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| RVL1-2-01 | `src/mvp_ed1/recovery/memory_oracle.py:321`, `:335` e `:366` | **RVL1-01 e RVL1-02 ainda não fecham: duplicatas da memória de exclusões são descartadas antes da comparação.** Tanto `_deletion_problems` quanto `deletion_content_problems` convertem as linhas em dicionário por `(source_table, business_key)`, conservando só a última. Uma linha com `last_payload` adulterado e `rows_last_seen=999`, seguida da íntegra da mesma chave, faz o **`check` completo retornar `[]`**, com 3 linhas onde espera 2 após reaparição aceita (RVL1-01), e 4 onde espera 3 numa remoção aceita sem reaparição (RVL1-02). Inverter a ordem acusa o erro. O digest/contagem atuais realmente diferem, mas o ramo de aceites não os confronta antes de eliminar duplicatas. A tabela real não tem constraint nem índice de unicidade; o teste dbt de unicidade é outra verificação e não faz parte do T3. Recusar chaves repetidas antes de indexar, preservando a prova de multiplicidade, e cobrir as duas ordens com e sem N56 fecha esta lacuna sem alterar o formato do livro. Evidência R2-E2. | `bloqueante` || Corrigido em `58c10b4`. Reproduzida a sonda R2-E2 antes do fix (`antes … check: []` nos dois casos). `_repetidas` recusa chave em mais de uma linha antes de indexar, no armazém e no recalculado, em `deletion_content_problems` (roda sempre que há a tabela) e em `_deletion_problems`; a multiplicidade é preservada como problema, não descartada. Depois do fix, a mesma sonda acusa as quatro posições (`chave(s) em mais de uma linha [('customers', '99001')]` e `[('inventory_balances', '145')]`). Seis testes novos em `tests/test_oraculo_da_memoria.py` — as duas ordens com N56 e sem ela, duas cópias íntegras, e repetição no recalculado —, os seis falham com o `memory_oracle.py` de `d4ca0bb` (`6 failed`). `make check-offline`: 749 passed. T3 real somente leitura sobre `58c10b4`: `memória contida` (`data/medicoes/v1_1_0/20261104T220812Z_t3_58c10b4.json`); o teste de integração `…recalculada_do_bruto…` passa (1 passed). |
-| RVL1-2-02 | `src/mvp_ed1/recovery/capture_recovery.py:285`; `docs/origem_legada.md` §4.3 | **Limite operacional da solução aceita para RVL1-05.** A ambiguidade no início da primeira tentativa persiste mesmo após um dia: o limite inferior não avança. Se a fronteira for a próxima tentativa, ela também é fixa; se for apenas `agora`, esperar pode resolver. Não há comando/procedimento documentado para o Owner fornecer a associação verificada e retomar localmente: a CLI de `ledger` não recebe `associated_job`, e `ledger-attempt` sozinho não resolve a identificação. Existe o retorno geral por pacote no runbook §6, ou uma resolução explícita a definir pelo Owner; repetir a recuperação não é uma saída garantida. Registro o custo da parada já aceita, sem reabrir a escolha nem propor uma associação automática. Evidência R2-E4. | `observação` || Aceito como observação e declarado em `d03598e`: Origem Legada §4.3 (v2.11) registra o custo — no fim móvel (`agora`) esperar resolve; no início da tentativa ou da seguinte o limite é fixo e repetir para de novo; o livro não tem comando que receba a associação; a saída hoje é o runbook §6 (pacote) ou uma resolução do Owner. Nada implementado: um comando de associação manual é decisão do Owner, levada a ele neste fechamento. |
-| RVL1-2-03 | `src/mvp_ed1/recovery/memory_oracle.py:32` | **A descrição de abertura ainda diz “por chave, e não por conteúdo”.** O trecho permaneceu do código anterior e contradiz a implementação nova e Origem Legada §4.3. A comparação com a linha de base é por chave quando há reaparição, mas agora há uma segunda prova de conteúdo contra o bruto. Observação documental sobre linhas não alteradas no intervalo, sem novo defeito funcional. Evidência R2-E6. | `observação` || Corrigido em `58c10b4`: a descrição do módulo passa a ter o item 6 — a memória de exclusões linha a linha e por conteúdo contra a recalculada do bruto, com uma linha por chave —, e o item 5 diz que a conferência contra a linha de base, com reaparição aceita, é só por chave. `check` passa a dizer "seis grupos". |
+| RVL1-2-01 | `src/mvp_ed1/recovery/memory_oracle.py:321`, `:335` e `:366` | **RVL1-01 e RVL1-02 ainda não fecham: duplicatas da memória de exclusões são descartadas antes da comparação.** Tanto `_deletion_problems` quanto `deletion_content_problems` convertem as linhas em dicionário por `(source_table, business_key)`, conservando só a última. Uma linha com `last_payload` adulterado e `rows_last_seen=999`, seguida da íntegra da mesma chave, faz o **`check` completo retornar `[]`**, com 3 linhas onde espera 2 após reaparição aceita (RVL1-01), e 4 onde espera 3 numa remoção aceita sem reaparição (RVL1-02). Inverter a ordem acusa o erro. O digest/contagem atuais realmente diferem, mas o ramo de aceites não os confronta antes de eliminar duplicatas. A tabela real não tem constraint nem índice de unicidade; o teste dbt de unicidade é outra verificação e não faz parte do T3. Recusar chaves repetidas antes de indexar, preservando a prova de multiplicidade, e cobrir as duas ordens com e sem N56 fecha esta lacuna sem alterar o formato do livro. Evidência R2-E2. | `bloqueante` | Corrigido em `58c10b4`. Reproduzida a sonda R2-E2 antes do fix (`antes … check: []` nos dois casos). `_repetidas` recusa chave em mais de uma linha antes de indexar, no armazém e no recalculado, em `deletion_content_problems` (roda sempre que há a tabela) e em `_deletion_problems`; a multiplicidade é preservada como problema, não descartada. Depois do fix, a mesma sonda acusa as quatro posições (`chave(s) em mais de uma linha [('customers', '99001')]` e `[('inventory_balances', '145')]`). Seis testes novos em `tests/test_oraculo_da_memoria.py` — as duas ordens com N56 e sem ela, duas cópias íntegras, e repetição no recalculado —, os seis falham com o `memory_oracle.py` de `d4ca0bb` (`6 failed`). `make check-offline`: 749 passed. T3 real somente leitura sobre `58c10b4`: `memória contida` (`data/medicoes/v1_1_0/20261104T220812Z_t3_58c10b4.json`); o teste de integração `…recalculada_do_bruto…` passa (1 passed). |
+| RVL1-2-02 | `src/mvp_ed1/recovery/capture_recovery.py:285`; `docs/origem_legada.md` §4.3 | **Limite operacional da solução aceita para RVL1-05.** A ambiguidade no início da primeira tentativa persiste mesmo após um dia: o limite inferior não avança. Se a fronteira for a próxima tentativa, ela também é fixa; se for apenas `agora`, esperar pode resolver. Não há comando/procedimento documentado para o Owner fornecer a associação verificada e retomar localmente: a CLI de `ledger` não recebe `associated_job`, e `ledger-attempt` sozinho não resolve a identificação. Existe o retorno geral por pacote no runbook §6, ou uma resolução explícita a definir pelo Owner; repetir a recuperação não é uma saída garantida. Registro o custo da parada já aceita, sem reabrir a escolha nem propor uma associação automática. Evidência R2-E4. | `observação` | Aceito como observação e declarado em `d03598e`: Origem Legada §4.3 (v2.11) registra o custo — no fim móvel (`agora`) esperar resolve; no início da tentativa ou da seguinte o limite é fixo e repetir para de novo; o livro não tem comando que receba a associação; a saída hoje é o runbook §6 (pacote) ou uma resolução do Owner. Nada implementado: um comando de associação manual é decisão do Owner, levada a ele neste fechamento. |
+| RVL1-2-03 | `src/mvp_ed1/recovery/memory_oracle.py:32` | **A descrição de abertura ainda diz “por chave, e não por conteúdo”.** O trecho permaneceu do código anterior e contradiz a implementação nova e Origem Legada §4.3. A comparação com a linha de base é por chave quando há reaparição, mas agora há uma segunda prova de conteúdo contra o bruto. Observação documental sobre linhas não alteradas no intervalo, sem novo defeito funcional. Evidência R2-E6. | `observação` | Corrigido em `58c10b4`: a descrição do módulo passa a ter o item 6 — a memória de exclusões linha a linha e por conteúdo contra a recalculada do bruto, com uma linha por chave —, e o item 5 diz que a conferência contra a linha de base, com reaparição aceita, é só por chave. `check` passa a dizer "seis grupos". |
 
 ### Fechamento individual dos dez achados
 
@@ -1440,3 +1440,367 @@ pausada. Nenhum comando de carga, sincronização, restauração ou recuperaçã
 Nenhum fix foi implementado, nem houve commit/push. No checkout, a única alteração desta revisão
 é o acréscimo desta seção a `REVISAO.md`; os dois arquivos não rastreados preexistentes foram
 preservados. As colunas **Situação** desta rodada ficam vazias para a resposta do autor/Owner.
+
+
+## Rodada 3 — lote 1
+
+Revisão restrita a `d4ca0bb..ec039ae`, sobre `ec039ae23be12be8b82554ee5941df2ab986a241`:
+`58c10b4`, `d03598e` e `ec039ae`. Os lotes 2 e 3 continuam fora deste parecer.
+
+**RVL1-2-01, RVL1-2-02 e RVL1-2-03 estão fechados tecnicamente.** Não foi encontrado novo
+falso sucesso nas comparações examinadas. Resta um **ajuste no dossiê**, introduzido em
+`ec039ae`, antes de considerar o lote sem achados abertos. Este parecer não concede aceite
+nem aprovação e não decide pelo Owner como resolver operacionalmente a ambiguidade.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL1-3-01 | `REVISAO.md:966`, `:967`, `:968` | **As respostas da rodada 2 estão fora da coluna Situação.** O cabeçalho declara cinco colunas, mas cada linha tem seis células: o separador duplicado depois do veredito deixa a quinta vazia e põe a resposta na sexta, sem cabeçalho. As respostas foram lidas no texto fonte e verificadas nesta rodada; o defeito é do registro tabular. Remover o separador excedente nas três linhas, preservando integralmente as respostas, coloca cada resposta em Situação. Evidência R3-E5. | `ajuste` | Corrigido no registro: o separador excedente das três linhas da rodada 2 saiu, e cada resposta está em Situação, sem mudança de texto; a conferência abaixo dá cinco células em toda linha de achado do arquivo. |
+
+### Fechamento individual
+
+- **RVL1-2-01 — fechado.** As duas sondas originais acusam todas as posições adulteradas, com
+  e sem N56, e os controles íntegros retornam `[]` (R3-E1). Mais 36 variantes foram recusadas.
+  Os seis testes novos falham com o módulo de `d4ca0bb` e passam agora (R3-E2). Isso também
+  encerra o bloqueio residual de RVL1-01/02.
+- **RVL1-2-02 — fechado como observação atendida.** `sed -n '390,418p' docs/origem_legada.md`
+  mostra o custo e a saída vigente; as sondas de fronteira confirmam a diferença entre o fim
+  móvel e os dois limites fixos. O destino da ligação §6 foi conferido no objeto Git de
+  `c82391a` (R3-E4). Esperar resolve aquela ambiguidade do fim móvel, sem prometer sucesso de
+  todos os demais portões da recuperação. Nenhum comando de associação manual é proposto.
+- **RVL1-2-03 — fechado.** `sed -n '32,39p;416,420p' src/mvp_ed1/recovery/memory_oracle.py`
+  confirma o item 6 e “seis grupos”, distinguindo a prova contra a baseline da prova de conteúdo
+  contra o bruto (R3-E4).
+
+Verificado: duplicatas e conteúdo, sensibilidade dos seis testes, T3 real com certificada 67,
+gate offline, histórico de segredos, custo das fronteiras, descrição do módulo e destino fixado
+no runbook. O único achado ainda aberto nesta rodada é RVL1-3-01.
+
+### R3-E1 — sondas originais e variantes adversariais
+
+Comandos (saída 0):
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl1r2_duplicates.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl1r2_content.py
+```
+
+```text
+RVL1-01 controle linhas: 2 / 2 check: []
+RVL1-01 antes linhas: 3 / 2 check: ["memória de exclusões: chave(s) em mais de uma linha [('customers', '99001')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue"]
+RVL1-01 depois linhas: 3 / 2 check: ["memória de exclusões: chave(s) em mais de uma linha [('customers', '99001')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('customers', '99001'), ['last_payload', 'rows_last_seen'])]"]
+RVL1-02 controle linhas: 3 / 3 check: []
+RVL1-02 antes linhas: 4 / 3 check: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue"]
+RVL1-02 depois linhas: 4 / 3 check: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'rows_last_seen'])]"]
+```
+
+```text
+E1 com esperado independente; controle: []
+99001 adulterada: ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('customers', '99001'), ['last_payload', 'rows_last_seen'])]"]
+N54 adulterada: ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_movements', 'eeaa9bcb-0a2e-40bf-8ccc-15be9d8e4361'), ['last_payload', 'removed_in_snapshot_id'])]"]
+N56/99001 duplicata adulterada antes da íntegra: ["memória de exclusões: chave(s) em mais de uma linha [('customers', '99001')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue"]
+linhas atuais/esperadas: 12 11 digest diferente: True
+N56/99001 mesma duplicata depois da íntegra: ["memória de exclusões: chave(s) em mais de uma linha [('customers', '99001')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('customers', '99001'), ['last_payload', 'rows_last_seen'])]"]
+N54/145 sem reaparição duplicata adulterada antes da íntegra: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue"]
+linhas atuais/esperadas: 15 14 digest diferente: True
+N54/145 sem reaparição mesma duplicata depois da íntegra: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'rows_last_seen'])]"]
+rows_last_seen=1.9 versus 1: []
+tipagem fracionária é só contraprova em memória; coluna real será conferida
+```
+
+A contraprova `rows_last_seen=1.9` continua retornando `[]`: é a conversão preexistente para
+inteiro, já registrada em R2, fora da alteração desta rodada. Não é um valor representável na
+coluna real lida pelo T3. Consulta pelo wrapper autorizado, depois de o sandbox recusar o socket
+Docker e a execução ser liberada:
+
+```bash
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh /tmp/rvl1r3_types.sql
+```
+
+```sql
+SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'trusted' AND table_name = 'legacy_removed_records' ORDER BY ordinal_position;
+```
+
+```text
+       column_name       | data_type
+-------------------------+-----------
+ source_table            | text
+ business_key            | text
+ last_seen_snapshot_id   | bigint
+ removed_in_snapshot_id  | bigint
+ observed_in_snapshot_id | bigint
+ rows_last_seen          | bigint
+ last_payload            | jsonb
+(7 rows)
+```
+
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl1r3_variants.py` (saída 0) usa o mesmo
+`Memory` sintético e chama `check` completo. Cruza N56 presente/ausente, adulterada antes/depois,
+lado armazém/recalculado, chave `int` versus `str`, tabela em maiúsculas, com espaço final e
+qualificada com `legacy.`; acrescenta repetição de um lado com a chave ausente do outro.
+`str(business_key)` coincide nas duas rotinas e acusa a duplicata; grafias diferentes de tabela
+viram chaves extras/ausentes, nunca são descartadas. Trechos literais:
+
+```text
+N56=False int armazem antes: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue"]
+N56=False int armazem depois: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'rows_last_seen'])]"]
+N56=False int recalculado antes: ["memória de exclusões no recalculado do bruto: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue"]
+N56=False int recalculado depois: ["memória de exclusões no recalculado do bruto: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'rows_last_seen'])]"]
+N56=False repetida em armazem, ausente no outro: ["memória de exclusões: chave(s) em mais de uma linha [('inventory_balances', '145')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões contra a recalculada do bruto: faltam [] e sobram [('inventory_balances', '145')] (0 e 1)"]
+N56=False repetida em recalculado, ausente no outro: ["memória de exclusões: faltam [('inventory_balances', '145')] e sobram [] (1 e 0)", "memória de exclusões no recalculado do bruto: chave(s) em mais de uma linha [('inventory_balances', '145')] (1) — a comparação por chave não as distingue", "memória de exclusões contra a recalculada do bruto: faltam [('inventory_balances', '145')] e sobram [] (1 e 0)"]
+N56=True upper armazem antes: ["memória de exclusões: faltam [] e sobram [('CUSTOMERS', '99001')] (0 e 1)", "memória de exclusões contra a recalculada do bruto: faltam [] e sobram [('CUSTOMERS', '99001')] (0 e 1)"]
+N56=True repetida em armazem, ausente no outro: ["memória de exclusões: chave(s) em mais de uma linha [('customers', '99001')] (1)", "memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue", "memória de exclusões contra a recalculada do bruto: faltam [] e sobram [('customers', '99001')] (0 e 1)"]
+N56=True repetida em recalculado, ausente no outro: ["memória de exclusões: faltam [('customers', '99001')] e sobram [] (1 e 0)", "memória de exclusões no recalculado do bruto: chave(s) em mais de uma linha [('customers', '99001')] (1) — a comparação por chave não as distingue", "memória de exclusões contra a recalculada do bruto: faltam [('customers', '99001')] e sobram [] (1 e 0)"]
+36 variantes acusadas; nenhum falso sucesso
+```
+
+Nenhum dos caminhos novos elimina a evidência de repetição: o problema é acumulado antes de
+indexar, inclusive quando o conjunto de chaves também diverge. A reconstrução real usa o nome
+de tabela declarado e uma entrada por chave canônica; o cenário de repetição nela foi induzido
+somente em memória. Sem aceites, a prova de conteúdo continua chamada pelo `check`.
+
+### R3-E2 — os seis testes discriminam o módulo antigo
+
+Plugin temporário, sem checkout nem alteração de código do repositório:
+
+```python
+import subprocess
+
+def pytest_configure(config):
+    from mvp_ed1.recovery import memory_oracle as module
+    path = 'src/mvp_ed1/recovery/memory_oracle.py'
+    before = subprocess.check_output(['git', 'show', 'd4ca0bb:' + path], text=True)
+    exec(compile(before, 'd4ca0bb:' + path, 'exec'), module.__dict__)
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp .venv/bin/pytest -p no:cacheprovider -p rvl1r3_mutation --basetemp=/tmp/rvl1r3-mut -q tests/test_oraculo_da_memoria.py -k 'chave_repetida or duas_copias_integras'
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider --basetemp=/tmp/rvl1r3-current -q tests/test_oraculo_da_memoria.py -k 'chave_repetida or duas_copias_integras'
+```
+
+```text
+=========================== short test summary info ============================
+FAILED tests/test_oraculo_da_memoria.py::test_chave_repetida_na_memoria_de_exclusoes_e_acusada[reaparicao_aceita-antes]
+FAILED tests/test_oraculo_da_memoria.py::test_chave_repetida_na_memoria_de_exclusoes_e_acusada[reaparicao_aceita-depois]
+FAILED tests/test_oraculo_da_memoria.py::test_chave_repetida_na_memoria_de_exclusoes_e_acusada[remocao_aceita_sem_reaparicao-antes]
+FAILED tests/test_oraculo_da_memoria.py::test_chave_repetida_na_memoria_de_exclusoes_e_acusada[remocao_aceita_sem_reaparicao-depois]
+FAILED tests/test_oraculo_da_memoria.py::test_duas_copias_integras_da_mesma_chave_tambem_sao_acusadas
+FAILED tests/test_oraculo_da_memoria.py::test_chave_repetida_no_recalculado_tambem_e_acusada
+6 failed, 41 deselected in 0.50s
+```
+
+```text
+......                                                                   [100%]
+6 passed, 41 deselected in 0.23s
+```
+
+Saídas 1 (mutação esperada) e 0 (atual). As seis falhas são de asserção de multiplicidade,
+não de configuração/importação; nos casos “depois”, o módulo antigo já acusava conteúdo, mas
+não a multiplicidade exigida pelo teste.
+
+### R3-E3 — T3 real e regressões
+
+Para cumprir a restrição de não criar arquivos no checkout, `sitecustomize.py` temporário
+redirecionou **apenas** `sources.MEASUREMENTS` para `/tmp/rvl1r3-output`; nenhuma leitura,
+comparação ou veredito foi substituído:
+
+```python
+from pathlib import Path
+from mvp_ed1.recovery import sources
+sources.MEASUREMENTS = Path('/tmp/rvl1r3-output')
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/rvl1r3-output make memory-oracle LIVRO_DE_CAPTURAS=/tmp/rvl1r3_captures.json
+```
+
+O JSON contém `{"certified":[67]}`. A primeira execução foi impedida pelo sandbox na conexão
+ao PostgreSQL; a repetição autorizada fora dele terminou com saída 0:
+
+```text
+T3: memória contida · /tmp/rvl1r3-output/20261104T222102Z_t3_ec039ae.json
+```
+
+```json
+{
+ "accepted_reappearances": null,
+ "accepted_removals": null,
+ "capture_ledger": "/tmp/rvl1r3_captures.json",
+ "epoch": "/home/doug/Projetos/mvp_eng_dados_1/data/memoria_do_legado/epoch_0002_20261104T143228Z",
+ "format": 1,
+ "kind": "memory_oracle",
+ "notes": [],
+ "ok": true,
+ "problems": [],
+ "provenance": {
+  "commit": "ec039ae23be12be8b82554ee5941df2ab986a241",
+  "measured_at": "2026-11-04T22:21:02+00:00",
+  "trees": {
+   "src/mvp_ed1/generator": "4265ff87dad5ffeaef33041a274eb3f50b922a95",
+   "src/mvp_ed1/legacy": "ca0074d85783085a9623cef2b3912c7e57af7103",
+   "src/mvp_ed1/models": "596e16d883a3de90104e68e73199bc6a0b90f540"
+  },
+  "uncommitted": []
+ }
+}
+```
+
+O resultado reproduz o relatório do autor
+`data/medicoes/v1_1_0/20261104T220812Z_t3_58c10b4.json`: mesma época, `ok: true`, sem
+problemas ou notas. Esta execução é nova e inclui o livro de capturas solicitado.
+
+Comandos e saídas dos gates (saída 0 em ambos):
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=/tmp/rvl1r3-offline' make check-offline > /tmp/rvl1r3_offline.log 2>&1
+PYTHONDONTWRITEBYTECODE=1 make secrets-history > /tmp/rvl1r3_history.log 2>&1
+```
+
+```text
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1101 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 28%]
+........................................................................ [ 38%]
+........................................................................ [ 48%]
+........................................................................ [ 57%]
+........................................................................ [ 67%]
+........................................................................ [ 76%]
+........................................................................ [ 86%]
+........................................................................ [ 96%]
+.............................                                            [100%]
+749 passed, 183 deselected in 193.30s (0:03:13)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+     11 tests/test_acesso.py
+     13 tests/test_captura_legado.py
+      3 tests/test_carga.py
+      3 tests/test_classificacao.py
+      2 tests/test_consumo.py
+      4 tests/test_descricao.py
+      1 tests/test_fato_incremental.py
+      3 tests/test_ledger.py
+     12 tests/test_legacy_classification.py
+      7 tests/test_legado_contraprovas.py
+     22 tests/test_legado_deteccao.py
+     56 tests/test_legado_remocao.py
+      4 tests/test_migracao_legado.py
+     15 tests/test_oraculo_da_memoria.py
+      1 tests/test_portoes_da_captura.py
+      3 tests/test_reconciliacao_raw.py
+     21 tests/test_recuperacao_da_captura.py
+      2 tests/test_retencao.py
+check-offline: as três etapas passaram
+```
+
+```text
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+### R3-E4 — documentação, fronteiras e ligação fixada
+
+`sed -n '390,418p' docs/origem_legada.md`, trecho literal relevante:
+
+```text
+pendente cujo certificado difere do último registro dela **para**, sem que a diferença seja
+  adotada; e um *job* da listagem do Airbyte cujo início — que a listagem dá em segundos — atravessa
+  o limite da janela de uma tentativa sem *job* também para: nada se registra nem se abandona, e o
+  Owner decide. **Custo dessa parada:** no fim da janela que é `agora`, esperar um segundo a
+  resolve; no início da tentativa, ou no início da seguinte, o limite é fixo, e repetir a
+  recuperação para de novo. Não há comando local que diga ao livro qual *job* é da tentativa —
+  `ledger-attempt` não recebe a associação —, e a saída hoje é o caminho de volta pelo pacote
+  ([runbook §6](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#6-the-way-back))
+  ou uma resolução que o Owner defina (RVL1-2-02). Depois,
+  a **barreira**: toda tentativa do certificado registrada e igual ao último registro, nenhuma
+  `pending`, todo `sync_id` do bruto e todo *job* da conexão legada desde a linha de base com
+  exatamente uma tentativa. Qualquer diferença para, e nada se abre. A barreira roda de novo
+```
+
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl1r2_recovery_edges.py`, saída 0, trechos:
+
+```text
+janela lower crosses stop: True job: None
+janela lower exact stop: False job: 9
+janela second ends at lower stop: False job: None
+janela now crosses stop: True job: None
+janela exact upper stop: False job: None
+janela second ends at upper stop: False job: 9
+janela lower after one day stop: True job: None
+janela previous upper after one second stop: False job: 9
+```
+
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl1r3_boundary.py`, saída 0:
+
+```text
+próxima tentativa; dias decorridos: 0 stop: True janela: ('2026-11-04T10:00:00.500000+00:00', '2026-11-04T10:00:30.700000+00:00')
+próxima tentativa; dias decorridos: 1 stop: True janela: ('2026-11-04T10:00:00.500000+00:00', '2026-11-04T10:00:30.700000+00:00')
+```
+
+A sonda adicional mantém a mesma próxima tentativa e avança um dia: a janela não muda e
+continua recusada. O teste permanente `test_o_fim_da_janela_tambem_e_limite` também está na
+suíte offline. Nenhuma recuperação real foi executada.
+
+Conferência do destino local no commit fixado:
+
+```bash
+git -C /home/doug/Projetos/bi-como-codigo show c82391a:docs/regeneration_runbook.md > /tmp/rvl1r3_runbook.md
+rg -n '^## 6|^## 7' /tmp/rvl1r3_runbook.md
+```
+
+```text
+392:## 6. The way back
+429:## 7. Not verified, and observations
+```
+
+O título resolve a âncora `#6-the-way-back` do link em Origem Legada. Lida integralmente a §6
+nesse objeto: o retorno é pelo corte/pacote, com autorização do Owner para a restauração,
+verificação, alternativas e reabertura de época; não é associação local por `ledger-attempt`.
+A conferência foi do arquivo versionado e da âncora, sem testar disponibilidade HTTP do GitHub.
+
+`sed -n '32,39p;416,420p' src/mvp_ed1/recovery/memory_oracle.py`:
+
+```text
+desenho: "sai quando a chave reaparece" (ADR-0045). Com reaparição aceita, as
+   linhas que restam conferem-se contra a linha de base só **por chave** — ela
+   guarda o *digest* do conjunto, e um conjunto menor não se compara com ele —, e
+   o relatório diz isso numa nota;
+6. a memória de exclusões, **linha a linha e por conteúdo**, contra a recalculada
+   do bruto retido pela regra do ADR-0045 (RVL1-01/02), com uma linha por chave
+   nos dois lados (RVL1-2-01). Vale com ou sem mudanças aceitas.
+
+    """Os seis grupos de afirmações. Vazio, a memória está contida (T3).
+
+    `notas`, quando dada, recebe o que a conferência não pôde afirmar por inteiro e
+    declara — hoje, as linhas da linha de base que restam depois de uma reaparição
+    aceita, conferidas por chave contra ela e por conteúdo contra o bruto.
+```
+
+### R3-E5 — células excedentes nas respostas
+
+Comando de inspeção, sem alteração das linhas:
+
+```python
+from pathlib import Path
+for n, line in enumerate(Path('REVISAO.md').read_text().splitlines(), 1):
+    if line.startswith('| RVL1-2-'):
+        cells = line.strip('|').split('|')
+        print(n, len(cells), repr(cells[4]), cells[5].strip()[:40])
+```
+
+```text
+966 6 '' Corrigido em `58c10b4`. Reproduzida a so
+967 6 '' Aceito como observação e declarado em `d
+968 6 '' Corrigido em `58c10b4`: a descrição do m
+```
+
+O cabeçalho `| # | Onde | Achado | Veredito | Situação |` tem cinco células. Não foi
+alterado o registro anterior nem implementado o ajuste; a coluna Situação desta rodada permanece
+vazia para a resposta do autor/Owner.
+
+**Limites:** não executados `make check` completo, testes de integração mutantes, concorrência
+real, restauração ou retomada operacional após ambiguidade. Não se reabriu a revisão dos lotes
+2 e 3. O livro `data/memoria_do_legado/` foi somente lido; nenhuma DAG foi disparada ou pausada.
+Somente `REVISAO.md` foi alterado no checkout; sondas, plugin e relatórios ficaram em `/tmp`.
+Os arquivos não rastreados preexistentes `GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md`
+foram preservados. Sem correções de implementação, commit ou push.
