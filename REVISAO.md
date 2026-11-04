@@ -947,3 +947,496 @@ foi respeitada nos modelos; não se reivindica garantia de concorrência além d
 
 As falhas demonstradas não são afirmações de adulteração do banco real: as alterações de conteúdo
 aconteceram somente nos dublês. Este parecer não concede aceite nem encerra pendências do Owner.
+
+
+## Rodada 2 — lote 1
+
+Revisão em 04/11/2026 sobre `d4ca0bb73fc428768ba8389500d879555a0f75be`, restrita a
+`add459c..d4ca0bb`. O `git log --oneline add459c..d4ca0bb` contém **cinco**, não seis commits:
+`ae74356`, `2a73690`, `e50e859`, `3441150` e `d4ca0bb`. Não foi incluído outro intervalo para
+completar a contagem. Os lotes 2 e 3 não foram revisados nesta rodada.
+
+**O lote 1 ainda tem um bloqueante:** a resposta a RVL1-01/02 corrige as adulterações originais,
+mas a nova comparação pode ocultar uma linha duplicada adulterada. Os outros oito achados estão
+fechados no recorte examinado. Isso é parecer técnico, sem aceite ou decisão pelo Owner. A escolha
+de reconstruir do bruto, sem mudar o formato do livro, foi respeitada.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL1-2-01 | `src/mvp_ed1/recovery/memory_oracle.py:321`, `:335` e `:366` | **RVL1-01 e RVL1-02 ainda não fecham: duplicatas da memória de exclusões são descartadas antes da comparação.** Tanto `_deletion_problems` quanto `deletion_content_problems` convertem as linhas em dicionário por `(source_table, business_key)`, conservando só a última. Uma linha com `last_payload` adulterado e `rows_last_seen=999`, seguida da íntegra da mesma chave, faz o **`check` completo retornar `[]`**, com 3 linhas onde espera 2 após reaparição aceita (RVL1-01), e 4 onde espera 3 numa remoção aceita sem reaparição (RVL1-02). Inverter a ordem acusa o erro. O digest/contagem atuais realmente diferem, mas o ramo de aceites não os confronta antes de eliminar duplicatas. A tabela real não tem constraint nem índice de unicidade; o teste dbt de unicidade é outra verificação e não faz parte do T3. Recusar chaves repetidas antes de indexar, preservando a prova de multiplicidade, e cobrir as duas ordens com e sem N56 fecha esta lacuna sem alterar o formato do livro. Evidência R2-E2. | `bloqueante` || Corrigido em `58c10b4`. Reproduzida a sonda R2-E2 antes do fix (`antes … check: []` nos dois casos). `_repetidas` recusa chave em mais de uma linha antes de indexar, no armazém e no recalculado, em `deletion_content_problems` (roda sempre que há a tabela) e em `_deletion_problems`; a multiplicidade é preservada como problema, não descartada. Depois do fix, a mesma sonda acusa as quatro posições (`chave(s) em mais de uma linha [('customers', '99001')]` e `[('inventory_balances', '145')]`). Seis testes novos em `tests/test_oraculo_da_memoria.py` — as duas ordens com N56 e sem ela, duas cópias íntegras, e repetição no recalculado —, os seis falham com o `memory_oracle.py` de `d4ca0bb` (`6 failed`). `make check-offline`: 749 passed. T3 real somente leitura sobre `58c10b4`: `memória contida` (`data/medicoes/v1_1_0/20261104T220812Z_t3_58c10b4.json`); o teste de integração `…recalculada_do_bruto…` passa (1 passed). |
+| RVL1-2-02 | `src/mvp_ed1/recovery/capture_recovery.py:285`; `docs/origem_legada.md` §4.3 | **Limite operacional da solução aceita para RVL1-05.** A ambiguidade no início da primeira tentativa persiste mesmo após um dia: o limite inferior não avança. Se a fronteira for a próxima tentativa, ela também é fixa; se for apenas `agora`, esperar pode resolver. Não há comando/procedimento documentado para o Owner fornecer a associação verificada e retomar localmente: a CLI de `ledger` não recebe `associated_job`, e `ledger-attempt` sozinho não resolve a identificação. Existe o retorno geral por pacote no runbook §6, ou uma resolução explícita a definir pelo Owner; repetir a recuperação não é uma saída garantida. Registro o custo da parada já aceita, sem reabrir a escolha nem propor uma associação automática. Evidência R2-E4. | `observação` || Aceito como observação e declarado em `d03598e`: Origem Legada §4.3 (v2.11) registra o custo — no fim móvel (`agora`) esperar resolve; no início da tentativa ou da seguinte o limite é fixo e repetir para de novo; o livro não tem comando que receba a associação; a saída hoje é o runbook §6 (pacote) ou uma resolução do Owner. Nada implementado: um comando de associação manual é decisão do Owner, levada a ele neste fechamento. |
+| RVL1-2-03 | `src/mvp_ed1/recovery/memory_oracle.py:32` | **A descrição de abertura ainda diz “por chave, e não por conteúdo”.** O trecho permaneceu do código anterior e contradiz a implementação nova e Origem Legada §4.3. A comparação com a linha de base é por chave quando há reaparição, mas agora há uma segunda prova de conteúdo contra o bruto. Observação documental sobre linhas não alteradas no intervalo, sem novo defeito funcional. Evidência R2-E6. | `observação` || Corrigido em `58c10b4`: a descrição do módulo passa a ter o item 6 — a memória de exclusões linha a linha e por conteúdo contra a recalculada do bruto, com uma linha por chave —, e o item 5 diz que a conferência contra a linha de base, com reaparição aceita, é só por chave. `check` passa a dizer "seis grupos". |
+
+### Fechamento individual dos dez achados
+
+- **RVL1-01 — não fechado; continua em RVL1-2-01.** A alteração original de 99001 é detectada no
+  armazém copiado em memória (`/tmp/rvl1r2_t3.py`: `['last_payload', 'rows_last_seen']`), e o esperado
+  independente reproduz 11/11 linhas. Mas `/tmp/rvl1r2_duplicates.py` retorna
+  `RVL1-01 antes linhas: 3 / 2 check: []` (R2-E1/E2).
+- **RVL1-02 — não fechado; continua em RVL1-2-01.** A alteração original da 145 acusa
+  `['last_payload', 'removed_in_snapshot_id']` e a duplicação dentro do payload da 146 acusa
+  `['last_payload']`. A duplicação da linha inteira ainda passa:
+  `RVL1-02 antes linhas: 4 / 3 check: []` (R2-E1/E2).
+- **RVL1-03 — fechado.** E2 adaptada apenas para aceitar a nova parada devolve `RecoveryStopped`
+  por divergência do certificado; as 40 linhas seguem `pending` e o livro tem somente
+  `['attempt', 'baseline']`. As pendentes intactas do portão e da baseline são retomadas, e o
+  portão recusa uma pendente sem job antes de publicá-la (R2-E3/E4).
+- **RVL1-04 — fechado.** E2: `transição raw ausente: False`, `T3: 0 problemas`; a associação
+  previamente guardada no `attempt` também chega à transição com `associated_job: 9` e bruto
+  presente (R2-E3/E4).
+- **RVL1-05 — fechado quanto ao defeito e à parada escolhida.** E2 para antes do registro e do
+  abandono; o certificado fica `pending` e só existe `baseline`. Foram conferidos o início, a
+  próxima tentativa, `agora` e os segundos exatamente nas fronteiras. A ausência de retomada
+  local documentada é RVL1-2-02 (R2-E3/E4).
+- **RVL1-06 — fechado.** E1 original agora termina em `LedgerError: a época já guarda a tentativa
+  a (attempt): um registro manual não a reabre`. A baseline também impede o segundo primeiro
+  registro; duas baselines provocam `a época tem 2 linhas de base, e precisa de uma`, sem publicar
+  o manual. Esta é a recusa correta de uma época estruturalmente inválida (R2-E3/E4).
+- **RVL1-07 — fechado.** E4 original termina em `LedgerError: nome de registro sem .json, que a
+  leitura do livro ignoraria: 'D2_a1_memoria'`; os três nomes dos testes são recusados antes da
+  escrita. A preservação após falha entre `link` e `fsync` continua funcionando (R2-E3/E5).
+- **RVL1-08 — fechado.** E5 original: `bruto registrado: 2 bruto final: 2`. A troca de job 9 para
+  10 entre as leituras é recusada, sem publicar. A segunda `attempt_record` abre outra leitura
+  `REPEATABLE READ`, depois da observação final, eliminando o retrato parcial da primeira. No
+  contrato vigente de job final e um chamador, não encontrei outra janela parcial introduzida
+  pela correção; não foi simulada escrita tardia de um job que a API já diz final (R2-E3/E4).
+- **RVL1-09 — fechado pela decisão do Owner.** `sed -n '403,421p' docs/origem_legada.md` confirma
+  SCD fora do T3 e proteção pelo manifesto do pacote. A exclusão foi mantida, sem ampliação
+  do contrato nesta revisão (R2-E6).
+- **RVL1-10 — fechado pela decisão do Owner.** O mesmo trecho declara `hashtext`, 32 bits,
+  espera/recusa indevida e aceitação pelo volume; `legacy/captura.py` não mudou neste intervalo.
+  Não foi induzida colisão entre tentativas reais (R2-E6).
+
+### R2-E1 — independência, equivalência com SQL e armazém real
+
+Leitura integral de `expected_deletion_rows`, `deletion_content_problems`, seus chamadores, dos
+dois modelos SQL e da canonização. O esperado não consulta `legacy_presence_by_capture` nem
+`legacy_removed_records`: lê a PK do bruto, usa `remocao.canonizar` e relê o payload de
+`schema.colunas` com `jsonb_build_object`. O conjunto certificado vem de `captura.certificadas`.
+As 40 PKs atuais são 39 `bigint` e uma `uuid`; não se reivindica equivalência de tipos ausentes
+da declaração.
+
+O script `/tmp/rvl1r2_sql_cases.py` executa a função Python sobre um adaptador de linhas brutas
+em memória e gera CTEs `VALUES`/`jsonb_to_recordset` para a contraparte PostgreSQL. No lado SQL,
+renderiza a macro e o braço real da presença de `brands` ou `inventory_movements`, seguido do
+arquivo real de `legacy_removed_records`; substitui apenas as fontes/ref por CTEs. Certificados
+simulados têm as 40 tabelas. Não cria tabelas nem altera dados.
+
+```bash
+.venv/bin/python -B /tmp/rvl1r2_sql_cases.py
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh /tmp/rvl1r2_cases.sql -At > /tmp/rvl1r2_cases.out
+```
+
+Ambos saíram 0; o segundo precisou da liberação do socket Docker após a recusa do sandbox.
+Comparação dos resultados JSON com a saída Python, por chave e por conteúdo (saída literal):
+
+```text
+transaction_read_only: on
+alias-dup-null-invalid SQL == Python: True linhas: 1 removed_in: [3]
+non-certified-only SQL == Python: True linhas: 0 removed_in: []
+non-certified-latest-ignored SQL == Python: True linhas: 1 removed_in: [3]
+selected-not-certified-present SQL == Python: True linhas: 0 removed_in: []
+selected-not-certified-removed-null SQL == Python: True linhas: 1 removed_in: [None]
+selected-not-certified-with-removal SQL == Python: True linhas: 1 removed_in: [2]
+reappearance-removal SQL == Python: True linhas: 1 removed_in: [4]
+later-than-selected-ignored SQL == Python: True linhas: 1 removed_in: [3]
+no-certificates SQL == Python: True linhas: 0 removed_in: []
+selected-first SQL == Python: True linhas: 0 removed_in: []
+uuid-alias-multiplicity SQL == Python: True linhas: 1 removed_in: [3]
+uuid-selected-alias SQL == Python: True linhas: 0 removed_in: []
+{"cases": 427, "grammar": "bigint", "differences": []}
+{"cases": 268, "grammar": "uuid", "differences": []}
+```
+
+Incluídos: alias na mesma captura e na selecionada, repetição física, nulo/inválido sem identidade,
+presença só em não certificada, última presença não certificada, selecionada não certificada,
+`removed_in_snapshot_id` nulo, reaparição seguida de remoção, primeira captura e capturas futuras.
+A gramática cobre bases 2/8/10/16, sinais, separadores, brancos ASCII/Unicode, limites de bigint,
+zeros longos e as 128 combinações de hífens em UUID, com e sem chaves. Não apareceu divergência.
+
+A consulta de tipos retornou `text` para tabela/chave, `bigint` para os três snapshots e
+`rows_last_seen`, e `jsonb` para `last_payload`. O `int()` de `_normal_da_exclusao` pode truncar
+`1.9` num dublê, mas a coluna real é `bigint`; não se elevou esse valor impossível na tipagem
+atual a defeito. Os payloads relidos e os atuais são JSONB decodificado, com valores das colunas
+textuais do legado: `default=str` não normaliza dois valores de negócio distintos nesse domínio.
+A ordem dos payloads é desprezada como previsto, mas suas repetições são preservadas.
+`observed_in_snapshot_id` é a única coluna retirada por `ledger.deletion_rows`, volátil por desenho.
+
+Também foi lido `data/medicoes/v1_1_0/20261104T174734Z_t3_ae74356.json`: commit `ae74356`,
+`ok: true`, `problems: []`, `notes: []`, época 0002. A medição abaixo é desta rodada:
+
+```bash
+set -a; . ./.env; set +a; .venv/bin/python -B /tmp/rvl1r2_t3.py > /tmp/rvl1r2_t3.log 2>&1
+```
+
+Saída 0, após liberar a conexão que o sandbox impediu. O script chama o `main` do T3 com
+`--out /tmp/rvl1r2_t3.json` e envolve `read_memory` somente para contar as linhas e aplicar três
+adulterações a `deepcopy` do resultado; devolve ao T3 a memória original. Nenhuma escrita no
+armazém ou livro. Saída literal:
+
+```text
+
+memória real/recalculada: 11 11 problemas de conteúdo: []
+contraprova só em memória customers 99001 ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('customers', '99001'), ['last_payload', 'rows_last_seen'])]"]
+contraprova só em memória inventory_balances 145 ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'removed_in_snapshot_id'])]"]
+contraprova só em memória inventory_balances 146 ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '146'), ['last_payload'])]"]
+  (sem o livro de capturas do diário: as certificadas novas saem dos registros da época)
+T3: memória contida · /tmp/rvl1r2_t3.json
+
+```
+
+O relatório novo registra `d4ca0bb`, `2026-11-04T21:40:19+00:00`, época
+`epoch_0002_20261104T143228Z`, `ok: true`, `problems: []`, `notes: []`. Como na primeira rodada,
+sem passar o livro de capturas do diário, as certificadas novas são obtidas dos registros da época.
+
+### R2-E2 — contraprova da duplicata: RVL1-2-01
+
+Reprodução mínima do `check` completo, só em memória. O esperado fica fixo; o digest e a contagem
+atuais são recalculados **incluindo** a linha adulterada. Salvar como `/tmp/rvl1r2_duplicates.py`:
+
+```python
+
+from copy import deepcopy
+from mvp_ed1.recovery import memory_oracle as mo, oraculos
+
+
+def row(table, key):
+    return dict(source_table=table, business_key=key, last_seen_snapshot_id=55,
+                removed_in_snapshot_id=59, rows_last_seen=1, last_payload=[{'name': 'original'}])
+
+
+base_rows = [row('customers', '1'), row('customers', '99001')]
+addition = row('inventory_balances', '145')
+base = dict(kind='baseline', format=1, captures={}, certificate={'rows': []},
+            deletion_keys=[[r['source_table'], r['business_key']] for r in base_rows],
+            deletions={'linhas': len(base_rows), 'digest': oraculos.digest(base_rows)})
+
+for label, expected, target, reappeared in [
+    ('RVL1-01', [base_rows[1], addition], base_rows[1], {('customers', '1')}),
+    ('RVL1-02', [*base_rows, addition], addition, None),
+]:
+    damaged = deepcopy(target)
+    damaged.update(last_payload=[{'name': 'ADULTERADO'}], rows_last_seen=999)
+    for position, actual in [('controle', expected), ('antes', [damaged, *expected]),
+                             ('depois', [*expected, damaged])]:
+        mem = mo.Memory(certificate={}, captures={}, certified=[], received={}, selected=None,
+                        quarantine=None, quarantine_by_table={}, classification=None, versions=[],
+                        deletions={'linhas': len(actual), 'digest': oraculos.digest(actual)},
+                        deletion_rows=actual, expected_deletion_rows=expected)
+        problems = mo.check([base], mem, remocoes_aceitas={('inventory_balances', '145')},
+                            reaparicoes_aceitas=reappeared)
+        print(label, position, 'linhas:', len(actual), '/', len(expected), 'check:', problems)
+
+```
+
+Comando `.venv/bin/python -B /tmp/rvl1r2_duplicates.py`, saída 0:
+
+```text
+
+RVL1-01 controle linhas: 2 / 2 check: []
+RVL1-01 antes linhas: 3 / 2 check: []
+RVL1-01 depois linhas: 3 / 2 check: ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('customers', '99001'), ['last_payload', 'rows_last_seen'])]"]
+RVL1-02 controle linhas: 3 / 3 check: []
+RVL1-02 antes linhas: 4 / 3 check: []
+RVL1-02 depois linhas: 4 / 3 check: ["memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: [(('inventory_balances', '145'), ['last_payload', 'rows_last_seen'])]"]
+
+```
+
+A mesma sonda com os conjuntos reais de aceite de `D4_a2_h2_estado_real.json`
+(`/tmp/rvl1r2_content.py`, saída 0) retorna `[]` com 12/11 linhas para N56 e 15/14 para N54 sem
+reaparição, com `digest diferente: True` em ambos. Quando só a linha original é alterada, sem
+duplicata, a correção acusa o conteúdo como esperado.
+
+Consultas incluídas no SQL somente leitura de R2-E1:
+
+```sql
+select jsonb_build_object('unique_constraints', count(*)) from pg_constraint
+where conrelid='trusted.legacy_removed_records'::regclass and contype in ('p','u');
+select jsonb_build_object('unique_indexes', count(*)) from pg_index
+where indrelid='trusted.legacy_removed_records'::regclass and indisunique;
+select jsonb_build_object('actual_rows', count(*), 'distinct_keys', count(distinct (source_table,business_key)))
+from trusted.legacy_removed_records;
+```
+
+```text
+{"unique_constraints": 0}
+{"unique_indexes": 0}
+{"actual_rows": 11, "distinct_keys": 11}
+```
+
+O estado real está limpo; a adulteração ocorreu só no dublê. Há teste dbt de unicidade em
+`dbt/models/trusted/legacy/_legacy__models.yml:427`, mas `memory-oracle` não o executa. A garantia
+do T3 não pode depender de esse teste ter rodado depois de toda alteração da tabela.
+
+### R2-E3 — repetição de E1, E2, E4 e E5
+
+Executados os quatro scripts originais preservados em `/tmp`, sem mudanças. E1, E2 e E4 saíram 1
+pelas novas recusas; E5 saiu 0 com o retrato final correto. Excertos literais:
+
+```text
+$ .venv/bin/python -B /tmp/rvl1_memory.py
+controle: ['memória de exclusões: o esperado recalculado do bruto não se leu — o conteúdo não se prova']
+mvp_ed1.recovery.ledger.LedgerError: a época já guarda a tentativa a (attempt): um registro manual não a reabre
+$ .venv/bin/python -B /tmp/rvl1_recovery.py
+mvp_ed1.recovery.capture_recovery.RecoveryStopped: a recuperação parou:
+  tentativa a: o certificado no armazém difere do último registro dela no livro (attempt) — a divergência não se adota; o Owner decide (N34)
+$ .venv/bin/python -B /tmp/rvl1_publish.py
+falha injetada: crash entre link e fsync
+retry recusado; original preservado: True
+temporário órfão preservado: True
+mvp_ed1.recovery.ledger.LedgerError: nome de registro sem .json, que a leitura do livro ignoraria: 'D2_a1_memoria'
+$ .venv/bin/python -B /tmp/rvl1_gate.py
+portão retornou; arquivo publicado: True
+bruto registrado: 2 bruto final: 2
+```
+
+O E1 antigo não preenche o novo esperado, então sua recusa sozinha não prova a reconstrução;
+R2-E1/E2 e `/tmp/rvl1r2_content.py` fornecem o controle positivo. O E2 antigo tinha
+`assert rounded_running` no tratamento de `RecoveryStopped`: com a primeira falha agora barrada,
+esse assert interrompe o script. A continuação `/tmp/rvl1r2_e2.py` troca **somente** esse assert por
+`assert rounded_running or not associated` e o rótulo da mensagem. Assim os três cenários rodam:
+
+```bash
+.venv/bin/python -B /tmp/rvl1r2_e2.py
+```
+
+Saída 0, literal:
+
+```text
+
+parada esperada, associated=False, rounded=False: ['tentativa a: o certificado no armazém difere do último registro dela no livro (attempt) — a divergência não se adota; o Owner decide (N34)']
+certificado já alterado: ['pending']
+registros publicados: ['attempt', 'baseline']
+caso: job associado sem job_id
+recover: {'a': 'abandonada'} status: ['abandoned']
+barreira: []
+transição raw ausente: False
+T3: 0 problemas; primeiro: []
+parada esperada, associated=True, rounded=True: ['tentativa a: job(s) 9 com início em segundos no limite da janela — não se decide se é desta tentativa sem a precisão que a listagem não dá; nada se registra nem se abandona, e o Owner decide']
+certificado já alterado: ['pending']
+registros publicados: ['baseline']
+reconcile startTime=2026-11-04T10:00:00.750000Z job=9 stop=None
+reconcile startTime=2026-11-04T10:00:00Z job=None stop=tentativa a: job(s) 9 com início em segundos no limite da janela — não se decide se é desta tentativa sem a precisão que a listagem não dá; nada se registra nem se abandona, e o Owner decide
+
+```
+
+### R2-E4 — estados legítimos, fronteiras e recusas adicionais
+
+`/tmp/rvl1r2_recovery_edges.py` reutiliza `_cenario` de
+`tests/test_recuperacao_adversaria.py`: recuperações reais sobre as 40 linhas do adaptador e
+publicações em `TemporaryDirectory`. Para uma baseline pendente, a fixture põe nela o certificado
+intacto antes de chamar a recuperação; para uma associação prévia, publica o `attempt` com
+`associated_job=9`. Os testes do portão substituem apenas a medição, o lock e o observador.
+
+```bash
+.venv/bin/python -B /tmp/rvl1r2_recovery_edges.py
+```
+
+Saída 0, literal:
+
+```text
+
+pending do portão com job final e certificado intacto: {'a': 'concluida'} status: ['unstable'] associated_job: None raw ausente: False
+pending da baseline com job final e certificado intacto: {'a': 'concluida'} status: ['unstable'] associated_job: None raw ausente: False
+pending da baseline sem job, sem divergência: {'a': 'abandonada'} status: ['abandoned'] associated_job: None raw ausente: True
+associação já guardada no attempt: {'a': 'abandonada'} status: ['abandoned'] associated_job: 9 raw ausente: False
+portão pending sem job: tentativa a pendente sem job: fica para a recuperação (H7) | arquivos: ['baseline.json']
+manual, tentativa na baseline: a época já guarda a tentativa a (baseline): um registro manual não a reabre
+manual, duas baselines: a época tem 2 linhas de base, e precisa de uma | manual publicado: False
+portão, job muda entre leituras: tentativa a: o job mudou de 9 para 10 entre as duas leituras do portão | arquivos: ['baseline.json']
+janela lower crosses stop: True job: None
+janela lower exact stop: False job: 9
+janela second ends at lower stop: False job: None
+janela now crosses stop: True job: None
+janela exact upper stop: False job: None
+janela second ends at upper stop: False job: 9
+janela lower after one day stop: True job: None
+janela previous upper after one second stop: False job: 9
+limite inferior exato, representação '2026-11-04T10:00:00Z' job: 9 stop: None
+limite inferior exato, representação '2026-11-04T10:00:00.000000Z' job: 9 stop: None
+limite inferior exato, representação 1793786400 job: 9 stop: None
+
+```
+
+Não se encontrou o suposto caminho em que a DAG registra `pending` antes de receber job:
+`gate` recusa esse estado. Com job final e certificado intacto, tanto `attempt` quanto baseline
+passam pela nova igualdade e chegam a `unstable`, que é o veredito correto da fixture cujo
+conteúdo mudou. A baseline sem job e sem diferença também não sofre falso bloqueio da igualdade.
+Mudar legitimamente `job_id` depois de um registro exigiria retomar o chamador antigo após o
+registro; o procedimento vigente manda encerrar a execução falha e iniciar outra, com H7 antes.
+Não se ampliou N35 para cobrir chamadores simultâneos.
+
+Nas fronteiras, o segundo inteiro que termina no início fica fora; o que começa exatamente nele
+fica dentro; o que termina no fim fica dentro; o que começa exatamente no fim fica fora. A
+primeira tentativa recebe o mesmo teste de limite inferior. A fronteira da tentativa seguinte
+também é exercitada pelo teste permanente `test_o_fim_da_janela_tambem_e_limite`. O limite `agora`
+foi exercitado acima, inclusive depois de avançar um segundo. Os resultados distinguem uma
+parada transitória no fim móvel da persistente no início fixo.
+
+Quanto à saída operacional de RVL1-2-02: `ledger.main` oferece `baseline`, `attempt`, `treatment`
+e não expõe associação manual. O runbook §5 exige investigar, proíbe ultrapassar a parada e
+remete ao Owner; §6 oferece retorno por pacote. Não há instrução de resolução local para essa
+nova ambiguidade. Não se tentou nem se recomenda usar uma nova baseline ou alterar o certificado
+para fazer a barreira passar.
+
+### R2-E5 — sensibilidade dos testes e regressões
+
+Para retirar as correções **somente do processo de teste**, sem checkout, patch ou escrita no
+repositório, usado o plugin `/tmp/rvl1r2_mutation.py`:
+
+```python
+
+import os
+import subprocess
+
+
+def pytest_configure(config):
+    name = os.environ.get('RVL_MUTATION')
+    if name:
+        import importlib
+        module = importlib.import_module('mvp_ed1.recovery.' + name)
+        path = 'src/mvp_ed1/recovery/' + name + '.py'
+        before = subprocess.check_output(['git', 'show', 'add459c:' + path], text=True)
+        exec(compile(before, 'add459c:' + path, 'exec'), module.__dict__)
+
+```
+
+Comandos e finais literais; saída 1 esperada nos dois, porque cada módulo foi trocado em memória
+pelo de `add459c`:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp RVL_MUTATION=capture_recovery .venv/bin/pytest -p no:cacheprovider -p rvl1r2_mutation --basetemp=/tmp/rvl1r2-mut-rec -q tests/test_recuperacao_adversaria.py
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp RVL_MUTATION=ledger .venv/bin/pytest -p no:cacheprovider -p rvl1r2_mutation --basetemp=/tmp/rvl1r2-mut-ledger -q tests/test_ledger.py -k 'nome_que_a_leitura_ignoraria or registro_manual_nao_reabre or o_portao_mede_o_bruto_depois'
+```
+
+```text
+
+FAILED tests/test_recuperacao_adversaria.py::test_certificado_adulterado_depois_do_registro_para_sem_ser_adotado
+FAILED tests/test_recuperacao_adversaria.py::test_a_transicao_leva_o_job_associado_e_o_t3_aceita_a_recuperacao_integra
+FAILED tests/test_recuperacao_adversaria.py::test_job_em_segundos_no_limite_da_janela_para_antes_de_registrar_ou_abandonar
+FAILED tests/test_recuperacao_adversaria.py::test_reconcile_trata_a_precisao_do_inicio_do_job[2026-11-04T10:00:00Z-esperado4]
+FAILED tests/test_recuperacao_adversaria.py::test_o_fim_da_janela_tambem_e_limite
+5 failed, 4 passed in 0.48s
+FAILED tests/test_ledger.py::test_nome_que_a_leitura_ignoraria_e_recusado[D2_a1_memoria]
+FAILED tests/test_ledger.py::test_nome_que_a_leitura_ignoraria_e_recusado[registro.txt]
+FAILED tests/test_ledger.py::test_nome_que_a_leitura_ignoraria_e_recusado[registro.json.bak]
+FAILED tests/test_ledger.py::test_registro_manual_nao_reabre_tentativa_que_a_epoca_guarda
+FAILED tests/test_ledger.py::test_o_portao_mede_o_bruto_depois_de_o_job_estar_final
+5 failed, 23 deselected in 0.37s
+
+```
+
+Os cinco testes da recuperação falham pelos comportamentos antigos: adoção da divergência,
+transição sem associação e três recusas temporais ausentes. Os quatro controles de precisão
+continuam passando. Os cinco do ledger falham por publicação dos três nomes invisíveis, repetição
+manual aceita e retrato parcial com uma linha. Não são falhas de importação/configuração.
+
+Sobre o código atual:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider --basetemp=/tmp/rvl1r2-offline' make check-offline > /tmp/rvl1r2_check_offline.log 2>&1
+PYTHONDONTWRITEBYTECODE=1 make secrets-history > /tmp/rvl1r2_secrets_history.log 2>&1
+```
+
+Saída 0 em ambos, lida diretamente dos processos. Saída completa do primeiro:
+
+```text
+
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1101 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 38%]
+........................................................................ [ 48%]
+........................................................................ [ 58%]
+........................................................................ [ 67%]
+........................................................................ [ 77%]
+........................................................................ [ 87%]
+........................................................................ [ 96%]
+.......................                                                  [100%]
+743 passed, 183 deselected in 171.70s (0:02:51)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+     11 tests/test_acesso.py
+     13 tests/test_captura_legado.py
+      3 tests/test_carga.py
+      3 tests/test_classificacao.py
+      2 tests/test_consumo.py
+      4 tests/test_descricao.py
+      1 tests/test_fato_incremental.py
+      3 tests/test_ledger.py
+     12 tests/test_legacy_classification.py
+      7 tests/test_legado_contraprovas.py
+     22 tests/test_legado_deteccao.py
+     56 tests/test_legado_remocao.py
+      4 tests/test_migracao_legado.py
+     15 tests/test_oraculo_da_memoria.py
+      1 tests/test_portoes_da_captura.py
+      3 tests/test_reconciliacao_raw.py
+     21 tests/test_recuperacao_da_captura.py
+      2 tests/test_retencao.py
+check-offline: as três etapas passaram
+
+```
+
+Última linha do segundo:
+
+```text
+
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+
+```
+
+### R2-E6 — documentação, escopo e limites
+
+`sed -n '403,421p' docs/origem_legada.md`, trecho literal da decisão de escopo:
+
+```text
+
+  tentativa à mão, e recusa com o lock tomado ou com a tentativa já guardada na época.
+- **O oráculo da memória** (`make memory-oracle`, T3). Somente leitura: as capturas da linha de base
+  e de cada registro intactas no bruto, o certificado só com as transições do eng_dados, a
+  quarentena e o tratamento como os registros os guardam, e a memória de exclusões **linha a
+  linha**, contra a recalculada do bruto retido pela regra do ADR-0045 — em Python, sem o SQL do
+  modelo. Mudanças na memória de exclusões entre a linha de base e agora só passam declaradas
+  (`REMOCOES_ACEITAS=`, `REAPARICOES_ACEITAS=`). **Fora da garantia, por desenho:** o histórico SCD,
+  que a regeneração substitui e que o manifesto do pacote protege com o *digest* canônico de cada
+  *snapshot* ([Capacidade §3.1](capacidade_e_recuperacao.md#31-conteúdo-do-pacote)).
+
+A garantia vale com **um chamador de captura vivo por vez**; dois juntos são limitação declarada,
+e os locks são defesa além disso. Os locks de tentativa usam `hashtext` do identificador dela, de
+32 bits: duas tentativas distintas podem cair no mesmo lock — achado na revisão do lote 1 da
+v1.1.0 com dois identificadores reais —, e o efeito é uma espera ou uma recusa indevida, nunca o
+abandono de uma tentativa através de um lock tomado. Aceito pelo volume, de dezenas de tentativas
+por época. A especificação completa — a reconciliação com os *jobs* do
+Airbyte, os registros de tratamento e o oráculo que lê o livro — é o
+[runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
+no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, os
+
+```
+
+`sed -n '32,35p' src/mvp_ed1/recovery/memory_oracle.py`, descrição antiga que motivou RVL1-2-03:
+
+```text
+
+   desenho: "sai quando a chave reaparece" (ADR-0045). Com reaparição aceita, as
+   linhas que restam da linha de base se conferem **por chave**, e não por
+   conteúdo: a linha de base guarda o *digest* do conjunto, e um conjunto menor
+   não se compara com ele. O relatório diz isso numa nota, sem esconder.
+
+```
+
+**Não executado nesta rodada:** `make check` completo e os testes de integração que criam bancos
+efêmeros. `PASS=907`, `923 passed, 3 skipped` são o resultado informado pelo autor, não uma nova
+medição deste revisor. Foram executados o gate offline, a revisão do histórico, o T3 real somente
+leitura, os SQLs acima e os probes em memória/temporários. Não foram medidos concorrência real,
+queda de sessão, durabilidade sob pane, visibilidade tardia da API ou retomada operacional após a
+ambiguidade. Esses limites não invalidam a contraprova determinística de R2-E2.
+
+Nenhuma fonte, certificado ou linha do livro real foi escrita; nenhuma DAG foi disparada ou
+pausada. Nenhum comando de carga, sincronização, restauração ou recuperação mutante foi executado.
+Nenhum fix foi implementado, nem houve commit/push. No checkout, a única alteração desta revisão
+é o acréscimo desta seção a `REVISAO.md`; os dois arquivos não rastreados preexistentes foram
+preservados. As colunas **Situação** desta rodada ficam vazias para a resposta do autor/Owner.
