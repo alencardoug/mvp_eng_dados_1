@@ -208,8 +208,9 @@ diário do B5 está em `data/medicoes/diario_b5.md`, fora do Git.
   entre o início do período e a primeira venda do produto (N39). Implementada na etapa 1.5 da
   v1.1.0 — a [invariante 14](modelo_de_dados.md#4-invariantes-de-negócio) e o
   [realismo da geração](geracao_de_dados.md#5-realismo-e-coerência) — e levada ao armazém pela
-  regeneração de 04/11/2026: **0** de 7.500 itens do varejo e 0 de 238 do legado vendidos antes do
-  lançamento, eram 3.130 de 7.500; `invariante_14_lancamento_antes_da_venda` passa no `check`.
+  regeneração de 04/11/2026 — eram 3.130 de 7.500 itens do varejo vendidos antes do lançamento; o
+  resultado medido no armazém está nos critérios da
+  [versão de manutenção](plano_de_desenvolvimento.md#versão-de-manutenção-v110).
   *Descartada:* a limitação declarada, a opção (a). *Custo aceito:* a regeneração das duas origens
   com a memória do armazém mantida
   ([Capacidade §2.13](capacidade_e_recuperacao.md#213-a-regeneração-da-v110-medida--04112026)), e o
