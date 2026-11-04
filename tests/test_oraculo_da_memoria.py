@@ -420,3 +420,50 @@ def test_chave_a_mais_ou_a_menos_que_o_recalculado_e_acusada() -> None:
     outra = _remocao("inventory_balances", "145")
     assert "sobram [('inventory_balances', '145')]" in mo.deletion_content_problems(_so_exclusoes([ANTIGA, outra], [ANTIGA]))[0]
     assert "faltam [('inventory_balances', '145')]" in mo.deletion_content_problems(_so_exclusoes([ANTIGA], [ANTIGA, outra]))[0]
+
+
+# ── Uma linha por chave: a cópia adulterada não se esconde atrás da íntegra (RVL1-2-01) ──
+def _check_com_exclusoes(base_linhas, agora, esperado, aceitas, reaparecidas):
+    from mvp_ed1.recovery import oraculos
+
+    base = dict(kind="baseline", format=1, captures={}, certificate={"rows": []},
+                deletion_keys=[[r["source_table"], r["business_key"]] for r in base_linhas],
+                deletions={"linhas": len(base_linhas), "digest": oraculos.digest(base_linhas)})
+    memoria = mo.Memory(certificate={}, captures={}, certified=[], received={}, selected=None, quarantine=None,
+                        quarantine_by_table={}, classification=None, versions=[],
+                        deletions={"linhas": len(agora), "digest": oraculos.digest(agora)},
+                        deletion_rows=agora, expected_deletion_rows=esperado)
+    return mo.check([base], memoria, remocoes_aceitas=aceitas, reaparicoes_aceitas=reaparecidas)
+
+
+@pytest.mark.parametrize("ordem", ["antes", "depois"])
+@pytest.mark.parametrize("caso", ["reaparicao_aceita", "remocao_aceita_sem_reaparicao"])
+def test_chave_repetida_na_memoria_de_exclusoes_e_acusada(caso, ordem) -> None:
+    """A sonda R2-E2 do Codex: com a cópia adulterada **antes** da íntegra, o `check` voltava `[]`."""
+    nova = _remocao("inventory_balances", "145")
+    if caso == "reaparicao_aceita":                       # RVL1-01, com N56
+        base_linhas, esperado, alvo, reaparecidas = [ANTIGA, OUTRA], [OUTRA, nova], OUTRA, {("customers", "1")}
+    else:                                                 # RVL1-02, só N54
+        base_linhas, esperado, alvo, reaparecidas = [ANTIGA, OUTRA], [ANTIGA, OUTRA, nova], nova, None
+    aceitas = {("inventory_balances", "145")}
+    assert _check_com_exclusoes(base_linhas, esperado, esperado, aceitas, reaparecidas) == [], "controle"
+    adulterada = {**alvo, "last_payload": [{"x": "ADULTERADO"}], "rows_last_seen": 999}
+    agora = [adulterada, *esperado] if ordem == "antes" else [*esperado, adulterada]
+    problemas = _check_com_exclusoes(base_linhas, agora, esperado, aceitas, reaparecidas)
+    chave = (alvo["source_table"], alvo["business_key"])
+    assert any(f"no armazém: chave(s) em mais de uma linha [{chave!r}]" in p for p in problemas), problemas
+
+
+def test_duas_copias_integras_da_mesma_chave_tambem_sao_acusadas() -> None:
+    """Multiplicidade é conteúdo: duas linhas iguais não são uma."""
+    problemas = mo.deletion_content_problems(_so_exclusoes([ANTIGA, dict(ANTIGA)], [ANTIGA]))
+    assert problemas == ["memória de exclusões no armazém: chave(s) em mais de uma linha [('customers', '1')] (1) "
+                         "— a comparação por chave não as distingue"]
+    assert any("chave(s) em mais de uma linha" in p
+               for p in mo._deletion_problems(*_com_exclusoes([ANTIGA], [ANTIGA, dict(ANTIGA), *NOVAS]), ACEITAS))
+
+
+def test_chave_repetida_no_recalculado_tambem_e_acusada() -> None:
+    """O recalculado tem uma linha por chave por construção; se não tiver, o oráculo não se usa calado."""
+    problemas = mo.deletion_content_problems(_so_exclusoes([ANTIGA], [ANTIGA, dict(ANTIGA)]))
+    assert problemas and "no recalculado do bruto: chave(s) em mais de uma linha" in problemas[0]

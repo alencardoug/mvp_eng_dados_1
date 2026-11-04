@@ -30,9 +30,12 @@ Ele afirma, sobre a época corrente (runbook da regeneração no `bi-como-codigo
    (`make generation-compare MANIFESTO_ANTES=`). Uma chave da memória que a
    comparação dá como adicionada voltou à origem, e o modelo a tira por
    desenho: "sai quando a chave reaparece" (ADR-0045). Com reaparição aceita, as
-   linhas que restam da linha de base se conferem **por chave**, e não por
-   conteúdo: a linha de base guarda o *digest* do conjunto, e um conjunto menor
-   não se compara com ele. O relatório diz isso numa nota, sem esconder.
+   linhas que restam conferem-se contra a linha de base só **por chave** — ela
+   guarda o *digest* do conjunto, e um conjunto menor não se compara com ele —, e
+   o relatório diz isso numa nota;
+6. a memória de exclusões, **linha a linha e por conteúdo**, contra a recalculada
+   do bruto retido pela regra do ADR-0045 (RVL1-01/02), com uma linha por chave
+   nos dois lados (RVL1-2-01). Vale com ou sem mudanças aceitas.
 
 O histórico SCD fica fora (runbook §1).
 """
@@ -306,6 +309,22 @@ def accepted_reappearances(comparacao: Mapping[str, Any]) -> set[tuple[str, str]
     }
 
 
+def _chave_da_exclusao(linha: Mapping[str, Any]) -> tuple[str, str]:
+    return (str(linha["source_table"]), str(linha["business_key"]))
+
+
+def _repetidas(linhas: Iterable[Mapping[str, Any]]) -> list[tuple[str, str]]:
+    """As chaves que aparecem em mais de uma linha. A memória tem uma linha por chave (ADR-0045);
+    indexar por chave sem conferir isso guardaria só a última, e uma cópia adulterada antes da
+    íntegra passaria (RVL1-2-01). A tabela real não tem *constraint* de unicidade, e o teste dbt
+    dela não roda no T3."""
+    vistas: dict[tuple[str, str], int] = {}
+    for linha in linhas:
+        chave = _chave_da_exclusao(linha)
+        vistas[chave] = vistas.get(chave, 0) + 1
+    return sorted(chave for chave, n in vistas.items() if n > 1)
+
+
 def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tuple[str, str]] | None,
                        reaparecidas: set[tuple[str, str]] | None = None,
                        notas: list[str] | None = None) -> list[str]:
@@ -318,8 +337,10 @@ def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tu
     da_base = {tuple(k) for k in base["deletion_keys"]}
     saem = da_base & reaparecidas
     esperadas = (da_base - saem) | aceitas
-    agora = {(str(r["source_table"]), str(r["business_key"])): r for r in memoria.deletion_rows}
     problemas = []
+    if repetidas := _repetidas(memoria.deletion_rows):
+        problemas.append(f"memória de exclusões: chave(s) em mais de uma linha {repetidas[:5]} ({len(repetidas)})")
+    agora = {_chave_da_exclusao(r): r for r in memoria.deletion_rows}
     if set(agora) != esperadas:
         faltam = sorted(esperadas - set(agora))
         sobram = sorted(set(agora) - esperadas)
@@ -364,10 +385,15 @@ def deletion_content_problems(memoria: Memory) -> list[str]:
         return ["memória de exclusões: o esperado recalculado do bruto não se leu — o conteúdo não se prova"]
 
     def por_chave(linhas):
-        return {(str(r["source_table"]), str(r["business_key"])): _normal_da_exclusao(r) for r in linhas}
+        return {_chave_da_exclusao(r): _normal_da_exclusao(r) for r in linhas}
 
-    agora, esperado = por_chave(memoria.deletion_rows), por_chave(memoria.expected_deletion_rows)
     problemas = []
+    for rotulo, linhas in (("no armazém", memoria.deletion_rows),
+                           ("no recalculado do bruto", memoria.expected_deletion_rows)):
+        if repetidas := _repetidas(linhas):
+            problemas.append(f"memória de exclusões {rotulo}: chave(s) em mais de uma linha {repetidas[:5]} "
+                             f"({len(repetidas)}) — a comparação por chave não as distingue")
+    agora, esperado = por_chave(memoria.deletion_rows), por_chave(memoria.expected_deletion_rows)
     if set(agora) != set(esperado):
         faltam, sobram = sorted(set(esperado) - set(agora)), sorted(set(agora) - set(esperado))
         problemas.append(f"memória de exclusões contra a recalculada do bruto: faltam {faltam[:5]} e sobram "
@@ -387,7 +413,7 @@ def check(registros: list[Mapping[str, Any]], memoria: Memory,
           remocoes_aceitas: set[tuple[str, str]] | None = None,
           reaparicoes_aceitas: set[tuple[str, str]] | None = None,
           notas: list[str] | None = None) -> list[str]:
-    """Os cinco grupos de afirmações. Vazio, a memória está contida (T3).
+    """Os seis grupos de afirmações. Vazio, a memória está contida (T3).
 
     `notas`, quando dada, recebe o que a conferência não pôde afirmar por inteiro e
     declara — hoje, as linhas da linha de base que restam depois de uma reaparição
