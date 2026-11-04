@@ -95,6 +95,54 @@ def test_nome_de_registro_invalido_e_recusado(tmp_path, nome) -> None:
         ledger.publish(tmp_path, nome, {})
 
 
+@pytest.mark.parametrize("nome", ["D2_a1_memoria", "registro.txt", "registro.json.bak"])
+def test_nome_que_a_leitura_ignoraria_e_recusado(tmp_path, nome) -> None:
+    """RVL1-07: `records` só lê `.json`, e a publicação devolvia sucesso fora da leitura."""
+    epoca = ledger.open_epoch(tmp_path, _baseline(), agora=AGORA).path.parent
+    with pytest.raises(ledger.LedgerError, match="sem .json"):
+        ledger.publish(epoca, nome, {"kind": "attempt", "capture_attempt_id": "perdida"})
+    assert [p.name for p in epoca.iterdir()] == ["baseline.json"]
+
+
+def _dubles_do_portao(monkeypatch, medir):
+    from contextlib import nullcontext
+
+    from mvp_ed1.legacy import captura
+
+    monkeypatch.setattr(ledger, "attempt_record", medir)
+    monkeypatch.setattr(captura, "bloqueio_da_tentativa", lambda *a, **k: nullcontext())
+
+
+def test_registro_manual_nao_reabre_tentativa_que_a_epoca_guarda(tmp_path, monkeypatch) -> None:
+    """RVL1-06: um segundo nome publicava um segundo primeiro registro da mesma tentativa."""
+    ledger.open_epoch(tmp_path, _baseline(), agora=AGORA)
+    registro = {"format": 1, "kind": "attempt", "capture_attempt_id": "a", "certificate": {"rows": []}}
+    _dubles_do_portao(monkeypatch, lambda *a, **k: registro)
+    ambiente = {ledger.ENV: str(tmp_path)}
+    ledger.operator_record(None, "a", "D2_a1_memoria.json", environ=ambiente)
+    with pytest.raises(ledger.LedgerError, match="já guarda a tentativa a"):
+        ledger.operator_record(None, "a", "D2_a2_memoria.json", environ=ambiente)
+    ledger.operator_record(None, "b", "D2_b1_memoria.json", environ=ambiente)  # outra tentativa, sim
+
+
+def test_o_portao_mede_o_bruto_depois_de_o_job_estar_final(tmp_path, monkeypatch) -> None:
+    """RVL1-08: o retrato da primeira leitura podia ser de um job que terminou entre ela e a consulta."""
+    ledger.open_epoch(tmp_path, _baseline(), agora=AGORA)
+    estado = {"linhas": 1, "status": "running"}
+
+    def medir(*a, **k):
+        return {"kind": "attempt", "capture_attempt_id": "a", "job_id": 9,
+                "certificate": {"rows": [{"status": "pending"}]}, "raw": {"brands": {"rows": estado["linhas"]}}}
+
+    def final(_job):
+        estado.update(linhas=2, status="succeeded")   # a última escrita do job, depois da 1ª leitura
+        return estado["status"]
+
+    _dubles_do_portao(monkeypatch, medir)
+    _, registro = ledger.gate(None, "a", caller={}, job_state=final, environ={ledger.ENV: str(tmp_path)})
+    assert registro["raw"]["brands"]["rows"] == 2
+
+
 @pytest.mark.skipif(os.geteuid() == 0, reason="root escreve em diretório sem permissão")
 def test_um_diretorio_sem_escrita_falha_na_prova_e_na_publicacao(tmp_path) -> None:
     epoca = ledger.open_epoch(tmp_path, _baseline(), agora=AGORA).path.parent

@@ -146,6 +146,10 @@ def publish(epoca: pathlib.Path, nome: str, conteudo: Mapping[str, Any]) -> Publ
     """Temporário, `fsync`, `link` para o nome final — que falha se ele existe —, `fsync` do diretório."""
     if "/" in nome or nome.startswith("."):
         raise LedgerError(f"nome de registro inválido: {nome!r}")
+    if not nome.endswith(".json"):
+        # `records` só lê `.json`: publicar com outro nome devolvia sucesso e deixava o
+        # registro fora da leitura do H7 e do T3 (RVL1-07).
+        raise LedgerError(f"nome de registro sem .json, que a leitura do livro ignoraria: {nome!r}")
     dados = encode(conteudo)
     temporario = epoca / f".{nome}.{uuid.uuid4().hex}.tmp"
     final = epoca / nome
@@ -446,7 +450,8 @@ def gate(
     epoca = writable_epoch(environ)
     bloqueio = contextlib.nullcontext() if lock_held else captura.bloqueio_da_tentativa(engine, attempt_id)
     with bloqueio:
-        registro = attempt_record(engine, attempt_id, caller={**caller, "run_id": run_id, "try_number": try_number})
+        chamador = {**caller, "run_id": run_id, "try_number": try_number}
+        registro = attempt_record(engine, attempt_id, caller=chamador)
         if {linha["status"] for linha in registro["certificate"]["rows"]} == {captura.PENDING}:
             job = registro["job_id"]
             if job is None:
@@ -457,6 +462,12 @@ def gate(
                     f"tentativa {attempt_id} pendente com o job {job} "
                     f"{'sem observador' if estado is None else estado}: fica para a recuperação (H7)"
                 )
+            # O retrato vale só tomado depois de o job estar final: o da primeira leitura
+            # podia ser de um job que terminou entre ela e a consulta (RVL1-08).
+            registro = attempt_record(engine, attempt_id, caller=chamador)
+            if registro["job_id"] != job:
+                raise GateRefused(f"tentativa {attempt_id}: o job mudou de {job} para {registro['job_id']} "
+                                  "entre as duas leituras do portão")
         publicado = publish(epoca, gate_record_name(attempt_id, run_id=run_id), registro)
     return publicado, registro
 
@@ -482,8 +493,16 @@ def operator_record(engine: Engine, attempt_id: str, nome: str, *,
     """
     from mvp_ed1.legacy import captura
 
+    from mvp_ed1.recovery import capture_recovery
+
     epoca = writable_epoch(environ)
     with captura.bloqueio_da_tentativa(engine, attempt_id, esperar=False):
+        # O nome do arquivo não identifica a tentativa: um segundo nome publicava um segundo
+        # primeiro registro dela (RVL1-06). A identidade é o conteúdo, lido sob o lock.
+        guardado = capture_recovery.held(records(epoca)).kinds.get(attempt_id)
+        if guardado is not None:
+            raise LedgerError(f"a época já guarda a tentativa {attempt_id} ({guardado}): um registro manual "
+                              "não a reabre")
         registro = attempt_record(engine, attempt_id, caller={"kind": "operator"})
         return publish(epoca, nome, registro)
 
