@@ -242,7 +242,7 @@ def _read_only(engine: Engine):
 #: Os três registros que se tomam de uma tentativa: o da tentativa (o primeiro,
 #: pelo portão ou pela recuperação), o da transição (quando a recuperação a
 #: finaliza ou abandona) e — este por linha do operador — o de tratamento.
-ATTEMPT, TRANSITION = "attempt", "transition"
+ATTEMPT, TRANSITION, TREATMENT = "attempt", "transition", "treatment"
 
 
 def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any], kind: str = ATTEMPT,
@@ -286,6 +286,44 @@ def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any]
         registro["associated_job"] = associated_job
         registro["reconciliation"] = dict(reconciliation or {})
     return registro
+
+
+def treatment_record(engine: Engine, *, caller: Mapping[str, Any],
+                     agora: dt.datetime | None = None) -> dict[str, Any]:
+    """O registro de tratamento (T4): o tratamento corrente e o que ele rejeita, por fatia e tabela.
+
+    Tirado depois de toda linha que construiu a quarentena, seja qual for o
+    desfecho dela. A identidade é a das fatias da quarentena — origem, captura,
+    versão do catálogo, impressão digital —, e as rejeitadas vão por tabela,
+    com contagem e *digest* de todas as colunas: é o esperado que a T3 cobra
+    deste tratamento quando um posterior o substitui.
+    """
+    esquema, tabela = leitura.TABELA_DA_CLASSIFICACAO.split(".")
+    chave = leitura.CHAVE_DA_QUARENTENA
+    with _read_only(engine) as conexao:
+        if tabela not in leitura.tabelas_do_schema(conexao, esquema):
+            raise LedgerError(f"{leitura.TABELA_DA_CLASSIFICACAO} não existe: não há tratamento a registrar")
+        tratamentos = sorted(
+            oraculos.nome_da_fatia(linha, chave)
+            for linha in leitura._linhas(conexao, f"select distinct {', '.join(chave)} from {leitura.TABELA_DA_CLASSIFICACAO}")
+        )
+        por_fatia: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        for linha in leitura._linhas(
+            conexao, f"select * from {leitura.TABELA_DA_CLASSIFICACAO} where classification = 'rejected'"
+        ):
+            por_fatia.setdefault(oraculos.nome_da_fatia(linha, chave), {}).setdefault(
+                linha["source_table"], []).append(linha)
+    return {
+        "format": FORMAT,
+        "kind": TREATMENT,
+        "taken_at": (agora or dt.datetime.now(dt.timezone.utc)).isoformat(),
+        "caller": dict(caller),
+        "treatments": tratamentos,
+        "rejected": {
+            fatia: {t: {"rows": len(linhas), "digest": oraculos.digest(linhas)} for t, linhas in sorted(tabelas.items())}
+            for fatia, tabelas in sorted(por_fatia.items())
+        },
+    }
 
 
 def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *,
@@ -436,9 +474,10 @@ def main(argv: list[str] | None = None) -> int:
     import sys
 
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.recovery.ledger")
-    parser.add_argument("command", choices=["baseline", "attempt"])
+    parser.add_argument("command", choices=["baseline", "attempt", "treatment"])
     parser.add_argument("--attempt", help="attempt: o capture_attempt_id")
-    parser.add_argument("--name", help="attempt: o nome do registro, pela linha do runbook (D2_a1_memoria.json)")
+    parser.add_argument("--name", help="attempt e treatment: o nome do registro, pela linha do runbook "
+                                       "(D2_a1_memoria.json, D3_a1_tratamento.json)")
     args = parser.parse_args(argv)
 
     from sqlalchemy import create_engine
@@ -446,6 +485,16 @@ def main(argv: list[str] | None = None) -> int:
     from mvp_ed1 import airbyte
     from mvp_ed1.db import WAREHOUSE, database_url
 
+    if args.command == "treatment":
+        if not args.name:
+            parser.error("treatment pede --name")
+        armazem = create_engine(database_url(WAREHOUSE))
+        try:
+            publicado = publish(writable_epoch(), args.name, treatment_record(armazem, caller={"kind": "operator"}))
+        finally:
+            armazem.dispose()
+        print(f"registro de tratamento: {publicado.path} · sha256 {publicado.sha256}")
+        return 0
     if args.command == "attempt":
         if not args.attempt or not args.name:
             parser.error("attempt pede --attempt e --name")

@@ -233,3 +233,17 @@ def test_a_restauracao_abre_a_sua_epoca_depois_da_conferencia_e_antes_da_captura
     assert passos[epoca - 1] == "$(GARANTIR_LIVRO_NO_ENV)"
     assert epoca < onde("sync-legacy") < onde("dbt-rebuild")
     assert "mvp_ed1.recovery.ledger baseline" in next(l for l in texto.splitlines() if l.startswith("LIVRO_LINHA_DE_BASE ="))
+
+
+@pytest.mark.integracao
+def test_o_registro_de_tratamento_da_a_fatia_da_quarentena(armazem) -> None:
+    """Independente da classificação: as rejeitadas da fatia corrente somam o que a quarentena tem nela."""
+    from mvp_ed1.recovery import leitura
+
+    registro = ledger.treatment_record(armazem, caller={"kind": "test"}, agora=AGORA)
+    assert registro["kind"] == ledger.TREATMENT and registro["treatments"]
+    quarentena = leitura.oraculo_da_quarentena(armazem)
+    for fatia, tabelas in registro["rejected"].items():
+        assert sum(t["rows"] for t in tabelas.values()) == quarentena[fatia]["linhas"], fatia
+    assert sum(t["rows"] for f in registro["rejected"].values() for t in f.values()) > 0
+    json.dumps(registro)

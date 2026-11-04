@@ -402,8 +402,8 @@ e os locks são defesa além disso. A especificação completa — a reconcilia�
 Airbyte, os registros de tratamento e o oráculo que lê o livro — é o
 [runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
 no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, os
-registros de tentativa e de transição, os dois portões, a fase de recuperação e a época que a
-restauração abre. Ainda não: o registro de tratamento e o oráculo da memória (T3).
+registros de tentativa, de transição e de tratamento, os dois portões, a fase de recuperação e a
+época que a restauração abre. Ainda não: o oráculo da memória (T3), que os lê.
 
 ---
 

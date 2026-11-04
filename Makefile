@@ -144,7 +144,7 @@ endef
         airflow-pause airflow-resume medir dag-wait stream-corte stream-wait docs-generate \
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
-        generation-measure generation-compare generation-realism ledger-baseline ledger-attempt source-oracle \
+        generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment source-oracle \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -314,6 +314,10 @@ ledger-baseline: require-env require-venv require-abctl ## T4/H8: abre a época 
 ledger-attempt: require-env require-venv ## T4: o registro de uma tentativa à mão, na época corrente; TENTATIVA=<capture_attempt_id> NOME=<linha>_a<n>_memoria.json — recusa com o lock dela tomado
 	@test -n '$(TENTATIVA)' && test -n '$(NOME)' || { echo 'ERRO: use make ledger-attempt TENTATIVA=<id> NOME=<D2_a1_memoria.json>'; exit 1; }
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery.ledger attempt --attempt '$(TENTATIVA)' --name '$(NOME)'
+
+ledger-treatment: require-env require-venv ## T4: o registro do tratamento corrente e das rejeitadas dele, na época corrente; NOME=<linha>_a<n>_tratamento.json
+	@test -n '$(NOME)' || { echo 'ERRO: use make ledger-treatment NOME=<D3_a1_tratamento.json>'; exit 1; }
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.recovery.ledger treatment --name '$(NOME)'
 
 source-oracle: require-env require-venv ## T2: as duas origens, em sessão somente leitura, contra uma medida; MEDIDA=, CALIBRACAO=1
 	@test -n '$(MEDIDA)' || { echo 'ERRO: use make source-oracle MEDIDA=<medida da geração>'; exit 1; }
