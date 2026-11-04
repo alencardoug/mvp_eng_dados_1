@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.9 |
+| Versão | 2.10 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 04/11/2026 — o livro retido da memória e a fase de recuperação, §4.3 (ADR-0050) |
+| Última revisão | 04/11/2026 — §4.3: o oráculo prova a memória de exclusões linha a linha, a recuperação para na divergência e na ambiguidade de tempo, e os dois limites declarados (revisão do lote 1 da v1.1.0) |
 
 ---
 
@@ -376,16 +376,21 @@ complementa os itens 4 e 5 do ADR-0044).
   certificado: a CLI, antes de `make sync-legacy` voltar; a DAG, na tarefa
   `registrar_captura_do_legado`, entre a captura certificada e `dbt_seed` — nenhum *build* corre
   sobre captura sem registro. O registro guarda o certificado por inteiro e, por tabela do bruto,
-  contagem, *digest* de todas as colunas e gerações das linhas do *job*. Repetir só o portão é
+  contagem, *digest* de todas as colunas e gerações das linhas do *job* — tomados depois de o *job*
+  estar final, nunca antes. Repetir só o portão é
   proibido: fora da primeira tentativa da tarefa ele falha sem escrever, e a DAG roda inteira de
   novo.
 - **Nunca substituído.** Cada registro é publicado por temporário, `fsync` e `link`, que falha se
-  o nome existe.
+  o nome existe, e só com nome `.json` — o único que a leitura do livro lê.
 - **A fase de recuperação** (`mvp_ed1.recovery.capture_recovery`). A fase 1 não finaliza mais
   tentativa nenhuma — até a v1.0.0 ela chamava `retomar`, e a transição acontecia sem registro.
   Antes de abrir a sua, os dois chamadores — `make sync-legacy` e a tarefa
   `retomar_capturas_do_legado` da DAG — resolvem as pendentes: só a de *job* final, ou a sem *job*
-  passada a carência e cujo lock está livre, cada uma com o seu registro e o da transição. Depois,
+  passada a carência e cujo lock está livre, cada uma com o seu registro e o da transição. Uma
+  pendente cujo certificado difere do último registro dela **para**, sem que a diferença seja
+  adotada; e um *job* da listagem do Airbyte cujo início — que a listagem dá em segundos — atravessa
+  o limite da janela de uma tentativa sem *job* também para: nada se registra nem se abandona, e o
+  Owner decide. Depois,
   a **barreira**: toda tentativa do certificado registrada e igual ao último registro, nenhuma
   `pending`, todo `sync_id` do bruto e todo *job* da conexão legada desde a linha de base com
   exatamente uma tentativa. Qualquer diferença para, e nada se abre. A barreira roda de novo
@@ -395,10 +400,22 @@ complementa os itens 4 e 5 do ADR-0044).
   seja. A CLI o segura a invocação inteira; na DAG, a fase 1 o segura no *insert*, a
   sincronização do disparo ao registro do *job*, e o portão na publicação. Antes do `POST` que cria
   o *job*, a tentativa ainda precisa estar `pending` sem *job*. `make ledger-attempt` registra uma
-  tentativa à mão, e recusa com o lock tomado.
+  tentativa à mão, e recusa com o lock tomado ou com a tentativa já guardada na época.
+- **O oráculo da memória** (`make memory-oracle`, T3). Somente leitura: as capturas da linha de base
+  e de cada registro intactas no bruto, o certificado só com as transições do eng_dados, a
+  quarentena e o tratamento como os registros os guardam, e a memória de exclusões **linha a
+  linha**, contra a recalculada do bruto retido pela regra do ADR-0045 — em Python, sem o SQL do
+  modelo. Mudanças na memória de exclusões entre a linha de base e agora só passam declaradas
+  (`REMOCOES_ACEITAS=`, `REAPARICOES_ACEITAS=`). **Fora da garantia, por desenho:** o histórico SCD,
+  que a regeneração substitui e que o manifesto do pacote protege com o *digest* canônico de cada
+  *snapshot* ([Capacidade §3.1](capacidade_e_recuperacao.md#31-conteúdo-do-pacote)).
 
 A garantia vale com **um chamador de captura vivo por vez**; dois juntos são limitação declarada,
-e os locks são defesa além disso. A especificação completa — a reconciliação com os *jobs* do
+e os locks são defesa além disso. Os locks de tentativa usam `hashtext` do identificador dela, de
+32 bits: duas tentativas distintas podem cair no mesmo lock — achado na revisão do lote 1 da
+v1.1.0 com dois identificadores reais —, e o efeito é uma espera ou uma recusa indevida, nunca o
+abandono de uma tentativa através de um lock tomado. Aceito pelo volume, de dezenas de tentativas
+por época. A especificação completa — a reconciliação com os *jobs* do
 Airbyte, os registros de tratamento e o oráculo que lê o livro — é o
 [runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
 no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, os

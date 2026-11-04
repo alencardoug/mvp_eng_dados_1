@@ -58,7 +58,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.9 — inventário e diagrama **gerados**; invariante 14 na v1.1.0 |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
-| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.8 |
+| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.10 — o livro retido da memória e o oráculo dela (v1.1.0) |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.2 — revalidado na D31 e na regeneração da v1.1.0 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.15 — toda fronteira com teste; invariante 14 no varejo |
 | [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.16 — o ciclo do zero e a regeneração da v1.1.0 medidos; o ponto de recuperação da v1.1.0 |
