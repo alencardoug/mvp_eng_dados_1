@@ -136,7 +136,7 @@ justamente o que se quer exercitar.
 | `support_tickets` | 4.000 | Solicitações associadas a clientes, pedidos ou entregas. |
 | `support_agents` | 42 | Agentes sintéticos e suas equipes de atendimento. |
 
-**Total na proporção de referência:** 2.545.495 linhas — 254.604 no fator `dev`, que é o padrão local.
+**Total na proporção de referência:** 2.545.495 linhas — 254.608 no fator `dev`, que é o padrão local.
 
 <!-- fim do trecho gerado -->
 

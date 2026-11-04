@@ -997,7 +997,7 @@ de fora do repositório, com as folhas imediatas de cada coluna.
 | `approved_authorization_count` | `analytics.fact_payment_transaction.approved_authorization_count` (gerada) |
 | `approval_rate_pct` | `analytics.fact_payment_transaction.{approved_authorization_count, authorization_count}` (gerada) |
 | `authorized_amount` | `raw.payment_transactions.amount` · `raw_legacy.payment_transactions.amount` |
-| `captured_amount` | `raw.payment_transactions.amount` · `raw_legacy.payment_transactions.amount` |
+| `captured_amount` | `raw.payment_transactions.{amount, id, occurred_at, payment_id}` · `raw_legacy.payment_transactions.{amount, id, occurred_at, payment_id}` · `analytics.fact_payment_transaction.approved_authorization_count` (gerada) · `trusted.payment_transactions.source_system` (gerada) |
 
 #### `refund_rate_by_reason`
 
