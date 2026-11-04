@@ -36,8 +36,11 @@ def test_as_duas_chaves_dao_o_login() -> None:
         {g.LEITOR_USUARIO: "Leitor; drop role x", g.LEITOR_SENHA: SENHA},
         {g.LEITOR_USUARIO: "consumption_reader", g.LEITOR_SENHA: "curta123"},
         {g.LEITOR_USUARIO: "consumption_reader", g.LEITOR_SENHA: "x' or '1" + "a" * 30},
+        {g.LEITOR_USUARIO: "reader\n", g.LEITOR_SENHA: SENHA},           # RVL2-02: `$` aceitava
+        {g.LEITOR_USUARIO: "consumption_reader", g.LEITOR_SENHA: SENHA + "\n"},
     ],
-    ids=["so-usuario", "so-senha", "papel", "superusuario", "nome-estranho", "senha-curta", "senha-com-aspas"],
+    ids=["so-usuario", "so-senha", "papel", "superusuario", "nome-estranho", "senha-curta", "senha-com-aspas",
+         "nome-com-quebra", "senha-com-quebra"],
 )
 def test_declaracao_incompleta_ou_perigosa_e_recusada(ambiente) -> None:
     with pytest.raises(RuntimeError):
@@ -58,3 +61,43 @@ def test_o_verificador_e_o_scram_da_senha_e_nao_a_contem() -> None:
     assert base64.b64decode(guardada) == hashlib.sha256(cliente).digest()
     assert base64.b64decode(servidor) == hmac.new(salgada, b"Server Key", hashlib.sha256).digest()
     assert g._verificador_scram(SENHA) != verificador, "o sal é novo a cada chamada"
+
+
+def test_as_funcoes_fechadas_a_public_sao_as_que_escrevem_ou_tomam_lock() -> None:
+    """RVL2-01: criar e escrever *large object*, e tomar *advisory lock* — nunca ler nem soltar."""
+    fechadas = set(g.FECHADAS_A_PUBLIC)
+    assert {"lo_create", "lo_creat", "lo_from_bytea", "lowrite", "lo_put", "lo_unlink"} <= fechadas
+    assert {"pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_xact_lock"} <= fechadas
+    assert not {n for n in fechadas if "unlock" in n or n in ("lo_get", "loread", "lo_close")}
+    assert len(fechadas) == len(g.FECHADAS_A_PUBLIC)
+
+
+def test_nada_do_catalogo_entra_em_texto_python() -> None:
+    """RVL2-02: os papéis de que o login é membro e o nome do banco se compõem no servidor.
+
+    O dublê responde ao que se pergunta do catálogo com um nome que fecharia o
+    identificador; o SQL emitido não o contém, porque ninguém o pergunta."""
+    perigoso = 'x" from consumption_reader; alter role analyst superuser; --'
+    emitidos: list[str] = []
+
+    class Dublê:
+        def execute(self, sql, p=None):
+            emitidos.append(str(sql))
+            return self
+
+        def exec_driver_sql(self, sql):
+            emitidos.append("<alter role com o verificador>")
+
+        def scalars(self):
+            return self
+
+        def all(self):
+            return [perigoso, *g.FECHADAS_A_PUBLIC]
+
+        def scalar_one(self):
+            return perigoso
+
+    g._garantir_leitor(Dublê(), "consumption_reader", SENHA)
+    assert not [s for s in emitidos if "alter role analyst" in s]
+    assert any("format('revoke %I from %I'" in s for s in emitidos)
+    assert any("format('revoke temporary on database %I from public', current_database())" in s for s in emitidos)

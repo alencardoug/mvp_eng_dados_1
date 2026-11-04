@@ -36,7 +36,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.pool import NullPool
 
 from mvp_ed1.db import WAREHOUSE, database_url, reader_url
-from mvp_ed1.governance import LEITOR_USUARIO, PAPEIS, PAPEL_DO_LEITOR
+from mvp_ed1.governance import FECHADAS_A_PUBLIC, LEITOR_USUARIO, PAPEIS, PAPEL_DO_LEITOR
 
 pytestmark = pytest.mark.integracao
 
@@ -305,6 +305,10 @@ def test_o_login_de_leitura_nao_escreve(leitor, materializadas) -> None:
     """Privilégio, não só o padrão da sessão: cada tentativa pede `read write` antes e é negada."""
     tentativas = [f"create table {s}.__probe_do_leitor (x int)" for s in sorted({s for s, _ in materializadas})]
     tentativas += ["create temporary table __probe_do_leitor (x int)", "create schema __probe_do_leitor"]
+    # RVL2-01: os *large objects* ficam fora dos grants de tabela, e os locks são os da captura.
+    tentativas += ["select lo_create(0)", "select lo_creat(-1)", "select lo_from_bytea(0, decode('41', 'hex'))",
+                   "select pg_advisory_lock(1)", "select pg_try_advisory_lock(1, 2)",
+                   "select pg_advisory_xact_lock(1)"]
     escreveu: list[str] = []
     for comando in tentativas:
         with leitor.connect() as conexao:
@@ -315,6 +319,43 @@ def test_o_login_de_leitura_nao_escreve(leitor, materializadas) -> None:
     assert escreveu == []
     with leitor.connect() as conexao:
         assert conexao.execute(text("show default_transaction_read_only")).scalar_one() == "on"
+
+
+def test_nenhuma_assinatura_fechada_a_public_executa_pelo_leitor(motor) -> None:
+    """Toda assinatura de cada nome de `FECHADAS_A_PUBLIC`, e não só as que o teste acima chama."""
+    with motor.connect() as conexao:
+        abertas = conexao.execute(text(
+            "select p.oid::regprocedure::text from pg_proc p where p.pronamespace = 'pg_catalog'::regnamespace"
+            " and p.proname = any(:n) and has_function_privilege(:u, p.oid, 'execute') order by 1"
+        ), {"n": list(FECHADAS_A_PUBLIC), "u": os.environ[LEITOR_USUARIO]}).scalars().all()
+        temporaria = conexao.execute(text(
+            "select has_database_privilege(:u, current_database(), 'temporary')"
+        ), {"u": os.environ[LEITOR_USUARIO]}).scalar_one()
+    assert abertas == []
+    assert temporaria is False
+
+
+def test_membro_com_nome_que_fecharia_o_identificador_sai_sem_injetar(motor) -> None:
+    """RVL2-02 com papel de verdade: o `garantir()` o tira do leitor e não executa o resto do nome."""
+    from mvp_ed1 import governance
+
+    usuario, nome = os.environ[LEITOR_USUARIO], 'x" from consumption_reader; alter role analyst superuser; --'
+    with motor.begin() as conexao:
+        conexao.exec_driver_sql(f'create role "{nome.replace(chr(34), chr(34) * 2)}" nologin')
+        conexao.exec_driver_sql(f'grant "{nome.replace(chr(34), chr(34) * 2)}" to {usuario}')
+    try:
+        governance.garantir(motor, governance.leitor_do_ambiente())
+        with motor.connect() as conexao:
+            membro = conexao.execute(text(
+                "select count(*) from pg_auth_members m join pg_roles g on g.oid = m.roleid"
+                " join pg_roles u on u.oid = m.member where u.rolname = :u and g.rolname = :n"
+            ), {"u": usuario, "n": nome}).scalar_one()
+            super_ = conexao.execute(text("select rolsuper from pg_roles where rolname = 'analyst'")).scalar_one()
+        assert membro == 0
+        assert super_ is False
+    finally:
+        with motor.begin() as conexao:
+            conexao.exec_driver_sql(f'drop role if exists "{nome.replace(chr(34), chr(34) * 2)}"')
 
 
 def test_o_login_de_leitura_nao_escala(leitor) -> None:

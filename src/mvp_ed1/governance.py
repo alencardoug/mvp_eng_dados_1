@@ -60,10 +60,28 @@ LEITOR_SENHA = "WAREHOUSE_READER_PASSWORD"
 #: O papel do leitor — e o único. Membro de `analyst`, ele lê o que `analyst` lê.
 PAPEL_DO_LEITOR = "analyst"
 
-_NOME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+#: Conferidos com `fullmatch`: `$` com `match` aceitava um `\n` no fim (RVL2-02).
+_NOME = re.compile(r"[a-z_][a-z0-9_]{0,62}")
 #: A forma que `make env` gera. Mais estreita que o necessário de propósito: a
 #: senha nunca precisa de escape, e uma senha curta ou estranha é recusada.
-_SENHA = re.compile(r"^[A-Za-z0-9]{24,}$")
+_SENHA = re.compile(r"[A-Za-z0-9]{24,}")
+
+#: Funções do `pg_catalog` que o PostgreSQL deixa a `PUBLIC` e que fazem um
+#: login sem nenhum grant escrever ou interferir (RVL2-01, revisão do lote 2 da
+#: v1.1.0): os *large objects* ficam fora dos grants de tabela — o leitor os
+#: criava pedindo `read write` —, e os *advisory locks* são os mesmos com que a
+#: captura marca chamador vivo (`legacy.captura.bloqueio_da_tentativa`): um
+#: leitor que tomasse o de uma tentativa a deixaria pendente para sempre. Toda
+#: assinatura de cada nome sai de `PUBLIC`; o superusuário, que é quem captura,
+#: carrega e transforma, não depende de `EXECUTE`. Ler um *large object* e soltar
+#: um lock ficam: sem criar nem tomar, não há o que ler nem o que soltar.
+FECHADAS_A_PUBLIC: tuple[str, ...] = (
+    "lo_creat", "lo_create", "lo_from_bytea", "lo_open", "lo_put", "lowrite",
+    "lo_truncate", "lo_truncate64", "lo_unlink",
+    "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared",
+    "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_try_advisory_xact_lock",
+    "pg_try_advisory_xact_lock_shared",
+)
 
 #: Migrações em ordem: (nome, comandos). Cada comando é idempotente por si.
 MIGRACOES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -162,9 +180,9 @@ def leitor_do_ambiente(ambiente: dict[str, str] | None = None) -> tuple[str, str
         return None
     if not usuario or not senha:
         raise RuntimeError(f"defina {LEITOR_USUARIO} e {LEITOR_SENHA} juntos no .env, ou nenhum dos dois")
-    if not _NOME.match(usuario) or usuario in PAPEIS or usuario == ambiente.get("WAREHOUSE_DB_USER"):
+    if not _NOME.fullmatch(usuario) or usuario in PAPEIS or usuario == ambiente.get("WAREHOUSE_DB_USER"):
         raise RuntimeError(f"{LEITOR_USUARIO} inválido: um nome novo, minúsculo, que não seja papel nem o superusuário")
-    if not _SENHA.match(senha):
+    if not _SENHA.fullmatch(senha):
         raise RuntimeError(f"{LEITOR_SENHA} fora da forma de `make env`: 24 ou mais letras e dígitos")
     return usuario, senha
 
@@ -178,9 +196,15 @@ def _garantir_leitor(conexao, usuario: str, senha: str) -> None:
     cada vez, para que o `.env` seja sempre a verdade. O que já estiver diferente
     é desfeito — o mesmo princípio do `on-run-end`, que revoga o não declarado.
 
-    E `temporary` sai de `PUBLIC` no banco: sem isso, todo login cria tabela
-    temporária, e "não escreve" teria uma exceção. Os demais logins são o
-    superusuário, a quem a revogação não alcança."""
+    E `temporary` sai de `PUBLIC` no banco, com as funções de `FECHADAS_A_PUBLIC`:
+    sem isso, todo login cria tabela temporária e *large object* e toma os locks
+    da captura, e "não escreve" teria exceções. Os demais logins são o
+    superusuário, a quem a revogação não alcança.
+
+    O que vem do catálogo — os papéis de que o login é membro, o nome do banco,
+    as assinaturas das funções — se compõe no servidor, com `format('%I')`, e
+    nunca passa por texto Python (RVL2-02). O que vem do `.env` já chega
+    validado por `leitor_do_ambiente`."""
     conexao.execute(text(
         f"""
         do $$
@@ -202,17 +226,51 @@ def _garantir_leitor(conexao, usuario: str, senha: str) -> None:
     except Exception as erro:
         raise RuntimeError(f"não foi possível definir o login {usuario}: {type(erro.__cause__ or erro).__name__}") from None
     conexao.execute(text(f"alter role {usuario} set default_transaction_read_only = on"))
-    outros = conexao.execute(text(
-        "select g.rolname from pg_auth_members m join pg_roles g on g.oid = m.roleid "
-        "join pg_roles u on u.oid = m.member where u.rolname = :u and g.rolname <> :p"
-    ), {"u": usuario, "p": PAPEL_DO_LEITOR}).scalars().all()
-    for papel in outros:
-        conexao.execute(text(f'revoke "{papel}" from {usuario}'))
+    conexao.execute(text(
+        f"""
+        do $$
+        declare r record;
+        begin
+            for r in select g.rolname from pg_auth_members m join pg_roles g on g.oid = m.roleid
+                     join pg_roles u on u.oid = m.member
+                     where u.rolname = '{usuario}' and g.rolname <> '{PAPEL_DO_LEITOR}' loop
+                execute format('revoke %I from %I', r.rolname, '{usuario}');
+            end loop;
+        end
+        $$
+        """
+    ))
     conexao.execute(text(f"revoke admin option for {PAPEL_DO_LEITOR} from {usuario}"))
     conexao.execute(text(f"grant {PAPEL_DO_LEITOR} to {usuario}"))
     conexao.execute(text(f"comment on role {usuario} is 'Login só de leitura, membro de {PAPEL_DO_LEITOR}: o consumidor de fora do armazém (v1.1.0).'"))
-    banco = conexao.execute(text("select current_database()")).scalar_one()
-    conexao.execute(text(f'revoke temporary on database "{banco}" from public'))
+    _fechar_a_public(conexao)
+
+
+def _fechar_a_public(conexao) -> None:
+    """`temporary` no banco e `EXECUTE` em cada assinatura de `FECHADAS_A_PUBLIC`, tirados de `PUBLIC`.
+
+    Um nome da lista que o `pg_catalog` não tem é erro, não pulo: uma versão do
+    PostgreSQL que o renomeasse deixaria o caminho aberto calada."""
+    existentes = set(conexao.execute(text(
+        "select distinct proname from pg_proc where pronamespace = 'pg_catalog'::regnamespace and proname = any(:n)"
+    ), {"n": list(FECHADAS_A_PUBLIC)}).scalars().all())
+    if faltam := sorted(set(FECHADAS_A_PUBLIC) - existentes):
+        raise RuntimeError(f"funções a fechar que o pg_catalog não tem: {faltam}")
+    nomes = ", ".join(f"'{n}'" for n in FECHADAS_A_PUBLIC)
+    conexao.execute(text(
+        f"""
+        do $$
+        declare r record;
+        begin
+            execute format('revoke temporary on database %I from public', current_database());
+            for r in select p.oid::regprocedure as f from pg_proc p
+                     where p.pronamespace = 'pg_catalog'::regnamespace and p.proname in ({nomes}) loop
+                execute format('revoke execute on function %s from public', r.f);
+            end loop;
+        end
+        $$
+        """
+    ))
 
 
 def garantir_papeis(engine: Engine) -> None:
