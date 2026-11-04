@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.9 |
+| Versão | 2.10 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 03/11/2026 — a descrição de coluna herdada por transporte, o `domain` derivado da tabela conduzida, o `owner` por camada e a catraca de descrição e de `domain`/`owner` (§5.1) |
+| Última revisão | 04/11/2026 — §7: o login de leitura sem *large object* nem *advisory lock*, o catálogo composto no servidor e o leitor depois da restauração (revisão do lote 2 da v1.1.0) |
 
 ---
 
@@ -283,15 +283,28 @@ tenha). É o login por onde um consumidor de fora do armazém — o exportador d
 as views. `garantir()` o cria e o repõe a cada `make dbt-build`: membro de `analyst` e de nada mais,
 sem *admin option*; nenhum atributo que escale (`superuser`, `createdb`, `createrole`,
 `replication`, `bypassrls`); leitura como padrão da sessão; a senha do `.env`, enviada como
-verificador SCRAM, para que o texto dela nunca chegue ao servidor. E `temporary` sai de `PUBLIC` no
-banco: sem isso, todo login criaria tabela temporária, e "não escreve" teria exceção. A prova é por
+verificador SCRAM, para que o texto dela nunca chegue ao servidor. E saem de `PUBLIC` no banco
+`temporary` e o `EXECUTE` das funções que o PostgreSQL deixa a qualquer login e que escrevem ou
+interferem sem grant nenhum (`governance.FECHADAS_A_PUBLIC`): criar e escrever *large object*, que
+fica fora dos grants de tabela, e tomar *advisory lock* — os mesmos com que a captura do legado
+marca chamador vivo, e que um leitor poderia segurar para deixar uma tentativa pendente para sempre
+(revisão do lote 2 da v1.1.0, RVL2-01). Sem isso, "não escreve" teria exceções. O superusuário, por
+onde Airbyte, dbt, Beam e o certificado se conectam, não depende de `EXECUTE`; um componente que
+passe a se conectar pelo próprio papel precisa declarar o que dessas funções usa. O que vem do
+catálogo — os papéis de que o login é membro, o nome do banco — se compõe no servidor, nunca em
+texto Python (RVL2-02). A prova é por
 **conexão de verdade** com ele, não por `set role` (`tests/test_acesso.py`): lê toda view de
 `consumption`; é recusado em todo objeto das outras oito camadas; não cria tabela, tabela
-temporária nem schema, mesmo pedindo `read write`; e não assume outro papel nem o superusuário, não
+temporária, schema nem *large object*, nem toma *advisory lock*, mesmo pedindo `read write`, e
+nenhuma assinatura fechada executa por ele; e não assume outro papel nem o superusuário, não
 concede `analyst` nem cria papel. Contraprova na entrega: membro de `transformer`, `createdb` e
 `temporary` devolvido a `PUBLIC` acusaram nos quatro testes, e o `garantir()` seguinte desfez os
-três. Na fase GCP, o equivalente é uma conta de serviço no grupo IAM do `analyst`, autenticada por
-federação de identidade, sem chave guardada.
+três; as funções devolvidas a `PUBLIC` acusaram nos dois testes delas (lote 2). **Depois de uma
+restauração**, o login e as revogações de `PUBLIC` não vêm do *dump*: o login é do cluster, e o
+ACL do banco e das funções do `pg_catalog` fica fora de um *dump* por schema. Num cluster novo,
+quem os estabelece é o `dbt-rebuild` da sequência de recuperação, e até ele o leitor não existe
+(RVL2-04). Na fase GCP, o equivalente é uma conta de serviço no grupo IAM do `analyst`, autenticada
+por federação de identidade, sem chave guardada.
 
 ---
 
