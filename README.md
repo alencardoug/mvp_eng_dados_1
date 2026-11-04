@@ -54,20 +54,20 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.8 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`) |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.9 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`); a `v1.1.0` à espera da revisão final e do aceite |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.9 — inventário e diagrama **gerados**; invariante 14 na v1.1.0 |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.8 |
-| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.1 — revalidado na D31 |
+| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.2 — revalidado na D31 e na regeneração da v1.1.0 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.14 — toda fronteira com teste; invariante 14 no varejo |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.14 — o ciclo do zero medido e o ponto de recuperação entregue |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.16 — o ciclo do zero e a regeneração da v1.1.0 medidos; o ponto de recuperação da v1.1.0 |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
-| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 11 achados, todos tratados em 03/10/2026 |
+| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 12 achados, todos tratados — o último, um falso positivo, em 04/11/2026 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 7 pendentes em 03/11/2026: D62 a D65, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0), a D67 (o `captured_amount` da P09) e a D43 (adiada para a fase GCP) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 5 pendentes em 04/11/2026: D62 a D64, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0) e a D43 (adiada para a fase GCP); a D65 e a D67, fechadas pela v1.1.0 |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 50 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
@@ -134,11 +134,14 @@ do alerta do *streaming* (D62), o medidor do *streaming* que encerra antes de o 
 (D63), a chave Fernet do Airflow gerada inválida (D64) e itens vendidos antes do lançamento do produto
 no dado sintético (D65). Nada no código foi alterado.
 
-**A versão de manutenção `v1.1.0` está em curso**, pelo
-[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/PLAN.md#5-part-i--maintenance-release-v110-of-eng_dados),
-que o executa neste repositório: as views contam por identificador com a origem, o gerador ganhou a
+**A versão de manutenção `v1.1.0` tem os critérios medidos e espera a revisão final e o aceite**
+([Plano](docs/plano_de_desenvolvimento.md#versão-de-manutenção-v110)). O
+[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/PLAN.md#5-part-i--maintenance-release-v110-of-eng_dados)
+a executa neste repositório: as views contam por identificador com a origem, o gerador ganhou a
 árvore de categorias, a faixa de preço por folha e o lançamento antes da venda (a D65), a P09 lê o
-valor capturado (a D67), e a memória do legado passou a ser registrada num livro retido
-([ADR-0050](docs/adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)). A regeneração das
-origens, que aplica o novo gerador ao armazém, ainda não rodou: até ela, o `make check` falha por
-desenho no teste da invariante 14.
+valor capturado (a D67), as colunas do `analytics` e do `consumption` têm todas descrição, e a
+memória do legado passou a ser registrada num livro retido
+([ADR-0050](docs/adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)). Em 04/11/2026 a
+regeneração aplicou o gerador às duas origens mantendo a memória do armazém, com `make check` verde,
+e o ponto de recuperação passou a ser o da v1.1.0
+([Capacidade §2.13](docs/capacidade_e_recuperacao.md#213-a-regeneração-da-v110-medida--04112026)).

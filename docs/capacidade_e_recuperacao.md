@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.15 |
-| Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12); o ponto de recuperação **entregue em 25/09/2026** e restaurado de ponta a ponta (§3) |
-| Última revisão | 04/11/2026 — §3.4, passo 8: a restauração abre a época dela no livro retido (ADR-0050) |
+| Versão | 2.16 |
+| Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12) e a regeneração da v1.1.0 (§2.13); o ponto de recuperação **entregue em 25/09/2026**, substituído pelo da v1.1.0 em 04/11/2026, cada um restaurado de ponta a ponta antes da promoção (§3) |
+| Última revisão | 04/11/2026 — §2.13, a regeneração da v1.1.0 medida, e §3, o pacote dela |
 
 ---
 
@@ -503,6 +503,65 @@ de subir o *streaming*. O `migrate` durou menos que a pausa do amostrador, e por
    vem do bruto retido, e quanto do resto da memória. Até 03/10/2026 esta frase dizia "43 capturas"
    e "3": eram os identificadores da maior captura de cada lado, lidos como quantidade (RVF12-08).
 
+### 2.13 A regeneração da v1.1.0, medida — 04/11/2026
+
+Cada linha é um `make medir` do
+[roteiro de regeneração](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/docs/regeneration_runbook.md#4-the-cycle)
+da v1.1.0, que aplicou o gerador corrigido às duas origens **mantendo a memória do armazém**. Não é
+um ciclo do zero, como o §2.12: o Airbyte e o Airflow já estavam instalados, e o armazém começou com
+a memória da fase local — 31 capturas retidas no bruto e 600 linhas de certificado. Por isso a soma
+dos bancos parte de ~650 MB, e não dos ~150 MB do B5 no mesmo ponto. As condições de medida são as do
+§2.12: a estação do Owner sem controle do resto, uma amostra a cada 4,1–4,2 s (pausa de 2 s), a soma
+dos contêineres sem o Beam e o produtor. O diário, com cada comando, a saída e os desvios, está em
+`data/medicoes/diario_v1_1_0.md`, e as saídas, em `data/medicoes/v1_1_0/`, os dois fora do Git.
+
+| Linha do roteiro | Alvo | De pé no início | Duração | `MemAvailable` mínimo | Contêineres, máximo | Amostras | Bancos, soma |
+|---|---|---|---:|---:|---:|---:|---:|
+| C2 | `sync-airbyte RESET=1` — 247.902 linhas | Airbyte, bancos | 3m 22s | 3,4 GB | 5,3 GB | 49 | 648,4 MB |
+| C3 | `CENARIO=streaming` — o *snapshot*, 13.725 eventos | Airbyte, bancos | 1m 24s | 4,7 GB | 1,7 GB | 19 | 654,2 MB |
+| D2 | `sync-legacy` — a captura 59, certificada | Airbyte, bancos | 1m 45s | 4,1 GB | 4,6 GB | 25 | 654,1 MB |
+| D3 | `dbt-build RESET=1` — o SCD refeito, `PASS=907` | Airbyte, bancos | 1m 34s | 4,4 GB | 3,8 GB | 23 | 659,5 MB |
+| E9 | `sync-airbyte` — os eventos novos, 27.547 linhas | Airbyte, bancos | 1m 41s | 4,1 GB | 4,7 GB | 24 | 662,9 MB |
+| E9 | `dbt-build` | Airbyte, bancos | 1m 54s | 4,6 GB | 3,9 GB | 27 | 667,1 MB |
+| F1 | `check` — `PASS=907`, 885 testes Python | Airbyte, bancos | 8m 26s | 4,2 GB | 3,9 GB | 123 | 665,3 MB |
+| F3 | `dag-run` até `dag-wait` — tentativa 1, `failed` em `dbt_analytics` | Airbyte, Airflow, bancos | 5m 49s | 2,2 GB | 7,0 GB | 83 | 674,5 MB |
+| F3 | `dag-run` até `dag-wait` — tentativa 2, as 15 tarefas | Airbyte, Airflow, bancos | 6m 18s | 2,4 GB | 7,0 GB | 89 | 685,6 MB |
+| F4 | `docs-generate` | Airbyte, Airflow, bancos | 0m 33s | 4,0 GB | 5,1 GB | 8 | 685,9 MB |
+| G7 | `recovery-restore` — a sequência inteira (§3.4) | Airbyte, bancos | 19m 51s | 3,6 GB | 5,1 GB | 288 | 723,8 MB |
+
+As linhas fora do `medir` — a recarga das origens, o produtor, as pausas e as retomadas — estão no
+diário. A recarga da origem principal levou 18,6 s para 252.987 linhas, e `source_db` ficou com
+63,8 MB; a do legado, 0,56 s para 12.741 linhas.
+
+**O conteúdo que mudou.** Das 40 tabelas da origem principal, **17** mudam de conteúdo com as três
+correções do gerador — a árvore de categorias, a faixa de preço por folha e o lançamento antes da
+venda ([Geração §5](geracao_de_dados.md#5-realismo-e-coerência)): `product_categories`, `products`,
+`product_variants`, `product_prices`, `orders`, `order_items`, `cart_items`, `coupon_redemptions`,
+`payments`, `payment_transactions`, `refunds`, `purchase_orders`, `purchase_order_items`,
+`goods_receipt_items`, `inventory_movements`, `inventory_balances` e `stock_reservations`; as outras
+23 saem iguais. No legado, as mesmas 17 e mais `campaigns` e `customers`, **19**: as duas últimas
+porque a recarga do lote desfez as mutações de teste da Etapa 11, que o legado de antes carregava
+pelo diário de mutações. Nas chaves do legado, `customers` +3 (as removidas na Etapa 11, de volta),
+`product_categories` +4 (a árvore), `inventory_balances` −2 e `inventory_movements` −8 — 12.744
+linhas antes, 12.741 depois. As transições de chave e a memória de exclusões que elas produzem estão
+na [Origem Legada §4.3](origem_legada.md#43-o-livro-retido-da-memória-v110).
+
+**O que os números dizem:**
+
+1. **O pico continua sendo a DAG**: 7,0 GB nos contêineres e 2,2 GB livres, contra 6,5 GB e 1,1 GB no
+   B5. A DAG tem agora 15 tarefas: a v1.1.0 acrescentou `retomar_capturas_do_legado` e
+   `registrar_captura_do_legado`, as duas pontas do portão da memória do legado
+   ([ADR-0050](adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)). A folga maior vem do
+   *host*, que começou o ciclo com 7,5 GB livres. **Não medido:** quanto do 0,5 GB a mais é das
+   tarefas novas.
+2. **A restauração custou 19m 51s**, 2m 52s a mais que no B5, sobre um armazém de 724 MB contra 628 MB.
+   O que a restauração traz a mais é memória: 34 capturas retidas no bruto e 720 linhas de
+   certificado na linha de base que ela abriu, contra as 28 capturas e as 11 certificadas do pacote
+   do B5. **Não medido:** quanto do tempo a mais vem dessa memória e quanto do `check`, que tem 885
+   testes Python contra 579.
+3. **O `check` cresceu de 6m 49s para 8m 26s**, com o mesmo `PASS` do dbt mais dois — a invariante 14
+   e a reconciliação da P09 — e 306 testes Python a mais que no B5.
+
 ---
 
 ## 3. Ponto único de recuperação
@@ -516,6 +575,17 @@ de ser. Ele devolve as fontes e a memória, e a partir delas o resto é reconstr
 do §3.4, em 16m 59s (§2.12) — e promovido. O aprovado vive no `data/recovery/aprovado` do *checkout*
 de trabalho, o caminho padrão (D46, D60); uma segunda cópia fora dos *checkouts* é recomendada, e o
 roteiro do B5 fez uma.
+
+**Substituído em 04/11/2026 pelo pacote da v1.1.0**, depois da regeneração das duas origens: corte
+`2026-11-04T14:21:05Z`, *commit* `6d93d72`, manifesto com SHA-256 `3b93d594…`, pela primeira vez com
+a geração da origem principal registrada. O candidato foi restaurado pelos nove passos por cima do
+ambiente povoado, em 19m 51s (§2.13), e só então promovido. A segunda cópia está em
+`~/mvp_ed1-recovery-v1.1.0`. Os dois pacotes da v1.0.0 ficaram **fora do *checkout***, porque a
+promoção remove o aprovado anterior: o do B5 em `~/mvp_ed1-recovery-20260925T123221Z`
+(`7b0bea6`, restaurado no B5) e o **corte de recuo** da regeneração em
+`~/mvp_ed1-recovery-pre-v1.1.0` (`33d6451`, `2026-11-04T06:30:16Z`, conferido contra os bancos e
+nunca restaurado), que guarda o estado anterior a ela. Os três foram conferidos por *checksum* depois
+da promoção.
 
 ### 3.1 Conteúdo do pacote
 
@@ -532,7 +602,8 @@ roteiro do B5 fez uma.
   corte, porque a ausência também volta;
 - `checksums.sha256` e `RESTAURAR.md`, as instruções de restauração gravadas no próprio pacote.
 
-No corte de 25/09/2026: 32 MB, dos quais 20,7 MB são a memória do armazém.
+No corte de 25/09/2026: 32 MB, dos quais 20,7 MB são a memória do armazém. No de 04/11/2026: 38 MB,
+dos quais 26,6 MB são a memória do armazém.
 
 **O que o pacote não traz**, e por quê: `raw`, `staging`, `trusted`, `analytics` e `consumption` são
 reconstruídos pelas sincronizações e pelo dbt e conferidos contra o manifesto; o cursor do CDC não

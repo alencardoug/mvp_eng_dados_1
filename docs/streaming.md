@@ -12,9 +12,9 @@
 |---|---|
 | Escopo | Um único domínio: `inventory_movements` |
 | Decisões | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) · [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) · [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md) |
-| Versão | 2.1 |
-| Situação | **Em operação** desde a Etapa 7 — construído, medido e reconciliado |
-| Última revisão | 05/09/2026 |
+| Versão | 2.2 |
+| Situação | **Em operação** desde a Etapa 7 — construído, medido e reconciliado; revalidado na regeneração da v1.1.0 (§7.3) |
+| Última revisão | 04/11/2026 — §7.3, a regeneração da v1.1.0 |
 
 ---
 
@@ -345,6 +345,43 @@ A DAG final terminou com as nove tarefas em sucesso; os tempos e seu identificad
 [Capacidade §2.7](capacidade_e_recuperacao.md#27-re-medição-da-d31--05092026). A consulta após a DAG
 reconfirmou igualdade de chaves/payloads e saldo no corte final. A geração do catálogo não alterou
 as declarações de campos: o catálogo transacional continuou com 40 tabelas e 418 campos classificados.
+
+### 7.3 A regeneração da v1.1.0 — 04/11/2026
+
+A v1.1.0 regenerou as duas origens pelo mesmo procedimento da §7.2
+([Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming)),
+seguido linha a linha pelo
+[roteiro de regeneração](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/docs/regeneration_runbook.md#4-the-cycle)
+do `bi-como-codigo` (fases B, C e E). Antes da recarga, o conector foi desmontado — o *slot* de
+replicação removido, a ausência dele conferida, e o volume do Redpanda junto — e o destino quente foi
+esvaziado: 18.351 linhas, as 13.700 do *snapshot* da §7.2 e os 4.651 eventos do produtor desde então.
+Os tempos e a memória de cada linha estão na
+[Capacidade §2.13](capacidade_e_recuperacao.md#213-a-regeneração-da-v110-medida--04112026).
+
+| Corte observado | Resultado |
+|---|---|
+| Carga inicial: o *snapshot* lido depois da recarga | 13.725 eventos em 26,0 s; o corte K0 = 13.725, lido depois de o produtor parar |
+| Os dois caminhos no K0 | Nenhuma chave só no lote ou só no fluxo, nenhum *payload* e nenhum saldo divergente; 13.725 linhas e 701.887 unidades em cada caminho |
+| Cenário ao vivo | `LIMITE=2200`, a semente do cursor (20260904), deslocamento inicial 4.651; 2.200 eventos em 44,9 s (49/s); o cursor em 6.851 depois |
+| Casos produzidos | 190 eventos atrasados de propósito; 198 pares de transferência |
+| Duplicatas republicadas com o *pipeline* rodando | 250; o *log* do destino: "250 já existiam", nenhuma gravada; o destino seguiu em 15.925 |
+| Alertas, lidos uma vez por minuto | 67, depois 110 e 110 — 53 aberturas, 57 normalizações, 7 marcadas como correção de atraso. A leitura parou em duas iguais seguidas, o que só diz que o tópico parou de crescer enquanto observado |
+| Os dois caminhos no K = 15.925, depois da sincronização e do dbt | Nenhuma divergência de chave, *payload* ou saldo; 15.925 linhas e 704.105 unidades em cada caminho — a contagem da origem |
+| Incremental contra a reconstrução completa | `incremental_confere_com_a_reconstrucao_completa` passou no `dbt-build` depois dos eventos novos |
+| P13 antes e depois do produtor | Idêntica, linha a linha: o produtor só acrescenta eventos de estoque, e a P13 não lê a fato de estoque |
+
+Ao retomar, o *pipeline* releu do *offset* confirmado (797) lotes que o *snapshot* já tinha gravado
+— "0 gravados, 500 já existiam" —: o *offset* confirmado fica atrás do que foi gravado, e a releitura
+é idempotente pela chave do evento
+([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)).
+
+**O que esta revalidação não prova.** Que o destino convirja não diz que o alerta está certo: o saldo
+do alerta conta duas vezes o que o próprio *pipeline* gravou antes da semente
+([D62](pendencias.md#d62--o-saldo-do-alerta-conta-duas-vezes-o-que-o-próprio-pipeline-gravou-antes-da-semente)),
+e o medidor encerra o Beam antes de o ramo de alerta drenar
+([D63](pendencias.md#d63--o-medidor-do-streaming-encerra-o-beam-antes-de-o-ramo-de-alerta-drenar)).
+Por isso os alertas acima são registro, e não portão. Os dois ficaram fora da v1.1.0 e são
+limitações declaradas dela. O atraso de registro no livro, que a §7.2 mediu, não foi medido aqui.
 
 ---
 

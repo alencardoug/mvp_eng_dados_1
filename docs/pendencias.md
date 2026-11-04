@@ -10,20 +10,21 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
+| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` está na revisão final — a etapa 1.9 do plano do `bi-como-codigo` — e o seu aceite vem depois dela ([plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
-| Decisões pendentes | 7 (D62 a D65, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D67, achada ao escrever as descrições da v1.1.0; D43, adiada de propósito para a fase GCP) |
-| Última revisão | 03/11/2026 |
+| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP). A D65 e a D67 foram fechadas pela v1.1.0 (§2) |
+| Última revisão | 04/11/2026 — a D65 e a D67 fechadas pela v1.1.0; a D66 medida depois da regeneração |
 
 ---
 
 ## 1. Esperando você
 
-As quatro primeiras nasceram da validação do material de estudo da fase local, em 04/10/2026, que
+As três primeiras nasceram da validação do material de estudo da fase local, em 04/10/2026, que
 rodou cada laboratório na máquina. Nada foi alterado no código; as saídas estão em
 `data/medicoes/material_estudo/` (fora do Git), e o relato inteiro, na §15 de
 [`CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md`](../CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md),
-onde aparecem como achados A a D.
+onde aparecem como achados A a C. O achado D, a venda antes do lançamento, foi a D65, fechada pela
+v1.1.0 (§2).
 
 ### D62 — o saldo do alerta conta duas vezes o que o próprio pipeline gravou antes da semente
 
@@ -84,26 +85,6 @@ só documentar a limitação.
 *Efeito de não decidir:* nenhum no fluxo atual; qualquer uso futuro de Connections ou Variables
 falha.
 
-### D65 — 3.130 de 7.500 itens do varejo vendidos antes do lançamento do produto
-
-**Pergunta:** o gerador passa a respeitar `launched_at` ≤ data da venda, com uma invariante nova, ou
-isso fica registrado como limitação do dado sintético?
-
-**Medido em 04/10/2026,** em `analytics.fact_sales_order_item` × `dim_product`, `source_system =
-'retail'`: 3.130 de 7.500 itens com `placed_at` anterior a `launched_at`. O pedido ORD-0000037,
-de 2025-07-01, vendeu o `SKU-0000048`, lançado em 2026-08-20. Nenhuma das 13
-[invariantes](modelo_de_dados.md#4-invariantes-de-negócio) cobre lançamento × venda — a 10 trata do
-ciclo do pedido.
-
-*Opções:* **(a)** registrar como limitação conhecida e corrigir na próxima regeração planejada da
-origem — recomendada: corrigir agora exige o procedimento da
-[Execução Local §3.2](execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming) e um ciclo
-novo, por um efeito que nenhuma pergunta de negócio usa; **(b)** corrigir o gerador, acrescentar a
-invariante 14 e regerar agora.
-
-*Efeito de não decidir:* nenhum teste falha; uma análise de "dias desde o lançamento" daria valores
-negativos.
-
 ### D66 — a P13 não conta a remessa entregue cujos itens foram todos rejeitados
 
 **Pergunta:** a P13 passa a ler uma fato no grão da remessa, para contar toda remessa entregue como o
@@ -130,27 +111,10 @@ de qualquer forma. Até a decisão, a descrição da view diz qual população �
 acima; **(b)** emendar o ADR-0033 e o [glossário](glossario_de_negocio/entrega_no_prazo.md): a
 entrega no prazo conta só a remessa com algum item aceito.
 
-*Efeito de não decidir:* nenhum teste falha; a taxa do ramo legado deixa de fora 12 de 144 remessas
-entregues (8%), e o número muda com a regeneração.
-
-### D67 — o `captured_amount` da P09 é sempre zero
-
-**Pergunta:** a view `payment_approval_rate_by_method` passa a levar o valor capturado dos pagamentos
-que as autorizações do grupo abriram, ou a coluna sai do contrato?
-
-**Medido em 03/11/2026,** em sessão somente leitura: as 538 linhas da view têm `captured_amount`
-zero, e o `authorized_amount` soma R$ 39.254.835,44. A view lê `analytics.fact_payment_transaction`
-só nas linhas de autorização (`transaction_type = 'authorization'`), e o valor capturado vive nas de
-captura: na fato, as 3.302 capturas somam R$ 36.719.765,95 e as 3.826 autorizações, zero. Achado ao
-escrever a descrição da coluna na etapa 1.8 da v1.1.0; até a decisão, a descrição diz que ela é
-sempre zero, e por quê.
-
-*Opções:* **(a)** levar à view o capturado dos mesmos pagamentos, pelas transações de captura deles
-— recomendada: é correção, como a da contagem com a origem (a coluna passa a ser o que o nome diz),
-cabe antes da regeneração e não muda o tipo do contrato; **(b)** tirar a coluna da view e do
-contrato — a P09 pergunta pela aprovação, não pela captura, mas quem consome a coluna perde-a.
-
-*Efeito de não decidir:* nenhum teste falha; quem lê a coluna lê zero.
+*Efeito de não decidir:* nenhum teste falha; a taxa do ramo legado deixava de fora 12 de 144
+remessas entregues (8%) no dado da v1.0.0. No da v1.1.0 ficam de fora **16** remessas legadas
+entregues, todas com os itens rejeitados em cascata (`parent_rejected`), cada uma explicada pela
+reconciliação da P13 (04/11/2026, na regeneração); o total de remessas entregues não foi recontado.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
@@ -234,6 +198,30 @@ diário do B5 está em `data/medicoes/diario_b5.md`, fora do Git.
 ---
 
 ## 2. Decisões já fechadas
+
+### D65 e D67 — decididas em 22/10 e 03/11/2026, fechadas pela v1.1.0
+
+- **D65 — o gerador passa a respeitar o lançamento antes da venda, com a invariante 14.** Decidida
+  em 22/10/2026 como a N6 do
+  [plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/PLAN.md#12-the-decisions)
+  — corrigir o dado sintético agora, antes de tudo —, que é a opção (b), com o lançamento sorteado
+  entre o início do período e a primeira venda do produto (N39). Implementada na etapa 1.5 da
+  v1.1.0 — a [invariante 14](modelo_de_dados.md#4-invariantes-de-negócio) e o
+  [realismo da geração](geracao_de_dados.md#5-realismo-e-coerência) — e levada ao armazém pela
+  regeneração de 04/11/2026: **0** de 7.500 itens do varejo e 0 de 238 do legado vendidos antes do
+  lançamento, eram 3.130 de 7.500; `invariante_14_lancamento_antes_da_venda` passa no `check`.
+  *Descartada:* a limitação declarada, a opção (a). *Custo aceito:* a regeneração das duas origens
+  com a memória do armazém mantida
+  ([Capacidade §2.13](capacidade_e_recuperacao.md#213-a-regeneração-da-v110-medida--04112026)), e o
+  pedido ORD-0000037 mudou de conteúdo.
+- **D67 — a P09 leva o valor capturado dos pagamentos que as autorizações do grupo abriram.**
+  Decidida em 03/11/2026, a opção (a), e implementada em `94e0d09`: o capturado de cada pagamento
+  entra no grupo da primeira autorização aprovada dele, uma vez só, e
+  `p09_capturado_reconcilia_com_a_fato` cobra que o total da view seja o da fato. O tipo do contrato
+  não mudou. A regeneração achou que o teste tinha nascido sem a etiqueta `fronteira`, e a primeira
+  execução da DAG terminou com o consumo vazio; corrigido em `6d93d72`, com a guarda que confere a
+  etiqueta ([Qualidade §7](qualidade_de_dados.md#7-reconciliação-entre-camadas)). *Descartada:*
+  tirar a coluna da view e do contrato.
 
 ### D61 — decidida em 25/09/2026, ao encerrar a revisão do roteiro do B5
 
