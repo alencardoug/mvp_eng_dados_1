@@ -375,12 +375,29 @@ leem no mesmo lugar.
   novo.
 - **Nunca substituído.** Cada registro é publicado por temporário, `fsync` e `link`, que falha se
   o nome existe.
+- **A fase de recuperação** (`mvp_ed1.recovery.capture_recovery`). A fase 1 não finaliza mais
+  tentativa nenhuma — até a v1.0.0 ela chamava `retomar`, e a transição acontecia sem registro.
+  Antes de abrir a sua, os dois chamadores — `make sync-legacy` e a tarefa
+  `retomar_capturas_do_legado` da DAG — resolvem as pendentes: só a de *job* final, ou a sem *job*
+  passada a carência e cujo lock está livre, cada uma com o seu registro e o da transição. Depois,
+  a **barreira**: toda tentativa do certificado registrada e igual ao último registro, nenhuma
+  `pending`, todo `sync_id` do bruto e todo *job* da conexão legada desde a linha de base com
+  exatamente uma tentativa. Qualquer diferença para, e nada se abre. A barreira roda de novo
+  **dentro** do lock de abertura de `iniciar`, e é ela que decide a abertura.
+- **O lock da tentativa.** Um *advisory lock* de sessão por tentativa, que morre com o processo:
+  lock tomado é chamador vivo, e a recuperação não abandona a tentativa dele, por mais velha que
+  seja. A CLI o segura a invocação inteira; na DAG, a fase 1 o segura no *insert*, a
+  sincronização do disparo ao registro do *job*, e o portão na publicação. Antes do `POST` que cria
+  o *job*, a tentativa ainda precisa estar `pending` sem *job*. `make ledger-attempt` registra uma
+  tentativa à mão, e recusa com o lock tomado.
 
-A especificação completa — os registros de transição e de tratamento, a fase de recuperação que os
-consome e a reconciliação com os *jobs* do Airbyte — é o
+A garantia vale com **um chamador de captura vivo por vez**; dois juntos são limitação declarada,
+e os locks são defesa além disso. A especificação completa — a reconciliação com os *jobs* do
+Airbyte, os registros de tratamento e o oráculo que lê o livro — é o
 [runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
-no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, o
-registro de tentativa e os dois portões; a fase de recuperação (H7) ainda não.
+no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, os
+registros de tentativa e de transição, os dois portões e a fase de recuperação. Ainda não: a época
+que a restauração abre sozinha (H8), o registro de tratamento e o oráculo da memória (T3).
 
 ---
 

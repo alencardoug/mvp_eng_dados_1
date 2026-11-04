@@ -204,27 +204,49 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
     for o certificado — antes de o comando voltar, e o comando falha se o
     registro não for escrito. Toda tentativa que a CLI abre termina registrada
     por ela mesma.
+
+    **A fase de recuperação (H7) vem antes de tudo**: resolve e registra as
+    tentativas que ficaram para trás e passa a barreira, ou para — e nada se
+    abre. A tentativa nova abre sob a mesma barreira, dentro do lock de
+    abertura, e o lock dela é tomado antes do *insert* e segurado a invocação
+    inteira: a recuperação de outro chamador nunca a abandona enquanto esta CLI
+    vive. Antes do `POST` que cria o *job*, ela ainda precisa estar pendente
+    sem *job*.
     """
     import os
+    import uuid
 
     from sqlalchemy import create_engine
 
     from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
     from mvp_ed1.legacy import captura
-    from mvp_ed1.recovery import ledger
+    from mvp_ed1.recovery import capture_recovery, ledger
 
     ledger.writable_epoch()
     legado = create_engine(database_url(LEGACY))
     armazem = create_engine(database_url(WAREHOUSE))
+    chamador = {"kind": "cli", "pid": os.getpid()}
+
+    def listar() -> capture_recovery.Listing:
+        return capture_recovery.airbyte_listing(jwt, connection_id)
+
     try:
-        tentativa = captura.iniciar(legado, armazem, nome, estado_do_job=estado_do_job(jwt))
-        nascido = disparar(nome, connection_id, jwt)["jobId"]
-        captura.registrar_job(armazem, tentativa, nascido)
-        # O id que vale é o do disparo — o que o certificado gravou —, e não o
-        # que a consulta de andamento repetir.
-        job = acompanhar(nascido, jwt) | {"jobId": nascido}
-        certificado = captura.concluir(legado, armazem, tentativa)
-        publicado, _ = ledger.gate(armazem, tentativa, caller={"kind": "cli", "pid": os.getpid()})
+        observador = estado_do_job(jwt)
+        relatorio = capture_recovery.recover(legado, armazem, job_state=observador, listar=listar, caller=chamador)
+        for caminho in relatorio["published"]:
+            print(f"  recuperação registrou: {caminho}", flush=True)
+        tentativa = uuid.uuid4().hex
+        with captura.bloqueio_da_tentativa(armazem, tentativa):
+            captura.iniciar(legado, armazem, nome, tentativa=tentativa,
+                            barreira=capture_recovery.opening_barrier(listar))
+            captura.conferir_antes_do_disparo(armazem, tentativa)
+            nascido = disparar(nome, connection_id, jwt)["jobId"]
+            captura.registrar_job(armazem, tentativa, nascido)
+            # O id que vale é o do disparo — o que o certificado gravou —, e não o
+            # que a consulta de andamento repetir.
+            job = acompanhar(nascido, jwt) | {"jobId": nascido}
+            certificado = captura.concluir(legado, armazem, tentativa)
+            publicado, _ = ledger.gate(armazem, tentativa, caller=chamador, lock_held=True)
         print(f"  registro da tentativa: {publicado.path} · sha256 {publicado.sha256}", flush=True)
     finally:
         legado.dispose()

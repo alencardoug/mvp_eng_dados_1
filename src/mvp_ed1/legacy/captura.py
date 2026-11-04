@@ -19,9 +19,10 @@ exercitam com origens e brutos fictícios: alteração sem mudança de contagem,
 duplicata compensando perda, linhas de outro *job* na geração.
 
 Quem chama: a DAG (`iniciar` → sincronizar → `concluir`) e `make sync-legacy`,
-pela mesma função. As duas fases são *upserts* pela chave
-`(capture_attempt_id, source_table)`: reenviar produz o mesmo estado — e uma
-tentativa já fechada **não é remedida**: o reenvio devolve o que está gravado.
+pela mesma função, ambos depois da fase de recuperação (H7 da v1.1.0). A fase 1
+**insere** — um id repetido falha, nunca se sobrescreve —; a fase 2 só escreve
+em linha `pending`: reenviá-la produz o mesmo estado, e uma tentativa já
+fechada **não é remedida** — o reenvio devolve o que está gravado.
 
 A fase 2 publica veredito e identidade (`snapshot_id`) das 40 tabelas numa
 única transação. Até 15/09/2026 eram duas, e uma interrupção entre elas deixava
@@ -33,12 +34,12 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 
 from mvp_ed1 import governance
 from mvp_ed1.airbyte import CONCLUIDOS as JOB_TERMINADO
@@ -181,27 +182,62 @@ def medir_recebido(armazem: Engine, job_id: int) -> dict[str, Recebido]:
 
 # ── Fase 1 ───────────────────────────────────────────────────────────────────
 
+#: O lock de abertura (RR-37): uma chave só, a mesma para os dois chamadores,
+#: tomada na transação do *insert* — a decisão de abrir é a própria barreira.
+#: Espaço próprio: no da tentativa, o `hashtext` de algum id poderia dar a mesma chave.
+LOCK_DE_ABERTURA = (7102, 0)
+
+#: A barreira que `iniciar` roda dentro do lock de abertura: recebe a conexão
+#: da transação do *insert* e devolve o que impede a abertura — vazio, abre.
+Barreira = Callable[[Connection], list[str]]
+
+
+class AberturaRecusada(Exception):
+    """A barreira achou o que impede abrir a tentativa: nada foi aberto, nenhum *job* disparado."""
+
+    def __init__(self, problemas: list[str]) -> None:
+        super().__init__("abertura recusada pela barreira:\n  " + "\n  ".join(problemas))
+        self.problemas = problemas
+
+
 def iniciar(
     legado: Engine,
     armazem: Engine,
     conexao_airbyte: str,
     *,
-    estado_do_job: EstadoDoJob | None = None,
+    barreira: Barreira,
+    tentativa: str | None = None,
     agora: dt.datetime | None = None,
 ) -> str:
     """Mede a origem e abre a tentativa como `pending`. Devolve o `capture_attempt_id`.
 
-    Antes de abrir a sua, resolve as tentativas pendentes que ficaram para trás
-    (`retomar`). Nenhuma é reaproveitada em silêncio, e nenhuma ainda ativa é
-    fechada.
+    **Não finaliza tentativa nenhuma** (H7 da regeneração da v1.1.0, N30): até
+    04/11/2026 `iniciar` chamava `retomar`, e a transição de uma tentativa
+    anterior acontecia sem registro, antes de a nova existir. Quem resolve as
+    pendentes agora é a fase de recuperação (`recovery.capture_recovery`), que
+    os dois chamadores rodam antes, registrando cada transição.
+
+    **A abertura é a barreira** (RR-37): a transação do *insert* toma o lock de
+    abertura — esperando, não falhando —, roda `barreira` dentro dele e só
+    insere se ela não achar nada. Como a linha nova se confirma junto com o
+    lock, todo chamador seguinte encontra esta tentativa `pending`, e depois
+    final sem registro até o portão dela publicar: nenhuma segunda abertura
+    cabe entre a primeira e o registro dela.
+
+    `tentativa` é o id que o chamador já sorteou para tomar o lock da tentativa
+    antes de o *insert* confirmar (H7); sem ele, sorteia-se aqui. O *insert*
+    não é *upsert*: um id que já existe é um campo imutável trocado, e falha.
     """
     governance.garantir(armazem)
     agora = agora or dt.datetime.now(dt.timezone.utc)
-    retomar(legado, armazem, estado_do_job=estado_do_job, agora=agora)
-
-    tentativa = uuid.uuid4().hex
+    tentativa = tentativa or uuid.uuid4().hex
     origem = medir_origem(legado)
     with armazem.begin() as conexao:
+        conexao.execute(text("select pg_advisory_xact_lock(:ns, :k)"),
+                        {"ns": LOCK_DE_ABERTURA[0], "k": LOCK_DE_ABERTURA[1]})
+        problemas = barreira(conexao)
+        if problemas:
+            raise AberturaRecusada(problemas)
         for tabela, medida in origem.items():
             conexao.execute(
                 text(
@@ -210,16 +246,31 @@ def iniciar(
                         (capture_attempt_id, source_table, connection_name, source_rows_before,
                          source_hash_before, status, started_at)
                     values (:a, :t, :c, :n, :h, :s, :quando)
-                    on conflict (capture_attempt_id, source_table) do update
-                        set source_rows_before = excluded.source_rows_before,
-                            source_hash_before = excluded.source_hash_before,
-                            status = excluded.status
                     """
                 ),
                 {"a": tentativa, "t": tabela, "c": conexao_airbyte, "n": medida.linhas,
                  "h": medida.hash, "s": PENDING, "quando": agora},
             )
     return tentativa
+
+
+def conferir_antes_do_disparo(armazem: Engine, tentativa: str) -> None:
+    """Antes do `POST` que cria o *job*, segurando o lock da tentativa: ela ainda é `pending` sem *job*.
+
+    Um chamador atrasado além da carência encontra a tentativa abandonada pela
+    recuperação e não cria *job* nenhum (RR-39). Levanta `TentativaIndisponivel`.
+    """
+    with armazem.connect() as conexao:
+        linhas = conexao.execute(
+            text(f"select count(*) from {TABELA} where capture_attempt_id = :a "
+                 f"and status = '{PENDING}' and job_id is null"),
+            {"a": tentativa},
+        ).scalar_one()
+    if linhas != len(schema.tabelas()):
+        raise TentativaIndisponivel(
+            f"tentativa {tentativa} não está mais pendente sem job ({linhas} de {len(schema.tabelas())} "
+            "linhas): a recuperação a resolveu — nenhum job é criado; abra outra fase 1"
+        )
 
 
 class TentativaIndisponivel(Exception):
@@ -256,6 +307,7 @@ def retomar(
     *,
     estado_do_job: EstadoDoJob | None = None,
     agora: dt.datetime | None = None,
+    apenas: Collection[str] | None = None,
 ) -> dict[str, str]:
     """Resolve as tentativas `pending` que ficaram para trás, sem fechar nenhuma ainda ativa.
 
@@ -263,6 +315,7 @@ def retomar(
     fase 2 rodou com o "antes" gravado), `abandonada` (sem *job* depois da
     carência), `ativa` (*job* ainda em curso, ou sem *job* dentro da carência)
     ou `sem_observador` (tem *job*, e ninguém para dizer se ele terminou).
+    `apenas` restringe às tentativas dadas — o que a fase de recuperação usa.
 
     Antes de 15/09/2026 toda pendente com *job* era concluída na hora, e uma
     retomada durante a sincronização fechava o bruto parcial como `incomplete`
@@ -271,6 +324,10 @@ def retomar(
     agora = agora or dt.datetime.now(dt.timezone.utc)
     feito: dict[str, str] = {}
     for pendente, job_id, inicio in _pendentes(armazem):
+        # A fase de recuperação passa só as tentativas que acabou de registrar
+        # (H7, passo 2): uma que mudou de estado no meio-tempo fica de fora.
+        if apenas is not None and pendente not in apenas:
+            continue
         if job_id is None:
             # A lista acima pode estar velha: outro chamador pode ter registrado
             # o job ou concluído entre a leitura e esta escrita. O abandono só

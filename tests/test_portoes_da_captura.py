@@ -31,7 +31,7 @@ import yaml
 
 from mvp_ed1 import airbyte
 from mvp_ed1.legacy import captura
-from mvp_ed1.recovery import ledger
+from mvp_ed1.recovery import capture_recovery, ledger
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 DAG = RAIZ / "airflow" / "dags" / "fluxo_batch.py"
@@ -162,8 +162,16 @@ def cli(livro, monkeypatch):
     monkeypatch.setattr(airbyte, "estado_do_job", lambda _jwt: (lambda _j: "succeeded"))
     monkeypatch.setattr(airbyte, "disparar", lambda *_a: eventos.append("disparo") or {"jobId": 44})
     monkeypatch.setattr(airbyte, "acompanhar", lambda job, _jwt: {"status": "succeeded", "jobId": job})
-    monkeypatch.setattr(captura, "iniciar", lambda *_a, **_k: eventos.append("iniciar") or "t1")
+    monkeypatch.setattr(captura, "iniciar", lambda *_a, **k: eventos.append("iniciar") or k["tentativa"])
     monkeypatch.setattr(captura, "registrar_job", lambda *_a: eventos.append("registrar_job"))
+    monkeypatch.setattr(captura, "conferir_antes_do_disparo", lambda *_a: eventos.append("conferir"))
+    monkeypatch.setattr(capture_recovery, "recover",
+                        lambda *_a, **_k: eventos.append("recuperacao") or {"published": []})
+    # O id que a CLI sorteia para a tentativa, fixo para o nome do registro ser previsível.
+    import types
+    import uuid
+
+    monkeypatch.setattr(uuid, "uuid4", lambda: types.SimpleNamespace(hex="t1"))
 
     def concluir(*_a):
         eventos.append("concluir")
@@ -182,7 +190,9 @@ def cli(livro, monkeypatch):
 
 def test_a_cli_registra_a_propria_tentativa_antes_de_voltar(cli) -> None:
     job, certificado = airbyte.sincronizar_certificando("id", "legacy_para_raw_legacy", "jwt")
-    assert cli["eventos"] == ["iniciar", "disparo", "registrar_job", "concluir", "portao"]
+    assert cli["eventos"] == ["recuperacao", "iniciar", "conferir", "disparo", "registrar_job", "concluir", "portao"]
+    # O lock da tentativa da CLI cobre da abertura ao registro; o portão não o toma de novo.
+    assert cli["locks"] == [("toma", "t1"), ("solta", "t1")]
     assert _publicados(cli["epoca"]) == ["cli_t1_attempt.json"]
     assert json.loads((cli["epoca"] / "cli_t1_attempt.json").read_text())["caller"]["kind"] == "cli"
     assert certificado["status"] == "complete"
@@ -256,14 +266,14 @@ def test_o_portao_fica_entre_a_conclusao_e_o_primeiro_build() -> None:
     assert not any(b == "registro" for a, b in arestas if a != "captura_legada")
 
 
-def test_a_dag_tem_catorze_tarefas() -> None:
+def test_a_dag_tem_quinze_tarefas() -> None:
     tarefas = [n.name for n in _funcao("fluxo_batch").body if isinstance(n, ast.FunctionDef)]
-    assert tarefas == ["sincronizar", "iniciar_captura_do_legado", "concluir_captura_do_legado",
-                       "registrar_captura_do_legado", "camada"]
+    assert tarefas == ["sincronizar", "retomar_capturas_do_legado", "iniciar_captura_do_legado",
+                       "concluir_captura_do_legado", "registrar_captura_do_legado", "camada"]
     camadas = [n for n in ast.walk(_funcao("fluxo_batch"))
                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "camada"]
-    # 2 sincronizações + iniciar + concluir + portão + 9 camadas de dbt; a 15ª é a recuperação (H7).
-    assert 2 + 3 + len(camadas) == 14
+    # 2 sincronizações + recuperação + iniciar + concluir + portão + 9 camadas de dbt.
+    assert 2 + 4 + len(camadas) == 15
 
 
 def test_o_portao_roda_seja_qual_for_o_desfecho_da_conclusao() -> None:
@@ -280,6 +290,31 @@ def test_o_portao_publica_antes_de_falhar_pelo_certificado() -> None:
 def test_a_fase_1_da_dag_confere_a_epoca_antes_de_abrir_a_tentativa() -> None:
     corpo = ast.unparse(_funcao("iniciar_captura_do_legado"))
     assert corpo.index("ledger.writable_epoch()") < corpo.index("captura.iniciar(")
+
+
+def test_a_recuperacao_vem_antes_da_fase_1() -> None:
+    assert _variaveis()["recuperacao"] == "retomar_capturas_do_legado"
+    assert ("recuperacao", "tentativa") in _arestas()
+    assert "capture_recovery.recover(" in ast.unparse(_funcao("retomar_capturas_do_legado"))
+
+
+def test_a_fase_1_abre_sob_a_barreira_segurando_o_lock_da_tentativa() -> None:
+    corpo = ast.unparse(_funcao("iniciar_captura_do_legado"))
+    assert corpo.index("captura.bloqueio_da_tentativa(armazem, tentativa)") < corpo.index("captura.iniciar(")
+    assert "barreira=capture_recovery.opening_barrier(" in corpo and "tentativa=tentativa" in corpo
+
+
+def test_a_sincronizacao_do_legado_confere_e_associa_segurando_o_lock() -> None:
+    """RR-39: o lock antes de tudo; a conferência antes do POST; o job associado ainda dentro."""
+    corpo = ast.unparse(_funcao("sincronizar"))
+    lock = corpo.index("captura.bloqueio_da_tentativa(armazem, tentativa)")
+    dentro = corpo.index("with bloqueio:")
+    assert lock < dentro < corpo.index("airbyte.token()") < corpo.index("captura.conferir_antes_do_disparo(")
+    assert corpo.index("captura.conferir_antes_do_disparo(") < corpo.index("airbyte.disparar(")
+    assert corpo.index("airbyte.disparar(") < corpo.index("captura.registrar_job(") < corpo.index("airbyte.acompanhar(")
+    # A espera pelo job fica fora do lock.
+    bloco = next(n for n in ast.walk(_funcao("sincronizar")) if isinstance(n, ast.With))
+    assert "acompanhar" not in ast.unparse(bloco)
 
 
 # ── A configuração ───────────────────────────────────────────────────────────

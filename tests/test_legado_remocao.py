@@ -438,7 +438,7 @@ def _certificar(legado, armazem, job: int) -> int:
 
     from mvp_ed1.legacy import captura
 
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=lambda _conexao: [])
     captura.registrar_job(armazem, tentativa, job)
     _simular_job(armazem, legado, job_id=job, geracao=job)
     certificado = captura.concluir(legado, armazem, tentativa)

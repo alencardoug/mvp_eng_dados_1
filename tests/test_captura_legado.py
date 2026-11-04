@@ -33,6 +33,10 @@ from mvp_ed1.legacy import captura, schema
 
 M, R = captura.Medida, captura.Recebido
 
+#: Estes testes são do certificado, não da fase de recuperação (H7): abrem
+#: tentativa sem barreira, e dizem isso por extenso.
+SEM_BARREIRA = lambda _conexao: []  # noqa: E731
+
 
 # ── A regra ──────────────────────────────────────────────────────────────────
 
@@ -165,7 +169,7 @@ def test_governance_e_idempotente_e_versionado(efemeros) -> None:
 def test_duas_fases_certificam_uma_captura_integra_e_sao_idempotentes(efemeros) -> None:
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 901)
     _simular_job(armazem, legado, job_id=901, geracao=1)
 
@@ -190,7 +194,7 @@ def test_conteudo_alterado_sem_mudar_contagem_e_instavel_e_perda_compensada_e_in
     _semear_origem(legado)
 
     # (c) a origem muda entre a fase 1 e o fim do job: mesma contagem, outro conteúdo.
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 902)
     _simular_job(armazem, legado, job_id=902, geracao=2)
     with legado.begin() as conexao:
@@ -200,7 +204,7 @@ def test_conteudo_alterado_sem_mudar_contagem_e_instavel_e_perda_compensada_e_in
     assert instavel["snapshot_id"] is None
 
     # (d) o bruto recebe a mesma contagem, mas uma linha duplicada no lugar de outra.
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 903)
     _simular_job(armazem, legado, job_id=903, geracao=3)
     with armazem.begin() as conexao:
@@ -218,13 +222,13 @@ def test_conteudo_alterado_sem_mudar_contagem_e_instavel_e_perda_compensada_e_in
 def test_tabela_ausente_e_incompleta_e_linha_de_outro_job_e_inconsistente(efemeros) -> None:
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 904)
     _simular_job(armazem, legado, job_id=904, geracao=4, tabelas=[t for t in schema.tabelas() if t != "brands"])
     faltando = captura.concluir(legado, armazem, tentativa)
     assert faltando["tabelas"]["brands"] == captura.INCOMPLETE and faltando["tabelas"]["warehouses"] == captura.COMPLETE
 
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 905)
     _simular_job(armazem, legado, job_id=905, geracao=5)
     with armazem.begin() as conexao:
@@ -251,19 +255,24 @@ def test_tentativa_pendente_e_recuperada_com_o_antes_gravado_ou_abandonada(efeme
     _semear_origem(legado)
 
     # Falha entre a sincronização e a fase 2: o job existe e terminou, a fase 2 não rodou.
-    interrompida = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    interrompida = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, interrompida, 906)
     _simular_job(armazem, legado, job_id=906, geracao=6)
     # Falha antes de o job nascer: não há o que certificar.
-    sem_job = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    sem_job = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
 
-    # A próxima fase 1 resolve as duas antes de abrir a sua — a que tem job só
-    # porque o Airbyte diz que ele terminou; a sem job só porque a carência passou.
+    # Desde a v1.1.0 (H7) a fase 1 sozinha não resolve nada: as duas seguem
+    # pendentes, mesmo finalizáveis. Quem as resolve é a fase de recuperação.
     depois_da_carencia = dt.datetime.now(dt.timezone.utc) + captura.CARENCIA_SEM_JOB
-    nova = captura.iniciar(
-        legado, armazem, "legacy_para_raw_legacy",
-        estado_do_job=lambda job_id: "succeeded", agora=depois_da_carencia,
-    )
+    nova = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA,
+                           agora=depois_da_carencia)
+    assert _estados(armazem) == {interrompida: captura.PENDING, sem_job: captura.PENDING, nova: captura.PENDING}
+
+    # A retomada conclui a que tem job só porque o Airbyte diz que ele terminou,
+    # e abandona a sem job só porque a carência passou; `apenas` deixa a nova de fora.
+    feito = captura.retomar(legado, armazem, estado_do_job=lambda job_id: "succeeded",
+                            agora=depois_da_carencia, apenas={interrompida, sem_job})
+    assert feito == {interrompida: "concluida", sem_job: "abandonada"}
     estados = _estados(armazem)
     assert estados[interrompida] == captura.COMPLETE, "recuperada a partir do antes gravado"
     assert estados[sem_job] == captura.ABANDONED
@@ -277,10 +286,10 @@ def test_a_retomada_nao_fecha_tentativa_com_job_em_curso_nem_sem_job_dentro_da_c
     legado, armazem = efemeros
     _semear_origem(legado)
 
-    em_curso = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    em_curso = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, em_curso, 907)
     _simular_job(armazem, legado, job_id=907, geracao=7, tabelas=["brands"])  # o job ainda escreve
-    a_caminho = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")  # outro chamador, antes do job nascer
+    a_caminho = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)  # outro chamador, antes do job nascer
 
     consultas: list[int] = []
 
@@ -312,7 +321,7 @@ def test_reenviar_a_conclusao_devolve_o_certificado_gravado_sem_remedir_a_origem
     """RV10-02: remedir depois de uma alteração legítima revogava um `complete` histórico."""
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 908)
     _simular_job(armazem, legado, job_id=908, geracao=8)
     primeira = captura.concluir(legado, armazem, tentativa)
@@ -376,7 +385,7 @@ def test_interrupcao_no_meio_da_publicacao_nao_deixa_nada_e_a_retomada_conclui(e
     """RV10-01: veredito e identidade saem juntos, ou não saem."""
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 909)
     _simular_job(armazem, legado, job_id=909, geracao=9)
 
@@ -468,7 +477,7 @@ def test_o_abandono_nao_sobrescreve_tentativa_que_ganhou_job_ou_foi_concluida(ef
     """RV10-2-01: a lista de pendentes lida antes pode estar velha; a guarda é no UPDATE."""
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     velha = [(tentativa, None, dt.datetime.now(dt.timezone.utc) - 2 * captura.CARENCIA_SEM_JOB)]
 
     # Entre a leitura de A e a escrita de A, B registra o job e conclui.
@@ -482,7 +491,7 @@ def test_o_abandono_nao_sobrescreve_tentativa_que_ganhou_job_ou_foi_concluida(ef
     assert _estados(armazem)[tentativa] == captura.COMPLETE and captura.certificadas(armazem) == [910]
 
     # E o caso em que B só registrou o job: a pendente com job não é abandonada.
-    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, outra, 911)
     monkeypatch.setattr(captura, "_pendentes", lambda _armazem: [(outra, None, velha[0][2])])
     assert captura.retomar(legado, armazem) == {outra: "ativa"}
@@ -494,7 +503,7 @@ def test_a_conclusao_que_perde_a_disputa_devolve_o_certificado_gravado(efemeros,
     """RV10-2-02: A mede `complete`, B publica `unstable` antes; A devolve o que ficou no banco."""
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 912)
     _simular_job(armazem, legado, job_id=912, geracao=12)
 
@@ -518,7 +527,7 @@ def test_a_conclusao_que_perde_a_disputa_devolve_o_certificado_gravado(efemeros,
     assert perdedor["tabelas"]["brands"] == captura.UNSTABLE and captura.certificadas(armazem) == []
 
     # O sentido inverso: A publica `complete` primeiro; B, que mediu a origem alterada, perde e devolve `complete`.
-    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    outra = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, outra, 913)
     _simular_job(armazem, legado, job_id=913, geracao=13)
     em_curso.update(B=False, vencedor=None)
@@ -544,7 +553,7 @@ def test_a_associacao_do_job_e_idempotente_e_recusa_outro_job(efemeros) -> None:
     """RV10-2-03: reassociar uma tentativa fechada misturava duas capturas."""
     legado, armazem = efemeros
     _semear_origem(legado)
-    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy")
+    tentativa = captura.iniciar(legado, armazem, "legacy_para_raw_legacy", barreira=SEM_BARREIRA)
     captura.registrar_job(armazem, tentativa, 914)
     captura.registrar_job(armazem, tentativa, 914)  # o mesmo job, de novo: nada muda
     with pytest.raises(captura.TentativaIndisponivel):

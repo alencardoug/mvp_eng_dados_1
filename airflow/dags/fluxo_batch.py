@@ -89,25 +89,72 @@ def fluxo_batch():
                 "O `make airflow-up` as obtém de `abctl local credentials`."
             )
 
-        jwt = airbyte.token()
-        connection_id = airbyte.conexao(conexao, jwt)
-        # `disparar`, não `sincronizar`: a pré-condição de identidade roda na
-        # tarefa que **efetivamente dispara** (RV12-4-03). Pô-la só na fase 1
-        # deixava de fora a reexecução desta tarefa sozinha — são tarefas
-        # distintas, e reexecutar a segunda não repete a primeira.
-        criado = airbyte.disparar(conexao, connection_id, jwt)
+        import contextlib
+
+        bloqueio = contextlib.nullcontext()
+        armazem = None
         if tentativa is not None:
             from sqlalchemy import create_engine
 
             from mvp_ed1.db import WAREHOUSE, database_url
             from mvp_ed1.legacy import captura
 
-            captura.registrar_job(create_engine(database_url(WAREHOUSE)), tentativa, criado["jobId"])
+            # O lock da tentativa antes de tudo, esperando, e até o job estar
+            # associado (H7, RR-39): enquanto ele está tomado, a recuperação de
+            # outro chamador não abandona esta tentativa, por mais velha que seja.
+            armazem = create_engine(database_url(WAREHOUSE))
+            bloqueio = captura.bloqueio_da_tentativa(armazem, tentativa)
+        with bloqueio:
+            jwt = airbyte.token()
+            connection_id = airbyte.conexao(conexao, jwt)
+            if tentativa is not None:
+                # Ainda pendente sem job, ou a recuperação já a resolveu: aí nenhum POST.
+                captura.conferir_antes_do_disparo(armazem, tentativa)
+            # `disparar`, não `sincronizar`: a pré-condição de identidade roda na
+            # tarefa que **efetivamente dispara** (RV12-4-03). Pô-la só na fase 1
+            # deixava de fora a reexecução desta tarefa sozinha — são tarefas
+            # distintas, e reexecutar a segunda não repete a primeira.
+            criado = airbyte.disparar(conexao, connection_id, jwt)
+            if tentativa is not None:
+                captura.registrar_job(armazem, tentativa, criado["jobId"])
         job = airbyte.acompanhar(criado["jobId"], jwt)
 
         if job.get("status") != "succeeded":
             raise RuntimeError(f"{conexao}: sincronização terminou como {job.get('status')}")
         return {"linhas": job.get("rowsSynced", 0), "job": job.get("jobId")}
+
+    @task
+    def retomar_capturas_do_legado() -> dict:
+        """A fase de recuperação (H7): as tentativas que ficaram para trás, resolvidas e registradas.
+
+        Antes de abrir a sua, a execução resolve as pendentes de antes — só a de
+        job final, ou a sem job passada a carência e sem chamador vivo —, com o
+        registro de tentativa e o de transição de cada uma no livro retido, e
+        passa a barreira: o inventário inteiro desde a linha de base da época,
+        nenhuma pendente. Qualquer diferença para a execução aqui, antes de a
+        fase 1 abrir tentativa ou um job nascer (decisões N30, N32 e N34 do
+        Owner no plano do `bi-como-codigo`).
+        """
+        from sqlalchemy import create_engine
+
+        from mvp_ed1 import airbyte
+        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.recovery import capture_recovery
+
+        if not os.environ.get("AIRBYTE_CLIENT_ID"):
+            raise airbyte.AirbyteIndisponivel(
+                "credenciais do Airbyte ausentes no ambiente do Airflow: a recuperação pergunta o "
+                "estado dos jobs e lista os da conexão legada. O `make airflow-up` as obtém."
+            )
+        jwt = airbyte.token()
+        conexao_legada = airbyte.conexao("legacy_para_raw_legacy", jwt)
+        return capture_recovery.recover(
+            create_engine(database_url(LEGACY)),
+            create_engine(database_url(WAREHOUSE)),
+            job_state=airbyte.estado_do_job(jwt),
+            listar=lambda: capture_recovery.airbyte_listing(jwt, conexao_legada),
+            caller={"kind": "dag", "task_id": "retomar_capturas_do_legado"},
+        )
 
     @task
     def iniciar_captura_do_legado() -> str:
@@ -116,29 +163,39 @@ def fluxo_batch():
         Contagem e hash de conteúdo de cada uma das 40 tabelas do `legacy_db`,
         gravados como `pending` em `governance.legacy_captures`. É a medição que
         não pode ser refeita depois — a origem de hoje não é a origem de antes.
-        Tentativas pendentes de execuções anteriores são concluídas aqui **só
-        se o job delas já terminou no Airbyte** — a retomada pergunta —, ou
-        marcadas `abandoned` quando nunca ganharam job; nunca reaproveitadas
-        em silêncio, e nunca fechadas enquanto ainda ativas.
+
+        Desde a v1.1.0 (H7) ela **não finaliza** tentativa nenhuma — é a tarefa
+        anterior que o faz, registrando — e só abre a sua **dentro do lock de
+        abertura, se a barreira passar** de novo ali: a decisão de abrir é a
+        própria barreira. O lock da tentativa é tomado antes do *insert*
+        confirmar e segurado até ele; a sincronização o retoma em seguida.
         """
+        import uuid
+
         from sqlalchemy import create_engine
 
         from mvp_ed1 import airbyte
         from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
         from mvp_ed1.legacy import captura
-
-        from mvp_ed1.recovery import ledger
+        from mvp_ed1.recovery import capture_recovery, ledger
 
         # Sem época corrente gravável, a captura terminaria sem registro
         # possível (H6): falha antes de abrir a tentativa e de disparar o job.
         ledger.writable_epoch()
-        observador = airbyte.estado_do_job(airbyte.token()) if os.environ.get("AIRBYTE_CLIENT_ID") else None
-        return captura.iniciar(
-            create_engine(database_url(LEGACY)),
-            create_engine(database_url(WAREHOUSE)),
-            "legacy_para_raw_legacy",
-            estado_do_job=observador,
-        )
+        jwt = airbyte.token()
+        conexao_legada = airbyte.conexao("legacy_para_raw_legacy", jwt)
+        armazem = create_engine(database_url(WAREHOUSE))
+        tentativa = uuid.uuid4().hex
+        with captura.bloqueio_da_tentativa(armazem, tentativa):
+            return captura.iniciar(
+                create_engine(database_url(LEGACY)),
+                armazem,
+                "legacy_para_raw_legacy",
+                tentativa=tentativa,
+                barreira=capture_recovery.opening_barrier(
+                    lambda: capture_recovery.airbyte_listing(jwt, conexao_legada)
+                ),
+            )
 
     @task
     def concluir_captura_do_legado(tentativa: str, sincronizacao: dict) -> int:
@@ -222,7 +279,9 @@ def fluxo_batch():
             raise RuntimeError(f"tentativa {tentativa} registrada como {estado}: não é elegível para o build")
         return publicado.sha256
 
+    recuperacao = retomar_capturas_do_legado()
     tentativa = iniciar_captura_do_legado()
+    recuperacao >> tentativa
     captura_principal = sincronizar.override(task_id="sincronizar_oltp_para_raw")(
         conexao="oltp_para_raw"
     )

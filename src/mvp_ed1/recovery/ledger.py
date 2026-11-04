@@ -42,6 +42,7 @@ conexão legada no Airbyte — o histórico de onde a reconciliação parte.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import hashlib
 import json
@@ -238,13 +239,25 @@ def _read_only(engine: Engine):
     return leitura._somente_leitura(engine)
 
 
-def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any],
+#: Os três registros que se tomam de uma tentativa: o da tentativa (o primeiro,
+#: pelo portão ou pela recuperação), o da transição (quando a recuperação a
+#: finaliza ou abandona) e — este por linha do operador — o de tratamento.
+ATTEMPT, TRANSITION = "attempt", "transition"
+
+
+def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any], kind: str = ATTEMPT,
+                   associated_job: int | None = None, reconciliation: Mapping[str, Any] | None = None,
                    agora: dt.datetime | None = None) -> dict[str, Any]:
     """O registro de uma tentativa (T4): certificado inteiro e, com *job*, as linhas dele.
 
     Seja qual for o certificado — `pending` incluído. Lido num só instante
     (`REPEATABLE READ`), para que certificado e bruto sejam do mesmo estado.
+    Uma tentativa sem *job* no certificado a que a reconciliação do §4 associou
+    um (`associated_job`) tem as linhas desse *job* medidas, e a associação vai
+    no registro — o certificado nunca a recebe.
     """
+    if kind not in (ATTEMPT, TRANSITION):
+        raise LedgerError(f"tipo de registro de tentativa desconhecido: {kind}")
     with _read_only(engine) as conexao:
         certificado = certificate_rows(conexao, attempt_id)
         if not certificado["count"]:
@@ -255,10 +268,13 @@ def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any]
         if len(jobs) != 1:
             raise LedgerError(f"tentativa {attempt_id} com mais de um job no certificado: {sorted(jobs, key=str)}")
         job_id = next(iter(jobs))
-        bruto = measure_capture(conexao, int(job_id)) if job_id is not None else None
-    return {
+        if associated_job is not None and job_id is not None:
+            raise LedgerError(f"tentativa {attempt_id} já tem o job {job_id}: não se associa outro")
+        medido = job_id if job_id is not None else associated_job
+        bruto = measure_capture(conexao, int(medido)) if medido is not None else None
+    registro = {
         "format": FORMAT,
-        "kind": "attempt",
+        "kind": kind,
         "taken_at": (agora or dt.datetime.now(dt.timezone.utc)).isoformat(),
         "capture_attempt_id": attempt_id,
         "job_id": None if job_id is None else int(job_id),
@@ -266,6 +282,10 @@ def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any]
         "certificate": certificado,
         "raw": bruto,
     }
+    if associated_job is not None or reconciliation is not None:
+        registro["associated_job"] = associated_job
+        registro["reconciliation"] = dict(reconciliation or {})
+    return registro
 
 
 def baseline_record(engine: Engine, airbyte_jobs: Iterable[Mapping[str, Any]], *,
@@ -342,6 +362,7 @@ def gate(
     try_number: int = 1,
     job_state: Callable[[int], str] | None = None,
     environ: Mapping[str, str] | None = None,
+    lock_held: bool = False,
 ) -> tuple[Published, dict[str, Any]]:
     """O registro da tentativa do próprio chamador, na época corrente, segurando o lock dela (H6).
 
@@ -350,7 +371,9 @@ def gate(
     curso, não é registrável agora: fica para a fase de recuperação do próximo
     chamador (H7). Fora da primeira tentativa da tarefa, recusa sem escrever —
     repetir o portão sozinho tomaria um retrato novo em nome da captura antiga
-    (N31). Devolve o publicado e o registro.
+    (N31). `lock_held` diz que o chamador já segura o lock da tentativa — a
+    CLI o segura a invocação inteira (H7) —: tomá-lo de novo, noutra sessão,
+    esperaria por si mesmo. Devolve o publicado e o registro.
     """
     from mvp_ed1.airbyte import CONCLUIDOS
     from mvp_ed1.legacy import captura
@@ -363,7 +386,8 @@ def gate(
     if not attempt_id:
         raise GateRefused("nenhuma tentativa de captura aberta nesta execução: nada a registrar")
     epoca = writable_epoch(environ)
-    with captura.bloqueio_da_tentativa(engine, attempt_id):
+    bloqueio = contextlib.nullcontext() if lock_held else captura.bloqueio_da_tentativa(engine, attempt_id)
+    with bloqueio:
         registro = attempt_record(engine, attempt_id, caller={**caller, "run_id": run_id, "try_number": try_number})
         if {linha["status"] for linha in registro["certificate"]["rows"]} == {captura.PENDING}:
             job = registro["job_id"]
@@ -391,19 +415,47 @@ def certificate_status(registro: Mapping[str, Any]) -> str:
 JOBS_LISTED = 1000
 
 
+def operator_record(engine: Engine, attempt_id: str, nome: str, *,
+                    environ: Mapping[str, str] | None = None) -> Published:
+    """O registro de tentativa que o operador toma à mão (T4) — recusado com o lock tomado.
+
+    Lock tomado é chamador vivo (H7): registrar agora tomaria o retrato de uma
+    tentativa ainda em curso. O nome é o da linha do runbook — `D2_a1_memoria.json`.
+    """
+    from mvp_ed1.legacy import captura
+
+    epoca = writable_epoch(environ)
+    with captura.bloqueio_da_tentativa(engine, attempt_id, esperar=False):
+        registro = attempt_record(engine, attempt_id, caller={"kind": "operator"})
+        return publish(epoca, nome, registro)
+
+
 def main(argv: list[str] | None = None) -> int:
-    """`baseline`: abre a época seguinte com a linha de base da memória de agora (T4, A8; H8)."""
+    """`baseline` abre a época seguinte com a linha de base (T4, A8; H8); `attempt` registra uma tentativa à mão."""
     import argparse
     import sys
 
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.recovery.ledger")
-    parser.add_argument("command", choices=["baseline"])
-    parser.parse_args(argv)
+    parser.add_argument("command", choices=["baseline", "attempt"])
+    parser.add_argument("--attempt", help="attempt: o capture_attempt_id")
+    parser.add_argument("--name", help="attempt: o nome do registro, pela linha do runbook (D2_a1_memoria.json)")
+    args = parser.parse_args(argv)
 
     from sqlalchemy import create_engine
 
     from mvp_ed1 import airbyte
     from mvp_ed1.db import WAREHOUSE, database_url
+
+    if args.command == "attempt":
+        if not args.attempt or not args.name:
+            parser.error("attempt pede --attempt e --name")
+        armazem = create_engine(database_url(WAREHOUSE))
+        try:
+            publicado = operator_record(armazem, args.attempt, args.name)
+        finally:
+            armazem.dispose()
+        print(f"registro: {publicado.path} · sha256 {publicado.sha256}")
+        return 0
     from mvp_ed1.legacy.identidade import CONEXAO_LEGADA
 
     raiz = root()

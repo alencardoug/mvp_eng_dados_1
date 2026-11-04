@@ -262,7 +262,9 @@ def test_o_job_que_vale_e_o_do_disparo(monkeypatch):
     registrado: list[int] = []
     monkeypatch.setattr("sqlalchemy.create_engine", lambda *_a, **_k: _Motor())
     monkeypatch.setattr("mvp_ed1.db.database_url", lambda _p=None: "postgresql+psycopg://x/y")
-    monkeypatch.setattr("mvp_ed1.legacy.captura.iniciar", lambda *_a, **_k: "tentativa")
+    abertas: list[str] = []
+    monkeypatch.setattr("mvp_ed1.legacy.captura.iniciar",
+                        lambda *_a, **k: abertas.append(k["tentativa"]) or k["tentativa"])
     monkeypatch.setattr("mvp_ed1.legacy.captura.registrar_job", lambda _a, _t, job: registrado.append(job))
     monkeypatch.setattr("mvp_ed1.legacy.captura.concluir", lambda *_a: {"status": "complete"})
     monkeypatch.setattr(airbyte, "estado_do_job", lambda _jwt: None)
@@ -273,8 +275,17 @@ def test_o_job_que_vale_e_o_do_disparo(monkeypatch):
 
     from mvp_ed1.recovery import ledger
 
+    import contextlib
+
+    from mvp_ed1.recovery import capture_recovery
+
     portao: list[str] = []
     monkeypatch.setattr(ledger, "writable_epoch", lambda *_a, **_k: pathlib.Path("."))
+    # A fase de recuperação e os locks (H7) têm os seus, em `test_recuperacao_da_captura.py`.
+    monkeypatch.setattr(capture_recovery, "recover", lambda *_a, **_k: {"published": []})
+    monkeypatch.setattr("mvp_ed1.legacy.captura.bloqueio_da_tentativa",
+                        lambda *_a, **_k: contextlib.nullcontext())
+    monkeypatch.setattr("mvp_ed1.legacy.captura.conferir_antes_do_disparo", lambda *_a: None)
     monkeypatch.setattr(ledger, "gate", lambda _armazem, tentativa, **_k: (
         portao.append(tentativa) or ledger.Published(pathlib.Path("registro.json"), "0" * 64), {}
     ))
@@ -282,4 +293,4 @@ def test_o_job_que_vale_e_o_do_disparo(monkeypatch):
     job, _certificado = airbyte.sincronizar_certificando("id-ficticio", identidade.CONEXAO_LEGADA, "jwt")
 
     assert job["jobId"] == 44 and registrado == [44]
-    assert portao == ["tentativa"]
+    assert len(abertas) == 1 and portao == abertas
