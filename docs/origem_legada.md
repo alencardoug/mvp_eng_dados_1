@@ -12,9 +12,9 @@
 |---|---|
 | Banco | `legacy_db`, schema `legacy` |
 | Gerador | `src/mvp_ed1/legacy/` — catálogo, schema, injetor e carga |
-| Versão | 2.10 |
+| Versão | 2.11 |
 | Catálogo de falhas | 25 tipos declarados ([ADR-0022](adr/0022-catalogo-declarativo-de-falhas-do-legado.md) e [ADR-0038](adr/0038-quarentena-de-excedente-e-rejeicao-em-cascata.md)) |
-| Última revisão | 04/11/2026 — §4.3: o oráculo prova a memória de exclusões linha a linha, a recuperação para na divergência e na ambiguidade de tempo, e os dois limites declarados (revisão do lote 1 da v1.1.0) |
+| Última revisão | 04/11/2026 — §4.3: o oráculo prova a memória de exclusões linha a linha, a recuperação para na divergência e na ambiguidade de tempo, e os dois limites declarados (revisão do lote 1 da v1.1.0); o custo da parada no limite fixo da janela (rodada 2) |
 
 ---
 
@@ -390,7 +390,12 @@ complementa os itens 4 e 5 do ADR-0044).
   pendente cujo certificado difere do último registro dela **para**, sem que a diferença seja
   adotada; e um *job* da listagem do Airbyte cujo início — que a listagem dá em segundos — atravessa
   o limite da janela de uma tentativa sem *job* também para: nada se registra nem se abandona, e o
-  Owner decide. Depois,
+  Owner decide. **Custo dessa parada:** no fim da janela que é `agora`, esperar um segundo a
+  resolve; no início da tentativa, ou no início da seguinte, o limite é fixo, e repetir a
+  recuperação para de novo. Não há comando local que diga ao livro qual *job* é da tentativa —
+  `ledger-attempt` não recebe a associação —, e a saída hoje é o caminho de volta pelo pacote
+  ([runbook §6](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#6-the-way-back))
+  ou uma resolução que o Owner defina (RVL1-2-02). Depois,
   a **barreira**: toda tentativa do certificado registrada e igual ao último registro, nenhuma
   `pending`, todo `sync_id` do bruto e todo *job* da conexão legada desde a linha de base com
   exatamente uma tentativa. Qualquer diferença para, e nada se abre. A barreira roda de novo
@@ -404,9 +409,10 @@ complementa os itens 4 e 5 do ADR-0044).
 - **O oráculo da memória** (`make memory-oracle`, T3). Somente leitura: as capturas da linha de base
   e de cada registro intactas no bruto, o certificado só com as transições do eng_dados, a
   quarentena e o tratamento como os registros os guardam, e a memória de exclusões **linha a
-  linha**, contra a recalculada do bruto retido pela regra do ADR-0045 — em Python, sem o SQL do
-  modelo. Mudanças na memória de exclusões entre a linha de base e agora só passam declaradas
-  (`REMOCOES_ACEITAS=`, `REAPARICOES_ACEITAS=`). **Fora da garantia, por desenho:** o histórico SCD,
+  linha**, uma por chave, contra a recalculada do bruto retido pela regra do ADR-0045 — em
+  Python, sem o SQL do modelo. Mudanças na memória de exclusões entre a linha de base e agora
+  só passam declaradas (`REMOCOES_ACEITAS=`, `REAPARICOES_ACEITAS=`). **Fora da garantia, por
+  desenho:** o histórico SCD,
   que a regeneração substitui e que o manifesto do pacote protege com o *digest* canônico de cada
   *snapshot* ([Capacidade §3.1](capacidade_e_recuperacao.md#31-conteúdo-do-pacote)).
 
