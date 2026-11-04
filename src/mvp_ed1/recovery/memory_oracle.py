@@ -24,7 +24,15 @@ Ele afirma, sobre a época corrente (runbook da regeneração no `bi-como-codigo
    *digest*; toda fatia de todo registro de tratamento contida como ele a
    guarda; o acréscimo da captura selecionada **exatamente** as rejeitadas da
    classificação corrente; e nada mais;
-5. `governance._versions` e a memória de exclusões iguais às da linha de base.
+5. `governance._versions` igual à da linha de base; a memória de exclusões
+   igual à dela, **mais** as remoções aceitas (N54) e **menos** as reaparições
+   aceitas (N56) — as duas da comparação do H2 sobre o estado real
+   (`make generation-compare MANIFESTO_ANTES=`). Uma chave da memória que a
+   comparação dá como adicionada voltou à origem, e o modelo a tira por
+   desenho: "sai quando a chave reaparece" (ADR-0045). Com reaparição aceita, as
+   linhas que restam da linha de base se conferem **por chave**, e não por
+   conteúdo: a linha de base guarda o *digest* do conjunto, e um conjunto menor
+   não se compara com ele. O relatório diz isso numa nota, sem esconder.
 
 O histórico SCD fica fora (runbook §1).
 """
@@ -219,20 +227,42 @@ def accepted_removals(comparacao: Mapping[str, Any]) -> set[tuple[str, str]]:
     }
 
 
-def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tuple[str, str]] | None) -> list[str]:
-    if aceitas is None:
+def accepted_reappearances(comparacao: Mapping[str, Any]) -> set[tuple[str, str]]:
+    """As chaves do legado que a comparação do H2 sobre o estado real dá como adicionadas — as que
+    voltam à origem. Só as que a memória de exclusões da linha de base guarda saem dela; as outras
+    (uma categoria nova da árvore, por exemplo) não a tocam (N56 do plano do `bi-como-codigo`)."""
+    return {
+        (tabela, str(chave))
+        for tabela, dados in comparacao["legacy"]["keys"].items()
+        for chave in dados.get("changed", {}).get("added", [])
+    }
+
+
+def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tuple[str, str]] | None,
+                       reaparecidas: set[tuple[str, str]] | None = None,
+                       notas: list[str] | None = None) -> list[str]:
+    if aceitas is None and reaparecidas is None:
         return ([] if "deletions" not in base or memoria.deletions == base["deletions"]
                 else ["a memória de exclusões mudou desde a linha de base"])
     if base.get("deletion_keys") is None or memoria.deletion_rows is None:
-        return ["remoções aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]
+        return ["mudanças aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]
+    aceitas, reaparecidas = aceitas or set(), reaparecidas or set()
     da_base = {tuple(k) for k in base["deletion_keys"]}
+    saem = da_base & reaparecidas
+    esperadas = (da_base - saem) | aceitas
     agora = {(str(r["source_table"]), str(r["business_key"])): r for r in memoria.deletion_rows}
     problemas = []
-    if set(agora) != da_base | aceitas:
-        faltam = sorted((da_base | aceitas) - set(agora))
-        sobram = sorted(set(agora) - da_base - aceitas)
+    if set(agora) != esperadas:
+        faltam = sorted(esperadas - set(agora))
+        sobram = sorted(set(agora) - esperadas)
         problemas.append(f"memória de exclusões: faltam {faltam[:5]} e sobram {sobram[:5]} "
                          f"({len(faltam)} e {len(sobram)})")
+    if saem:
+        if notas is not None:
+            notas.append(f"memória de exclusões: {len(saem)} chave(s) da linha de base saíram por reaparição "
+                         f"aceita ({sorted(saem)[:5]}); as {len(da_base - saem)} que restam conferidas por "
+                         "chave, não por conteúdo — a linha de base guarda o digest do conjunto")
+        return problemas
     antigas = [r for k, r in agora.items() if k in da_base]
     if base.get("deletions") and oraculos.digest(antigas) != base["deletions"]["digest"]:
         problemas.append("memória de exclusões: as linhas da linha de base mudaram")
@@ -241,8 +271,14 @@ def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tu
 
 def check(registros: list[Mapping[str, Any]], memoria: Memory,
           certificadas_do_livro: list[int] | None = None,
-          remocoes_aceitas: set[tuple[str, str]] | None = None) -> list[str]:
-    """Os cinco grupos de afirmações. Vazio, a memória está contida (T3)."""
+          remocoes_aceitas: set[tuple[str, str]] | None = None,
+          reaparicoes_aceitas: set[tuple[str, str]] | None = None,
+          notas: list[str] | None = None) -> list[str]:
+    """Os cinco grupos de afirmações. Vazio, a memória está contida (T3).
+
+    `notas`, quando dada, recebe o que a conferência não pôde afirmar por inteiro e
+    declara — hoje, as linhas da memória de exclusões conferidas só por chave.
+    """
     problemas: list[str] = []
     base = next((r for r in registros if r.get("kind") == "baseline"), None)
     if base is None:
@@ -355,7 +391,7 @@ def check(registros: list[Mapping[str, Any]], memoria: Memory,
     # (5) Versões e memória de exclusões.
     if "governance_versions" in base and memoria.versions != base["governance_versions"]:
         problemas.append(f"governance._versions mudou: {base['governance_versions']} → {memoria.versions}")
-    problemas += _deletion_problems(base, memoria, remocoes_aceitas)
+    problemas += _deletion_problems(base, memoria, remocoes_aceitas, reaparicoes_aceitas, notas)
     return problemas
 
 
@@ -366,6 +402,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="o livro de capturas do diário: JSON com 'certified', os jobs certificados do ciclo")
     parser.add_argument("--accepted-removals", type=pathlib.Path, default=None,
                         help="a comparação do H2 (`make generation-compare`): as chaves removidas que o Owner aceitou")
+    parser.add_argument("--accepted-reappearances", type=pathlib.Path, default=None,
+                        help="a comparação do H2 sobre o estado real (`MANIFESTO_ANTES=`): as chaves que voltam à "
+                             "origem e saem da memória de exclusões, que o Owner aceitou (N56)")
     parser.add_argument("--out", type=pathlib.Path, default=None)
     args = parser.parse_args(argv)
 
@@ -381,15 +420,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         aceitas = (accepted_removals(json.loads(args.accepted_removals.read_text(encoding="utf-8")))
                    if args.accepted_removals else None)
-        problemas = check(ledger.records(epoca), read_memory(armazem), do_livro, aceitas)
+        reaparecidas = (accepted_reappearances(json.loads(args.accepted_reappearances.read_text(encoding="utf-8")))
+                        if args.accepted_reappearances else None)
+        notas: list[str] = []
+        problemas = check(ledger.records(epoca), read_memory(armazem), do_livro, aceitas, reaparecidas, notas)
     finally:
         armazem.dispose()
     relatorio = {"format": 1, "kind": "memory_oracle", "provenance": provenance(), "epoch": str(epoca),
                  "capture_ledger": None if args.capture_ledger is None else str(args.capture_ledger),
                  "accepted_removals": None if args.accepted_removals is None else str(args.accepted_removals),
-                 "ok": not problemas, "problems": problemas}
+                 "accepted_reappearances": (None if args.accepted_reappearances is None
+                                            else str(args.accepted_reappearances)),
+                 "ok": not problemas, "problems": problemas, "notes": notas}
     for problema in problemas:
         print(f"  PROBLEMA {problema}")
+    for nota in notas:
+        print(f"  NOTA {nota}")
     if args.capture_ledger is None:
         print("  (sem o livro de capturas do diário: as certificadas novas saem dos registros da época)")
     print(f"T3: {'memória contida' if not problemas else 'FALHOU'} · {_write(relatorio, args.out, 't3')}")

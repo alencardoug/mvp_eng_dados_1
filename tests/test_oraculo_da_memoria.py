@@ -337,3 +337,47 @@ def test_as_remocoes_aceitas_saem_da_comparacao_do_h2() -> None:
         "brands": {"changed": {}},
     }}}
     assert mo.accepted_removals(comparacao) == ACEITAS
+
+
+# ── E com as reaparições aceitas do H2 sobre o estado real (N56) ─────────────
+OUTRA = _remocao("customers", "99001")
+NOVAS = [_remocao("inventory_balances", "145"), _remocao("inventory_balances", "146")]
+REAPARECIDAS = {("customers", "1"), ("product_categories", "25")}
+
+
+def test_a_reaparicao_aceita_tira_a_chave_e_o_resto_se_confere_por_chave() -> None:
+    notas: list[str] = []
+    base, memoria = _com_exclusoes([ANTIGA, OUTRA], [OUTRA, *NOVAS])
+    assert mo._deletion_problems(base, memoria, ACEITAS, REAPARECIDAS, notas) == []
+    assert len(notas) == 1
+    assert "1 chave(s) da linha de base saíram por reaparição aceita ([('customers', '1')])" in notas[0]
+    assert "conferidas por chave, não por conteúdo" in notas[0]
+    assert any("faltam [('customers', '1')]" in p for p in mo._deletion_problems(base, memoria, ACEITAS))
+
+
+def test_a_reaparicao_aceita_que_nao_aconteceu_e_sobra() -> None:
+    base, memoria = _com_exclusoes([ANTIGA, OUTRA], [ANTIGA, OUTRA, *NOVAS])
+    assert any("sobram [('customers', '1')]" in p
+               for p in mo._deletion_problems(base, memoria, ACEITAS, REAPARECIDAS, []))
+
+
+def test_reaparicao_fora_da_memoria_nao_dispensa_a_conferencia_do_conteudo() -> None:
+    notas: list[str] = []
+    mudada = _remocao("customers", "1", payload="outro")
+    problemas = mo._deletion_problems(*_com_exclusoes([ANTIGA], [mudada, *NOVAS]), ACEITAS,
+                                      {("product_categories", "25")}, notas)
+    assert any("as linhas da linha de base mudaram" in p for p in problemas)
+    assert notas == []
+
+
+def test_reaparicoes_aceitas_sem_remocoes_aceitas() -> None:
+    assert mo._deletion_problems(*_com_exclusoes([ANTIGA, OUTRA], [OUTRA]), None, {("customers", "1")}, []) == []
+
+
+def test_as_reaparicoes_aceitas_saem_da_comparacao_sobre_o_estado_real() -> None:
+    comparacao = {"legacy": {"keys": {
+        "customers": {"changed": {"added": ["1", "2", "3"]}},
+        "inventory_balances": {"changed": {"removed": ["145", "146"]}},
+        "brands": {"changed": {}},
+    }}}
+    assert mo.accepted_reappearances(comparacao) == {("customers", "1"), ("customers", "2"), ("customers", "3")}
