@@ -409,6 +409,152 @@ Os 182 testes de integração foram enumerados pelo alvo e não executados. Não
 escrita nos bancos, mudança no estado dos serviços, disparo/pausa da DAG, commit ou push.
 Somente `REVISAO.md` foi editado; os dois arquivos não rastreados já presentes foram preservados.
 
+### Rodada 3
+
+Confirmação em 04/11/2026, limitada a `31b99d8^^..31b99d8` (`e608146` e `31b99d8`).
+`HEAD`: `31b99d83dc3563bf39210389862d2c7b4c5616f3`. Lidos os dois diffs e as duas respostas
+da rodada 2. Nenhum achado já fechado nas rodadas anteriores foi reaberto.
+
+- **RV19-2-01 fechado.** As duas sondas de R2-E3 agora falham na asserção de `_pares`, com
+  `3 marca(s)` para o último `FIM` ausente mais diagrama omitido e `5 marca(s)` para o início
+  órfão. A sequência de marcadores literais é validada antes da contagem (R3-E1).
+- **RV19-2-02 fechado.** O par não declarado no README agora derruba a igualdade do inventário.
+  `_rastreados()` usa `git ls-files -z '*.md'` com `check=True`; fora do Git produz
+  `CalledProcessError, exit=128`, e sem o executável produz `FileNotFoundError` (R3-E1).
+
+**Sem ajustes ou bloqueantes remanescentes: a revisão da etapa 1.9 pode ser encerrada.**
+A observação abaixo registra o alcance da guarda e não exige correção nesta entrega.
+Este parecer não substitui o aceite do Owner nem a revisão posterior de `v1.0.0..HEAD`.
+
+**Conferido:** as três sondas de R2-E3, marcadores em código/aninhados/quebrados, codificação, ausência de Git/checkout, arquivos com marcadores, oito contraprovas permanentes e `make check-offline` (721 testes).
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV19-3-01 | `tests/test_trechos_gerados.py:38` | **Limite lexical observado ao ampliar a sonda de RV19-2-01.** Se **ambos** os delimitadores do diagrama forem quebrados em duas linhas e sua declaração for removida, o trecho deixa de ter qualquer marcador literal reconhecido: o inventário passa, `desatualizados=[]` e **`12 passed in 0.13s`** na suíte desse arquivo (R3-E3). Um único delimitador quebrado é rejeitado. Classificado como observação porque `_substituir` e `desatualizados()` também usam os literais exatos: aceitar ou identificar variantes de espaço/quebra de linha amplia esse vocabulário, enquanto o achado anterior tratava de marcadores exatos sem par. Os quatro pares atuais continuam íntegros; não há ajuste exigido para encerrar esta rodada. | `observação` | **Aceita como limite e registrada no dono.** Concordo com a leitura: o gerador e a conferência usam os mesmos literais, e um trecho sem nenhum marcador inteiro deixa de ser trecho para os dois. Reconhecer variantes ampliaria o vocabulário dos dois lados sem proteger contra defeito observado. O limite está na docstring de `_pares` (`tests/test_trechos_gerados.py`), com o ID. |
+
+#### R3-E1 — sondas originais, alcance e falhas explícitas
+
+Executado com `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -`, carregando o teste por
+`runpy.run_path('tests/test_trechos_gerados.py')`. As sondas de R2-E3 foram repetidas com
+`patch.object(Path, 'read_text', ...)` e `patch.object(export, 'TRECHOS', ...)`, sem editar
+documentos. Saída literal dos casos de confirmação:
+
+```text
+real: PASSA; desatualizados=[]
+último FIM ausente + diagrama omitido: FALHA (/home/doug/Projetos/mvp_eng_dados_1/docs/modelo_de_dados.md: marcadores fora de par ou de ordem: 3 marca(s))
+início órfão no Modelo: FALHA (/home/doug/Projetos/mvp_eng_dados_1/docs/modelo_de_dados.md: marcadores fora de par ou de ordem: 5 marca(s))
+par completo não declarado no README: FALHA ()
+```
+
+No README, a mensagem vazia vem da asserção de igualdade do inventário, que não tem mensagem
+própria (`tests/test_trechos_gerados.py:65`); não é erro de leitura. A lista retornada por
+`_rastreados()` foi lida em UTF-8 e filtrada pela presença de `export.INICIO` ou `export.FIM`:
+
+```text
+Markdown com marcador: ['docs/dicionario_de_dados.md', 'docs/modelo_de_dados.md']
+```
+
+Chamadas reais de `_rastreados()`, com `export.ROOT = Path('/')` para testar fora do checkout
+e, separadamente, `PATH=/__rv19_sem_executaveis__` somente no processo Python da sonda:
+
+```text
+fora do Git: CalledProcessError, exit=128
+git ausente: FileNotFoundError
+```
+
+**Concordo com `check=True`:** sem Git ou sem checkout não há inventário confiável de arquivos
+rastreados; interromper a verificação torna essa condição visível. Um arquivo-fonte distribuído
+sem `.git` ou um contêiner sem Git não ganha um resultado verde por inventário vazio.
+
+#### R3-E2 — formas adicionais e contraprovas permanentes
+
+Na mesma sonda, um marcador inicial em bloco cercado ou código inline foi anexado ao README;
+um par completo foi anexado dentro de bloco cercado; um início foi inserido dentro do último
+trecho do Modelo; e o último fim foi quebrado em duas linhas, com o diagrama omitido:
+
+```text
+início em bloco cercado no README: FALHA (/home/doug/Projetos/mvp_eng_dados_1/README.md: marcadores fora de par ou de ordem: 1 marca(s))
+início em código inline no README: FALHA (/home/doug/Projetos/mvp_eng_dados_1/README.md: marcadores fora de par ou de ordem: 1 marca(s))
+par em bloco cercado no README: FALHA ()
+início dentro do último trecho: FALHA (/home/doug/Projetos/mvp_eng_dados_1/docs/modelo_de_dados.md: marcadores fora de par ou de ordem: 5 marca(s))
+último FIM quebrado em duas linhas: FALHA (/home/doug/Projetos/mvp_eng_dados_1/docs/modelo_de_dados.md: marcadores fora de par ou de ordem: 3 marca(s))
+```
+
+O parser lê texto bruto, assim como o gerador: código cercado/inline não oculta marcadores.
+Isso também significa que exemplos literais desses marcadores contam no inventário.
+Para a codificação, a leitura virtual de um trecho codificado em Latin-1 foi decodificada
+com o `encoding='utf-8'` que `_marcados()` exige; também foi testado um BOM antes do início:
+
+```text
+Documento Latin-1 lido com encoding=utf-8: UnicodeDecodeError
+UTF-8 com BOM: 1 par
+```
+
+As oito parametrizações permanentes foram chamadas diretamente. A expansão com os dois
+`replace` foi comparada com a sequência obtida caractere a caractere do molde; `sys.settrace`
+confirmou que cada caso alcança a asserção de `_pares` na linha 40. Em seguida, somente em
+memória, a função foi substituída por uma que devolve a contagem esperada mais um nos casos
+válidos, e por uma que retorna zero sem validar nos inválidos. Todos os testes rejeitaram
+esses comportamentos incorretos:
+
+```text
+I/F ausentes dos dois marcadores: True
+'': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (AssertionError)
+'I x F': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (AssertionError)
+'I x F I y F': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (AssertionError)
+'I x F I y': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (Failed)
+'I x F I': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (Failed)
+'F x I': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (Failed)
+'I x I y F F': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (Failed)
+'I x F F': expansão correta; assert de _pares alcançado; teste real PASSA; mutante rejeitado (Failed)
+```
+
+`Failed` é a falha de `pytest.raises` quando o comportamento substituto não lança a exceção
+esperada. As contraprovas não passam por colisão de “I”/“F” nem por uma falha anterior ao parser.
+
+#### R3-E3 — reprodução do limite lexical
+
+Executado sem alterar arquivos:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+from pathlib import Path
+from unittest.mock import patch
+import pytest
+from mvp_ed1.models import export
+read = Path.read_text
+text = read(export.MODELO, encoding='utf-8')
+head, tail = text.rsplit(export.INICIO, 1)
+modified = head + export.INICIO.replace('a partir', 'a\npartir') + tail.replace(export.FIM, export.FIM.replace('fim do', 'fim\ndo'), 1)
+def altered(path, *args, **kwargs):
+    return modified if path == export.MODELO else read(path, *args, **kwargs)
+with patch.object(Path, 'read_text', altered), patch.object(export, 'TRECHOS', export.TRECHOS[:-1]):
+    raise SystemExit(pytest.main(['-q', '-p', 'no:cacheprovider', 'tests/test_trechos_gerados.py']))
+PY
+```
+
+```text
+............                                                             [100%]
+12 passed in 0.13s
+```
+
+#### R3-E4 — regressão e preservação do ambiente
+
+`PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline`,
+código de saída 0; recorte literal:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1099 links de arquivo, 188 âncoras, 664 citações de ADR — nada quebrado
+721 passed, 182 deselected in 146.98s (0:02:26)
+check-offline: as três etapas passaram
+```
+
+Os 182 testes de integração não foram executados. Após a inclusão da rodada, `docs-check`
+passou novamente e `git diff --check` não produziu saída. Somente `REVISAO.md` foi editado;
+nenhuma correção implementada, escrita nos bancos, operação de serviço/DAG, commit ou push.
+Os dois arquivos não rastreados encontrados no início foram preservados.
+
 ### Evidências dos achados
 
 Revisão em 04/11/2026, limitada a `6d93d72..0ce2a23`; dossiê em `bd5e3f8`.
