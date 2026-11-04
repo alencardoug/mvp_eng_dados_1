@@ -215,4 +215,21 @@ def test_a_linha_de_base_pede_a_janela_parada() -> None:
 
     receitas = _receitas((RAIZ / "Makefile").read_text(encoding="utf-8"))["ledger-baseline"]
     janela = next(i for i, l in enumerate(receitas) if "preflight.sh trabalho" in l)
-    assert janela < next(i for i, l in enumerate(receitas) if "mvp_ed1.recovery.ledger baseline" in l)
+    assert janela < receitas.index("$(LIVRO_LINHA_DE_BASE)")
+
+
+def test_a_restauracao_abre_a_sua_epoca_depois_da_conferencia_e_antes_da_captura() -> None:
+    """H8: depois do conteúdo conferido contra o manifesto e do Airbyte de pé, antes do `sync-legacy`."""
+    from test_makefile import RAIZ, _receitas
+
+    texto = (RAIZ / "Makefile").read_text(encoding="utf-8")
+    passos = _receitas(texto)["recovery-restore"]
+
+    def onde(trecho: str) -> int:
+        return next(i for i, l in enumerate(passos) if trecho in l)
+
+    epoca = passos.index("$(LIVRO_LINHA_DE_BASE)")
+    assert onde("CONTRA_O_BANCO=1") < onde("airbyte-up") < onde("recovery-airbyte-jobs") < epoca
+    assert passos[epoca - 1] == "$(GARANTIR_LIVRO_NO_ENV)"
+    assert epoca < onde("sync-legacy") < onde("dbt-rebuild")
+    assert "mvp_ed1.recovery.ledger baseline" in next(l for l in texto.splitlines() if l.startswith("LIVRO_LINHA_DE_BASE ="))

@@ -569,3 +569,37 @@ def test_a_cli_que_para_na_recuperacao_nao_abre_nem_dispara(mundo, monkeypatch) 
     with pytest.raises(rec.RecoveryStopped):
         airbyte.sincronizar_certificando("leg", CONEXAO, "jwt")
     assert _tentativas(mundo) == 1
+
+
+# ── As épocas e a restauração (H8) ───────────────────────────────────────────
+def _restaurar(mundo, *tentativas: str) -> None:
+    """O efeito de uma restauração sobre o certificado: as tentativas de depois do pacote somem."""
+    with mundo["armazem"].begin() as conexao:
+        for tentativa in tentativas:
+            conexao.execute(text(f"delete from {ledger.CERTIFICATE} where capture_attempt_id = :a"), {"a": tentativa})
+
+
+@pytest.mark.integracao
+def test_a_recuperacao_para_na_epoca_cujas_capturas_a_restauracao_tirou(mundo) -> None:
+    depois_do_pacote = _capturar(mundo, 901, 1)
+    _restaurar(mundo, depois_do_pacote)
+    with mundo["armazem"].begin() as conexao:
+        conexao.execute(text("delete from raw_legacy.brands where _airbyte_meta->>'sync_id' = '901'"))
+    with pytest.raises(rec.RecoveryStopped, match=f"tentativa {depois_do_pacote}, registrada na época, sumiu"):
+        _recuperar(mundo)
+
+
+@pytest.mark.integracao
+def test_a_restauracao_que_falha_depois_e_repetida_abre_outra_epoca_e_a_captura_segue(mundo) -> None:
+    """A 1ª restauração abre a época 2 e falha na captura; a repetição volta o banco e abre a 3."""
+    epoca_1 = ledger.current_epoch(mundo["raiz"])
+    mundo["abrir_epoca"]()  # a 1ª restauração, depois do passo 5
+    epoca_2 = ledger.current_epoch(mundo["raiz"])
+    interrompida = _abrir(mundo)  # o sync-legacy dela falha: pendente, sem job, sem registro
+    antes = sorted(p.name for p in epoca_2.iterdir())
+    _restaurar(mundo, interrompida)  # a repetição restaura os dumps de novo
+    mundo["abrir_epoca"]()
+    epoca_3 = ledger.current_epoch(mundo["raiz"])
+    assert epoca_1 != epoca_2 != epoca_3 and epoca_1.exists() and sorted(p.name for p in epoca_2.iterdir()) == antes
+    assert _recuperar(mundo)["recorded"] == []
+    assert _capturar(mundo, 905, 6) and _recuperar(mundo)["transitions"] == {}

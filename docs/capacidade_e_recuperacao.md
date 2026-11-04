@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.14 |
+| Versão | 2.15 |
 | Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12); o ponto de recuperação **entregue em 25/09/2026** e restaurado de ponta a ponta (§3) |
-| Última revisão | 03/10/2026 — §2.12, explicação 3: as capturas contadas, e não o identificador da maior |
+| Última revisão | 04/11/2026 — §3.4, passo 8: a restauração abre a época dela no livro retido (ADR-0050) |
 
 ---
 
@@ -594,7 +594,11 @@ confunde com uma restauração.
 7. refaz o *snapshot* do caminho quente;
 8. sobe o Airbyte e avança o contador de *jobs* para além da maior captura retida **antes** de
    qualquer disparo (D50); sincroniza a carga principal antes da legada, para que a guarda de
-   identidade encontre o *job* novo na listagem; reconstrói com `dbt-rebuild` — **nunca**
+   identidade encontre o *job* novo na listagem; abre a época seguinte do livro retido da memória
+   do legado, com a linha de base do estado restaurado, antes da captura legada
+   ([ADR-0050](adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md)) — sem ela, a recuperação
+   pararia na memória que a restauração substituiu, e uma restauração repetida abre outra;
+   reconstrói com `dbt-rebuild` — **nunca**
    `dbt-build RESET=1`, que derrubaria o histórico SCD que acabou de voltar — e roda o `check`;
 9. confere os oráculos explícitos: as fontes iguais ao manifesto, a memória contida e intacta, a
    captura nova certificada acima da retida, a auditoria dela igual ao que a classificação rejeitou,

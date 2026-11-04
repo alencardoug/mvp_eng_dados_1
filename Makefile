@@ -97,6 +97,10 @@ GARANTIR_LIVRO_NO_ENV = grep -q '^LEGACY_LEDGER_DIR=' .env || { \
 	  echo "LEGACY_LEDGER_DIR=$(abspath data/memoria_do_legado)"; } >> .env; }; \
 	mkdir -p "$$(grep '^LEGACY_LEDGER_DIR=' .env | tail -1 | cut -d= -f2-)"
 
+# A linha de base que abre a época seguinte do livro (T4, H8; ADR-0050). Dois
+# chamadores: `ledger-baseline`, do operador, e o passo 8 da restauração.
+LIVRO_LINHA_DE_BASE = set -a; . ./.env; set +a; $(CREDENCIAIS); .venv/bin/python -m mvp_ed1.recovery.ledger baseline
+
 # Ponto único de recuperação (Etapa 12, B4). A lógica vive em
 # `mvp_ed1.recovery`; aqui fica a sequência, porque ela mistura pg_restore,
 # stream-*, airbyte-* e dbt-rebuild — e a interface de operação é o Makefile
@@ -305,7 +309,7 @@ generation-realism: require-venv ## H3: M7 a M9 (árvore, preço por folha, vend
 ledger-baseline: require-env require-venv require-abctl ## T4/H8: abre a época seguinte do livro retido com a linha de base da memória de agora; recusa com trabalho em andamento
 	@$(GARANTIR_LIVRO_NO_ENV)
 	@docker/preflight.sh trabalho || { echo "RECUSADO — há trabalho em andamento: a linha de base pede a janela parada."; exit 1; }
-	@set -a; . ./.env; set +a; $(CREDENCIAIS); .venv/bin/python -m mvp_ed1.recovery.ledger baseline
+	@$(LIVRO_LINHA_DE_BASE)
 
 ledger-attempt: require-env require-venv ## T4: o registro de uma tentativa à mão, na época corrente; TENTATIVA=<capture_attempt_id> NOME=<linha>_a<n>_memoria.json — recusa com o lock dela tomado
 	@test -n '$(TENTATIVA)' && test -n '$(NOME)' || { echo 'ERRO: use make ledger-attempt TENTATIVA=<id> NOME=<D2_a1_memoria.json>'; exit 1; }
@@ -676,6 +680,13 @@ recovery-restore: require-env require-venv ## A sequência de restauração, pas
 	@# Airbyte de sempre, o alvo lê, constata e não escreve nada (RVE-06).
 	@$(MAKE) --no-print-directory recovery-airbyte-jobs
 	@$(MAKE) --no-print-directory sync-airbyte RESET=1
+	@# H8 (ADR-0050): a restauração substitui a memória por desenho, e o livro
+	@# do estado substituído pararia a captura dela. Abre a sua época, com a
+	@# linha de base do estado restaurado e já conferido no passo 5, antes da
+	@# primeira captura — com o Airbyte de pé, que lista os jobs. Uma restauração
+	@# repetida abre outra; as anteriores ficam como estavam.
+	@$(GARANTIR_LIVRO_NO_ENV)
+	@$(LIVRO_LINHA_DE_BASE)
 	@# O job é o desta execução, nunca o de uma anterior que tenha sobrado.
 	@rm -f "$(RECOVERY_JOB)"
 	@$(MAKE) --no-print-directory sync-legacy JOB_EM="$(RECOVERY_JOB)"

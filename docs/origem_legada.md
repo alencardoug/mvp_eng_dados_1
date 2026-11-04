@@ -366,7 +366,12 @@ complementa os itens 4 e 5 do ADR-0044).
 - **Épocas.** Cada uma é aberta por uma linha de base — todas as capturas do bruto, o certificado
   inteiro, partição, quarentena, exclusões, `governance._versions` e os *jobs* da conexão legada no
   Airbyte —, e a corrente é a mais nova com linha de base válida. Sem época corrente, nenhuma
-  captura começa. `make ledger-baseline` abre a seguinte.
+  captura começa. Abre-se uma de três jeitos: a primeira, à mão, por `make ledger-baseline`; uma
+  restauração, sozinha, depois de conferir o conteúdo e antes da primeira captura
+  ([Capacidade §3.4](capacidade_e_recuperacao.md#34-a-sequência-de-restauração), passo 8) — a
+  memória que ela substituiu pararia a captura dela —; e a volta a um código anterior ao livro, à
+  mão, depois de a restauração daquele código passar. Entre o começo dessa volta e a época nova, a
+  garantia não vale: o código anterior finaliza pendentes sem registro.
 - **Os portões.** Toda tentativa termina registrada **pelo próprio chamador**, seja qual for o
   certificado: a CLI, antes de `make sync-legacy` voltar; a DAG, na tarefa
   `registrar_captura_do_legado`, entre a captura certificada e `dbt_seed` — nenhum *build* corre
@@ -397,8 +402,8 @@ e os locks são defesa além disso. A especificação completa — a reconcilia�
 Airbyte, os registros de tratamento e o oráculo que lê o livro — é o
 [runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over)
 no `bi-como-codigo` (H6 a H8, T3 e T4). Implementados até aqui: as épocas, a linha de base, os
-registros de tentativa e de transição, os dois portões e a fase de recuperação. Ainda não: a época
-que a restauração abre sozinha (H8), o registro de tratamento e o oráculo da memória (T3).
+registros de tentativa e de transição, os dois portões, a fase de recuperação e a época que a
+restauração abre. Ainda não: o registro de tratamento e o oráculo da memória (T3).
 
 ---
 
