@@ -235,6 +235,10 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
         relatorio = capture_recovery.recover(legado, armazem, job_state=observador, listar=listar, caller=chamador)
         for caminho in relatorio["published"]:
             print(f"  recuperação registrou: {caminho}", flush=True)
+        if not relatorio["published"]:
+            # O silêncio dizia o mesmo, mas quem segue um roteiro não distingue
+            # "nada a retomar" de "a fase não rodou" (D2 da regeneração da v1.1.0).
+            print("  recuperação: nada devido — nenhuma tentativa a retomar", flush=True)
         tentativa = uuid.uuid4().hex
         with captura.bloqueio_da_tentativa(armazem, tentativa):
             captura.iniciar(legado, armazem, nome, tentativa=tentativa,

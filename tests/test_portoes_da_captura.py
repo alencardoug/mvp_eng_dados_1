@@ -212,6 +212,21 @@ def test_sem_epoca_a_cli_nem_abre_a_tentativa(cli, monkeypatch, tmp_path_factory
     assert cli["eventos"] == []
 
 
+def test_a_fase_de_recuperacao_diz_quando_nada_esta_devido(cli, capsys) -> None:
+    airbyte.sincronizar_certificando("id", "legacy_para_raw_legacy", "jwt")
+    saida = capsys.readouterr().out
+    assert "recuperação: nada devido" in saida
+    assert "recuperação registrou" not in saida
+
+
+def test_a_fase_de_recuperacao_lista_o_que_registrou(cli, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(capture_recovery, "recover", lambda *_a, **_k: {"published": ["epoca/x.json"]})
+    airbyte.sincronizar_certificando("id", "legacy_para_raw_legacy", "jwt")
+    saida = capsys.readouterr().out
+    assert "recuperação registrou: epoca/x.json" in saida
+    assert "nada devido" not in saida
+
+
 # ── A DAG, por estrutura ─────────────────────────────────────────────────────
 def _arvore() -> ast.Module:
     return ast.parse(DAG.read_text(encoding="utf-8"))
