@@ -86,3 +86,18 @@ tratados:
       rotacionada — a mesma rotação da credencial de airflow de 4ff3be9
     motivo: >-
       A mesma senha, no POSTGRES_PASSWORD da versão seguinte da composição.
+  - commit: e3c226c44291b1bdca89ab9d085797ac1aa21f22
+    caminho: Makefile
+    chave: PGPASSWORD
+    tratamento: nenhum — referência a variável, não valor
+    motivo: >-
+      Falso positivo. A linha da receita dos alvos do `pgcli` de 13/10/2026
+      dá ao PGPASSWORD a expansão, no shell, da variável `<BANCO>_DB_PASSWORD`
+      que o `.env` acabou de carregar, escrita como `$$$(1)` seguido do resto
+      do nome: o texto no blob é o nome dela, e nenhuma senha entrou no
+      Makefile. A varredura lê os 18 caracteres depois de `$$` como valor
+      literal. (A linha não é citada aqui por inteiro porque a revisão dos
+      arquivos rastreados a acusaria neste registro.) ba8244a (14/10/2026)
+      reescreveu a referência com chaves e o arquivo atual deixou de ser
+      acusado; o blob antigo permanece, e `make secrets-history` saía com erro
+      desde então (medido em 22/10/2026, §5.6 do plano do `bi-como-codigo`).
