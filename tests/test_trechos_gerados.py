@@ -10,6 +10,9 @@ atrasado da 1.5 à regeneração da v1.1.0 (592e2cc). Não precisa de banco.
 from __future__ import annotations
 
 import re
+import subprocess
+
+import pytest
 
 from mvp_ed1.models import export
 
@@ -18,13 +21,32 @@ from mvp_ed1.models import export
 _DE_OUTRO_DONO = {(export.DICIONARIO, 1)}
 
 
+def _rastreados() -> list:
+    """Todo Markdown rastreado pelo Git, onde quer que esteja (RV19-2-02)."""
+    saida = subprocess.run(["git", "ls-files", "-z", "*.md"], cwd=export.ROOT,
+                           capture_output=True, check=True).stdout.decode("utf-8")
+    return sorted(export.ROOT / nome for nome in saida.split("\0") if nome)
+
+
+def _pares(caminho, texto: str) -> int:
+    """Quantos trechos o documento tem, lidos marcador a marcador.
+
+    Contar só os pares completos deixava sumir um marcador sem par — um `FIM`
+    apagado à mão levava o trecho junto, e a declaração que o perdesse passava
+    (RV19-2-01). A sequência tem de alternar início e fim, começando no início.
+    """
+    marcas = re.findall(re.escape(export.INICIO) + "|" + re.escape(export.FIM), texto)
+    esperada = [export.INICIO, export.FIM] * (len(marcas) // 2)
+    assert marcas == esperada, f"{caminho}: marcadores fora de par ou de ordem: {len(marcas)} marca(s)"
+    return len(esperada) // 2
+
+
 def _marcados() -> set:
-    """Todo trecho entre marcadores em `docs/`, contado nos documentos — não na declaração."""
-    padrao = re.compile(re.escape(export.INICIO) + r".*?" + re.escape(export.FIM), re.DOTALL)
+    """Todo trecho entre marcadores no repositório, contado nos documentos — não na declaração."""
     return {
         (caminho, n)
-        for caminho in sorted((export.ROOT / "docs").rglob("*.md"))
-        for n, _ in enumerate(padrao.findall(caminho.read_text(encoding="utf-8")))
+        for caminho in _rastreados()
+        for n in range(_pares(caminho, caminho.read_text(encoding="utf-8")))
     }
 
 
@@ -60,3 +82,26 @@ def test_contraprova_trecho_ausente_e_acusado(tmp_path, monkeypatch):
     monkeypatch.setattr(export, "ROOT", tmp_path)
     monkeypatch.setattr(export, "TRECHOS", ((documento, 0, lambda: "novo"),))
     assert export.desatualizados() == ["doc.md (trecho 1)"]
+
+
+@pytest.mark.parametrize("marcas, pares", [
+    ("", 0),
+    ("I x F", 1),
+    ("I x F I y F", 2),
+])
+def test_pares_conta_trechos_completos(marcas, pares):
+    texto = marcas.replace("I", export.INICIO).replace("F", export.FIM)
+    assert _pares("doc.md", texto) == pares
+
+
+@pytest.mark.parametrize("marcas", [
+    "I x F I y",      # o último fim apagado: o trecho sumia do inventário
+    "I x F I",        # um início órfão no fim
+    "F x I",          # fora de ordem
+    "I x I y F F",    # aninhado
+    "I x F F",        # um fim a mais
+])
+def test_contraprova_marcador_sem_par_e_acusado(marcas):
+    texto = marcas.replace("I", export.INICIO).replace("F", export.FIM)
+    with pytest.raises(AssertionError, match="fora de par ou de ordem"):
+        _pares("doc.md", texto)
