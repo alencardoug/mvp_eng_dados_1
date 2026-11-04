@@ -129,6 +129,8 @@ class Memory:
     versions: list[str]
     deletions: dict[str, Any] | None
     deletion_rows: list[dict[str, Any]] | None = None
+    #: A memória de exclusões recalculada do bruto retido (RVL1-01/02); `None` quando não se leu.
+    expected_deletion_rows: list[dict[str, Any]] | None = None
 
 
 def _existe(conexao, relacao: str) -> bool:
@@ -137,6 +139,66 @@ def _existe(conexao, relacao: str) -> bool:
         text("select 1 from information_schema.views where table_schema = :s and table_name = :t"),
         {"s": esquema, "t": tabela},
     ).first())
+
+
+def expected_deletion_rows(conexao, certificadas: Iterable[int], selecionada: int) -> list[dict[str, Any]]:
+    """A memória de exclusões recalculada do bruto retido — o esperado independente (RVL1-01/02).
+
+    O T3 prova o bruto de cada captura contra o livro; esta função aplica a ele a
+    regra de `legacy_removed_records` (ADR-0045) **sem o SQL do modelo**: a chave é
+    a PK declarada, canonizada em Python por `remocao.canonizar`; ausente na
+    selecionada e presente em alguma certificada anterior a ela; `last_seen` é a
+    maior dessas, `removed_in` a menor certificada depois dela até a selecionada,
+    `rows_last_seen` a multiplicidade ali, e o *payload* são as linhas brutas dela,
+    pelas colunas declaradas. Sem isso, uma linha cuja chave confere e cujo
+    conteúdo foi adulterado passava — depois de uma reaparição aceita, a linha de
+    base só tem o *digest* do conjunto, e uma remoção aceita não tem linha de base.
+    """
+    from mvp_ed1.legacy import remocao, schema
+
+    certificadas = sorted({int(c) for c in certificadas})
+    selecionada = int(selecionada)
+    ids = sorted(set(certificadas) | {selecionada})
+    no_bruto = set(leitura.tabelas_do_schema(conexao, ledger.RAW))
+    esperadas: list[dict[str, Any]] = []
+    for tabela in schema.tabelas():
+        if tabela not in no_bruto:
+            continue
+        coluna, tipo = remocao.chave(tabela)
+        sync = "(_airbyte_meta->>'sync_id')::bigint"
+        presenca: dict[str, dict[int, list[str]]] = {}
+        for captura_id, valor in conexao.execute(
+            text(f'select {sync}, "{coluna}"::text from {ledger.RAW}."{tabela}" where {sync} = any(:ids)'),
+            {"ids": ids},
+        ):
+            chave = remocao.canonizar(valor, tipo)
+            if chave is not None:  # nulo é linha sem identidade, contada à parte pelo modelo
+                presenca.setdefault(chave, {}).setdefault(int(captura_id), []).append(valor)
+        objeto = ", ".join(f"'{c}', r.\"{c}\"" for c in schema.colunas(tabela))
+        for chave, por_captura in sorted(presenca.items()):
+            if selecionada in por_captura:
+                continue
+            historico = [c for c in por_captura if c in certificadas and c < selecionada]
+            if not historico:
+                continue
+            ultima = max(historico)
+            payload = [linha for (linha,) in conexao.execute(
+                text(f'select jsonb_build_object({objeto}) from {ledger.RAW}."{tabela}" r '
+                     f'where {sync} = :c and r."{coluna}"::text = any(:v)'),
+                {"c": ultima, "v": sorted(set(por_captura[ultima]))},
+            )]
+            if len(payload) != len(por_captura[ultima]):
+                raise ledger.LedgerError(f"{tabela}/{chave}: o payload da captura {ultima} não se releu "
+                                         f"({len(payload)} de {len(por_captura[ultima])} linhas)")
+            esperadas.append({
+                "source_table": tabela,
+                "business_key": chave,
+                "last_seen_snapshot_id": ultima,
+                "removed_in_snapshot_id": min((c for c in certificadas if ultima < c <= selecionada), default=None),
+                "rows_last_seen": len(por_captura[ultima]),
+                "last_payload": payload,
+            })
+    return esperadas
 
 
 def read_memory(engine: Engine) -> Memory:
@@ -156,6 +218,11 @@ def read_memory(engine: Engine) -> Memory:
                 fatia = oraculos.nome_da_fatia(linha, leitura.CHAVE_DA_QUARENTENA)
                 por_tabela.setdefault(fatia, {}).setdefault(linha["source_table"], []).append(linha)
     certificadas = captura.certificadas(engine)
+    exclusoes = ledger.deletion_rows(engine)
+    esperadas = None
+    if exclusoes is not None and selecionada is not None:
+        with ledger._read_only(engine) as conexao:
+            esperadas = expected_deletion_rows(conexao, certificadas, int(selecionada))
     return Memory(
         certificate=certificado,
         captures=capturas,
@@ -168,7 +235,8 @@ def read_memory(engine: Engine) -> Memory:
         classification=leitura.classificacao_corrente(engine),
         versions=leitura.versoes_do_armazem(engine),
         deletions=leitura.oraculo_das_exclusoes(engine),
-        deletion_rows=ledger.deletion_rows(engine),
+        deletion_rows=exclusoes,
+        expected_deletion_rows=esperadas,
     )
 
 
@@ -261,11 +329,56 @@ def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tu
         if notas is not None:
             notas.append(f"memória de exclusões: {len(saem)} chave(s) da linha de base saíram por reaparição "
                          f"aceita ({sorted(saem)[:5]}); as {len(da_base - saem)} que restam conferidas por "
-                         "chave, não por conteúdo — a linha de base guarda o digest do conjunto")
+                         "chave contra a linha de base, que guarda o digest do conjunto, e por conteúdo contra "
+                         "a memória recalculada do bruto")
         return problemas
     antigas = [r for k, r in agora.items() if k in da_base]
     if base.get("deletions") and oraculos.digest(antigas) != base["deletions"]["digest"]:
         problemas.append("memória de exclusões: as linhas da linha de base mudaram")
+    return problemas
+
+
+def _normal_da_exclusao(linha: Mapping[str, Any]) -> dict[str, Any]:
+    """Uma linha da memória de exclusões na forma comparável: o *payload* como multiconjunto."""
+    def inteiro(valor):
+        return None if valor is None else int(valor)
+    return {
+        "last_seen_snapshot_id": inteiro(linha.get("last_seen_snapshot_id")),
+        "removed_in_snapshot_id": inteiro(linha.get("removed_in_snapshot_id")),
+        "rows_last_seen": inteiro(linha.get("rows_last_seen")),
+        "last_payload": sorted(json.dumps(item, sort_keys=True, default=str)
+                               for item in (linha.get("last_payload") or [])),
+    }
+
+
+def deletion_content_problems(memoria: Memory) -> list[str]:
+    """Cada linha da memória de exclusões, inteira, contra a recalculada do bruto (RVL1-01/02).
+
+    Vale sempre que o armazém tem a memória: com ou sem mudanças aceitas, uma linha
+    só passa se o bruto retido — que o T3 já provou contra o livro — a produz
+    igual. Sem o recalculado, o conteúdo não se prova, e isso é problema, não pulo.
+    """
+    if memoria.deletion_rows is None:
+        return []
+    if memoria.expected_deletion_rows is None:
+        return ["memória de exclusões: o esperado recalculado do bruto não se leu — o conteúdo não se prova"]
+
+    def por_chave(linhas):
+        return {(str(r["source_table"]), str(r["business_key"])): _normal_da_exclusao(r) for r in linhas}
+
+    agora, esperado = por_chave(memoria.deletion_rows), por_chave(memoria.expected_deletion_rows)
+    problemas = []
+    if set(agora) != set(esperado):
+        faltam, sobram = sorted(set(esperado) - set(agora)), sorted(set(agora) - set(esperado))
+        problemas.append(f"memória de exclusões contra a recalculada do bruto: faltam {faltam[:5]} e sobram "
+                         f"{sobram[:5]} ({len(faltam)} e {len(sobram)})")
+    diferentes = sorted(
+        (chave, sorted(campo for campo in esperado[chave] if agora[chave][campo] != esperado[chave][campo]))
+        for chave in set(agora) & set(esperado) if agora[chave] != esperado[chave]
+    )
+    if diferentes:
+        problemas.append(f"memória de exclusões: {len(diferentes)} linha(s) com conteúdo diferente do recalculado "
+                         f"do bruto: {diferentes[:5]}")
     return problemas
 
 
@@ -277,7 +390,8 @@ def check(registros: list[Mapping[str, Any]], memoria: Memory,
     """Os cinco grupos de afirmações. Vazio, a memória está contida (T3).
 
     `notas`, quando dada, recebe o que a conferência não pôde afirmar por inteiro e
-    declara — hoje, as linhas da memória de exclusões conferidas só por chave.
+    declara — hoje, as linhas da linha de base que restam depois de uma reaparição
+    aceita, conferidas por chave contra ela e por conteúdo contra o bruto.
     """
     problemas: list[str] = []
     base = next((r for r in registros if r.get("kind") == "baseline"), None)
@@ -392,6 +506,7 @@ def check(registros: list[Mapping[str, Any]], memoria: Memory,
     if "governance_versions" in base and memoria.versions != base["governance_versions"]:
         problemas.append(f"governance._versions mudou: {base['governance_versions']} → {memoria.versions}")
     problemas += _deletion_problems(base, memoria, remocoes_aceitas, reaparicoes_aceitas, notas)
+    problemas += deletion_content_problems(memoria)
     return problemas
 
 

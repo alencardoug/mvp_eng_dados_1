@@ -351,7 +351,7 @@ def test_a_reaparicao_aceita_tira_a_chave_e_o_resto_se_confere_por_chave() -> No
     assert mo._deletion_problems(base, memoria, ACEITAS, REAPARECIDAS, notas) == []
     assert len(notas) == 1
     assert "1 chave(s) da linha de base saíram por reaparição aceita ([('customers', '1')])" in notas[0]
-    assert "conferidas por chave, não por conteúdo" in notas[0]
+    assert "por conteúdo contra a memória recalculada do bruto" in notas[0]
     assert any("faltam [('customers', '1')]" in p for p in mo._deletion_problems(base, memoria, ACEITAS))
 
 
@@ -381,3 +381,42 @@ def test_as_reaparicoes_aceitas_saem_da_comparacao_sobre_o_estado_real() -> None
         "brands": {"changed": {}},
     }}}
     assert mo.accepted_reappearances(comparacao) == {("customers", "1"), ("customers", "2"), ("customers", "3")}
+
+
+# ── O conteúdo da memória de exclusões, contra a recalculada do bruto (RVL1-01/02) ──
+def _so_exclusoes(linhas, esperadas):
+    return mo.Memory(certificate={}, captures={}, certified=[], received={}, selected=None, quarantine=None,
+                     quarantine_by_table={}, classification=None, versions=[], deletions=None,
+                     deletion_rows=linhas, expected_deletion_rows=esperadas)
+
+
+def test_o_conteudo_igual_ao_recalculado_passa_e_o_payload_e_multiconjunto() -> None:
+    linha = {**_remocao("customers", "99001"), "last_payload": [{"x": "a"}, {"x": "b"}]}
+    invertida = {**linha, "last_payload": [{"x": "b"}, {"x": "a"}]}
+    assert mo.deletion_content_problems(_so_exclusoes([linha], [invertida])) == []
+    assert mo.deletion_content_problems(_so_exclusoes(None, None)) == [], "sem a tabela, como no resto do T3"
+
+
+def test_sem_o_recalculado_o_conteudo_nao_se_prova() -> None:
+    problemas = mo.deletion_content_problems(_so_exclusoes([ANTIGA], None))
+    assert problemas and "não se prova" in problemas[0]
+
+
+@pytest.mark.parametrize("campo, valor", [
+    ("last_payload", [{"x": "ADULTERADO"}]),          # RVL1-01: a linha que resta depois da reaparição
+    ("last_payload", [{"x": "p"}, {"x": "p"}]),       # multiplicidade do payload
+    ("rows_last_seen", 999),
+    ("removed_in_snapshot_id", -999),                 # RVL1-02: uma remoção aceita
+    ("last_seen_snapshot_id", 54),
+])
+def test_conteudo_adulterado_com_a_chave_intacta_e_acusado(campo, valor) -> None:
+    adulterada = {**ANTIGA, campo: valor}
+    problemas = mo.deletion_content_problems(_so_exclusoes([adulterada], [ANTIGA]))
+    assert problemas == [f"memória de exclusões: 1 linha(s) com conteúdo diferente do recalculado do bruto: "
+                         f"[(('customers', '1'), ['{campo}'])]"]
+
+
+def test_chave_a_mais_ou_a_menos_que_o_recalculado_e_acusada() -> None:
+    outra = _remocao("inventory_balances", "145")
+    assert "sobram [('inventory_balances', '145')]" in mo.deletion_content_problems(_so_exclusoes([ANTIGA, outra], [ANTIGA]))[0]
+    assert "faltam [('inventory_balances', '145')]" in mo.deletion_content_problems(_so_exclusoes([ANTIGA], [ANTIGA, outra]))[0]

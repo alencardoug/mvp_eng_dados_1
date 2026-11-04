@@ -524,6 +524,52 @@ def test_o_ciclo_inteiro_entre_duas_certificadas_concorda_com_o_diario(efemeros,
         assert _veredito_do_diario(conexao, diario) == ("salto", f"sem intervalo: a captura {anterior} não tem anterior certificada")
 
 
+def test_a_memoria_recalculada_do_bruto_e_a_do_modelo_e_acusa_o_conteudo_adulterado(efemeros, manifesto_temporario) -> None:
+    """O esperado independente do T3 contra o modelo real, sobre bruto real (RVL1-01/02).
+
+    `expected_deletion_rows` aplica a regra do ADR-0045 em Python, sem o SQL do
+    modelo: as duas têm de dar a mesma memória — com alias (`'08'` é a chave 8),
+    linha sem identidade (`'x'`) e duas remoções reais, uma delas com duas linhas
+    na última captura. Depois, conteúdo adulterado no modelo, com a chave intacta,
+    é acusado: era o que passava.
+    """
+    from mvp_ed1.legacy import captura
+    from mvp_ed1.recovery import ledger
+    from mvp_ed1.recovery import memory_oracle as mo
+
+    legado, armazem = efemeros
+    with legado.begin() as conexao:
+        conexao.execute(text(
+            "insert into legacy.brands (id, code, name) values "
+            "('1','b1','Acme'), ('2','b2','Bravo'), ('8','b8','Oito'), ('08','b08','Oito bis'), ('x','bx','Sem id')"
+        ))
+    anterior = _certificar(legado, armazem, job=1)
+    mutacoes.remover(legado, "brands", chaves=["2"], manifesto=manifesto_temporario)          # uma linha
+    mutacoes.remover(legado, "brands", chaves=["8", "08"], manifesto=manifesto_temporario)    # duas, a mesma chave
+    selecionada = _certificar(legado, armazem, job=2)
+    assert _construir_modelos(armazem, selecionada) == []
+
+    def memoria(linhas, esperadas):
+        return mo.Memory(certificate={}, captures={}, certified=captura.certificadas(armazem), received={},
+                         selected=selecionada, quarantine=None, quarantine_by_table={}, classification=None,
+                         versions=[], deletions=None, deletion_rows=linhas, expected_deletion_rows=esperadas)
+
+    with ledger._read_only(armazem) as conexao:
+        esperadas = mo.expected_deletion_rows(conexao, captura.certificadas(armazem), selecionada)
+    linhas = ledger.deletion_rows(armazem)
+    assert {(r["business_key"], r["rows_last_seen"], r["last_seen_snapshot_id"], r["removed_in_snapshot_id"])
+            for r in esperadas} == {("2", 1, anterior, selecionada), ("8", 2, anterior, selecionada)}
+    assert mo.deletion_content_problems(memoria(linhas, esperadas)) == [], "o recalculado e o modelo divergem"
+
+    with armazem.begin() as conexao:
+        conexao.execute(text("update trusted.legacy_removed_records set last_payload = "
+                             "jsonb_build_array(jsonb_build_object('name', 'ADULTERADO')) where business_key = '2'"))
+        conexao.execute(text("update trusted.legacy_removed_records set rows_last_seen = 1 where business_key = '8'"))
+    problemas = mo.deletion_content_problems(memoria(ledger.deletion_rows(armazem), esperadas))
+    assert len(problemas) == 1 and "2 linha(s) com conteúdo diferente" in problemas[0], problemas
+    assert mo.deletion_content_problems(memoria(linhas, None)), "sem o recalculado o conteúdo não se prova"
+
+
 # ── O ciclo real, somente leitura ────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
