@@ -34,6 +34,12 @@ def _pares(caminho, texto: str) -> int:
     Contar só os pares completos deixava sumir um marcador sem par — um `FIM`
     apagado à mão levava o trecho junto, e a declaração que o perdesse passava
     (RV19-2-01). A sequência tem de alternar início e fim, começando no início.
+
+    **Limite:** a leitura é dos marcadores literais, os mesmos que `_substituir`
+    escreve. Um trecho cujos **dois** marcadores foram desfigurados — quebrados
+    em linhas, por exemplo — deixa de ser trecho para o gerador e para esta
+    conferência, e passa como texto comum; basta um deles inteiro para a sequência
+    acusar (RV19-3-01, aceita como limite).
     """
     marcas = re.findall(re.escape(export.INICIO) + "|" + re.escape(export.FIM), texto)
     esperada = [export.INICIO, export.FIM] * (len(marcas) // 2)
