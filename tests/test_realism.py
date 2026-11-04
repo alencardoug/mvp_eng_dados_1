@@ -144,3 +144,32 @@ def test_a_range_too_narrow_for_the_multipliers_is_refused(tmp_path) -> None:
     path = _broken(tmp_path, "Camisetas: [29.90, 299.90]", "Camisetas: [29.90, 49.90]")
     with pytest.raises(ConfiguracaoInvalida, match="estreita demais"):
         carregar(path)
+
+
+# ── H3: the measurement that records M7 to M9 ───────────────────────────────
+def test_the_h3_measurement_reports_m7_to_m9_closed(config: Config, dados: Dataset) -> None:
+    """What `make generation-realism` writes agrees with the checks above, on the same dataset."""
+    from mvp_ed1.recovery.realism import realism
+
+    report = realism(dados, config)
+    assert report["m7"]["declared_tree"] and report["m7"]["differing_from_declared"] == []
+    assert report["m7"]["leaves_with_products"] == 16
+    assert report["m8"]["outside_declared"] == 0
+    assert report["m8"]["items"] == report["m9"]["items"] == len(dados["order_items"])
+    assert report["m9"]["sold_before_launch"] == 0
+
+
+def test_the_h3_measurement_reads_a_generator_with_nothing_declared(config: Config, dados: Dataset) -> None:
+    """Without tree or ranges — the generator before the fixes — it measures and leaves the divergence blank."""
+    import copy
+
+    from mvp_ed1.recovery.realism import realism
+
+    bare = copy.deepcopy(config)
+    del bare.tabelas["product_categories"].processo["arvore"]
+    del bare.tabelas["product_variants"].processo["faixa_de_preco_por_folha"]
+    report = realism(dados, bare)
+    assert report["m7"]["differing_from_declared"] is None
+    assert report["m8"]["outside_declared"] is None
+    assert all(row["declared_range"] is None for row in report["m8"]["per_leaf"].values())
+    assert len(report["m7"]["paths"]) == 16
