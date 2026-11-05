@@ -298,6 +298,17 @@ def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatc
         }}
     assert s.stale_nodes(manifest("select 1 as x")) == ["a"]
     assert s.stale_nodes(manifest("select 2 as x")) == []        # o snapshot é o miolo do bloco
+    assert s.stale_nodes(manifest("select 2 as x\r\n")) == []   # o manifest guarda o CRLF (RVL3-2-05)
+    (tmp_path / "snapshots" / "scd.sql").write_text(
+        "{% snapshot scd %}\nselect 1 as x\nwhere x < 0\n{% endsnapshot %}\n", encoding="utf-8")
+    assert s.stale_nodes(manifest("select 2 as x")) == ["scd"]    # trecho acrescentado no bloco
+    (tmp_path / "macros").mkdir()
+    (tmp_path / "macros" / "m.sql").write_text("{% macro m() %}union all{% endmacro %}\n", encoding="utf-8")
+    com_macro = {**manifest("select 2 as x"), "metadata": {"project_name": "p"}, "macros": {"macro.p.m": {
+        "name": "m", "package_name": "p", "original_file_path": "macros/m.sql",
+        "macro_sql": "{% macro m() %}union{% endmacro %}"}}}
+    (tmp_path / "snapshots" / "scd.sql").write_text("{% snapshot scd %}\nselect 1 as x\n{% endsnapshot %}\n", encoding="utf-8")
+    assert s.stale_nodes(com_macro) == ["macro m"]
 
 
 def test_cabecalho_de_seed_com_quebra_entre_aspas_entra_na_chave(tmp_path, monkeypatch) -> None:
@@ -309,5 +320,9 @@ def test_cabecalho_de_seed_com_quebra_entre_aspas_entra_na_chave(tmp_path, monke
     antes = s._inputs_digest(b"{}")
     seed.write_text('"a\nz",c\n1,2\n', encoding="utf-8")
     assert s._inputs_digest(b"{}") != antes
+    seed.write_text('"a\x1fb"\n1\n', encoding="utf-8")
+    um = s._inputs_digest(b"{}")
+    seed.write_text('a,b\n1,2\n', encoding="utf-8")
+    assert s._inputs_digest(b"{}") != um                          # RVL3-2-09: o separador não colide
     seed.write_text('"a\nz",c\n3,4\n', encoding="utf-8")
     assert s._inputs_digest(b"{}") == s._inputs_digest(b"{}")     # só o cabeçalho entra, como antes
