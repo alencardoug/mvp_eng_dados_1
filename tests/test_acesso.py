@@ -308,7 +308,9 @@ def test_o_login_de_leitura_nao_escreve(leitor, materializadas) -> None:
     # RVL2-01: os *large objects* ficam fora dos grants de tabela, e os locks são os da captura.
     tentativas += ["select lo_create(0)", "select lo_creat(-1)", "select lo_from_bytea(0, decode('41', 'hex'))",
                    "select pg_advisory_lock(1)", "select pg_try_advisory_lock(1, 2)",
-                   "select pg_advisory_xact_lock(1)"]
+                   "select pg_advisory_xact_lock(1)",
+                   # RVL2-2-01: escrita no WAL, que com `false` nem o rollback desfaz — aqui só `true`
+                   "select pg_logical_emit_message(true, '__probe_do_leitor', 'revertida')"]
     escreveu: list[str] = []
     for comando in tentativas:
         with leitor.connect() as conexao:
@@ -333,6 +335,152 @@ def test_nenhuma_assinatura_fechada_a_public_executa_pelo_leitor(motor) -> None:
         ), {"u": os.environ[LEITOR_USUARIO]}).scalar_one()
     assert abertas == []
     assert temporaria is False
+
+
+#: O que continua aberto ao leitor entre as funções **voláteis** — as que podem
+#: ter efeito —, nome a nome e com o motivo (RVL2-2-01). As estáveis e imutáveis
+#: não alteram nada por definição; as que pedem ou devolvem `internal`, gatilho ou
+#: *handler* não se chamam de SQL. Uma versão nova do PostgreSQL que traga outra
+#: faz `test_o_que_fica_aberto_ao_leitor_e_o_classificado` falhar até ela entrar
+#: aqui — ou em `governance.FECHADAS_A_PUBLIC`.
+ABERTAS_AO_LEITOR: dict[str, tuple[str, ...]] = {
+    # Leem o servidor, ou valem só para a própria sessão e transação. `query_to_xml`,
+    # `cursor_to_xml` e `ts_stat` executam consulta com o privilégio de quem chama;
+    # `set_config` recusa o parâmetro privilegiado (sondado na revisão do lote 2).
+    "leitura ou efeito na própria sessão": (
+        "amvalidate", "array_sample", "array_shuffle", "clock_timestamp", "current_query", "currtid2",
+        "cursor_to_xml", "cursor_to_xmlschema", "gen_random_uuid", "pg_blocking_pids",
+        "pg_collation_actual_version", "pg_control_checkpoint", "pg_control_init", "pg_control_recovery",
+        "pg_control_system", "pg_current_wal_flush_lsn", "pg_current_wal_insert_lsn", "pg_current_wal_lsn",
+        "pg_database_collation_actual_version", "pg_database_size", "pg_export_snapshot",
+        "pg_get_multixact_members", "pg_get_wal_replay_pause_state", "pg_get_wal_resource_managers",
+        "pg_indexes_size", "pg_is_in_recovery", "pg_is_wal_replay_paused", "pg_isolation_test_session_is_blocked",
+        "pg_jit_available", "pg_last_committed_xact", "pg_last_wal_receive_lsn", "pg_last_wal_replay_lsn",
+        "pg_last_xact_replay_timestamp", "pg_lock_status", "pg_notification_queue_usage", "pg_partition_ancestors",
+        "pg_partition_tree", "pg_prepared_xact", "pg_relation_size", "pg_safe_snapshot_blocking_pids",
+        "pg_sleep", "pg_sleep_for", "pg_sleep_until", "pg_stat_clear_snapshot", "pg_stat_force_next_flush",
+        "pg_stat_get_io", "pg_stat_get_recovery_prefetch", "pg_stat_get_xact_blocks_fetched",
+        "pg_stat_get_xact_blocks_hit", "pg_stat_get_xact_function_calls", "pg_stat_get_xact_function_self_time",
+        "pg_stat_get_xact_function_total_time", "pg_stat_get_xact_numscans", "pg_stat_get_xact_tuples_deleted",
+        "pg_stat_get_xact_tuples_fetched", "pg_stat_get_xact_tuples_hot_updated",
+        "pg_stat_get_xact_tuples_inserted", "pg_stat_get_xact_tuples_newpage_updated",
+        "pg_stat_get_xact_tuples_returned", "pg_stat_get_xact_tuples_updated", "pg_table_size",
+        "pg_tablespace_size", "pg_total_relation_size", "pg_xact_commit_timestamp",
+        "pg_xact_commit_timestamp_origin", "pg_xact_status", "plpgsql_validator", "query_to_xml",
+        "query_to_xml_and_xmlschema", "query_to_xmlschema", "random", "random_normal", "set_config", "setseed",
+        "timeofday", "ts_rewrite", "ts_stat", "txid_status",
+    ),
+    # Ler e soltar: sem criar *large object* nem tomar lock, não há o que ler nem soltar.
+    "ler large object, soltar lock": (
+        "lo_close", "lo_get", "lo_lseek", "lo_lseek64", "lo_tell", "lo_tell64", "loread",
+        "pg_advisory_unlock", "pg_advisory_unlock_all", "pg_advisory_unlock_shared",
+    ),
+    # O servidor recusa por dentro: atributo de replicação, modo de *upgrade*,
+    # superusuário, script de extensão — sondado em `test_o_servidor_recusa_o_que_verifica_por_dentro`.
+    "verificadas pelo servidor": (
+        "binary_upgrade_create_empty_extension", "binary_upgrade_set_missing_value",
+        "binary_upgrade_set_next_array_pg_type_oid", "binary_upgrade_set_next_heap_pg_class_oid",
+        "binary_upgrade_set_next_heap_relfilenode", "binary_upgrade_set_next_index_pg_class_oid",
+        "binary_upgrade_set_next_index_relfilenode", "binary_upgrade_set_next_multirange_array_pg_type_oid",
+        "binary_upgrade_set_next_multirange_pg_type_oid", "binary_upgrade_set_next_pg_authid_oid",
+        "binary_upgrade_set_next_pg_enum_oid", "binary_upgrade_set_next_pg_tablespace_oid",
+        "binary_upgrade_set_next_pg_type_oid", "binary_upgrade_set_next_toast_pg_class_oid",
+        "binary_upgrade_set_next_toast_relfilenode", "binary_upgrade_set_record_init_privs",
+        "pg_copy_logical_replication_slot", "pg_copy_physical_replication_slot",
+        "pg_create_logical_replication_slot", "pg_create_physical_replication_slot", "pg_drop_replication_slot",
+        "pg_logical_slot_get_binary_changes", "pg_logical_slot_get_changes", "pg_logical_slot_peek_binary_changes",
+        "pg_logical_slot_peek_changes", "pg_replication_slot_advance",
+        "pg_extension_config_dump", "pg_import_system_collations", "pg_nextoid", "pg_read_file_old",
+        "pg_rotate_logfile_old", "pg_stop_making_pinned_objects",
+    ),
+    # Pedem o objeto: dono do índice BRIN/GIN, privilégio na sequência. O armazém
+    # não tem nenhum dos dois — `test_o_servidor_recusa_o_que_verifica_por_dentro`
+    # confere, e um que apareça obriga a sondá-lo.
+    "verificadas no objeto": (
+        "brin_desummarize_range", "brin_summarize_new_values", "brin_summarize_range", "gin_clean_pending_list",
+        "currval", "lastval", "nextval", "pg_sequence_last_value", "setval",
+    ),
+    # Interferem, dentro do limite que a Governança §7 declara (RVL2-2-05): o
+    # sinal só alcança sessão do próprio login, e `notify` é comando SQL também.
+    "interferência declarada": ("pg_cancel_backend", "pg_notify", "pg_terminate_backend"),
+}
+
+#: Uma chamada de cada família verificada pelo servidor, com o SQLSTATE da recusa.
+#: `{pid}` é uma sessão do superusuário, ociosa, aberta pelo próprio teste.
+RECUSADAS_POR_DENTRO: tuple[tuple[str, str], ...] = (
+    ("select pg_create_physical_replication_slot('__probe_do_leitor', false, false)", "42501"),
+    ("select pg_create_logical_replication_slot('__probe_do_leitor', 'test_decoding', true, false)", "42501"),
+    ("select pg_drop_replication_slot('__probe_do_leitor')", "42501"),
+    ("select pg_replication_slot_advance('__probe_do_leitor', '0/0')", "42501"),
+    ("select pg_copy_logical_replication_slot('__probe_do_leitor', '__probe_do_leitor_b')", "42501"),
+    ("select * from pg_logical_slot_get_changes('__probe_do_leitor', null, null)", "42501"),
+    ("select binary_upgrade_set_next_pg_type_oid(1)", "55P02"),
+    ("select binary_upgrade_set_record_init_privs(false)", "55P02"),
+    ("select pg_nextoid('pg_class', 'oid', 'pg_class_oid_index')", "42501"),
+    ("select pg_stop_making_pinned_objects()", "42501"),
+    ("select pg_import_system_collations('public')", "42501"),
+    ("select pg_read_file_old('/etc/hostname', 0, 1)", "42501"),
+    ("select pg_rotate_logfile_old()", "42501"),
+    ("select pg_extension_config_dump('consumption.monthly_revenue_by_channel_and_category', '')", "0A000"),
+    ("select set_config('session_replication_role', 'replica', true)", "42501"),
+    ("select pg_cancel_backend({pid})", "42501"),
+    ("select pg_terminate_backend({pid}, 0)", "42501"),
+)
+
+_CHAMAVEIS = (
+    "p.provolatile = 'v' and has_function_privilege(:u, p.oid, 'execute')"
+    " and p.prorettype not in ('internal'::regtype, 'language_handler'::regtype, 'trigger'::regtype,"
+    " 'event_trigger'::regtype, 'table_am_handler'::regtype, 'index_am_handler'::regtype,"
+    " 'tsm_handler'::regtype, 'fdw_handler'::regtype)"
+    " and not ('internal'::regtype = any(p.proargtypes::regtype[]))"
+)
+
+
+def test_o_que_fica_aberto_ao_leitor_e_o_classificado(motor) -> None:
+    """RVL2-2-01: a lista de fechadas era argumento; este é o oráculo do que sobra."""
+    with motor.connect() as conexao:
+        abertas = set(conexao.execute(text(
+            f"select distinct p.proname from pg_proc p where {_CHAMAVEIS}"
+            " and p.pronamespace = 'pg_catalog'::regnamespace"
+        ), {"u": os.environ[LEITOR_USUARIO]}).scalars())
+        fora_do_catalogo = conexao.execute(text(
+            f"select p.oid::regprocedure::text from pg_proc p where {_CHAMAVEIS}"
+            " and p.pronamespace <> 'pg_catalog'::regnamespace order by 1"
+        ), {"u": os.environ[LEITOR_USUARIO]}).scalars().all()
+    classificadas = set().union(*ABERTAS_AO_LEITOR.values())
+    assert sum(map(len, ABERTAS_AO_LEITOR.values())) == len(classificadas), "nome em dois motivos"
+    assert not classificadas & set(FECHADAS_A_PUBLIC)
+    assert sorted(abertas - classificadas) == [], "aberta ao leitor sem classificação"
+    assert sorted(classificadas - abertas) == [], "classificada que o leitor já não alcança"
+    assert fora_do_catalogo == [], "função volátil de usuário executável pelo leitor"
+
+
+def test_o_servidor_recusa_o_que_verifica_por_dentro(motor, leitor) -> None:
+    """As famílias de "verificadas pelo servidor", chamadas pelo leitor: cada uma recusada, e nada fica."""
+    with motor.connect() as conexao:
+        objetos = conexao.execute(text(
+            "select (select count(*) from pg_class c join pg_am a on a.oid = c.relam"
+            "        where c.relkind = 'i' and a.amname in ('brin', 'gin')),"
+            "       (select count(*) from pg_class where relkind = 'S')"
+        )).one()
+    assert tuple(objetos) == (0, 0), "índice BRIN/GIN ou sequência no armazém: sonde as \"verificadas no objeto\""
+    with motor.connect() as alvo:
+        pid = alvo.execute(text("select pg_backend_pid()")).scalar_one()
+        aceitas: list[str] = []
+        for comando, esperado in RECUSADAS_POR_DENTRO:
+            with leitor.connect() as conexao:
+                conexao.execute(text("set transaction read write"))
+                try:
+                    conexao.execute(text(comando.format(pid=pid)))
+                    aceitas.append(comando)
+                except DBAPIError as erro:
+                    assert erro.orig.sqlstate == esperado, (comando, erro.orig.sqlstate, str(erro.orig))
+                conexao.rollback()
+        assert alvo.execute(text("select 1")).scalar_one() == 1, "a sessão-alvo foi encerrada"
+    with motor.connect() as conexao:
+        slots = conexao.execute(text("select slot_name from pg_replication_slots")).scalars().all()
+    assert aceitas == []
+    assert "__probe_do_leitor" not in slots
 
 
 def test_membro_com_nome_que_fecharia_o_identificador_sai_sem_injetar(motor) -> None:

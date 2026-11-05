@@ -64,10 +64,13 @@ def test_o_verificador_e_o_scram_da_senha_e_nao_a_contem() -> None:
 
 
 def test_as_funcoes_fechadas_a_public_sao_as_que_escrevem_ou_tomam_lock() -> None:
-    """RVL2-01: criar e escrever *large object*, e tomar *advisory lock* — nunca ler nem soltar."""
+    """RVL2-01: criar e escrever *large object*, e tomar *advisory lock* — nunca ler nem soltar.
+
+    RVL2-2-01: e gravar mensagem no WAL."""
     fechadas = set(g.FECHADAS_A_PUBLIC)
     assert {"lo_create", "lo_creat", "lo_from_bytea", "lowrite", "lo_put", "lo_unlink"} <= fechadas
     assert {"pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_xact_lock"} <= fechadas
+    assert "pg_logical_emit_message" in fechadas
     assert not {n for n in fechadas if "unlock" in n or n in ("lo_get", "loread", "lo_close")}
     assert len(fechadas) == len(g.FECHADAS_A_PUBLIC)
 

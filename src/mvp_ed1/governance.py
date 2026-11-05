@@ -71,16 +71,21 @@ _SENHA = re.compile(r"[A-Za-z0-9]{24,}")
 #: v1.1.0): os *large objects* ficam fora dos grants de tabela — o leitor os
 #: criava pedindo `read write` —, e os *advisory locks* são os mesmos com que a
 #: captura marca chamador vivo (`legacy.captura.bloqueio_da_tentativa`): um
-#: leitor que tomasse o de uma tentativa a deixaria pendente para sempre. Toda
-#: assinatura de cada nome sai de `PUBLIC`; o superusuário, que é quem captura,
-#: carrega e transforma, não depende de `EXECUTE`. Ler um *large object* e soltar
-#: um lock ficam: sem criar nem tomar, não há o que ler nem o que soltar.
+#: leitor que tomasse o de uma tentativa a deixaria pendente para sempre.
+#: `pg_logical_emit_message` grava mensagem no WAL, e com `transactional=false`
+#: ela fica mesmo com *rollback* (RVL2-2-01). Toda assinatura de cada nome sai de
+#: `PUBLIC`; o superusuário, que é quem captura, carrega e transforma, não depende
+#: de `EXECUTE`. Ler um *large object* e soltar um lock ficam: sem criar nem
+#: tomar, não há o que ler nem o que soltar. O que continua aberto ao leitor, e
+#: por quê, está fixado em `tests/test_acesso.py` (`ABERTAS_AO_LEITOR`): função
+#: nova numa versão do PostgreSQL faz o teste falhar até ser classificada.
 FECHADAS_A_PUBLIC: tuple[str, ...] = (
     "lo_creat", "lo_create", "lo_from_bytea", "lo_open", "lo_put", "lowrite",
     "lo_truncate", "lo_truncate64", "lo_unlink",
     "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared",
     "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_try_advisory_xact_lock",
     "pg_try_advisory_xact_lock_shared",
+    "pg_logical_emit_message",
 )
 
 #: Migrações em ordem: (nome, comandos). Cada comando é idempotente por si.
