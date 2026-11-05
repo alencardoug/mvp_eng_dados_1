@@ -1249,19 +1249,19 @@ models:
         meta:
           sensitivity: internal
       - name: first_received_at
-        description: "Instante do primeiro recebimento da linha; nulo enquanto nada chegou."
+        description: "Instante do primeiro recebimento **concluído** da linha; nulo enquanto nenhum foi concluído."
         meta:
           sensitivity: internal
       - name: last_received_at
-        description: "Instante do último recebimento da linha; nulo enquanto nada chegou."
+        description: "Instante do último recebimento **concluído** da linha; nulo enquanto nenhum foi concluído."
         meta:
           sensitivity: internal
       - name: is_fully_received
-        description: "Verdadeiro quando a quantidade recebida alcança a pedida."
+        description: "Verdadeiro quando a quantidade recebida em recebimentos concluídos alcança a pedida."
         meta:
           sensitivity: internal
       - name: is_not_received
-        description: "Verdadeiro quando nenhuma unidade da linha foi recebida."
+        description: "Verdadeiro quando nenhuma unidade da linha chegou em recebimento concluído."
         meta:
           sensitivity: internal
       - name: is_cancelled
@@ -1269,11 +1269,11 @@ models:
         meta:
           sensitivity: internal
       - name: quantity_received
-        description: "Aditiva — unidades recebidas da linha, somando todos os recebimentos; zero enquanto nada chegou."
+        description: "Aditiva — unidades recebidas da linha, somando só os recebimentos **concluídos**; zero enquanto nenhum foi concluído."
         meta:
           sensitivity: internal
       - name: quantity_outstanding
-        description: "Aditiva — unidades pedidas que ainda não chegaram."
+        description: "Aditiva — unidades pedidas que ainda não chegaram em recebimento concluído."
         meta:
           sensitivity: internal
       - name: unit_cost
@@ -1285,7 +1285,7 @@ models:
         meta:
           sensitivity: confidential
       - name: received_cost_amount
-        description: "Aditiva — custo do que chegou: a quantidade recebida vezes o custo unitário de cada recebimento, arredondado a centavos."
+        description: "Aditiva — custo do que chegou: a quantidade recebida vezes o custo unitário de cada recebimento **concluído**, arredondado a centavos."
         meta:
           sensitivity: confidential
 
@@ -1712,9 +1712,10 @@ models:
         meta:
           sensitivity: internal
       - name: failed_attempt_count
-        description: "Aditiva — tentativas de entrega da remessa que falharam."
+        description: "**Não aditiva entre itens** — tentativas de entrega da remessa que falharam, repetidas em cada item dela: some uma vez por remessa, nunca por item."
         meta:
           sensitivity: public
+          description_reason: a fato está no grão do item e o valor é da remessa — o herdado diria aditiva por item (RVL3-03)
       - name: delivery_delay_days
         description: "Dias entre a entrega e o prazo prometido: positivo é atraso, negativo é adiantamento; nulo sem entrega."
         meta:
@@ -2509,9 +2510,10 @@ models:
         meta:
           sensitivity: internal
       - name: reopening_count
-        description: "Aditiva — vezes que o chamado foi reaberto."
+        description: "**Não aditiva entre eventos** — vezes que o chamado foi reaberto, repetidas em cada evento dele: some uma vez por chamado, nunca por evento."
         meta:
           sensitivity: internal
+          description_reason: a fato está no grão do evento e o valor é do chamado — o herdado diria aditiva por evento (RVL3-03)
       - name: hours_to_assignment
         description: "Horas entre a abertura do chamado e a primeira atribuição a um atendente; nulo enquanto ele não foi atribuído."
         meta:

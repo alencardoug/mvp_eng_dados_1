@@ -1271,31 +1271,31 @@ models:
       - name: first_received_at
         meta:
           sensitivity: internal
-        description: "Instante do primeiro recebimento da linha; nulo enquanto nada chegou."
+        description: "Instante do primeiro recebimento **concluído** da linha; nulo enquanto nenhum foi concluído."
       - name: is_fully_received
         meta:
           sensitivity: internal
-        description: "Verdadeiro quando a quantidade recebida alcança a pedida."
+        description: "Verdadeiro quando a quantidade recebida em recebimentos concluídos alcança a pedida."
       - name: is_not_received
         meta:
           sensitivity: internal
-        description: "Verdadeiro quando nenhuma unidade da linha foi recebida."
+        description: "Verdadeiro quando nenhuma unidade da linha chegou em recebimento concluído."
       - name: last_received_at
         meta:
           sensitivity: internal
-        description: "Instante do último recebimento da linha; nulo enquanto nada chegou."
+        description: "Instante do último recebimento **concluído** da linha; nulo enquanto nenhum foi concluído."
       - name: quantity_outstanding
         meta:
           sensitivity: internal
-        description: "Aditiva — unidades pedidas que ainda não chegaram."
+        description: "Aditiva — unidades pedidas que ainda não chegaram em recebimento concluído."
       - name: quantity_received
         meta:
           sensitivity: internal
-        description: "Aditiva — unidades recebidas da linha, somando todos os recebimentos; zero enquanto nada chegou."
+        description: "Aditiva — unidades recebidas da linha, somando só os recebimentos **concluídos**; zero enquanto nenhum foi concluído."
       - name: received_cost_amount
         meta:
           sensitivity: confidential
-        description: "Aditiva — custo do que chegou: a quantidade recebida vezes o custo unitário de cada recebimento, arredondado a centavos."
+        description: "Aditiva — custo do que chegou: a quantidade recebida vezes o custo unitário de cada recebimento **concluído**, arredondado a centavos."
       - name: source_system
         description: "{{ doc(\"source_system\") }}"
         meta:
