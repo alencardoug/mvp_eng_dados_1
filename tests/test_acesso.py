@@ -337,22 +337,28 @@ def test_nenhuma_assinatura_fechada_a_public_executa_pelo_leitor(motor) -> None:
     assert temporaria is False
 
 
-#: O que continua aberto ao leitor entre as funções **voláteis** — as que podem
-#: ter efeito —, nome a nome e com o motivo (RVL2-2-01). As estáveis e imutáveis
-#: não alteram nada por definição; as que pedem ou devolvem `internal`, gatilho ou
-#: *handler* não se chamam de SQL. Uma versão nova do PostgreSQL que traga outra
-#: faz `test_o_que_fica_aberto_ao_leitor_e_o_classificado` falhar até ela entrar
-#: aqui — ou em `governance.FECHADAS_A_PUBLIC`.
+#: O que continua aberto ao leitor entre as funções **voláteis**, nome a nome e
+#: com o motivo (RVL2-2-01). O motivo diz por que a função fica aberta, não que
+#: ela não tenha efeito nenhum. O recorte é este, e só este (RVL2-3-05):
+#: - **por nome**: uma sobrecarga nova de um nome já classificado não muda o
+#:   conjunto e passa;
+#: - **só voláteis**: as estáveis e imutáveis ficam fora, inclusive as que têm
+#:   efeito interno — `txid_current` e `pg_current_xact_id` são estáveis e alocam
+#:   um XID;
+#: - fora também as que pedem ou devolvem `internal`, gatilho ou *handler*, que
+#:   SQL não chama (`cannot cast type unknown to internal`).
+#: Um nome volátil novo numa versão do PostgreSQL faz
+#: `test_o_que_fica_aberto_ao_leitor_e_o_classificado` falhar até entrar aqui ou
+#: em `governance.FECHADAS_A_PUBLIC`.
 ABERTAS_AO_LEITOR: dict[str, tuple[str, ...]] = {
-    # Leem o servidor, ou valem só para a própria sessão e transação. `query_to_xml`,
-    # `cursor_to_xml` e `ts_stat` executam consulta com o privilégio de quem chama;
-    # `set_config` recusa o parâmetro privilegiado (sondado na revisão do lote 2).
+    # Leem o servidor, ou valem só para a própria sessão e transação. `set_config`
+    # recusa o parâmetro privilegiado (sondado na revisão do lote 2).
     "leitura ou efeito na própria sessão": (
         "amvalidate", "array_sample", "array_shuffle", "clock_timestamp", "current_query", "currtid2",
-        "cursor_to_xml", "cursor_to_xmlschema", "gen_random_uuid", "pg_blocking_pids",
+        "gen_random_uuid", "pg_blocking_pids",
         "pg_collation_actual_version", "pg_control_checkpoint", "pg_control_init", "pg_control_recovery",
         "pg_control_system", "pg_current_wal_flush_lsn", "pg_current_wal_insert_lsn", "pg_current_wal_lsn",
-        "pg_database_collation_actual_version", "pg_database_size", "pg_export_snapshot",
+        "pg_database_collation_actual_version", "pg_database_size",
         "pg_get_multixact_members", "pg_get_wal_replay_pause_state", "pg_get_wal_resource_managers",
         "pg_indexes_size", "pg_is_in_recovery", "pg_is_wal_replay_paused", "pg_isolation_test_session_is_blocked",
         "pg_jit_available", "pg_last_committed_xact", "pg_last_wal_receive_lsn", "pg_last_wal_replay_lsn",
@@ -366,10 +372,19 @@ ABERTAS_AO_LEITOR: dict[str, tuple[str, ...]] = {
         "pg_stat_get_xact_tuples_inserted", "pg_stat_get_xact_tuples_newpage_updated",
         "pg_stat_get_xact_tuples_returned", "pg_stat_get_xact_tuples_updated", "pg_table_size",
         "pg_tablespace_size", "pg_total_relation_size", "pg_xact_commit_timestamp",
-        "pg_xact_commit_timestamp_origin", "pg_xact_status", "plpgsql_validator", "query_to_xml",
-        "query_to_xml_and_xmlschema", "query_to_xmlschema", "random", "random_normal", "set_config", "setseed",
-        "timeofday", "ts_rewrite", "ts_stat", "txid_status",
+        "pg_xact_commit_timestamp_origin", "pg_xact_status", "plpgsql_validator",
+        "random", "random_normal", "set_config", "setseed", "timeofday", "txid_status",
     ),
+    # Executam SQL que quem chama escreve, com o privilégio de quem chama: alcançam
+    # o mesmo que o leitor alcança direto — inclusive `pg_notify` dentro do
+    # `select` (sondado na rodada 3 do lote 2) —, e nada além (RVL2-3-05).
+    "executam SQL de quem chama": (
+        "cursor_to_xml", "cursor_to_xmlschema", "query_to_xml", "query_to_xml_and_xmlschema",
+        "query_to_xmlschema", "ts_rewrite", "ts_stat",
+    ),
+    # Efeito interno do servidor, sem dado: o *snapshot* exportado é um arquivo
+    # transitório que dura a transação (RVL2-3-05).
+    "efeito interno, sem dado": ("pg_export_snapshot",),
     # Ler e soltar: sem criar *large object* nem tomar lock, não há o que ler nem soltar.
     "ler large object, soltar lock": (
         "lo_close", "lo_get", "lo_lseek", "lo_lseek64", "lo_tell", "lo_tell64", "loread",
@@ -406,13 +421,15 @@ ABERTAS_AO_LEITOR: dict[str, tuple[str, ...]] = {
 }
 
 #: Uma chamada de cada família verificada pelo servidor, com o SQLSTATE da recusa.
-#: `{pid}` é uma sessão do superusuário, ociosa, aberta pelo próprio teste.
+#: `{pid}` é uma sessão do superusuário, ociosa, aberta pelo próprio teste. Todo
+#: slot pedido é **temporário** — some com a sessão que o criou —, e o teste ainda
+#: apaga, como superusuário, qualquer `__probe_do_leitor*` que sobre (RVL2-3-01).
 RECUSADAS_POR_DENTRO: tuple[tuple[str, str], ...] = (
-    ("select pg_create_physical_replication_slot('__probe_do_leitor', false, false)", "42501"),
+    ("select pg_create_physical_replication_slot('__probe_do_leitor', false, true)", "42501"),
     ("select pg_create_logical_replication_slot('__probe_do_leitor', 'test_decoding', true, false)", "42501"),
     ("select pg_drop_replication_slot('__probe_do_leitor')", "42501"),
     ("select pg_replication_slot_advance('__probe_do_leitor', '0/0')", "42501"),
-    ("select pg_copy_logical_replication_slot('__probe_do_leitor', '__probe_do_leitor_b')", "42501"),
+    ("select pg_copy_logical_replication_slot('__probe_do_leitor', '__probe_do_leitor_b', true)", "42501"),
     ("select * from pg_logical_slot_get_changes('__probe_do_leitor', null, null)", "42501"),
     ("select binary_upgrade_set_next_pg_type_oid(1)", "55P02"),
     ("select binary_upgrade_set_record_init_privs(false)", "55P02"),
@@ -464,23 +481,66 @@ def test_o_servidor_recusa_o_que_verifica_por_dentro(motor, leitor) -> None:
             "       (select count(*) from pg_class where relkind = 'S')"
         )).one()
     assert tuple(objetos) == (0, 0), "índice BRIN/GIN ou sequência no armazém: sonde as \"verificadas no objeto\""
-    with motor.connect() as alvo:
-        pid = alvo.execute(text("select pg_backend_pid()")).scalar_one()
-        aceitas: list[str] = []
-        for comando, esperado in RECUSADAS_POR_DENTRO:
-            with leitor.connect() as conexao:
-                conexao.execute(text("set transaction read write"))
-                try:
-                    conexao.execute(text(comando.format(pid=pid)))
-                    aceitas.append(comando)
-                except DBAPIError as erro:
-                    assert erro.orig.sqlstate == esperado, (comando, erro.orig.sqlstate, str(erro.orig))
-                conexao.rollback()
-        assert alvo.execute(text("select 1")).scalar_one() == 1, "a sessão-alvo foi encerrada"
-    with motor.connect() as conexao:
-        slots = conexao.execute(text("select slot_name from pg_replication_slots")).scalars().all()
+    aceitas: list[str] = []
+    try:
+        with motor.connect() as alvo:
+            pid = alvo.execute(text("select pg_backend_pid()")).scalar_one()
+            for comando, esperado in RECUSADAS_POR_DENTRO:
+                with leitor.connect() as conexao:
+                    conexao.execute(text("set transaction read write"))
+                    try:
+                        conexao.execute(text(comando.format(pid=pid)))
+                        aceitas.append(comando)
+                    except DBAPIError as erro:
+                        assert erro.orig.sqlstate == esperado, (comando, erro.orig.sqlstate, str(erro.orig))
+                    conexao.rollback()
+            assert alvo.execute(text("select 1")).scalar_one() == 1, "a sessão-alvo foi encerrada"
+    finally:
+        # A limpeza não depende da permissão que está sendo testada: quem apaga é o superusuário.
+        with motor.begin() as conexao:
+            sobras = conexao.execute(text(
+                "select slot_name from pg_replication_slots where slot_name like :p"
+            ), {"p": r"\_\_probe\_do\_leitor%"}).scalars().all()
+            for slot in sobras:
+                conexao.execute(text("select pg_drop_replication_slot(:s)"), {"s": slot})
     assert aceitas == []
-    assert "__probe_do_leitor" not in slots
+    assert sobras == [], "slot de sonda criado pelo leitor"
+
+
+def test_padrao_que_o_leitor_tira_de_si_volta_no_garantir(motor, leitor) -> None:
+    """RVL2-3-07: o leitor tira o próprio padrão de leitura, no banco e no global, e o `garantir()` repõe.
+
+    O padrão por banco vence o global: repor só o global o deixava valendo."""
+    from mvp_ed1 import governance
+
+    usuario = os.environ[LEITOR_USUARIO]
+    with motor.connect() as conexao:
+        banco = conexao.execute(text("select current_database()")).scalar_one()
+    ajustes = text(
+        "select coalesce(d.datname, '*'), s.setconfig from pg_db_role_setting s"
+        " left join pg_database d on d.oid = s.setdatabase where s.setrole = to_regrole(:u) order by 1"
+    )
+    try:
+        with leitor.connect() as conexao:
+            conexao.execute(text("set transaction read write"))
+            conexao.exec_driver_sql(f'alter role {usuario} in database "{banco}" set default_transaction_read_only = off')
+            conexao.exec_driver_sql(f"alter role {usuario} set statement_timeout = '1h'")
+            conexao.commit()
+        with leitor.connect() as conexao:
+            assert conexao.execute(text("show default_transaction_read_only")).scalar_one() == "off"
+        governance.garantir(motor, governance.leitor_do_ambiente())
+        with leitor.connect() as conexao:
+            assert conexao.execute(text("show default_transaction_read_only")).scalar_one() == "on"
+            assert conexao.execute(text("show statement_timeout")).scalar_one() == "0"
+        with motor.connect() as conexao:
+            assert [tuple(l) for l in conexao.execute(ajustes, {"u": usuario})] == [
+                ("*", ["default_transaction_read_only=on"])
+            ]
+    finally:
+        with motor.begin() as conexao:
+            conexao.exec_driver_sql(f'alter role {usuario} in database "{banco}" reset all')
+            conexao.exec_driver_sql(f"alter role {usuario} reset all")
+            conexao.exec_driver_sql(f"alter role {usuario} set default_transaction_read_only = on")
 
 
 def test_membro_com_nome_que_fecharia_o_identificador_sai_sem_injetar(motor) -> None:

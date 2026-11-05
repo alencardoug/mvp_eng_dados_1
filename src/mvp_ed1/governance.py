@@ -77,8 +77,9 @@ _SENHA = re.compile(r"[A-Za-z0-9]{24,}")
 #: `PUBLIC`; o superusuário, que é quem captura, carrega e transforma, não depende
 #: de `EXECUTE`. Ler um *large object* e soltar um lock ficam: sem criar nem
 #: tomar, não há o que ler nem o que soltar. O que continua aberto ao leitor, e
-#: por quê, está fixado em `tests/test_acesso.py` (`ABERTAS_AO_LEITOR`): função
-#: nova numa versão do PostgreSQL faz o teste falhar até ser classificada.
+#: por quê, está fixado em `tests/test_acesso.py` (`ABERTAS_AO_LEITOR`), com o
+#: recorte declarado lá: um nome volátil novo numa versão do PostgreSQL faz o
+#: teste falhar até ser classificado.
 FECHADAS_A_PUBLIC: tuple[str, ...] = (
     "lo_creat", "lo_create", "lo_from_bytea", "lo_open", "lo_put", "lowrite",
     "lo_truncate", "lo_truncate64", "lo_unlink",
@@ -197,7 +198,8 @@ def _garantir_leitor(conexao, usuario: str, senha: str) -> None:
 
     Membro de `analyst` e de nada mais, sem `admin option`; sem nenhum dos
     atributos que escalam (`superuser`, `createdb`, `createrole`, `replication`,
-    `bypassrls`); leitura como padrão da sessão; e a senha do `.env`, reposta a
+    `bypassrls`); leitura como padrão da sessão, e nenhum outro padrão — nem o
+    global nem o de banco nenhum; e a senha do `.env`, reposta a
     cada vez, para que o `.env` seja sempre a verdade. O que já estiver diferente
     é desfeito — o mesmo princípio do `on-run-end`, que revoga o não declarado.
 
@@ -230,6 +232,23 @@ def _garantir_leitor(conexao, usuario: str, senha: str) -> None:
         )
     except Exception as erro:
         raise RuntimeError(f"não foi possível definir o login {usuario}: {type(erro.__cause__ or erro).__name__}") from None
+    # Todo padrão do papel volta ao declarado, o global e o de cada banco: o leitor
+    # pode `alter role … [in database …] set` sobre si mesmo, e o padrão por banco
+    # vence o global — repor só o global deixava o dele valendo (RVL2-3-07).
+    conexao.execute(text(
+        f"""
+        do $$
+        declare r record;
+        begin
+            for r in select d.datname from pg_db_role_setting s join pg_database d on d.oid = s.setdatabase
+                     where s.setrole = '{usuario}'::regrole loop
+                execute format('alter role %I in database %I reset all', '{usuario}', r.datname);
+            end loop;
+        end
+        $$
+        """
+    ))
+    conexao.execute(text(f"alter role {usuario} reset all"))
     conexao.execute(text(f"alter role {usuario} set default_transaction_read_only = on"))
     conexao.execute(text(
         f"""
