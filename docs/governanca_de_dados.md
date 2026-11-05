@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.10 |
+| Versão | 2.11 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 04/11/2026 — §7: o login de leitura sem *large object* nem *advisory lock*, o catálogo composto no servidor e o leitor depois da restauração (revisão do lote 2 da v1.1.0) |
+| Última revisão | 05/11/2026 — §7: o login de leitura sem mensagem no WAL, o que fica aberto a ele classificado por oráculo e o alcance de "não interfere" (rodada 2 do lote 2 da v1.1.0) |
 
 ---
 
@@ -288,18 +288,33 @@ verificador SCRAM, para que o texto dela nunca chegue ao servidor. E saem de `PU
 interferem sem grant nenhum (`governance.FECHADAS_A_PUBLIC`): criar e escrever *large object*, que
 fica fora dos grants de tabela, e tomar *advisory lock* — os mesmos com que a captura do legado
 marca chamador vivo, e que um leitor poderia segurar para deixar uma tentativa pendente para sempre
-(revisão do lote 2 da v1.1.0, RVL2-01). Sem isso, "não escreve" teria exceções. O superusuário, por
+(revisão do lote 2 da v1.1.0, RVL2-01) —, e gravar mensagem no WAL (`pg_logical_emit_message`,
+RVL2-2-01). Sem isso, "não escreve" teria exceções. A lista é argumento; o oráculo é o que **sobra**:
+toda função volátil que o leitor ainda executa está classificada com o motivo em
+`tests/test_acesso.py` (`ABERTAS_AO_LEITOR`) — leitura ou efeito na própria sessão, ler *large
+object* e soltar lock, recusa feita pelo próprio servidor (atributo de replicação, modo de
+*upgrade*, superusuário, dono do objeto) e interferência declarada —, a recusa do servidor é sondada
+família a família pelo leitor, e uma função nova numa versão do PostgreSQL falha o teste até ser
+classificada ou fechada. O superusuário, por
 onde Airbyte, dbt, Beam e o certificado se conectam, não depende de `EXECUTE`; um componente que
 passe a se conectar pelo próprio papel precisa declarar o que dessas funções usa. O que vem do
 catálogo — os papéis de que o login é membro, o nome do banco — se compõe no servidor, nunca em
-texto Python (RVL2-02). A prova é por
+texto Python (RVL2-02). **"Não interfere" tem alcance declarado** (RVL2-2-05): o leitor não escreve,
+não toma lock que a captura use e não sinaliza sessão de outro login, mas ainda pode o que qualquer
+sessão de PostgreSQL pode — `notify`/`listen` (canais não isolam usuários), alongar os próprios
+*timeouts*, cancelar ou encerrar sessão do **próprio** login, e segurar `access share` numa view
+durante uma leitura longa, o que atrasa um DDL concorrente (o `dbt-build` que a recria). E pode tirar
+o próprio padrão de leitura (`alter role … set default_transaction_read_only`, que o PostgreSQL
+permite a todo papel sobre si): o padrão é conveniência, a garantia é o privilégio, e o `garantir()`
+seguinte o repõe. Nenhum consumidor usa `listen`/`notify` hoje. A prova é por
 **conexão de verdade** com ele, não por `set role` (`tests/test_acesso.py`): lê toda view de
 `consumption`; é recusado em todo objeto das outras oito camadas; não cria tabela, tabela
-temporária, schema nem *large object*, nem toma *advisory lock*, mesmo pedindo `read write`, e
-nenhuma assinatura fechada executa por ele; e não assume outro papel nem o superusuário, não
+temporária, schema nem *large object*, nem toma *advisory lock* nem grava no WAL, mesmo pedindo
+`read write`, e nenhuma assinatura fechada executa por ele; e não assume outro papel nem o superusuário, não
 concede `analyst` nem cria papel. Contraprova na entrega: membro de `transformer`, `createdb` e
 `temporary` devolvido a `PUBLIC` acusaram nos quatro testes, e o `garantir()` seguinte desfez os
-três; as funções devolvidas a `PUBLIC` acusaram nos dois testes delas (lote 2). **Depois de uma
+três; as funções devolvidas a `PUBLIC` acusaram nos dois testes delas (lote 2); e, antes de fechar
+`pg_logical_emit_message`, os três testes dela acusaram (rodada 2 do lote 2). **Depois de uma
 restauração**, o login e as revogações de `PUBLIC` não vêm do *dump*: o login é do cluster, e o
 ACL do banco e das funções do `pg_catalog` fica fora de um *dump* por schema. Num cluster novo,
 quem os estabelece é o `dbt-rebuild` da sequência de recuperação, e até ele o leitor não existe
