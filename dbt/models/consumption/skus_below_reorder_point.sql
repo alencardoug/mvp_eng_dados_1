@@ -92,8 +92,7 @@ posicao as (
         -- somá-las encurtaria a cobertura e faria o alerta disparar cedo.
         sum(l.quantity_out) filter (
             where l.is_sale
-              and l.occurred_at >= (select instante from agora)
-                                   - interval '{{ var("cover_window_days") }} days'
+              and l.occurred_at >= {{ dias_no_calendario('(select instante from agora)', -var("cover_window_days")) }}
         )                                                            as window_sold_units
     from livro l
     -- Sem a origem no agrupamento, o saldo do par armazém/SKU do legado soma ao

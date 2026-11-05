@@ -8,7 +8,9 @@
 -- usa o relógio do banco produz resultado diferente a cada execução sobre o
 -- mesmo dado, e a reprodutibilidade do projeto (P2) deixa de existir.
 
-{% set as_of = "date '" ~ var("as_of_date") ~ "'" %}
+{#- O "hoje" é a meia-noite de São Paulo de `as_of_date`, como nos demais modelos —
+    `date 'X'` comparado com `timestamptz` seria a meia-noite do fuso da sessão (RVL3-6-04). -#}
+{% set as_of = "timestamptz '" ~ var("as_of_date") ~ " 00:00-03'" %}
 
 with clientes as (
 
@@ -100,11 +102,10 @@ select
     -- Glossário: cliente ativo tem pedido não cancelado na janela declarada,
     -- contada de `as_of_date`. Pedido devolvido conta — houve compra, e a
     -- devolução é outro fato.
-    p.last_order_at >= {{ as_of }} - interval '{{ var("active_customer_window_days") }} days'
+    p.last_order_at >= {{ dias_no_calendario(as_of, -var("active_customer_window_days")) }}
                                                         as is_active,
     r.second_order_at is not null
-        and r.second_order_at <= p.first_order_at
-            + interval '{{ var("repeat_purchase_window_days") }} days'
+        and r.second_order_at <= {{ dias_no_calendario('p.first_order_at', var("repeat_purchase_window_days")) }}
                                                         as is_repeat_buyer,
 
     -- Glossário: **churn** é a perda de um cliente que já foi ativo. Exige as
@@ -112,8 +113,7 @@ select
     -- sem compra nova. Quem nunca comprou não entrou, e por isso não saiu: é
     -- cadastro sem conversão, que é outro problema e outra métrica.
     p.first_order_at is not null
-        and p.last_order_at < {{ as_of }}
-            - interval '{{ var("active_customer_window_days") }} days'
+        and p.last_order_at < {{ dias_no_calendario(as_of, -var("active_customer_window_days")) }}
                                                         as is_churned,
     case
         when p.last_order_at is not null

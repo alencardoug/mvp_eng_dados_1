@@ -84,11 +84,9 @@ with movimentos as (
     -- máximo global que deixava o `retail`, dias à frente, empurrar a janela
     -- para fora de quase toda a captura legada.
     where source_system = 'legacy'
-       or occurred_at >= (
-              select coalesce(max(occurred_at), timestamptz '{{ var("period_start") }}')
-              from {{ this }}
-              where source_system = 'retail'
-          ) - interval '{{ var("atraso_maximo_dias") }} days'
+       or occurred_at >= {{ dias_no_calendario(
+              "(select coalesce(max(occurred_at), timestamptz '" ~ var("period_start") ~ "') from " ~ this ~ " where source_system = 'retail')",
+              -var("atraso_maximo_dias")) }}
     {% endif %}
 
 )

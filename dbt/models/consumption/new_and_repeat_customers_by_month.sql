@@ -57,14 +57,12 @@ select
     count(*)                                        as new_customer_count,
     count(*) filter (
         where r.second_order_at is not null
-          and r.second_order_at <= e.first_order_at
-              + interval '{{ var("repeat_purchase_window_days") }} days'
+          and r.second_order_at <= {{ dias_no_calendario('e.first_order_at', var("repeat_purchase_window_days")) }}
     )                                               as returning_customer_count,
     round(
         100.0 * count(*) filter (
             where r.second_order_at is not null
-              and r.second_order_at <= e.first_order_at
-                  + interval '{{ var("repeat_purchase_window_days") }} days'
+              and r.second_order_at <= {{ dias_no_calendario('e.first_order_at', var("repeat_purchase_window_days")) }}
         ) / nullif(count(*), 0), 2
     )                                               as repeat_purchase_rate_pct
 from estreia e

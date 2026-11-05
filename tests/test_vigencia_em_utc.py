@@ -45,3 +45,34 @@ def test_o_dbt_carrega_a_macro_do_projeto() -> None:
     macros = json.loads(manifest.read_text(encoding="utf-8"))["macros"]
     for nome in ("snapshot_get_time", "postgres__snapshot_get_time"):
         assert "(now() at time zone 'UTC')" in macros[f"macro.mvp_ed1.{nome}"]["macro_sql"]
+
+
+#: Onde somar dias a um valor não depende de fuso: `date + interval` em `dim_date`.
+SOMA_DE_DIAS_SEM_INSTANTE = {"dim_date.sql"}
+
+
+def test_janela_de_dias_sobre_instante_passa_pelo_calendario_de_sao_paulo() -> None:
+    """RVL3-6-04: `instante ± interval 'N days'` soma no fuso da sessão; a macro diz o calendário.
+
+    Toda soma de dias nos modelos passa por `dias_no_calendario`, salvo a de `date`
+    declarada acima — um `+ interval` novo sobre `timestamptz` falha aqui."""
+    soltas = []
+    for caminho in sorted((DBT / "models").rglob("*.sql")):
+        if caminho.name in SOMA_DE_DIAS_SEM_INSTANTE or "legacy" in caminho.parts:
+            continue
+        for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
+            codigo = linha.split("--", 1)[0]
+            if "interval '" in codigo and "days'" in codigo:
+                soltas.append(f"{caminho.relative_to(DBT)}:{numero}")
+    assert soltas == [], "some dias com {{ dias_no_calendario(instante, n) }}"
+    macro = (DBT / "macros" / "dias_no_calendario.sql").read_text(encoding="utf-8")
+    assert macro.count("at time zone 'America/Sao_Paulo'") == 2
+
+
+def test_o_hoje_dos_modelos_e_a_meia_noite_de_sao_paulo() -> None:
+    """`date 'as_of'` comparado com `timestamptz` seria a meia-noite do fuso da sessão."""
+    for caminho in sorted((DBT / "models").rglob("*.sql")):
+        if "legacy" in caminho.parts or caminho.name in SOMA_DE_DIAS_SEM_INSTANTE:
+            continue
+        texto = caminho.read_text(encoding="utf-8")
+        assert "\"date '\" ~ var(\"as_of_date\")" not in texto, caminho.name

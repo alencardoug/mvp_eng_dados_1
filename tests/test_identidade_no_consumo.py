@@ -75,15 +75,19 @@ _REF = re.compile(r"\{\{\s*ref\(\s*'([a-z0-9_]+)'\s*\)\s*\}\}")
 _SOURCE = re.compile(r"\{\{\s*source\(\s*'([a-z0-9_]+)'\s*,\s*'([a-z0-9_]+)'\s*\)\s*\}\}")
 _VAR = re.compile(r"\{\{\s*var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\}\}")
 _CONFIG = re.compile(r"\{\{\s*config\(.*?\)\s*\}\}", re.S)
+#: A janela de dias no calendário (macro `dias_no_calendario`): para a identidade, só o instante importa.
+_DIAS = re.compile(r"\{\{\s*dias_no_calendario\(\s*'([^']*)'\s*,\s*-?var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\)\s*\}\}")
 
 
 def _sql(caminho: pathlib.Path) -> str:
-    """O modelo como SQL puro: `ref` e `source` viram nomes, `var` vira um número.
+    """O modelo como SQL puro: `ref` e `source` viram nomes, `var` vira um número, e a
+    janela `dias_no_calendario(instante, n)` vira o instante.
 
     O valor da variável não importa — a guarda lê identidade, não janela.
     """
     texto = caminho.read_text(encoding="utf-8")
     texto = _CONFIG.sub("", texto)
+    texto = _DIAS.sub(r"(\1)", texto)
     texto = _REF.sub(r"\1", texto)
     texto = _SOURCE.sub(r"\1.\2", texto)
     texto = _VAR.sub("1", texto)
