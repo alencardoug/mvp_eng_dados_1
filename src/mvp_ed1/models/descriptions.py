@@ -140,15 +140,29 @@ def _documents() -> list[tuple[pathlib.Path, dict]]:
     raiz = sensitivity.DBT                     # na chamada: os testes apontam o projeto para outro diretório
     caminhos = sorted(list((raiz / "models").rglob("*.yml")) + list((raiz / "snapshots").rglob("*.yml")) + list((raiz / "seeds").rglob("*.yml")))
     documentos = [(c, sensitivity.read_yaml(c)) for c in caminhos]
-    # Uma entrada em dois arquivos: o dbt recusaria, e aqui a segunda encobriria a primeira (RVL3-5-02).
+    # Uma entrada em dois arquivos: o dbt recusaria, e aqui a segunda encobriria a primeira
+    # (RVL3-5-02). A exceção é a promoção documentada — o modelo ganha entrada num `.yml`
+    # à mão e ainda está no `_derived.yml`, que a geração vai limpar: aí vale a à mão, e a
+    # gerada sai da leitura (RVL3-6-03). Fonte repetida também é recusa (RVL3-6-02).
     vistas: dict[str, pathlib.Path] = {}
+    fontes: dict[tuple[str, str], pathlib.Path] = {}
     for caminho, documento in documentos:
         for chave in ("models", "snapshots", "seeds"):
             for e in documento.get(chave) or []:
-                if e["name"] in vistas:
-                    raise ValueError(f"`{e['name']}` documentado em {vistas[e['name']]} e em {caminho}")
-                vistas[e["name"]] = caminho
-    return documentos
+                anterior = vistas.get(e["name"])
+                if anterior is not None and _kind(anterior) != "derived" and _kind(caminho) != "derived":
+                    raise ValueError(f"`{e['name']}` documentado em {anterior} e em {caminho}")
+                if anterior is None or _kind(anterior) == "derived":
+                    vistas[e["name"]] = caminho
+        for f in documento.get("sources") or []:
+            for tabela in f.get("tables") or []:
+                chave_fonte = (f.get("name"), tabela.get("name"))
+                if chave_fonte in fontes:
+                    raise ValueError(f"tabela de fonte `{chave_fonte[0]}.{chave_fonte[1]}` em {fontes[chave_fonte]} e em {caminho}")
+                fontes[chave_fonte] = caminho
+    # A entrada gerada que perdeu para a à mão não é lida.
+    return [(c, {**d, **{k: [e for e in d.get(k) or [] if vistas.get(e["name"]) == c]
+                        for k in ("models", "snapshots", "seeds") if d.get(k)}}) for c, d in documentos]
 
 
 def _kind(caminho: pathlib.Path) -> str:

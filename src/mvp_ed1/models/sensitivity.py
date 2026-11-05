@@ -347,6 +347,8 @@ def _declaracoes_no_disco() -> tuple[dict[str, dict[str, dict]], dict[tuple[str,
             documento = read_yaml(caminho)
             for chave in ("models", "snapshots", "seeds"):
                 for entrada in documento.get(chave) or []:
+                    if caminho.name in GENERATED_FILES and entrada["name"] in nos:
+                        continue                                  # a entrada à mão vence a gerada (promoção)
                     nos[entrada["name"]] = {c["name"]: (c.get("meta") or {}) for c in entrada.get("columns") or []}
             for fonte in documento.get("sources") or []:
                 for tabela in fonte.get("tables") or []:
@@ -417,11 +419,32 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
         raise ValueError(f"{caminho}: {erro}") from None
     entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    tabelas = [(f.get("name"), t.get("name")) for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    if repetidas := sorted({x for x in tabelas if tabelas.count(x) > 1}):
+        raise ValueError(f"{caminho}: tabela(s) de fonte {repetidas} declarada(s) mais de uma vez")   # RVL3-6-02
     for entrada in entradas:
         nomes = [c.get("name") for c in entrada.get("columns") or []]
         if repetidas := sorted({n for n in nomes if nomes.count(n) > 1}):
             raise ValueError(f"{caminho}: `{entrada.get('name')}` lista a(s) coluna(s) {repetidas} mais de uma vez")
+        for coluna in entrada.get("columns") or []:
+            _unificar_meta(caminho, entrada.get("name"), coluna)
     return documento
+
+
+def _unificar_meta(caminho: pathlib.Path, entrada: str, coluna: dict) -> None:
+    """`config.meta` da coluna entra em `meta`, como o dbt as junta (RVL3-6-01).
+
+    Quem lê os metadados da coluna lê `meta`; uma marca de herdado movida para
+    `config.meta` — sintaxe que o dbt aceita — sumiria da leitura e o texto velho
+    viraria raiz. A mesma chave nas duas grafias, com valores diferentes, é recusa."""
+    config = coluna.get("config") or {}
+    de_config = config.get("meta") or {}
+    if not de_config:
+        return
+    meta = coluna.get("meta") or {}
+    if conflito := sorted(k for k in set(meta) & set(de_config) if meta[k] != de_config[k]):
+        raise ValueError(f"{caminho}: `{entrada}.{coluna.get('name')}` tem {conflito} em `meta` e em `config.meta`, diferentes")
+    coluna["meta"] = {**meta, **de_config}
 
 
 def _linhas(texto: str) -> str:

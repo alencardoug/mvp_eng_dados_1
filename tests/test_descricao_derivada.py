@@ -249,6 +249,39 @@ def test_a_leitura_nao_deixa_uma_segunda_ocorrencia_encobrir_a_marca(tmp_path, m
         d.disk_entries()
 
 
+def test_config_meta_da_coluna_e_lido_como_meta_e_a_fonte_repetida_e_recusada(tmp_path, monkeypatch) -> None:
+    """RVL3-6-01/02: a marca em `config.meta` não some; a tabela de fonte não se repete."""
+    em_config = ("version: 2\nmodels:\n  - name: m\n    columns:\n      - name: a\n"
+                 "        meta:\n          sensitivity: internal\n        config:\n          meta:\n"
+                 "            description_inherited: true\n")
+    coluna = s.read_yaml(tmp_path / "x.yml", em_config)["models"][0]["columns"][0]
+    assert coluna["meta"] == {"sensitivity": "internal", d.MARK: True}
+    conflito = em_config.replace("            description_inherited: true", "            sensitivity: personal")
+    with pytest.raises(ValueError, match="config.meta"):
+        s.read_yaml(tmp_path / "x.yml", conflito)
+    fonte = "version: 2\nsources:\n  - name: retail\n    tables:\n      - name: t\n      - name: t\n"
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        s.read_yaml(tmp_path / "x.yml", fonte)
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models").mkdir()
+    um = "version: 2\nsources:\n  - name: retail\n    tables:\n      - name: t\n"
+    (tmp_path / "models" / "_a.yml").write_text(um, encoding="utf-8")
+    (tmp_path / "models" / "_b.yml").write_text(um, encoding="utf-8")
+    with pytest.raises(ValueError, match="tabela de fonte"):
+        d.disk_entries()
+
+
+def test_a_promocao_do_gerado_a_mao_continua_valendo(tmp_path, monkeypatch) -> None:
+    """RVL3-6-03: o modelo ganha entrada à mão e ainda está no `_derived.yml` — vale a à mão, sem recusa."""
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models").mkdir()
+    entrada = "version: 2\nmodels:\n  - name: m\n    columns:\n      - name: a\n        description: {}\n"
+    (tmp_path / "models" / s.GENERATED_FILE).write_text(entrada.format('"gerado"'), encoding="utf-8")
+    (tmp_path / "models" / "_m.yml").write_text(entrada.format('"à mão"'), encoding="utf-8")
+    entradas = d.disk_entries()
+    assert entradas["m"].kind == "hand" and entradas["m"].columns["a"]["description"] == "à mão"
+
+
 def test_toda_grafia_do_mesmo_doc_e_a_mesma_referencia() -> None:
     """RVL3-3-02: espaço, aspas e controle de espaço do Jinja não revisam o texto."""
     formas = ['{{ doc("x") }}', "{{doc('x')}}", '{{ doc ("x") }}', '{{- doc( "x" ) -}}']
