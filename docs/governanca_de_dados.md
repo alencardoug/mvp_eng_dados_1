@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.12 |
+| Versão | 2.13 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §7: o recorte do oráculo do que fica aberto ao leitor e o padrão de leitura reposto no global e por banco (rodada 3 do lote 2 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a união que converte tipo não herda, o herdado que ficou para trás não vira raiz, o manifest atrasado é recusado e as seeds com `persist_docs` (revisão do lote 3 da v1.1.0) |
 
 ---
 
@@ -157,16 +157,24 @@ lê a forma da expressão a cada salto — a linhagem não basta, porque soma, a
 a mesma folha). O que **calcula** — agregação, aritmética, função, `case`, comparação, literal —
 significa outra coisa e só tem descrição se alguém a escrever no `.yml`. Numa união, herda-se quando
 todo ramo que transporta chega ao mesmo texto; ramo constante, como o membro desconhecido das
-dimensões, não vota. A ponte do legado só herda pela declaração `meta.description_from` que
+dimensões, não vota — salvo quando o tipo dele, ou o de outro ramo, faz o PostgreSQL converter o
+valor transportado ao resolver o tipo da coluna (`0::real` unido a um `bigint`), e aí a união calcula
+(RVL3-02). A ponte do legado só herda pela declaração `meta.description_from` que
 `legacy/ponte.py` gera, apontando a coluna do `stg_retail__*` que ela reproduz — onde o legado põe
 outra coisa no lugar, como a identidade física em `event_sequence`, não há par. As colunas de
 convenção (`source_system`, `is_deleted`) e as que as ferramentas acrescentam (`_airbyte_*`,
 `_stream_*`, `dbt_*`, `legacy_row_id`) têm o texto num bloco `{% docs %}` único
 (`dbt/models/_convencoes.md`), aplicado onde a coluna nasce com **nome e forma** da convenção. Texto à
 mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o herdado o substitui, e a
-troca é impressa. O `persist_docs` leva o texto aos comentários das colunas dos modelos e dos
-snapshots no banco; as fontes (`raw`, `raw_legacy`), que o dbt não constrói e o Airbyte recria a cada
-recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
+troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` escreveu nele; quando a
+coluna deixa de transportar, um texto igual ao de quem ela lê, sem motivo, é recusado — escreve-se o
+texto do cálculo (RVL3-01). E o texto herdado diz o que o valor é, não como somá-lo **no grão de
+quem o recebe**: medida da remessa repetida em cada item, ou contagem acumulada que o snapshot repete
+em cada versão, pede texto próprio com motivo no destino (RVL3-03). O `persist_docs` leva o texto aos comentários das colunas dos modelos, dos
+snapshots e das seeds no banco (as seeds desde a revisão do lote 3, RVL3-08); as fontes (`raw`, `raw_legacy`), que o dbt não constrói e o Airbyte recria a cada
+recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). A derivação lê o SQL compilado do manifest: um `.sql` mudado depois do último build faz `make
+catalog` recusar e não tocar em nada, até o `make dbt-build` (RVL3-07). A catraca de descrição
+(`tests/test_descricao.py`) conta o catálogo, não o comentário físico. O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
 `make legacy-models` e `make catalog` de novo — o `make check` acusa a ponte atrasada. A regra está
 provada em `tests/test_descricao_derivada.py`.
 
