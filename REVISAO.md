@@ -2420,3 +2420,345 @@ após retirada da checagem de permissão.
 RVL2-4-01 a RVL2-4-03.** Cinco achados da rodada 3 estão fechados; RVL2-3-02/03
 estão parcialmente fechados, com os exemplos originais corrigidos e os limites
 acima ainda abertos. O aceite formal continua sendo do Owner.
+
+## Rodada 5 — lote 2
+
+Revisão em **05/11/2026**, no HEAD `1dbb2c5217dd55cb4e1d88a967a823b499e4856f`,
+restrita a `git log 36acc2d..1dbb2c5`: `71ec732`, `6d44f38` e `1dbb2c5`.
+Parecer técnico, sem poder de aprovação e sem implementar correções.
+**O lote 2 permanece aberto:** os exemplos originais de C1/C2 foram corrigidos,
+mas a exceção de fonte única e a prova de correlação de `IN` ainda aceitam casos
+sem origem restringindo os dois lados. As 16 views passam; os dois gates passam.
+As recusas de C3 são limites deliberados, agora documentados, e não novos achados.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL2-5-01 | `tests/test_identidade_no_consumo.py:148–163` | **RVL2-4-01 parcialmente fechado.** `_ligacoes` só conta `Table`, `Subquery` e `CTE`. Aliases de `Values`, `Lateral` e `Unnest` ficam fora. Dentro de um join entre parênteses, essas relações podem ocultar o `s` externo; `_relacao_do_lado` continua subindo, e `_origem_fixa_por_fonte` concede `retail` ao `s` interno de origem `legacy`. As três variantes retornam `[]`. Contradiz também a promessa de só conceder a exceção quando há uma relação na consulta inteira. Proposta: contar as demais declarações de qualificador ou recusar conservadoramente o escopo não resolvido antes de conceder a exceção. Evidência B. | `ajuste` | **Corrigido.** `_ligacoes` conta agora todo `TableAlias` com o nome do qualificador — o sqlglot dá esse nó ao alias de tabela, subconsulta, CTE, `values`, `lateral` e `unnest` (conferido nos seis) — mais a tabela sem alias pelo próprio nome. Contar o alias, e não uma lista de tipos de relação, é o que não deixa a próxima forma de fora. `values_shadow`, `lateral_shadow` e `unnest_shadow` 0 → 1; P12 continua 0. |
+| RVL2-5-02 | `tests/test_identidade_no_consumo.py:221–226` | **RVL2-4-02 parcialmente fechado no lado externo.** `de_fora={''}` satisfaz a condição de qualificador único. `(source_system,order_id)` pode então tomar a origem de `a` e o identificador de `c`, enquanto o lado interno usa corretamente `b.source_system,b.order_id`. A guarda dá `[]` e o PostgreSQL casa o identificador `legacy` com o `retail`. Proposta: exigir qualificador externo não vazio ou provar que as referências não qualificadas pertencem à mesma relação; ausência de qualificador não prova procedência comum. Evidência C. | `ajuste` | **Corrigido.** O qualificador de fora tem de ser único **e não vazio**: coluna de fora sem qualificador pode ser de qualquer relação de fora. `(source_system, order_id) in (select b.source_system, b.order_id from b)`, com e sem `cross join c`, 0 → 1; a forma qualificada passa. |
+| RVL2-5-03 | `tests/test_identidade_no_consumo.py:203–210,219–226` | **RVL2-4-02 parcialmente fechado na abrangência dos pares.** `pares` filtra somente pelo nome da coluna externa. Em `(a.source_system,a.tag,a.order_id) IN (SELECT b.source_system,c.customer_id,b.order_id …)`, o par `a.tag/c.customer_id` desaparece da prova, que retorna `True`; `violacoes` retorna `[]`, embora `c` possa ser `legacy`. Até uma coluna comum `c.tag` passa, contrariando o docstring novo de que os de dentro são todos qualificados por uma relação só. Proposta: verificar toda a tupla plana declarada como suportada, incluindo identificadores do lado interno, sem descartar posições antes de provar a procedência. Evidência D. | `ajuste` | **Corrigido.** A prova cobre **todas as posições** da tupla, dos dois lados — nenhuma é descartada pelo nome antes de provar a procedência: `c.customer_id` e até `c.tag` numa posição interna acusam (0 → 1); a mesma tupla toda de `b` passa. Docstring de `_pertence_correlaciona` alinhado ao código. |
+
+### A — fechamento das quatro respostas e matriz C1–C3
+
+“Fechado” abaixo é conclusão técnica sobre o achado, não aceite do Owner.
+Os scripts e logs desta rodada estão em `/tmp/rvl2-round5-*`.
+
+| Achado anterior | Conclusão desta rodada | Comando e saída que a sustentam |
+|---|---|---|
+| RVL2-4-01 | **Parcialmente fechado.** O C1 original foi corrigido; a restrição de unicidade não cobre todas as relações que declaram alias. Resta RVL2-5-01. | `.venv/bin/python /tmp/rvl2-round5-c1-c3.py`: `parenthesized_join_shadow` retorna uma acusação. `.venv/bin/python /tmp/rvl2-round5-extra.py`: `values_shadow`, `lateral_shadow` e `unnest_shadow` retornam `HEAD []`, `ligacoes(s)= ['retail.orders AS s']` e `origem(s)= {'retail'}`. |
+| RVL2-4-02 | **Parcialmente fechado.** Os três casos de C2 agora acusam, mas ainda falta provar a origem externa e todos os pares internos. Restam RVL2-5-02/03. | Mesmo comando C1–C3: `in_unqualified_correlated`, `in_no_from` e `in_wrong_table_origin` retornam uma acusação cada. Script `extra`: `outer_unqualified` e `inner_extra_id` retornam `HEAD []` e `pertence_correlaciona= True`; as consultas de C/D retornam uma linha cada. |
+| RVL2-4-03 | **Fechado pela declaração dos limites.** Alias igual nos dois escopos, tupla aninhada e `SELECT *` continuam recusados, como o docstring promete. Não são falsos positivos nas 16 views; nenhuma usa `IN` com subconsulta. | Comando C1–C3: uma acusação para cada uma das três formas; `in_alias_projection => []`; `views_com_IN_subconsulta= 0`. Suíte direcionada: `92 passed in 0.52s`. |
+| RVL2-4-04 | **Fechado por documentação e conferência do corpo do teste.** A pré-condição canônica está explícita; não se promete restaurar configuração arbitrária anterior. Não executei o ciclo real de reposição. | `git diff 36acc2d..1dbb2c5 -- tests/test_acesso.py` mostra somente o acréscimo ao docstring. `.venv/bin/python /tmp/rvl2-round4-cleanup-sim.py > /tmp/rvl2-round5-cleanup-sim.log` confirma o comportamento do corpo atual em dublês: saída colada em F. |
+
+Comandos da matriz anterior, executada integralmente, e do extrato C1–C3:
+
+```bash
+.venv/bin/python /tmp/rvl2-round4-matrix.py > /tmp/rvl2-round5-round4-matrix.log
+.venv/bin/python /tmp/rvl2-round5-c1-c3.py > /tmp/rvl2-round5-c1-c3.log
+```
+
+O script original ainda chama `d7df2cd` de `base`; suas linhas `HEAD` usam a
+função atual de `1dbb2c5`. O extrato reutiliza os SQLs daquele script, sem
+alterá-los. Saída literal:
+
+```text
+parenthesized_join_shadow => ["junção sem a origem: x.order_id = s.order_id AND x.source_system = 'retail'"]
+in_unqualified_correlated => ['in (subconsulta) sem a origem: order_id']
+in_no_from => ['in (subconsulta) sem a origem: order_id']
+in_wrong_table_origin => ['in (subconsulta) sem a origem: order_id']
+in_shadow_alias_valid => ['in (subconsulta) sem a origem: order_id']
+in_nested_valid => ['in (subconsulta) sem a origem: customer_id, order_id']
+in_star => ['in (subconsulta) sem a origem: order_id']
+in_alias_projection => []
+views_com_IN_subconsulta= 0
+```
+
+Os demais casos da matriz terminaram sem exceção. `lateral_valid`,
+`varchar_unbounded` e `projection_subquery_where` passam; `derived_shadows`,
+`cte_chain`, `cte_boundary`, `qualifier_cte_name` e `varchar_length` acusam.
+`union_branches` acusa agora os dois ramos: o alias repetido faz a exceção
+conservadora recuar também no ramo seguro. Isso é comportamento esperado fora
+das 16 views, não um achado desta rodada.
+
+### B — fonte única: aliases que a contagem não vê
+
+Entrada de `values_shadow` em `.venv/bin/python /tmp/rvl2-round5-extra.py`:
+
+```sql
+select * from retail.orders s
+where exists (
+  select 1 from (a x join (values ('legacy',37)) s(source_system,order_id)
+    on x.order_id=s.order_id and x.source_system='retail')
+)
+```
+
+Saída literal, comparando a base desta rodada com o HEAD:
+
+```text
+36acc2d []
+HEAD []
+ligacoes(s)= ['retail.orders AS s']
+relacao(s)= retail.orders AS s
+origem(s)= {'retail'}
+```
+
+O alias interno está no nó `Values`, não em um dos três tipos enumerados por
+`_ligacoes`. Duas substituições apenas desse lado interno produziram as mesmas
+cinco linhas de saída:
+
+```sql
+lateral (select 'legacy' as source_system,37 as order_id) s
+unnest(array['legacy'],array[37]) s(source_system,order_id)
+```
+
+São os casos `lateral_shadow` e `unnest_shadow`. O `Lateral` carrega o alias,
+não a `Subquery` que ele envolve; `Unnest` também não entra na contagem.
+O controle `values_direct_control`, retirando os parênteses do grupo de join,
+retorna uma acusação nas duas versões. Portanto, o problema é a combinação
+entre declaração de alias omitida e subida indevida para o escopo externo.
+
+Confirmei os três casos no PostgreSQL, sem criar objetos. Para executar o
+marcador sintático `retail.orders`, substituí **apenas a fonte externa** por
+`(values ('retail',37)) s(source_system,order_id)` e declarei
+`a(source_system,order_id) as (values ('retail',37))`. A igualdade interna
+continua comparando o `37` de `x` (`retail`) com o `37` de `s` (`legacy`).
+O arquivo de prova contém as três consultas completas:
+
+```bash
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl2-round5-proofs.sql > /tmp/rvl2-round5-proofs.log
+```
+
+Saída literal de cada variante, respectivamente:
+
+```text
+VALUES: o s interno e legacy; o EXISTS ainda aceita retail
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+
+LATERAL: mesma colissao
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+
+UNNEST: mesma colissao
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+```
+
+### C — qualificador externo vazio não identifica uma relação
+
+SQL integral analisado pela guarda e executado por `ro.sh`, no mesmo arquivo:
+
+```sql
+with a(source_system) as (values ('retail')),
+     c(origin,order_id) as (values ('legacy',37)),
+     b(source_system,order_id) as (values ('retail',37))
+select * from a cross join c
+where (source_system,order_id) in (select b.source_system,b.order_id from b);
+```
+
+Saída literal de `extra.py`, caso `outer_unqualified`:
+
+```text
+36acc2d []
+HEAD []
+pertence_correlaciona= True
+```
+
+Saída de `ro.sh`:
+
+```text
+IN externo sem qualificador: origem retail emprestada ao id legacy
+ source_system | origin | order_id
+---------------+--------+----------
+ retail        | legacy |       37
+(1 row)
+```
+
+As duas colunas externas têm `Column.table == ''`, mas pertencem a relações
+diferentes. A verificação proíbe `''` em `de_dentro`, não em `de_fora`. Ao escrever
+explicitamente `(a.source_system,c.order_id)`, a guarda passa a acusar
+(`qualified_outer_control`). No controle SQL que compara
+`(c.origin,c.order_id)` com a mesma subconsulta, `ro.sh` devolve `(0 rows)`:
+a origem efetiva do identificador impede o casamento.
+
+### D — posições descartadas antes da prova de procedência
+
+Outro SQL integral, também em `extra.py` e no arquivo executado por `ro.sh`:
+
+```sql
+with a(source_system,tag,order_id) as (values ('retail',37,99)),
+     b(source_system,order_id) as (values ('retail',99)),
+     c(source_system,customer_id) as (values ('legacy',37))
+select * from a
+where (a.source_system,a.tag,a.order_id) in
+  (select b.source_system,c.customer_id,b.order_id from b cross join c);
+```
+
+Saída literal da guarda, caso `inner_extra_id`:
+
+```text
+36acc2d []
+HEAD []
+pertence_correlaciona= True
+```
+
+Saída do PostgreSQL:
+
+```text
+IN com identificador interno ignorado por pares
+ source_system | tag | order_id
+---------------+-----+----------
+ retail        |  37 |       99
+(1 row)
+```
+
+O predicado casa `c.customer_id` sem restringir `c.source_system`. O filtro de
+`pares` olha apenas `f.name`; por isso ignora a posição de `a.tag`, mesmo com um
+identificador interno reconhecível. O controle SQL acrescenta uma quarta posição,
+`a.source_system` comparado com `c.source_system`, e retorna `(0 rows)`.
+O controle sintático que chama a coluna externa de `a.customer_id` faz a guarda
+acusar (`qualified_inner_control`), mostrando a dependência do filtro pelo nome
+externo.
+
+Há uma contradição documental independente de interpretar `tag` como chave:
+
+```sql
+select * from a
+where (a.source_system,a.order_id,a.tag) in
+  (select b.source_system,b.order_id,c.tag from b cross join c)
+```
+
+O caso `inner_extra_non_id` também dá `HEAD []` e
+`pertence_correlaciona= True`. A tupla é plana, mas os de dentro não são todos
+qualificados por uma relação só, como afirma o novo docstring. A solução
+conservadora declarada permite recusar essa forma, sem precisar implementar
+análise geral de fluxo.
+
+Os falsos negativos de B/C/D já retornavam `[]` em `36acc2d`. Não atribuo sua
+introdução a `71ec732`: são lacunas persistentes nos caminhos corrigidos e nas
+novas promessas de prova. Não encontrei essas formas nas 16 views.
+
+### E — as 16 views e a exceção de P12
+
+`.venv/bin/python /tmp/rvl2-round5-extra.py` chama `violacoes(_sql(modelo))`
+individualmente. Saída literal:
+
+```text
+average_order_value_by_channel_and_segment => []
+cart_conversion_rate_by_channel => []
+discount_share_by_channel => []
+gross_margin_by_category => []
+inventory_turnover_by_sku_and_warehouse => []
+monthly_revenue_by_channel_and_category => []
+new_and_repeat_customers_by_month => []
+on_time_delivery_rate_by_carrier => []
+order_to_delivery_time_by_region => []
+payment_approval_rate_by_method => []
+refund_rate_by_reason => []
+repeat_purchase_rate_after_support => []
+revenue_by_delivery_region => []
+skus_below_reorder_point => []
+support_tickets_per_hundred_orders => []
+top_skus_by_revenue => []
+P12= skus_below_reorder_point.sql
+P12 ligacoes(s)= ['retail.inventory_movements_stream AS s']
+P12 sem excecao= ["junção sem a origem: f.source_system = 'retail' AND f.movement_id = s.movement_id"]
+```
+
+A última linha é um controle **só em memória**, substituindo temporariamente
+`_origem_fixa_por_fonte` por uma função que retorna `set()`. Confirma que P12
+passa pela exceção da fonte única, não por falta de exame do anti-join.
+Nenhum arquivo de código foi alterado. O comando
+`git diff --name-only 36acc2d..1dbb2c5 -- dbt/models/consumption` teve saída vazia.
+Não executei as consultas das views contra o armazém nem recalculei suas métricas;
+a execução pedida aqui é a da guarda sobre os 16 SQLs.
+
+### F — docstrings e pré-condição do leitor
+
+O docstring do módulo e o de `_origem_fixa_por_fonte` descrevem a política
+conservadora, mas a promessa de unicidade de relação falha em B. O de
+`_pertence_correlaciona` descreve corretamente as recusas de C3 e a exigência de
+origem na mesma posição; passa também o controle com ordem invertida
+`(a.order_id,a.source_system) IN (SELECT b.order_id,b.source_system FROM b)`.
+As promessas de qualificador externo comum e de todos os internos na mesma
+relação não são satisfeitas em C/D. São contradições da implementação com o
+contrato escrito, não pedidos para aceitar formas declaradas não suportadas.
+
+No teste do leitor, `6d44f38` muda somente a documentação. Li o `try/finally`:
+a limpeza continua fazendo `RESET ALL` no papel/banco corrente e no global,
+seguido do padrão global `on`. Sob a pré-condição canônica, isso repõe o estado
+esperado mesmo quando `garantir()` falha; não captura o inventário anterior.
+A nova ressalva documenta precisamente essa escolha. A limpeza de outros bancos
+no caminho de sucesso pertence ao `garantir()`, não a esse `finally`.
+
+Reexecução do corpo real com dublês e `garantir()` lançando erro, sem SQL real:
+
+```bash
+.venv/bin/python /tmp/rvl2-round4-cleanup-sim.py > /tmp/rvl2-round5-cleanup-sim.log
+```
+
+Trecho literal pertinente a RVL2-4-04:
+
+```text
+canonico antes= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 0} depois= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 1} erro= garantir falhou
+ajuste_preexistente antes= {'global': {'default_transaction_read_only': 'on', 'statement_timeout': '5s'}, 'db': {}, 'commits': 0} depois= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 1} erro= garantir falhou
+SQL real executado=0; commits acima sao contadores do duble
+```
+
+Não executei o teste de integração real, que persiste configuração e chama
+`garantir()`. Não afirmo ter medido o estado atual do leitor nesta rodada.
+
+### G — regressões, preservação do ambiente e conclusão
+
+Comandos executados no HEAD acima, antes de acrescentar este parecer:
+
+```bash
+.venv/bin/pytest -q tests/test_identidade_no_consumo.py tests/test_leitor.py > /tmp/rvl2-round5-targeted.log
+make check-offline > /tmp/rvl2-round5-check-offline.log 2>&1
+make secrets-history > /tmp/rvl2-round5-secrets-history.log 2>&1
+```
+
+Saídas literais relevantes, com progresso e inventário dos testes de integração
+omitidos; os três comandos terminaram com código 0:
+
+```text
+92 passed in 0.52s
+
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+801 passed, 188 deselected in 145.06s (0:02:25)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Reproduzida a contagem do gate do autor. `tests/test_acesso.py` consta com seus
+16 testes entre os 188 desmarcados. A passagem do gate não cobre os falsos
+negativos adicionais de B/C/D, cujas contraprovas foram executadas separadamente.
+
+Todo SQL real desta rodada passou por `ro.sh`, com `ENG_DADOS_DIR` apontando
+para este checkout, e usou apenas `SELECT` com CTEs/`VALUES` ou funções de
+construção de linhas. Não houve DDL, DML, alteração de configuração, chamada real
+de `garantir()`, build, reset, seed, sync, DAG, ledger ou recuperação. Não
+disparei nem pausei `fluxo_batch`; não escrevi em `data/memoria_do_legado/`.
+Não realizei inventário antes/depois: a preservação se apoia no conteúdo das
+sondas e na sessão somente de leitura, sem alegar comparação de estado não feita.
+
+Somente `REVISAO.md` foi editado no repositório. Os arquivos não rastreados
+`GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md` já existiam e foram
+preservados. Scripts e logs de apoio ficaram em `/tmp`. Sem commit ou push.
+
+**Conclusão técnica: o lote 2 ainda não pode ser encerrado.** RVL2-4-03 e
+RVL2-4-04 estão fechados; RVL2-4-01 e RVL2-4-02 estão parcialmente fechados,
+com os exemplos originais corrigidos e três ajustes restantes nesta tabela.
+O aceite formal continua sendo do Owner.
