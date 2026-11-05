@@ -156,7 +156,9 @@ def _documents() -> list[tuple[pathlib.Path, dict]]:
                     vistas[e["name"]] = caminho
         for f in documento.get("sources") or []:
             for tabela in f.get("tables") or []:
-                chave_fonte = (f.get("name"), tabela.get("name"))
+                # A identidade é a que `disk_sources` usa para reduzir — o schema efetivo, e não o
+                # nome da fonte: dois apelidos no mesmo schema colidiriam ali (RVL3-7-01).
+                chave_fonte = (f.get("schema") or f.get("name"), tabela.get("name"))
                 if chave_fonte in fontes:
                     raise ValueError(f"tabela de fonte `{chave_fonte[0]}.{chave_fonte[1]}` em {fontes[chave_fonte]} e em {caminho}")
                 fontes[chave_fonte] = caminho

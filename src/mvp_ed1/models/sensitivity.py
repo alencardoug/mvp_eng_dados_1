@@ -419,7 +419,7 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
         raise ValueError(f"{caminho}: {erro}") from None
     entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
-    tabelas = [(f.get("name"), t.get("name")) for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    tabelas = [(f.get("schema") or f.get("name"), t.get("name")) for f in documento.get("sources") or [] for t in f.get("tables") or []]
     if repetidas := sorted({x for x in tabelas if tabelas.count(x) > 1}):
         raise ValueError(f"{caminho}: tabela(s) de fonte {repetidas} declarada(s) mais de uma vez")   # RVL3-6-02
     for entrada in entradas:

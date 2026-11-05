@@ -269,6 +269,14 @@ def test_config_meta_da_coluna_e_lido_como_meta_e_a_fonte_repetida_e_recusada(tm
     (tmp_path / "models" / "_b.yml").write_text(um, encoding="utf-8")
     with pytest.raises(ValueError, match="tabela de fonte"):
         d.disk_entries()
+    # RVL3-7-01: dois apelidos de fonte no mesmo schema são a mesma tabela para quem lê
+    (tmp_path / "models" / "_b.yml").write_text(
+        "version: 2\nsources:\n  - name: retail_alias\n    schema: retail\n    tables:\n      - name: t\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="tabela de fonte `retail.t`"):
+        d.disk_entries()
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: a\n    schema: raw\n    tables:\n"
+                                        "      - name: t\n  - name: b\n    schema: raw\n    tables:\n      - name: t\n")
 
 
 def test_a_promocao_do_gerado_a_mao_continua_valendo(tmp_path, monkeypatch) -> None:
