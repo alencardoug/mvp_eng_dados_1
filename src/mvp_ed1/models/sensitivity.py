@@ -432,6 +432,9 @@ def _conferir_fonte(caminho: pathlib.Path, fonte: dict) -> None:
     esquema = fonte.get("schema") or nome
     if "quoting" in fonte:
         raise ValueError(f"{caminho}: fonte `{nome}` com `quoting` — declare o nome físico em minúsculas, sem aspas")
+    if "overrides" in fonte:
+        # A identidade efetiva vem do pacote sobreposto, que o leitor não lê (RVL3-10-03).
+        raise ValueError(f"{caminho}: fonte `{nome}` com `overrides` — fonte de pacote não é catalogada")
     for valor, o_que in ((nome, "nome de fonte"), (esquema, "schema de fonte")):
         if not _NOME_SIMPLES.fullmatch(valor):
             raise ValueError(f"{caminho}: {o_que} `{valor}` fora de `[a-z_][a-z0-9_]*`")
@@ -442,6 +445,13 @@ def _conferir_fonte(caminho: pathlib.Path, fonte: dict) -> None:
         if "quoting" in tabela or ("identifier" in tabela and tabela["identifier"] != t):
             raise ValueError(f"{caminho}: tabela de fonte `{nome}.{t}` com `identifier`/`quoting` — "
                              "um nome só, o físico")
+
+
+def foreign_sources(manifest: dict) -> list[str]:
+    """Fontes que o manifest efetivo traz de outro pacote: o leitor só lê os `.yml` do projeto raiz, e a
+    identidade delas — `identifier`, schema, sobreposição — não passa pela convenção acima (RVL3-10-03)."""
+    raiz = manifest.get("metadata", {}).get("project_name", "mvp_ed1")
+    return sorted(k for k, f in manifest.get("sources", {}).items() if f.get("package_name", raiz) != raiz)
 
 
 def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
@@ -1035,6 +1045,9 @@ def main(argv: list[str] | None = None) -> int:
               "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
         return 1
     try:
+        if estrangeiras := foreign_sources(manifest):
+            raise ValueError(f"fonte de outro pacote no manifest ({', '.join(estrangeiras[:3])}) — "
+                             "o catálogo só lê as fontes do projeto raiz (Governança §5.1)")
         plano = plan(manifest, derivacao)
         disco = descriptions.disk_entries()
         textos = descriptions.derive_texts(manifest, derivacao, disco=disco)

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import textwrap
 
+import pytest
 import sqlglot
 import yaml
 from sqlglot.optimizer.qualify import qualify
@@ -280,6 +281,33 @@ def test_o_espelho_de_raw_nao_sobrepoe_a_declaracao_sqlalchemy() -> None:
     assert derivado.levels["model.mvp_ed1.x"] == {"first_name": "personal", "capture_id": "confidential"}
     plano = s.plan(manifest, derivado)
     assert plano.patches[s.DBT / "models/staging/_retail__sources.yml"][("retail", "customers")]["first_name"] == "personal"
+
+
+def test_fonte_de_outro_pacote_ou_sobreposta_e_recusada(tmp_path, monkeypatch, capsys) -> None:
+    """RVL3-10-03: a identidade de uma fonte de pacote vem do pacote — o leitor não a vê, e recusa."""
+    with pytest.raises(ValueError, match="overrides"):
+        s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: retail\n    schema: raw\n"
+                                        "    overrides: review_pkg\n    tables:\n      - name: order_items_alias\n")
+    fonte = {"package_name": "review_pkg", "source_name": "retail", "name": "order_items_alias",
+             "schema": "raw", "identifier": "order_items", "columns": {}}
+    manifest = {"metadata": {"project_name": "mvp_ed1"}, "sources": {"source.review_pkg.retail.order_items_alias": fonte}}
+    assert s.foreign_sources(manifest) == ["source.review_pkg.retail.order_items_alias"]
+    assert s.foreign_sources({**manifest, "sources": {"source.mvp_ed1.retail.x": {**fonte, "package_name": "mvp_ed1"}}}) == []
+    dbt = tmp_path / "dbt"
+    (dbt / "models").mkdir(parents=True)
+    (dbt / "target").mkdir()
+    monkeypatch.setattr(s, "ROOT", tmp_path)
+    monkeypatch.setattr(s, "DBT", dbt)
+    monkeypatch.setattr(s, "MANIFEST", dbt / "target" / "manifest.json")
+    monkeypatch.setattr(s, "CACHE", tmp_path / "derivation.pickle")
+    no = {"unique_id": "model.mvp_ed1.a", "resource_type": "model", "name": "a", "schema": "trusted", "database": "wh",
+          "original_file_path": "models/a.sql", "depends_on": {"nodes": []}, "columns": {}, "compiled_code": "select 1 as x",
+          "raw_code": "select 1 as x\n"}
+    (dbt / "models" / "a.sql").write_text("select 1 as x\n", encoding="utf-8")
+    s.MANIFEST.write_text(json.dumps({**manifest, "nodes": {"model.mvp_ed1.a": no}}), encoding="utf-8")
+    for argv in ([], ["--check"]):
+        assert s.main(argv) == 1
+        assert "fonte de outro pacote" in capsys.readouterr().err
 
 
 def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatch) -> None:

@@ -13,7 +13,7 @@
 | Versão | 2.21 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a escrita acha a tabela de fonte pelo par (fonte, tabela) e confere todo destino nos dois modos (rodada 10 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a escrita acha a tabela de fonte pelo par (fonte, tabela) e confere todo destino nos dois modos; fonte de pacote é recusa (rodada 10 do lote 3 da v1.1.0) |
 
 ---
 
@@ -191,7 +191,10 @@ escrever e outro para ler; o projeto não usa nenhum, e a leitura os recusa em v
 (`raw.order_items`, `raw_legacy.order_items`): a escrita acha a tabela de fonte pelo par (fonte,
 tabela) e o modelo pelo nome no bloco de topo, endereço repetido no arquivo é recusa, e todo destino
 pedido é conferido no YAML carregado nos dois modos do `make catalog` — um texto pedido que já estava
-certo noutra entrada não muda byte nenhum, e só a conferência por endereço o vê (RVL3-10-01) —
+certo noutra entrada não muda byte nenhum, e só a conferência por endereço o vê (RVL3-10-01). Fonte
+de **pacote** — a vinda de uma dependência, ou a local com `overrides` — também é recusa: a
+identidade dela é a do pacote, que o leitor não lê; o manifest efetivo é conferido, e a fonte de
+outro pacote para o `make catalog` (RVL3-10-03) —
 não a última que vence; sem isso, uma segunda ocorrência sem a marca faria o texto velho virar raiz
 (RVL3-5-02, RVL3-6-02, RVL3-7-01, RVL3-8-01, RVL3-9-01/02). O `config.meta` da coluna é lido junto com o `meta`, como o dbt
 os junta (RVL3-6-01). A exceção é a promoção documentada: o modelo com entrada à mão e ainda no
