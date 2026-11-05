@@ -13,7 +13,7 @@
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
 | Versão | 1.16 |
-| Última revisão | 05/11/2026 — §4, o teste `snapshot_grava_em_utc` e as vigências das dimensões SCD lidas como instante UTC (revisão do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §4, as vigências SCD gravadas e lidas em UTC explícito, independentes do fuso da sessão (revisão do lote 3 da v1.1.0) |
 
 ---
 
@@ -110,11 +110,12 @@ passar por ausência do caso.
   ([ADR-0017](adr/0017-chaves-substitutas-e-scd.md)): duas versões válidas no mesmo instante fariam
   o *join* temporal duplicar a linha de fato, e o resultado não seria uma falha — seria receita
   maior;
-- teste próprio `snapshot_grava_em_utc`: o `dbt snapshot` grava `dbt_valid_from`/`dbt_valid_to`
-  como `timestamp` sem fuso, no fuso da sessão, e as dimensões os leem como instante UTC (`at time
-  zone 'UTC'`), o mesmo tipo `timestamptz` das datas das fatos. Uma sessão em outro fuso deslocaria
-  as versões novas no *join* temporal sem erro nenhum; o teste falha antes (revisão do lote 3 da
-  v1.1.0, RVL3-3-03);
+- vigências SCD **independentes do fuso da sessão**: o `dbt snapshot` grava `dbt_valid_from`/
+  `dbt_valid_to` em UTC explícito (macro `snapshot_get_time` do projeto, que sobrepõe a hora local
+  do dbt-postgres) e as dimensões os leem como instante UTC (`at time zone 'UTC'`), o mesmo
+  `timestamptz` das datas das fatos; os modelos que reduzem instante a data dizem o fuso
+  (`America/Sao_Paulo`). A guarda está no escritor, não num teste depois da gravação
+  (`tests/test_vigencia_em_utc.py`; revisão do lote 3 da v1.1.0, RVL3-3-03, RVL3-5-01);
 - teste de **grão** por fato: a chave declarada é única, o que prova que o grão é o que se afirma
   ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
 - verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando
