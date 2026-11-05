@@ -30,6 +30,12 @@ conjunto de folhas.
   recebe nada.
 * **Texto à mão** numa coluna que herda vale só com `meta.description_reason`;
   sem ele, o herdado o substitui na próxima geração, e a troca é impressa.
+* **Proveniência do que está no `.yml` à mão** (RVL3-01, RVL3-2-01). O herdado
+  é escrito no `.yml` à mão, ao lado das raízes escritas, e o `.yml` não diz qual
+  é qual. `INHERITED_FILE` diz: todo texto que a derivação pôs num `.yml` à mão,
+  por modelo e coluna. Coluna que deixou de herdar e ainda guarda, sem motivo, o
+  texto que o registro diz ter sido herdado é problema — o texto é de quem ela lia,
+  e escreve-se o do cálculo. O registro é gerado e conferido pelo `--check`.
 
 ── Onde o resultado é escrito ───────────────────────────────────────────────────
 Os mesmos lugares da sensibilidade, pelo mesmo escritor (`sensitivity.main`):
@@ -42,6 +48,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -53,6 +60,9 @@ from mvp_ed1.models.transport import Carry, Computed, Transport
 
 DBT = sensitivity.DBT
 Leaf = tuple[str, str, str]
+
+#: O registro do que a derivação escreveu nos `.yml` à mão: modelo → coluna → texto herdado.
+INHERITED_FILE = DBT / "_descricoes_herdadas.json"
 
 #: O arquivo das pontes do legado (`legacy/ponte.py::gerar`): texto nele só vale com a declaração do par.
 BRIDGES_FILE = "_pontes__models.yml"
@@ -164,6 +174,7 @@ def disk_entries(documentos: list[tuple[pathlib.Path, dict]] | None = None) -> d
 @dataclass
 class Texts:
     """O resultado: o texto final de cada coluna, de onde ele veio, e o que escrever."""
+    inherited_in_hand: dict[str, dict[str, str]] = field(default_factory=lambda: defaultdict(dict))  # modelo à mão → coluna → herdado
     texts: dict[Leaf, str] = field(default_factory=dict)
     origin: dict[Leaf, str] = field(default_factory=dict)        # declared | inherited | bridge | convention | written | generator
     undescribed: dict[Leaf, str] = field(default_factory=dict)   # coluna → por que não herdou
@@ -173,6 +184,23 @@ class Texts:
     problems: list[str] = field(default_factory=list)
 
 
+def _normal(texto: str | None) -> str | None:
+    """O texto para comparar: espaços colapsados e `doc('x')` com as aspas de `doc("x")`."""
+    if texto is None:
+        return None
+    return re.sub(r"""doc\(\s*['"]([^'"]+)['"]\s*\)""", r'doc("\1")', " ".join(texto.split()))
+
+
+def inherited_registry(caminho: pathlib.Path | None = None) -> dict[str, dict[str, str]]:
+    caminho = INHERITED_FILE if caminho is None else caminho
+    return json.loads(caminho.read_text(encoding="utf-8")) if caminho.exists() else {}
+
+
+def render_inherited(textos: "Texts") -> str:
+    ordenado = {m: dict(sorted(c.items())) for m, c in sorted(textos.inherited_in_hand.items()) if c}
+    return json.dumps(ordenado, ensure_ascii=False, indent=2) + "\n"
+
+
 def _why_not(t: Transport, textos: list[str | None]) -> str:
     if isinstance(t, Computed):
         return t.kind
@@ -180,10 +208,12 @@ def _why_not(t: Transport, textos: list[str | None]) -> str:
 
 
 def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
-                 disco: dict[str, Entry] | None = None, fontes: dict[tuple[str, str], Entry] | None = None) -> Texts:
+                 disco: dict[str, Entry] | None = None, fontes: dict[tuple[str, str], Entry] | None = None,
+                 registro: dict[str, dict[str, str]] | None = None) -> Texts:
     documentos = _documents() if disco is None or fontes is None else None
     disco = disk_entries(documentos) if disco is None else disco
     fontes = disk_sources(documentos) if fontes is None else fontes
+    registro = inherited_registry() if registro is None else registro
     saida = Texts()
     saida.texts.update(source_texts())
     saida.origin.update(dict.fromkeys(saida.texts, "declared"))
@@ -255,6 +285,7 @@ def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
             elif herdado:
                 final, origem = herdado, como
                 if entrada and entrada.kind == "hand":
+                    saida.inherited_in_hand[no["name"]][coluna] = herdado
                     if escrito != herdado:
                         saida.patches[entrada.path].setdefault(no["name"], {})[coluna] = herdado
                         if escrito:
@@ -270,10 +301,15 @@ def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
                 # escrita, calado — e é o texto de quem ela lia, não do que ela calcula
                 # agora (RVL3-01). Igual ao texto de uma folha, sem motivo: problema.
                 folhas = derivation.leaves.get(node_id, {}).get(coluna, set())
-                if not motivo and any(saida.texts.get(f) == escrito for f in folhas):
+                herdado_antes = registro.get(no["name"], {}).get(coluna)
+                if not motivo and (_normal(herdado_antes) == _normal(escrito)
+                                   or any(_normal(saida.texts.get(f)) == _normal(escrito) for f in folhas)):
                     saida.problems.append(
                         f"{no['name']}.{coluna}: não transporta mais ({_why_not(t, candidatos)}) e guarda o texto "
                         "de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`")
+                    # O registro guarda a entrada até ela ser resolvida: uma geração com
+                    # problema não pode apagar a prova de que o texto era herdado.
+                    saida.inherited_in_hand[no["name"]][coluna] = herdado_antes or escrito
             else:
                 final, origem = None, None
 

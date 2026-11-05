@@ -103,7 +103,7 @@ def test_is_not_null_e_a_forma_da_exclusao_logica_nas_duas_grafias() -> None:
 # ── O texto que cada coluna recebe ──────────────────────────────────────────────
 
 def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[str, tr.Transport]], disco: dict[str, d.Entry],
-            folhas: dict[str, dict[str, set]] | None = None) -> d.Texts:
+            folhas: dict[str, dict[str, set]] | None = None, registro: dict | None = None) -> d.Texts:
     """Um manifest mínimo — modelo, schema e dependências —, a derivação dada, e o disco dado."""
     manifest = {"sources": {}, "nodes": {
         f"model.p.{nome}": {"resource_type": "model", "name": nome, "schema": schema, "depends_on": {"nodes": [f"model.p.{x}" for x in deps]}}
@@ -114,7 +114,7 @@ def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[s
         carries={f"model.p.{n}": transportes[n] for n in nos},
         leaves={f"model.p.{n}": c for n, c in (folhas or {}).items()},
     )
-    return d.derive_texts(manifest, derivacao, disco=disco, fontes={})
+    return d.derive_texts(manifest, derivacao, disco=disco, fontes={}, registro=registro or {})
 
 
 def _entrada(caminho, tipo: str, **colunas: dict) -> d.Entry:
@@ -166,6 +166,31 @@ def test_texto_herdado_que_ficou_no_yml_a_mao_nao_vira_raiz_quando_a_coluna_pass
     assert motivo.problems == []
 
 
+def test_o_registro_do_herdado_pega_o_texto_de_dois_saltos_e_o_doc_de_outras_aspas(tmp_path) -> None:
+    """RVL3-2-01: a igualdade com a folha não basta — a folha já mudou, ou o `doc()` veio com outras aspas."""
+    yml = tmp_path / "_m.yml"
+    nos, folhas = {"stg": ("staging", [])}, {"stg": {"a": {("raw", "orders", "total_amount")}}}
+    calcula = {"stg": {"a": tr.Computed("mul")}}
+    dois_saltos = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "Texto de antes."})}, folhas,
+                          registro={"stg": {"a": "Texto de antes."}})
+    assert len(dois_saltos.problems) == 1 and "não transporta mais (mul)" in dois_saltos.problems[0]
+    assert dois_saltos.inherited_in_hand["stg"] == {"a": "Texto de antes."}     # a prova fica até resolver
+    aspas = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "{{ doc('x') }}"})}, folhas,
+                    registro={"stg": {"a": '{{ doc("x") }}'}})
+    assert len(aspas.problems) == 1
+    revisto = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "O total vezes cem."})}, folhas,
+                      registro={"stg": {"a": "Texto de antes."}})
+    assert revisto.problems == [] and dict(revisto.inherited_in_hand) == {}
+
+
+def test_o_registro_guarda_o_que_a_derivacao_escreveu_no_yml_a_mao(tmp_path) -> None:
+    yml = tmp_path / "_m.yml"
+    textos = _textos({"stg": ("staging", [])}, {"stg": {"a": _carry(("raw", "orders", "total_amount"))}},
+                     {"stg": _entrada(yml, "hand", a={})})
+    assert textos.inherited_in_hand["stg"] == {"a": TEXTO_TOTAL}
+    assert d.render_inherited(textos).startswith('{\n  "stg": {\n    "a": ')
+
+
 def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() -> None:
     """RVL3-02: o PostgreSQL resolve um tipo para a coluna da união e converte cada ramo para ele."""
     catalogo = {"wh": {"staging": {"a": {"id": "text", "q": "text", "r": "text"}}}}
@@ -183,6 +208,9 @@ def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() ->
     assert isinstance(coluna(base + "select cast(null as bigint) as id"), tr.Carry)
     assert isinstance(coluna(base + "select cast(-1 as integer) as id"), tr.Carry)      # inteiro alarga sem perda
     assert isinstance(coluna(base + 'select q from "wh"."staging"."a"'), tr.Carry)
+    # RVL3-2-02: a subunião de constantes guarda os tipos que viu
+    assert coluna(base + "(select 0::real as id union all select 1::double precision as id)") == tr.Computed("union_coercion")
+    assert isinstance(coluna(base + "(select -1 as id union all select null as id)"), tr.Carry)
 
 
 def test_convencao_pede_nome_e_forma(tmp_path) -> None:

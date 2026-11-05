@@ -67,6 +67,7 @@ import hashlib
 import json
 import pathlib
 import pickle
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -318,26 +319,49 @@ def _inputs_digest(manifest: bytes) -> str:
         # entre aspas —, e não a primeira linha física (RVL3-09).
         with caminho.open(newline="", encoding="utf-8") as arquivo:
             cabecalho = next(csv.reader(arquivo), [])
-        h.update(caminho.name.encode() + b"\0" + "\x1f".join(cabecalho).encode())
+        h.update(caminho.name.encode() + b"\0" + json.dumps(cabecalho).encode())   # lista sem ambiguidade (RVL3-2-09)
     h.update(f"{sqlglot.__version__}|{sys.version}".encode())
     return h.hexdigest()
 
 
+_BLOCO_SNAPSHOT = re.compile(r"\{%-?\s*snapshot\s+\w+\s*-?%\}(.*?)\{%-?\s*endsnapshot\s*-?%\}", re.S)
+
+
+def _linhas(texto: str) -> str:
+    """Quebras normalizadas (o manifest guarda o `\\r\\n` que o disco lido em modo texto perde) e bordas aparadas."""
+    return texto.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
 def stale_nodes(manifest: dict) -> list[str]:
-    """Os modelos e snapshots cujo SQL no disco não é o que o manifest compilou (RVL3-07).
+    """Os modelos, snapshots e macros cujo texto no disco não é o que o manifest compilou (RVL3-07).
 
     A derivação lê o SQL **compilado** do manifest; a chave do cache e o 14fdf30
     não veem um `.sql` alterado depois do último `dbt build`. O `raw_code` do
-    manifest é o texto do arquivo — inteiro no modelo, o miolo do bloco no snapshot."""
+    manifest é o texto do arquivo — inteiro no modelo, o miolo do bloco no
+    snapshot, comparado ao miolo do bloco do disco, não por trecho (RVL3-2-05) — e
+    o `macro_sql` de cada macro do projeto tem de estar no arquivo dela.
+
+    **Limite declarado** (RVL3-2-07): metadado de `.yml`, macro nova ou apagada e
+    nó que o manifest não tem não se conferem aqui; a compilação recente continua
+    sendo a premissa, e o `make check` a cumpre com o build antes."""
     atrasados = []
     for no in manifest["nodes"].values():
         if no["resource_type"] not in ("model", "snapshot") or not no.get("original_file_path"):
             continue
         caminho = DBT / no["original_file_path"]
-        disco = caminho.read_text(encoding="utf-8").strip() if caminho.exists() else None
-        codigo = (no.get("raw_code") or "").strip()
-        if disco is None or (codigo != disco if no["resource_type"] == "model" else codigo not in disco):
+        disco = _linhas(caminho.read_bytes().decode("utf-8")) if caminho.exists() else None
+        codigo = _linhas(no.get("raw_code") or "")
+        if disco is not None and no["resource_type"] == "snapshot":
+            bloco = _BLOCO_SNAPSHOT.search(disco)
+            disco = _linhas(bloco.group(1)) if bloco else None
+        if disco is None or codigo != disco:
             atrasados.append(no["name"])
+    for macro in manifest.get("macros", {}).values():
+        if macro.get("package_name") != manifest.get("metadata", {}).get("project_name", "mvp_ed1"):
+            continue
+        caminho = DBT / macro.get("original_file_path", "")
+        if not caminho.is_file() or _linhas(macro.get("macro_sql") or "") not in _linhas(caminho.read_bytes().decode("utf-8")):
+            atrasados.append(f"macro {macro['name']}")
     return sorted(atrasados)
 
 
@@ -748,6 +772,7 @@ def main(argv: list[str] | None = None) -> int:
     textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
     dominios = domains.derive_domains(manifest, disco)
     arquivos = render_files(plano, textos, dominios)
+    arquivos[descriptions.INHERITED_FILE] = descriptions.render_inherited(textos)
 
     for mudanca in plano.changes + textos.changes + dominios.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)
@@ -769,6 +794,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if falhou else 0
 
     for caminho, texto in mudados.items():
+        if caminho == descriptions.INHERITED_FILE:
+            caminho.write_text(texto, encoding="utf-8")
+            print(f"escrito: {caminho.relative_to(ROOT)}")
+            continue
         esperado = plano.patches.get(caminho) or plano.generated.get(caminho) or {}
         _verify(caminho, texto, esperado)
         if caminho in textos.patches:
