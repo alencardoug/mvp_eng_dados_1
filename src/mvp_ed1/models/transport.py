@@ -146,7 +146,9 @@ def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | N
     transportam = [p for p in partes if isinstance(p, Carry)]
     calculam = [p for p in partes if isinstance(p, Computed)]
     if all(p.kind == "constant" for p in calculam):
-        tipados = {p.type for p in calculam if p.type is not None}
+        # Uma subunião só de constantes guarda **todos** os tipos que viu ("A|B"): o tipo
+        # que ela resolve entra na união de fora (RVL3-2-02).
+        tipados = {t for p in calculam if p.type is not None for t in p.type.split("|")}
         if transportam:
             folhas = frozenset().union(*(p.leaves for p in transportam))
             tipos = [origin_type(f) for f in folhas]
@@ -157,7 +159,7 @@ def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | N
                 return Computed("union_coercion")
             return Carry(folhas)
         return _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v],
-                         next(iter(tipados)) if len(tipados) == 1 else None)
+                         "|".join(sorted(tipados)) if tipados else None)
     return Computed("union")
 
 
