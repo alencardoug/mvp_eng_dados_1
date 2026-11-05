@@ -45,7 +45,8 @@ as source_system` conta como origem: é a forma de quem só lê uma delas.
 escopo ela resolve só para a exceção da fonte de origem única: o qualificador é
 procurado no `from` do próprio `select` e dos que o envolvem, nunca numa CTE
 vizinha (RVL2-3-02), e só vale se nomeia uma relação só na consulta inteira e
-nenhuma relação ficou sem nome legível (RVL2-4-01, RVL2-6-02); para o resto, é o
+nenhum item de `from`/`join` ficou sem nome legível — os nós inspecionados estão
+em `_relacao_sem_nome` (RVL2-4-01, RVL2-6-02, RVL2-7-01); para o resto, é o
 que está escrito, com os nomes normalizados como o PostgreSQL (RVL2-6-01). Coluna
 qualificada por schema não entra em prova nenhuma (RVL2-6-03). A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
 cautela — mantenha o nome. Passam sem achado: uma CTE que já perdeu
@@ -127,11 +128,15 @@ def _conjuncoes(condicao: exp.Expression) -> list[exp.Expression]:
     return [condicao]
 
 
+def _fontes_diretas_lista(select: exp.Select) -> list[exp.Expression]:
+    """Os itens do `from` e dos `join` deste `select`, sem descer."""
+    origem = select.args.get("from_")
+    return ([origem.this] if origem else []) + [j.this for j in select.args.get("joins") or []]
+
+
 def _fontes_diretas(select: exp.Select) -> dict[str, exp.Expression]:
     """O que o `from` e os `join` deste `select` nomeiam, pelo qualificador — sem descer."""
-    origem = select.args.get("from_")
-    itens = ([origem.this] if origem else []) + [j.this for j in select.args.get("joins") or []]
-    return {i.alias_or_name: i for i in itens}
+    return {i.alias_or_name: i for i in _fontes_diretas_lista(select)}
 
 
 def _relacao_do_lado(no: exp.Expression, qualificador: str) -> exp.Expression | None:
@@ -161,11 +166,20 @@ def _ligacoes(arvore: exp.Expression, qualificador: str) -> list[exp.Expression]
 
 
 def _relacao_sem_nome(arvore: exp.Expression) -> bool:
-    """Uma relação cujo nome a guarda não lê — a função no `from` sem alias, como
-    `json_to_record(…) as (…)`, que o PostgreSQL nomeia pela função. Diante dela, a
-    contagem de ligações não é prova, e a exceção não vale para a consulta (RVL2-6-02)."""
-    return any(not a.name for a in arvore.find_all(exp.TableAlias)) or any(
-        not t.name and not t.alias for t in arvore.find_all(exp.Table)
+    """Uma relação cujo nome a guarda não lê. Diante dela, a contagem de ligações
+    não é prova, e a exceção não vale para a consulta (RVL2-6-02, RVL2-7-01).
+
+    O que se inspeciona, e só isto: todo item de `from`/`join` de todo `select`
+    que não seja tabela nomeada nem tenha alias — a função no `from`, como
+    `json_to_record(…) as (…)` ou `unnest(…)`, que o PostgreSQL nomeia pela
+    função —, todo `unnest` sem alias em qualquer ponto, e todo `TableAlias` ou
+    `Table` de nome vazio."""
+    itens = [i for sel in arvore.find_all(exp.Select) for i in _fontes_diretas_lista(sel)]
+    return (
+        any(not (isinstance(i, exp.Table) and i.name) and not i.alias for i in itens)
+        or any(not u.alias for u in arvore.find_all(exp.Unnest))
+        or any(not a.name for a in arvore.find_all(exp.TableAlias))
+        or any(not t.name and not t.alias for t in arvore.find_all(exp.Table))
     )
 
 
@@ -461,6 +475,9 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from retail.orders s where exists (select 1 from json_to_record('{}')"
          " as (source_system text, order_id int) where json_to_record.order_id = s.order_id"
          " and json_to_record.source_system = 'retail')", 1),
+        # RVL2-7-01: `unnest` sem alias também é relação sem nome legível
+        ("select * from retail.orders unnest where exists (select 1 from (a x join unnest(array[1])"
+         " on x.order_id = unnest.order_id and x.source_system = 'retail'))", 1),
         # RVL2-6-03: schema na coluna não entra em prova
         ("select * from a where (a.source_system, a.order_id) in"
          " (select orders.source_system, trusted.orders.order_id from orders)", 1),
