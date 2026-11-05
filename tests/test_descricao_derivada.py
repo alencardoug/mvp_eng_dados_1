@@ -199,6 +199,37 @@ def test_o_herdado_escrito_no_yml_a_mao_e_no_gerado_leva_a_marca(tmp_path) -> No
     assert colunas["b"]["meta"] == {"sensitivity": "internal"}
 
 
+def test_o_escritor_nao_perde_a_marca_em_meta_com_comentario_nem_aceita_meta_em_linha() -> None:
+    """RVL3-4-01: `meta: # …` é bloco; `meta: {…}` o escritor recusa; o YAML carregado é a prova."""
+    com_comentario = textwrap.dedent("""\
+        version: 2
+        models:
+          - name: m
+            columns:
+              - name: a
+                meta: # classificação
+                  sensitivity: internal
+        """)
+    escrito = s.patch_meta(com_comentario, {"m": {"a": {d.MARK: True}}})
+    assert yaml.safe_load(escrito)["models"][0]["columns"][0]["meta"] == {d.MARK: True, "sensitivity": "internal"}
+    em_linha = com_comentario.replace("meta: # classificação\n          sensitivity: internal", "meta: {sensitivity: internal}")
+    with pytest.raises(ValueError, match="em linha"):
+        s.patch_meta(em_linha, {"m": {"a": {d.MARK: True}}})
+    duplicado = textwrap.dedent("""\
+        version: 2
+        models:
+          - name: m
+            columns:
+              - name: a
+                meta:
+                  description_inherited: true
+                meta:
+                  sensitivity: internal
+        """)
+    with pytest.raises(RuntimeError, match="repetida"):
+        s.verify_meta(s.ROOT / "x.yml", duplicado, {"m": {"a": {d.MARK: True}}})
+
+
 def test_toda_grafia_do_mesmo_doc_e_a_mesma_referencia() -> None:
     """RVL3-3-02: espaço, aspas e controle de espaço do Jinja não revisam o texto."""
     formas = ['{{ doc("x") }}', "{{doc('x')}}", '{{ doc ("x") }}', '{{- doc( "x" ) -}}']
@@ -236,6 +267,23 @@ def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() ->
                                                           "q || 'x' as t from \"wh\".\"staging\".\"a\"",
                                                           read="postgres"), schema=catalogo, dialect="postgres",
                                         validate_qualify_columns=False), ("trusted", "t"), tipos.get)["b"].type == "BIGINT"
+    # RVL3-4-02: fora das categorias ordenadas, só o que se prova
+    tipos.update({("staging", "a", "arr"): "BIGINT[]", ("staging", "a", "ch"): "CHAR(4)",
+                  ("staging", "a", "vc"): "VARCHAR(80)", ("staging", "a", "uu"): "UUID", ("staging", "a", "tx"): "TEXT"})
+    catalogo["wh"]["staging"]["a"].update(dict.fromkeys(("arr", "ch", "vc", "uu", "tx"), "text"))
+    dois = 'select {x} as v from "wh"."staging"."a" union all select {y} as v from "wh"."staging"."a"'
+    assert coluna('select arr as v from "wh"."staging"."a" union all select cast(null as real[]) as v') == tr.Computed("union_coercion")
+    assert coluna(dois.format(x="ch", y="tx")) == tr.Computed("union_coercion")     # char perde o preenchimento
+    assert isinstance(coluna(dois.format(x="vc", y="tx")), tr.Carry)
+    assert isinstance(coluna(dois.format(x="uu", y="tx")), tr.Carry)                # o Airbyte grava uuid como texto
+    # RVL3-4-03: a espécie do literal e o `||` só com operandos de texto
+    def saida(sql: str) -> dict:
+        return tr.carries_by_output(qualify(sqlglot.parse_one(sql, read="postgres"), schema=catalogo, dialect="postgres",
+                                            validate_qualify_columns=False), ("trusted", "t"), tipos.get)
+    k = saida("select 'true' as s, true as b, 1 as i, 1.5 as n, arr || arr as aa, tx || ' ' || cast(ch as text) as tt"
+              ' from "wh"."staging"."a"')
+    assert [tr.materialized_type(k[c]) for c in ("s", "b", "i", "n", "aa", "tt")] == [
+        "TEXT", "BOOLEAN", "INTEGER", "NUMERIC", None, "TEXT"]
     # RVL3-2-02: a subunião de constantes guarda os tipos que viu
     assert coluna(base + "(select 0::real as id union all select 1::double precision as id)") == tr.Computed("union_coercion")
     assert isinstance(coluna(base + "(select -1 as id union all select null as id)"), tr.Carry)

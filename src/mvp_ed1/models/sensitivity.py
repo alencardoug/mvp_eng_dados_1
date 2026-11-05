@@ -364,10 +364,12 @@ def _declaracao_atrasada(manifest: dict) -> list[str]:
     nos_disco, fontes_disco = _declaracoes_no_disco()
     atrasadas = []
     for no in manifest["nodes"].values():
-        if no["resource_type"] not in ("model", "seed", "snapshot") or no["name"] not in nos_disco:
+        if no["resource_type"] not in ("model", "seed", "snapshot"):
             continue
         manifesto = {c["name"]: (c.get("meta") or {}) for c in no.get("columns", {}).values()}
-        disco = nos_disco[no["name"]]
+        # Entrada que sumiu do disco conta como declaração vazia: a do manifest
+        # continuaria valendo calada (RVL3-4-04).
+        disco = nos_disco.get(no["name"], {})
         if no["resource_type"] == "seed":
             par = lambda m: m.get("sensitivity")
             nomes = set(manifesto) | set(disco)
@@ -737,7 +739,15 @@ def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) ->
                     ]
                 else:
                     fim_col = _block_end(bloco, idx_col, item_indent)
-                    idx_meta = next((i for i in range(idx_col + 1, fim_col) if bloco[i].strip() == "meta:" and _indent(bloco[i]) == item_indent + 2), None)
+                    em_linha = next((i for i in range(idx_col + 1, fim_col) if _indent(bloco[i]) == item_indent + 2
+                                     and bloco[i].strip().startswith("meta:")
+                                     and bloco[i].split("#", 1)[0].strip() != "meta:"), None)
+                    if em_linha is not None:
+                        # `meta: {…}` não é editável linha a linha: um segundo `meta:` em bloco
+                        # duplicaria a chave, e o carregador ficaria com um só (RVL3-4-01).
+                        raise ValueError(f"{entrada}.{coluna}: `meta` escrito em linha; escreva-o em bloco para o gerador editar")
+                    idx_meta = next((i for i in range(idx_col + 1, fim_col)
+                                     if bloco[i].split("#", 1)[0].strip() == "meta:" and _indent(bloco[i]) == item_indent + 2), None)
                     if idx_meta is None:
                         bloco[idx_col + 1:idx_col + 1] = [
                             " " * (item_indent + 2) + "meta:",
@@ -752,6 +762,38 @@ def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) ->
                             bloco[idx_chave] = " " * (item_indent + 4) + linha_valor
                 linhas[inicio:fim] = bloco
     return "\n".join(linhas)
+
+
+class _SemChaveRepetida(yaml.SafeLoader):
+    """O carregador que recusa chave repetida: o `safe_load` ficaria com a última, calado."""
+
+
+def _mapa_sem_repeticao(carregador, no, deep=False):
+    vistas = set()
+    for chave_no, _ in no.value:
+        chave = carregador.construct_object(chave_no, deep=deep)
+        if chave in vistas:
+            raise ValueError(f"chave `{chave}` repetida (linha {chave_no.start_mark.line + 1})")
+        vistas.add(chave)
+    return yaml.SafeLoader.construct_mapping(carregador, no, deep=deep)
+
+
+_SemChaveRepetida.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapa_sem_repeticao)
+
+
+def verify_meta(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, dict[str, object]]]) -> None:
+    """O arquivo escrito, **como o YAML o carrega** e sem chave repetida, tem cada chave de `meta` pedida (RVL3-4-01)."""
+    try:
+        documento = yaml.load(conteudo, Loader=_SemChaveRepetida) or {}
+    except ValueError as erro:
+        raise RuntimeError(f"{caminho.relative_to(ROOT)}: {erro}") from None
+    entradas = {e["name"]: e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []}
+    for nome, colunas in esperado.items():
+        metas = {c["name"]: (c.get("meta") or {}) for c in entradas[nome].get("columns", [])}
+        for coluna, chaves in colunas.items():
+            faltam = {k: v for k, v in chaves.items() if metas.get(coluna, {}).get(k) != v}
+            if faltam:
+                raise RuntimeError(f"{caminho.relative_to(ROOT)}: `{nome}.{coluna}` não ficou com {faltam}")
 
 
 def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
@@ -853,7 +895,15 @@ def main(argv: list[str] | None = None) -> int:
     disco = descriptions.disk_entries()
     textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
     dominios = domains.derive_domains(manifest, disco)
-    arquivos = render_files(plano, textos, dominios)
+    try:
+        arquivos = render_files(plano, textos, dominios)
+        # A marca conferida no YAML carregado, nos dois modos: um escritor que não a
+        # grava não pode passar no `--check` só porque os bytes não mudaram (RVL3-4-01).
+        for caminho, marcas in textos.marks.items():
+            verify_meta(caminho, arquivos.get(caminho, caminho.read_text(encoding="utf-8")), marcas)
+    except (ValueError, RuntimeError) as erro:
+        print(f"escrita recusada: {erro} — nenhum arquivo é tocado", file=sys.stderr)
+        return 1
 
     for mudanca in plano.changes + textos.changes + dominios.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)

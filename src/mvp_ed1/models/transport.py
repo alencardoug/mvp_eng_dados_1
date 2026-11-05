@@ -57,6 +57,7 @@ class Computed:
     kind: str
     shape: str | None = None
     type: str | None = field(default=None, compare=False)
+    materialized: str | None = field(default=None, compare=False)   # o tipo da constante pela espécie do literal
 
 
 Transport = Carry | Computed
@@ -106,33 +107,44 @@ def _declared_type(e: exp.Expression) -> str | None:
         return e.to.sql("postgres")
     if isinstance(e, _BOOLEANOS):
         return "BOOLEAN"
-    if isinstance(e, exp.DPipe):
-        return "TEXT"
+    # `||` concatena texto, mas também `array` e `bit`: sem o tipo dos operandos, não diz nada (RVL3-4-03).
+    return None
+
+
+def _literal_type(e: exp.Expression) -> str | None:
+    """O tipo da constante pela **espécie** do literal — `'true'` é texto, `true` é booleano (RVL3-4-03)."""
+    e = unparen(e)
+    if isinstance(e, exp.Cast):
+        return e.to.sql("postgres")
+    if isinstance(e, exp.Neg):
+        return _literal_type(e.this)
+    if isinstance(e, exp.Boolean):
+        return "BOOLEAN"
+    if isinstance(e, exp.Literal):
+        if e.is_string:
+            return "TEXT"
+        return "INTEGER" if e.this.lstrip("-").isdigit() else "NUMERIC"
     return None
 
 
 def materialized_type(t: "Transport") -> str | None:
-    """O tipo que a coluna calculada tem depois de materializada, quando a expressão o diz:
-    o declarado (`cast`, teste, concatenação) e o da constante sem `cast` — booleano,
-    inteiro, numérico, texto. `null` sem tipo não diz nada."""
+    """O tipo que a coluna calculada tem depois de materializada, quando a expressão o prova:
+    o declarado (`cast`, teste, comparação) e o da constante pela espécie do literal.
+    `null` sem tipo e a união de constantes de espécies diferentes não provam nada."""
     if not isinstance(t, Computed):
         return None
-    if t.type:
-        return None if "|" in t.type else t.type
-    if t.kind != "constant" or not t.shape:
-        return None
-    valores = [v for v in t.shape.removeprefix("constant:").split("|") if v]
-    if not valores or "null" in valores:
-        return None
-    if all(v in ("true", "false") for v in valores):
-        return "BOOLEAN"
-    if all(v.lstrip("-").isdigit() for v in valores):
-        return "INTEGER"
-    try:
-        [float(v) for v in valores]
-        return "NUMERIC"
-    except ValueError:
-        return "TEXT"
+    if t.kind == "constant":
+        return t.materialized
+    return t.type if t.type and "|" not in t.type else None
+
+
+_TEXTUAIS = {"TEXT", "VARCHAR"}
+
+
+def _operandos(e: exp.Expression) -> list[exp.Expression]:
+    """Os operandos de uma cadeia `a || b || c`, achatada."""
+    e = unparen(e)
+    return _operandos(e.this) + _operandos(e.expression) if isinstance(e, exp.DPipe) else [e]
 
 
 def constant_type(e: exp.Expression) -> str | None:
@@ -187,13 +199,23 @@ def _conversao_preserva(de: str, para: str) -> bool:
 def _uniao_preserva(transportados: set[str], todos: set[str]) -> bool:
     """O tipo que a união resolve deixa intacto todo valor transportado?
 
-    Só as categorias numérica e de data/hora convertem implicitamente entre tipos
-    diferentes; entre as demais — texto e `uuid`, texto e `jsonb` — o PostgreSQL
-    recusaria a união, e uma união que constrói tem os tipos físicos iguais (o
-    declarado na origem pode diferir do físico que o Airbyte grava: `uuid` vira
-    `varchar`)."""
+    Nas categorias numérica e de data/hora, a união resolve o tipo mais alto
+    presente, e cada valor transportado tem de chegar a ele sem mudar. Fora delas,
+    construir não prova igualdade, só compatibilidade (RVL3-4-02): aceita-se o
+    mesmo tipo, `varchar` com `text`, e `uuid`/`json`/`jsonb` com texto — o tipo
+    declarado na origem diverge do físico que o Airbyte grava, que é texto. O resto
+    não prova, e a união não transporta."""
     todos = {canonical_type(t) for t in todos}
     transportados = {canonical_type(t) for t in transportados}
+    # Fora das categorias que se resolvem por ordem, só se aceita o que se prova (RVL3-4-02):
+    # o mesmo tipo; `varchar` com `text`; e `uuid`/`json`/`jsonb` com texto, porque é texto
+    # o que o Airbyte grava no lugar deles. `char(n)` com texto perde o preenchimento, e
+    # `array` de tipos diferentes converte cada elemento — nenhum dos dois prova.
+    fora = {t for t in todos if t not in _ORDEM}
+    if len(fora) > 1 and not fora <= {"TEXT", "VARCHAR", "UUID", "JSON", "JSONB"}:
+        return False
+    if fora and len(fora) < len(todos):
+        return False      # categoria ordenada com outra: o PostgreSQL não as une sem perda provada
     for categoria in ("numerico", "data"):
         presentes = {t for t in todos if _ORDEM.get(t, ("", 0))[0] == categoria}
         if len(presentes) < 2:
@@ -233,8 +255,11 @@ def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | N
             if None in tipos and (len(folhas) > 1 or tipados):
                 return Computed("union_unproven")
             return Carry(folhas)
-        return _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v],
-                         "|".join(sorted(tipados)) if tipados else None)
+        especies = {p.materialized for p in calculam}
+        constante = _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v],
+                              "|".join(sorted(tipados)) if tipados else None)
+        return Computed(constante.kind, constante.shape, constante.type,
+                        especies.pop() if len(especies) == 1 else None)
     return Computed("union")
 
 
@@ -272,7 +297,8 @@ def carries_by_output(query: exp.Expression, propria: tuple[str, str], origin_ty
             return resolver(e, escopo)
         valor = constant_value(e)
         if valor is not None:
-            return _constant([valor], constant_type(e))
+            constante = _constant([valor], constant_type(e))
+            return Computed(constante.kind, constante.shape, constante.type, _literal_type(e))
         if isinstance(e, exp.Cast) and isinstance(unparen(e.this), exp.Column):
             dentro = resolver(unparen(e.this), escopo)
             alvo = e.to.sql("postgres")
@@ -284,7 +310,24 @@ def carries_by_output(query: exp.Expression, propria: tuple[str, str], origin_ty
         sujeito = _is_not_null(e)
         if isinstance(sujeito, exp.Column):
             return Computed("is_not_null", f"not_null:{sujeito.name}", "BOOLEAN")
+        if isinstance(e, exp.DPipe):
+            # `||` é texto quando todo operando prova ser texto: literal de cadeia, ou
+            # coluna transportada de tipo textual declarado (RVL3-4-03). `array` e `bit`
+            # concatenam também, e aí não se anota nada.
+            return Computed("dpipe", None, "TEXT" if all(_e_texto(o, escopo) for o in _operandos(e)) else None)
         return Computed(type(e).__name__.lower(), None, _declared_type(e))
+
+    def _e_texto(o: exp.Expression, escopo: Scope) -> bool:
+        o = unparen(o)
+        if isinstance(o, exp.Cast):
+            return canonical_type(o.to.sql("postgres")) in _TEXTUAIS
+        if isinstance(o, exp.Literal):
+            return o.is_string
+        if isinstance(o, exp.Column):
+            t = resolver(o, escopo)
+            tipos = [origin_type(f) for f in t.leaves] if isinstance(t, Carry) else [materialized_type(t)]
+            return bool(tipos) and all(x is not None and canonical_type(x) in _TEXTUAIS for x in tipos)
+        return False
 
     for escopo in traverse_scope(query):
         consulta = escopo.expression

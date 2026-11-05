@@ -366,6 +366,9 @@ def test_declaracao_do_yml_mudada_depois_do_build_e_recusada(tmp_path, monkeypat
     assert s.stale_nodes(manifest("internal", "internal", "public", "internal")) == ["declaração de ponte"]
     assert s.stale_nodes(manifest("personal", "internal", "internal", "internal")) == ["declaração de sd"]
     assert s.stale_nodes(manifest("personal", "internal", "public", "public")) == ["declaração da fonte governance.g"]
+    # RVL3-4-04: a entrada inteira retirada do disco não some da conferência
+    (tmp_path / "seeds" / "_s.yml").write_text("version: 2\nseeds: []\n", encoding="utf-8")
+    assert s.stale_nodes(manifest("personal", "internal", "public", "internal")) == ["declaração de sd"]
 
 
 def test_definicao_antiga_em_comentario_nao_passa_pela_macro_ativa(tmp_path, monkeypatch) -> None:
