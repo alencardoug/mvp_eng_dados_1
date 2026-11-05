@@ -815,3 +815,523 @@ e não foram tocados. Os artefatos temporários da revisão ficaram em `/tmp`.
 - Não rodou `make check`, os 138 testes de integração desmarcados nem os seis testes
   pulados no snapshot. Não reavaliou métricas de negócio dos commits do lote 3.
 
+
+
+## Rodada 2 — lote 2
+
+Revisão em `15ab79d`, limitada a `git log d1f45a2..15ab79d`: `3f6ea1b`,
+`4304376`, `00ce350` e `15ab79d`. Sem poder de aprovação e sem implementar
+correções. **O lote 2 ainda não pode ser encerrado:** resta um bloqueante no
+contrato do leitor e dois ajustes na guarda. As observações abaixo não ampliam
+este lote para o lote 3.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL2-2-01 | `src/mvp_ed1/governance.py:78`, `FECHADAS_A_PUBLIC`; Governança §7 | A lista fecha os large objects e os advisory locks, mas deixa `pg_logical_emit_message(boolean,text,text)` e `(boolean,text,bytea)` executáveis por `PUBLIC` e pelo leitor. Ambas escreveram mensagens no WAL e devolveram LSN na conexão real do leitor. O contrato de impedir escrita por função continua incompleto; os testes só conferem a lista declarada, sem este caminho. Incluir as duas assinaturas no fechamento e na contraprova é o ajuste proposto, sem implementação nesta revisão. Evidência A. | `bloqueante` | **Corrigido.** Reproduzido: como o leitor, `pg_logical_emit_message(true, …)` devolveu LSN `4/A69E93B0`. `pg_logical_emit_message` entrou em `FECHADAS_A_PUBLIC` (todas as assinaturas). E, como o achado mostra que lista é argumento, o oráculo agora é o que **sobra**: `test_o_que_fica_aberto_ao_leitor_e_o_classificado` exige que toda função volátil executável pelo leitor (fora `internal`/gatilho/*handler*) esteja em `ABERTAS_AO_LEITOR`, com o motivo, e que nenhuma função volátil de fora do `pg_catalog` lhe seja executável; `test_o_servidor_recusa_o_que_verifica_por_dentro` chama pelo leitor uma de cada família que o servidor recusa por dentro (slots de replicação, `binary_upgrade_*`, `pg_nextoid`, `*_old` do adminpack, `pg_extension_config_dump`, sinal a sessão do superusuário, `session_replication_role`), confere o SQLSTATE e que nenhum slot ficou; BRIN/GIN e sequência são zero no armazém, e o teste obriga a sondá-los se aparecerem. Contraprova: antes do `garantir()`, os três testes que tocam a função acusaram; depois, `86 passed` em `test_acesso` + `test_leitor` + guarda. Governança §7 v2.11. |
+| RVL2-2-02 | `tests/test_identidade_no_consumo.py:93`, `_origem_correlaciona` | A origem ainda pode não correlacionar os lados: um literal em **qualquer** igualdade basta, inclusive de terceiro alias/subconsulta; igualdade sob `OR` ou `NOT` também basta. `a.order_id=b.order_id AND b.source_system='retail'` aceita `a=legacy, b=retail`, demonstrado com `VALUES`. São lacunas da correção de RVL2-03 dentro da própria cláusula, além do limite declarado. Proposta: exigir restrição efetiva dos dois lados, sem tomar uma ocorrência da coluna como prova; preservar P12 por sua premissa explícita de origem única. Evidência C. | `ajuste` | **Corrigido** na guarda: só conta termo ligado por `and` no topo da condição (nada sob `or`/`not` nem em subconsulta de terceiro), e a origem tem de restringir **os dois lados** — igualada entre eles, ou fixada em cada um com o mesmo valor, por literal ou por ler `source('retail'\|'legacy', …)`, que é como P12 passa sem mudar a view. O caso antigo `exists (… b.source_system = 'retail' and b.movement_id = a.movement_id)`, que esperava 0, passou a esperar 1: era exatamente a lacuna. Contraprova com a guarda de `15ab79d` em memória: as sete formas novas deram 0 antes e 1 agora; as 16 views, `[]`. |
+| RVL2-2-03 | `tests/test_identidade_no_consumo.py:96`, reconhecimento exclusivo de `exp.EQ` | Regressão de falso positivo: origem ligada por `a.source_system IS NOT DISTINCT FROM b.source_system`, com `a.order_id=b.order_id`, passa na guarda anterior e é acusada agora. O mesmo ocorre com origem transportada sob alias de coluna de CTE. Não há esses casos nas 16 views atuais. Proposta: reconhecer a igualdade válida no primeiro caso; para aliases de CTE, resolver a procedência ou declarar expressamente a forma não suportada, sem prometer que todo diagnóstico prova junção inválida. Evidência C. | `ajuste` | **Corrigido / declarado.** `is not distinct from` conta como igualdade, da origem e do identificador (antes 1, agora 0 no caso válido). A origem renomeada por CTE continua acusada, agora como **limite declarado** no docstring e com caso de teste: a guarda não resolve procedência, acusa por cautela, e a regra é manter o nome `source_system`. |
+| RVL2-2-04 | Limites da guarda, preexistentes ao intervalo | `USING(order_id)`, igualdade de identificador com `IS NOT DISTINCT FROM` e `IN (SELECT order_id …)` sem origem continuam sem achado; igualdade de identificadores na projeção provoca `AttributeError`. Comparação com `d1f45a2` confirma que não nasceram nestes quatro commits. São observação para a evolução da guarda; a descrição atual do limite, restrita a fluxo entre cláusulas, é estreita demais. Evidência C. | `observação` | **Corrigido além do pedido**, por ser barato: `join … using (…)` sem a origem, `in`/`not in (select …)` com identificador sem a origem e `is not distinct from` entre identificadores agora acusam (0 → 1 cada); a igualdade na projeção não quebra mais (`AttributeError` → 0, não junta nem reduz). O docstring reescreve o limite: lê sintaxe, não escopo nem fluxo — qualificador como escrito, origem renomeada acusada, CTE que perdeu a origem e `union` sem `all` passam. |
+| RVL2-2-05 | Alcance da promessa “não interfere”; funções e locks ainda permitidos | `pg_notify`/`LISTEN`, alteração dos próprios timeouts, cancelamento/encerramento de outra sessão do mesmo leitor e `ACCESS SHARE` na view continuam possíveis. Não demonstram escalada nem escrita nas tabelas, mas impedem prometer ausência absoluta de interferência: leitura longa pode atrasar DDL. Não foi encontrada aplicação atual de `LISTEN`/`NOTIFY`, nem outro login operacional não superusuário. O limite de disponibilidade deve ser tratado pelo dono da política; não proponho bloquear indiscriminadamente funções de sessão. Evidências A e D. | `observação` | **Declarado** na Governança §7 v2.11, no dono da política: "não interfere" ganhou alcance explícito — não escreve, não toma lock da captura, não sinaliza sessão de outro login; ainda pode `notify`/`listen`, alongar os próprios *timeouts*, sinalizar sessão do próprio login e segurar `access share` que atrasa DDL concorrente. Acrescentado o que a sua bateria A mostrou de passagem: `alter role consumption_reader set default_transaction_read_only=off` passou — o padrão de leitura é conveniência, a garantia é o privilégio, e o `garantir()` seguinte o repõe. Nada disso foi bloqueado: os quatro casos estão na classe "interferência declarada" ou "própria sessão" do oráculo. |
+
+### Fechamento de cada resposta da rodada 1
+
+“Fechado” abaixo é conclusão técnica desta revisão, não aceite do Owner.
+
+| Resposta | Conclusão nesta rodada | Comando e evidência |
+|---|---|---|
+| RVL2-01 | **Parcialmente fechado.** O defeito original de large objects está fechado; a garantia mais ampla de só leitura permanece aberta por RVL2-2-01. | Bateria A: nove entradas de LO negadas com `42501`; inventário sem privilégio de escrita em relações; `65 passed` na suíte direcionada. |
+| Inclusão dos advisory locks | **Fechada.** As 16 assinaturas de tomada, com uma/duas chaves, compartilhadas/exclusivas, de sessão/transação, inclusive `try`, foram chamadas e negadas. | Bateria A: 16 respostas `42501`; catálogo `reader_exec=f`, `public_exec=f`; nenhum lock residual. Não chamei as chaves reais da captura. |
+| RVL2-02 | **Fechado.** Nomes do catálogo são compostos no servidor; newline recusado; `%I`/`%s` chegam corretamente; o papel hostil é removido inclusive se `garantir()` falha. | Dublê B; chamada real de `format` em A; teste real no conjunto `65 passed`; falha controlada B seguida de inventário sem papel/membership residual. |
+| RVL2-03 | **Parcialmente fechado.** As três contraprovas originais agora falham como devem. Restam RVL2-2-02 e RVL2-2-03, sem defeito dessas formas identificado nas views atuais. | Matriz C: originais `0 → 1`; literais/`OR`/`NOT` ainda `0`; dois casos válidos `0 → 1`; 16 views com `[]`. |
+| RVL2-04 | **Fechado como documentação do procedimento.** A sequência contém o build que cria o leitor e estabelece os ACLs em cluster novo. Não é prova de restauração executada nesta rodada. | Leitura de `recovery/cli.py`, `governance.garantir_papeis` e `nl -ba Makefile`: linha 704 chama `dbt-rebuild`; este chama `governance garantir` antes do dbt. Evidência D. |
+| RVL2-05 | **Fechado como ressalva de medição.** A evidência anterior de P05 `20 → 21` e P06 `13 → 14` vale para os dados regenerados; não valida o `11 → 12` histórico. Nada nestes quatro commits muda essas views ou reescreve um ADR. | Busca nos arquivos rastreados de `docs/`, README e `dbt/`: `documentos_com_11_para_12= []`; diff do intervalo sem views. Evidência D. Não repeti a medição de negócio. |
+| RVL2-06 | **Fechado no escopo do produtor, com obrigação do consumidor diferida.** O Dicionário já explica contagem de linhas como `generated`; a Parte II do `bi-como-codigo` é o dono adequado da interpretação pelo exportador. | Leitura do Dicionário §3.2/§3.3 e `bi-como-codigo/PLAN.md` §3.5/etapa 2.4. Evidência D. O plano ainda não contém regra específica para aceitar terminal `generated`: não declaro essa tarefa executada. |
+| RVL2-07 | **Fechado.** Totais de commits/ambientes distintos não são intercambiáveis. O HEAD desta rodada tem 761 testes offline, não 749 nem os 547 do snapshot histórico. | `make check-offline`: `761 passed, 185 deselected`; `make secrets-history`: nenhum achado não tratado. Evidência E. O `make check` do autor não foi repetido. |
+
+### A — conexão real do leitor e funções ainda abertas
+
+Comando executado, carregando credenciais sem imprimi-las:
+
+```bash
+set -a; . ./.env; set +a
+.venv/bin/python /tmp/rvl2-round2-reader.py
+```
+
+O script temporário abriu `psycopg.connect` com `WAREHOUSE_READER_USER` e
+`WAREHOUSE_READER_PASSWORD`, no host `127.0.0.1`, porta/banco do armazém,
+`application_name=rvl2_round2_reader`, `statement_timeout=2000` e
+`lock_timeout=500` para limitar as sondagens. Para **cada** SQL impresso abaixo:
+
+```python
+try:
+    c.execute('set transaction read write')
+    r = c.execute(q)
+    print(q, '=>', r.fetchall() if r.description else 'OK')
+except psycopg.Error as e:
+    print(q, '=>', e.sqlstate, e.diag.message_primary)
+finally:
+    c.rollback()
+```
+
+Os dois sinais atingiram exclusivamente outras conexões descartáveis criadas
+pelo script como o mesmo leitor, ociosas e já com rollback; nenhum PID operacional
+foi sinalizado. `ROLLBACK` não desfaz um sinal: a sessão terminada era da própria
+sonda. As conexões foram fechadas em `finally`. Saída literal:
+
+```text
+show default_transaction_read_only => [('on',)]
+select count(*) from consumption.monthly_revenue_by_channel_and_category => [(1494,)]
+create table public.__rvl2(x int) => 42501 permission denied for schema public
+create table consumption.__rvl2(x int) => 42501 permission denied for schema consumption
+create temp table __rvl2(x int) => 42501 permission denied to create temporary tables in database "warehouse_db"
+create schema __rvl2 => 42501 permission denied for database warehouse_db
+create function public.__rvl2() returns int language sql as $$select 1$$ => 42501 permission denied for schema public
+create sequence public.__rvl2 => 42501 permission denied for schema public
+insert into raw.orders select * from raw.orders where false => 42501 permission denied for schema raw
+delete from consumption.monthly_revenue_by_channel_and_category where false => 55000 cannot delete from view "monthly_revenue_by_channel_and_category"
+set role analyst => OK
+set role transformer => 42501 permission denied to set role "transformer"
+set role mvp_warehouse => 42501 permission denied to set role "mvp_warehouse"
+set session authorization mvp_warehouse => 42501 permission denied to set session authorization "mvp_warehouse"
+alter role consumption_reader createrole => 42501 permission denied to alter role
+alter role consumption_reader set default_transaction_read_only=off => OK
+grant analyst to auditor => 42501 permission denied to grant role "analyst"
+create role __rvl2 => 42501 permission denied to create role
+copy (select 1) to program 'true' => 42501 permission denied to COPY to or from an external program
+select lo_create(0) => 42501 permission denied for function lo_create
+select lo_creat(-1) => 42501 permission denied for function lo_creat
+select lo_from_bytea(0,decode('4142','hex')) => 42501 permission denied for function lo_from_bytea
+select lo_open(0,262144) => 42501 permission denied for function lo_open
+select lo_put(0,0,decode('41','hex')) => 42501 permission denied for function lo_put
+select lowrite(0,decode('41','hex')) => 42501 permission denied for function lowrite
+select lo_truncate(0,0) => 42501 permission denied for function lo_truncate
+select lo_truncate64(0,0) => 42501 permission denied for function lo_truncate64
+select lo_unlink(0) => 42501 permission denied for function lo_unlink
+select lo_get(0) => 42704 large object 0 does not exist
+select lo_get(0,0,1) => 42704 large object 0 does not exist
+select loread(0,1) => 42704 invalid large-object descriptor: 0
+select lo_import('/__rvl2_missing__') => 42501 permission denied for function lo_import
+select lo_export(0,'/__rvl2_missing__') => 42501 permission denied for function lo_export
+select pg_notify('__rvl2_round2','probe aborted') => [('',)]
+listen __rvl2_round2 => OK
+select set_config('statement_timeout','1h',true) => [('1h',)]
+select set_config('lock_timeout','0',true) => [('0',)]
+select set_config('session_replication_role','replica',true) => 42501 permission denied to set parameter "session_replication_role"
+select set_config('role','transformer',true) => 42501 permission denied to set role "transformer"
+select nextval('raw.inventory_movements_stream_event_sequence_seq') => 42501 permission denied for schema raw
+lock table consumption.monthly_revenue_by_channel_and_category in access share mode => OK
+lock table consumption.monthly_revenue_by_channel_and_category in access exclusive mode => 42501 permission denied for view monthly_revenue_by_channel_and_category
+select pg_logical_emit_message(true,'__rvl2_round2','aborted probe') => [('4/A6989F38',)]
+select pg_logical_emit_message(true,'__rvl2_round2',decode('41','hex')) => [('4/A6989FA8',)]
+select pg_advisory_lock(1907766123456789::bigint) => 42501 permission denied for function pg_advisory_lock
+select pg_advisory_lock(1907766::int,123456::int) => 42501 permission denied for function pg_advisory_lock
+select pg_advisory_lock_shared(1907766123456789::bigint) => 42501 permission denied for function pg_advisory_lock_shared
+select pg_advisory_lock_shared(1907766::int,123456::int) => 42501 permission denied for function pg_advisory_lock_shared
+select pg_advisory_xact_lock(1907766123456789::bigint) => 42501 permission denied for function pg_advisory_xact_lock
+select pg_advisory_xact_lock(1907766::int,123456::int) => 42501 permission denied for function pg_advisory_xact_lock
+select pg_advisory_xact_lock_shared(1907766123456789::bigint) => 42501 permission denied for function pg_advisory_xact_lock_shared
+select pg_advisory_xact_lock_shared(1907766::int,123456::int) => 42501 permission denied for function pg_advisory_xact_lock_shared
+select pg_try_advisory_lock(1907766123456789::bigint) => 42501 permission denied for function pg_try_advisory_lock
+select pg_try_advisory_lock(1907766::int,123456::int) => 42501 permission denied for function pg_try_advisory_lock
+select pg_try_advisory_lock_shared(1907766123456789::bigint) => 42501 permission denied for function pg_try_advisory_lock_shared
+select pg_try_advisory_lock_shared(1907766::int,123456::int) => 42501 permission denied for function pg_try_advisory_lock_shared
+select pg_try_advisory_xact_lock(1907766123456789::bigint) => 42501 permission denied for function pg_try_advisory_xact_lock
+select pg_try_advisory_xact_lock(1907766::int,123456::int) => 42501 permission denied for function pg_try_advisory_xact_lock
+select pg_try_advisory_xact_lock_shared(1907766123456789::bigint) => 42501 permission denied for function pg_try_advisory_xact_lock_shared
+select pg_try_advisory_xact_lock_shared(1907766::int,123456::int) => 42501 permission denied for function pg_try_advisory_xact_lock_shared
+select pg_cancel_backend(118909) => [(True,)]
+select pg_terminate_backend(118910) => [(True,)]
+sqlalchemy_format => ('revoke "x""; --" from consumption_reader', 'revoke execute on function lo_create(oid) from public')
+Todas as transações revertidas; conexões fechadas.
+```
+
+A mensagem `55000` da view agregada não prova ACL. `nextval` foi barrado no schema
+antes de resolver a sequência: não prova privilégio no objeto. O inventário
+complementar encontrou **zero sequências** no warehouse e zero relações de usuário
+com `INSERT/UPDATE/DELETE/TRUNCATE` concedidos ao leitor; nenhum contador foi avançado.
+
+As duas chamadas a `pg_logical_emit_message` acima usaram `transactional=true` e
+rollback: não publicaram transação confirmada, mas o retorno LSN evidencia a escrita
+no WAL. A variante `false` **não foi executada**; sua emissão independente de commit
+é comportamento documentado pelo PostgreSQL, não uma medição desta revisão.
+[PostgreSQL 16 — mensagens de decodificação lógica](https://www.postgresql.org/docs/16/functions-admin.html#FUNCTIONS-REPLICATION)
+explica que a função envia conteúdo ao WAL e distingue os dois modos. Não se criou
+slot nem se consumiu stream lógico. As sondagens, como qualquer transação de teste,
+não prometem desfazer WAL físico ou estatísticas do servidor.
+
+Inventário feito **antes e depois** pelo wrapper obrigatório, com o mesmo SQL:
+
+```bash
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl2-round2-inventory.sql
+```
+
+Para cada assinatura, consultados `has_function_privilege('consumption_reader',
+p.oid,'execute')` e `aclexplode(coalesce(p.proacl,acldefault('f',p.proowner)))`,
+com `grantee=0` para PUBLIC. Trecho literal:
+
+```text
+                     signature                     | reader_exec | public_exec
+ pg_logical_emit_message(boolean,text,text)        | t           | t
+ pg_logical_emit_message(boolean,text,bytea)       | t           | t
+ lo_get(oid)                                       | t           | t
+ lo_get(oid,bigint,integer)                        | t           | t
+ loread(integer,integer)                           | t           | t
+ lo_import(text)                                   | f           | f
+ lo_import(text,oid)                               | f           | f
+ lo_export(oid,text)                               | f           | f
+```
+
+As 25 assinaturas da lista (nove LO e 16 advisory) tinham ambos os campos `f`.
+Isso cobre tanto `pg_advisory_lock(ns, hashtext(tentativa))` de
+`bloqueio_da_tentativa` quanto `pg_advisory_xact_lock(ns, chave)` da abertura
+em `legacy/captura.py:236`: são as mesmas assinaturas de dois inteiros negadas em A.
+O dublê também confirmou que a ausência de nomes no catálogo gera erro, sem pulo.
+Somente `plpgsql` está instalado: não há `dblink`, outra extensão ou função de
+usuário/`SECURITY DEFINER` nos schemas de aplicação. `lo_compat_privileges=off` e
+`pg_largeobject_metadata` vazio: **não foi possível exercitar leitura de LO de outro
+dono sem criar uma fixture privilegiada**, o que não fiz. `lo_get(0)` acusar objeto
+inexistente não prova proteção de um objeto real. A proteção por ACL do LO é
+[documentada pelo PostgreSQL](https://www.postgresql.org/docs/16/lo-implementation.html).
+`loread` exige descritor; `lo_open` agora é negado também para leitura. A justificativa
+“sem criar, não há o que ler” vale para o inventário atual, não como regra universal
+sobre LOs futuros de outro dono concedidos ao leitor.
+
+`set_config` não contornou parâmetros privilegiados nem `SET ROLE`; os timeouts são
+configuração da própria sessão. A sonda aceitou `statement_timeout=1h` e
+`lock_timeout=0`, sem esperar uma hora nem bloquear trabalho externo. `ACCESS SHARE`
+na view passou e foi liberado imediatamente; não provoquei concorrência com DDL.
+`pg_notify` e `LISTEN` passaram, mas foram revertidos. Notificações só são entregues
+com commit e seus canais não isolam usuários, conforme
+[PostgreSQL 16 — NOTIFY](https://www.postgresql.org/docs/16/sql-notify.html).
+Nenhum canal operacional foi ouvido. Retirar apenas `pg_notify` não retiraria o
+comando SQL `NOTIFY`.
+
+### B — injeção, percentuais e limpeza do teste real
+
+Reexecução do dublê da rodada 1 adaptado **somente** para devolver também os nomes
+agora consultados por `_fechar_a_public`, sem executar DDL. O valor hostil foi
+`x" from consumption_reader; ALTER ROLE analyst SUPERUSER; --`; o nome fictício do
+banco continha aspas e `;`. Comando `.venv/bin/python /tmp/rvl2-round2-double.py`:
+
+```text
+hostile_catalog_value_in_SQL= False
+membership_uses_format_I= True
+database_uses_format_I= True
+signatures_use_regprocedure_and_format_s= True
+newline rejected: user
+newline rejected: password
+missing_catalog_names => funções a fechar que o pg_catalog não tem: ['lo_creat', 'lo_create', 'lo_from_bytea', 'lo_open', 'lo_put', 'lo_truncate', 'lo_truncate64', 'lo_unlink', 'lowrite', 'pg_advisory_lock', 'pg_advisory_lock_shared', 'pg_advisory_xact_lock', 'pg_advisory_xact_lock_shared', 'pg_try_advisory_lock', 'pg_try_advisory_lock_shared', 'pg_try_advisory_xact_lock', 'pg_try_advisory_xact_lock_shared']
+```
+
+Os blocos `DO` de membership e fechamento não interpolam texto de catálogo em
+Python: `r.rolname` e `current_database()` passam por `%I`; a assinatura é
+`p.oid::regprocedure` e passa por `%s`, representação SQL produzida pelo servidor.
+Os nomes da lista são constantes versionadas. O bloco de criação e os literais de
+usuário usam o valor restrito por `fullmatch` no caminho `leitor_do_ambiente` →
+`garantir`; `_garantir_leitor` não é uma API que valide argumentos arbitrários por
+conta própria. O verificador SCRAM não contém aspas e vai por `exec_driver_sql`.
+Não identifiquei entrada de catálogo ou `.env` não escapada nesses caminhos.
+
+O dublê sozinho **não prova o transporte dos percentuais**. A suíte real executa o
+`DO` com membership hostil e os revokes; a chamada adicional abaixo usa o mesmo
+`Connection.execute(text(...))`, SQLAlchemy e psycopg, como leitor, com rollback:
+
+```sql
+select format('revoke %I from %I', 'x"; --', current_user),
+       format('revoke execute on function %s from public', 'lo_create(oid)'::regprocedure)
+```
+
+O resultado `sqlalchemy_format` está colado em A: aspas internas dobradas e assinatura
+expandida. Portanto não chegaram `%%I`/`%%s` literais ao `format` do servidor; eventual
+escape interno do driver é consumido no transporte. Não criei um banco de nome hostil;
+essa variante é coberta pela composição e pelo `format` real, não por criação de banco.
+
+**Executei `tests/test_acesso.py`**, conforme autorização do pedido, junto dos dois
+arquivos offline:
+
+```bash
+set -a; . ./.env; set +a
+.venv/bin/pytest -q -rs tests/test_acesso.py tests/test_leitor.py \
+  tests/test_identidade_no_consumo.py
+```
+
+```text
+.................................................................        [100%]
+65 passed in 3.77s
+```
+
+Isso inclui os 13 testes de acesso, o papel hostil real, a retirada da membership e
+`analyst.rolsuper=False`. Não invoquei `governance garantir` como comando: sua chamada
+interna ao teste autorizado é a exceção exercitada. Ela repõe o verificador SCRAM com
+sal novo, como o código declara; senha efetiva, atributos e privilégios ficam iguais.
+
+Para a limpeza **quando `garantir()` lança erro**, o mesmo teste foi executado com
+plugin temporário de pytest que substitui `governance.garantir` por uma função que
+lança `RuntimeError` imediatamente, antes de qualquer ação dela. Nenhum arquivo do
+repositório foi alterado para isso:
+
+```bash
+set -a; . ./.env; set +a
+PYTHONPATH=/tmp:$PWD/src .venv/bin/pytest -q -p rvl2_round2_fail_cleanup \
+  tests/test_acesso.py::test_membro_com_nome_que_fecharia_o_identificador_sai_sem_injetar
+```
+
+Saída relevante (argumentos sensíveis do traceback omitidos do registro):
+
+```text
+E       RuntimeError: RVL2_ROUND2_FALHA_CONTROLADA_ANTES_DE_GARANTIR
+FAILED tests/test_acesso.py::test_membro_com_nome_que_fecharia_o_identificador_sai_sem_injetar
+1 failed in 0.22s
+```
+
+Falha **esperada**, não regressão da suíte. O inventário posterior mostrou zero papéis
+com o nome de sonda e nenhum desvio de ACL/atributos; `DROP ROLE` elimina memberships
+automaticamente, como confirma
+[PostgreSQL 16 — DROP ROLE](https://www.postgresql.org/docs/16/sql-droprole.html).
+A criação e o grant iniciais estão numa única transação; se falharem antes do `try`,
+são revertidos. Se `garantir()` falhar dentro de `engine.begin`, sua transação também
+é revertida, e o `finally` abre outra para apagar o papel sem objetos próprios. Essa
+limpeza é adequada ao cenário do teste. Não foi simulado servidor indisponível no
+`finally`, morte do processo nem outra sessão usando o papel de teste.
+
+### C — guarda, contraprovas e 16 views
+
+Comando `.venv/bin/python /tmp/rvl2-round2-identity.py`: importação por
+`importlib.util.spec_from_file_location` do arquivo de testes do HEAD e chamada a
+`violacoes(sql)` para cada SQL literal abaixo. Depois, `violacoes(_sql(p))` para todos
+os `MODELOS`. Saída literal:
+
+```text
+round1_distinct 'select distinct on (order_id) source_system, order_id from f' => ['distinct on sem a origem: order_id']
+round1_self 'select * from a join b on a.order_id=b.order_id and a.source_system=a.source_system' => ['junção sem a origem: a.order_id = b.order_id AND a.source_system = a.source_system']
+round1_window 'select row_number() over(partition by order_id) from f' => ['janela particionada sem a origem: order_id']
+literal_one_side "select * from a join b on a.order_id=b.order_id and b.source_system='retail'" => []
+literal_third_table "select * from a join b on a.order_id=b.order_id and exists (select 1 from c where c.source_system='retail')" => []
+or_origin 'select * from a join b on a.order_id=b.order_id or a.source_system=b.source_system' => []
+not_origin 'select * from a join b on a.order_id=b.order_id and not (a.source_system=b.source_system)' => []
+unqualified_valid 'select * from a where exists (select 1 from b where order_id=a.order_id and source_system=a.source_system)' => []
+unqualified_self 'select * from a where exists (select 1 from b where order_id=a.order_id and source_system=source_system)' => ['junção sem a origem: order_id = a.order_id AND source_system = source_system']
+aliases 'select * from a x join b y on x.order_id=y.order_id and x.source_system=y.source_system' => []
+names 'select * from a join b on a.order_id=b.order_id and a.source_system=b.source_system' => []
+cte_alias 'with x as (select source_system as origin, order_id from a) select * from x join b on x.order_id=b.order_id and x.origin=b.source_system' => ['junção sem a origem: x.order_id = b.order_id AND x.origin = b.source_system']
+using_valid 'select * from a join b using (source_system,order_id)' => []
+using_bad 'select * from a join b using (order_id)' => []
+nullsafe_valid 'select * from a join b on a.order_id=b.order_id and a.source_system is not distinct from b.source_system' => ['junção sem a origem: a.order_id = b.order_id AND a.source_system IS NOT DISTINCT FROM b.source_system']
+nullsafe_bad 'select * from a join b on a.order_id is not distinct from b.order_id' => []
+in_valid 'select * from a where (source_system,order_id) in (select source_system,order_id from b)' => []
+in_bad 'select * from a where order_id in (select order_id from b)' => []
+select_equality 'select a.order_id=b.order_id from a cross join b' => AttributeError 'NoneType' object has no attribute 'args'
+views= 16
+average_order_value_by_channel_and_segment.sql => []
+cart_conversion_rate_by_channel.sql => []
+discount_share_by_channel.sql => []
+gross_margin_by_category.sql => []
+inventory_turnover_by_sku_and_warehouse.sql => []
+monthly_revenue_by_channel_and_category.sql => []
+new_and_repeat_customers_by_month.sql => []
+on_time_delivery_rate_by_carrier.sql => []
+order_to_delivery_time_by_region.sql => []
+payment_approval_rate_by_method.sql => []
+refund_rate_by_reason.sql => []
+repeat_purchase_rate_after_support.sql => []
+revenue_by_delivery_region.sql => []
+skus_below_reorder_point.sql => []
+support_tickets_per_hundred_orders.sql => []
+top_skus_by_revenue.sql => []
+```
+
+Repeti a mesma matriz carregando o texto de
+`git show d1f45a2:tests/test_identidade_no_consumo.py` em memória. Recorte comparativo
+(número de violações, não resultado SQL):
+
+```text
+round1_distinct antes= 0 agora= 1
+round1_self antes= 0 agora= 1
+round1_window antes= 0 agora= 1
+literal_one_side antes= 0 agora= 0
+literal_third_table antes= 0 agora= 0
+or_origin antes= 0 agora= 0
+not_origin antes= 0 agora= 0
+unqualified_valid antes= 0 agora= 0
+unqualified_self antes= 0 agora= 1
+aliases antes= 0 agora= 0
+names antes= 0 agora= 0
+cte_alias antes= 0 agora= 1
+using_valid antes= 0 agora= 0
+using_bad antes= 0 agora= 0
+nullsafe_valid antes= 0 agora= 1
+nullsafe_bad antes= 0 agora= 0
+in_valid antes= 0 agora= 0
+in_bad antes= 0 agora= 0
+select_equality antes= AttributeError agora= AttributeError
+```
+
+A origem em literal de só um lado não restringe o outro. Prova SQL somente leitura,
+executada via `ro.sh /tmp/rvl2-round2-extra.sql`:
+
+```sql
+with a(source_system,order_id) as (values ('legacy',37)),
+     b(source_system,order_id) as (values ('retail',37))
+select 'literal_one_side' as variant, a.source_system a_origin,b.source_system b_origin
+from a join b on a.order_id=b.order_id and b.source_system='retail';
+
+with a(source_system,order_id) as (values ('legacy',37)),
+     b(source_system,order_id) as (values ('retail',37))
+select 'or_origin' as variant, a.source_system a_origin,b.source_system b_origin
+from a join b on a.order_id=b.order_id or a.source_system=b.source_system;
+```
+
+```text
+     variant      | a_origin | b_origin
+------------------+----------+----------
+ literal_one_side | legacy   | retail
+(1 row)
+
+  variant  | a_origin | b_origin
+-----------+----------+----------
+ or_origin | legacy   | retail
+(1 row)
+```
+
+A análise lê qualificadores sintáticos, não resolve aliases ou escopos como o
+PostgreSQL. Aliases de tabela usados consistentemente e nomes sem alias passaram;
+coluna não qualificada no correlato testado também passou. Origem renomeada por CTE
+não é reconhecida. `USING` válido passar não prova cobertura: a variante sem origem
+também passa. A igualdade nula-segura da origem é válida com os mesmos dois lados,
+mas não é `exp.EQ`. Igualdade na projeção não tem ancestral `Where`/`Join`: o erro
+existe desde antes, e não foi apresentado como regressão introduzida pelo fix.
+
+Li as 16 views do HEAD e não identifiquei falso positivo nem caso real de fusão de
+identidades escondido por esses falsos negativos. A revisão aqui é da guarda; não
+reabre as métricas do lote 3. P04 conserva origem na chave de `DISTINCT ON` e nas
+junções; P09 conserva origem na partição da janela e na junção; P12 só lê `retail`
+no quente e compara com `f.source_system='retail'`, premissa específica que torna seu
+anti-join correto; P16 correlaciona as origens antes de abandonar a coluna e usa
+`UNION ALL`. Nas demais reduções por identificador, origem acompanha a chave; joins
+por chaves substitutas não exigem coluna de origem adicional. Os casos novos de
+RVL2-2-02/03 são contraprovas sintéticas, não defeitos afirmados dessas views.
+
+### D — Governança, restauração e donos documentais
+
+Inventário inicial e final, saída literal:
+
+```text
+      rolname       | rolsuper | rolcanlogin |             rolconfig
+--------------------+----------+-------------+------------------------------------
+ mvp_warehouse      | t        | t           |
+ consumption_reader | f        | t           | {default_transaction_read_only=on}
+(2 rows)
+```
+
+O warehouse respondeu PostgreSQL **16.15**. Caminhos conferidos por leitura:
+`dbt/profiles.yml:14` usa `WAREHOUSE_DB_USER`; `airbyte/main.tf:117` usa
+`var.warehouse_db_user`, alimentado pelo `.env` em `Makefile:494`; captura recebe o
+engine de `database_url(WAREHOUSE)` em `airbyte.py:227`; Beam usa o mesmo em
+`streaming/sink.py:97`. Não há `SET ROLE` operacional nesses caminhos. Nenhum caminho
+não superusuário existente que precise de `lo_open` ou advisory lock foi encontrado;
+fechar `lo_open` bloqueia também a leitura via descritor, mas não quebra consumo
+atual. Não rodei Airbyte, captura, dbt ou Beam para afirmar isso: código e inventário
+sustentam a conclusão; não é teste de pipeline. Não consultei a configuração remota
+do Airbyte, mas o cluster só tem o superusuário e o leitor como logins.
+
+Governança §7 v2.10 corresponde ao código para os nomes de catálogo, revogação de
+TEMP, LO/advisory e conexão real de leitor. A enumeração não garante fechamento de
+toda função que escreve/interfere: RVL2-2-01 e RVL2-2-05 delimitam a conclusão.
+A necessidade de declarar permissões quando os componentes ganharem logins próprios
+está corretamente atribuída ao futuro; não foi criado grant operacional nesta revisão.
+
+A frase de restauração está correta para a sequência completa em cluster novo.
+`_pg_dump` usa `-n` nos schemas `raw_legacy`, `governance`, `snapshots`, `quarantine`;
+o restore chama apenas `garantir_papeis` antes de `pg_restore`. Os papéis de grupo
+não incluem o leitor. Comando de inspeção `nl -ba Makefile | sed -n '699,706p'`:
+
+```text
+   703        @$(MAKE) --no-print-directory sync-legacy JOB_EM="$(RECOVERY_JOB)"
+   704        @$(MAKE) --no-print-directory dbt-rebuild
+   705        @$(MAKE) --no-print-directory check
+```
+
+`dbt-rebuild` garante as chaves do leitor no ambiente e chama `governance garantir`
+antes do build. A linha 704 está correta no HEAD. Num cluster já existente, login e
+ACLs podem continuar presentes; o parágrafo fala explicitamente de cluster novo.
+Não executei esses alvos, não restaurei cluster nem fiz novo dump; a evidência do TOC
+na rodada 1 permanece como evidência anterior.
+
+RVL2-05 não pede reescrita de mensagem de commit nem ADR aceito. Busca com expressão
+`\b11\s*(?:→|->)\s*12\b` sobre arquivos rastreados de `docs/`, README e `dbt/`:
+
+```text
+documentos_com_11_para_12= []
+```
+
+A medição anterior nesta revisão continua rotulada pelos dados sobre os quais foi
+feita. Não a promovi a número histórico nem a repliquei na Governança. Para evidência
+permanente, a entrega conserva este registro no histórico Git, como prevê a skill de
+revisão; o plano da v1.1.0 mantém seu próprio critério atual de zero divergências.
+
+Para RVL2-06, `sed -n '810,815p' docs/dicionario_de_dados.md` confirma:
+
+```text
+Toda coluna de todo modelo fecha numa origem: uma coluna de **fonte** (`raw`, `raw_legacy`,
+`governance`), uma coluna de **seed** (declarada no Git) ou uma coluna **gerada** (calendário,
+numeração, literal, chave técnica, contagem de linhas), que não vem do valor de coluna nenhuma.
+```
+
+O `bi-como-codigo/PLAN.md` §3.5 declara consumo por `lineage --json`, e a Parte II,
+etapa 2.4, entrega os exportadores e metadados. Portanto a obrigação do consumidor
+está encaminhada ao dono certo e continua **diferida**, conforme o pedido do Owner.
+A busca por `generated`/`lineage` ali não encontrou regra específica que já cumpra a
+obrigação. Não alterei esse projeto nem declarei consumidor real validado.
+
+### E — regressões, estado final e limites
+
+`make check-offline`, no HEAD `15ab79d`, exit 0. Saída literal sem o progresso em pontos
+nem a repetição do inventário dos 185 testes desmarcados:
+
+```text
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+761 passed, 185 deselected in 151.13s (0:02:31)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+```
+
+Nenhum skip nesse gate. `make secrets-history`, exit 0, última linha literal:
+
+```text
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Os 547 testes/seis skips da rodada 1 eram de outro snapshot sem manifest; os 749 eram
+outro HEAD. O resultado atual não substitui o `make check` do autor em `00ce350`
+(`PASS=907`, `943 passed`, `3 skipped`), que não reproduzi. Dos testes de integração,
+executei apenas o arquivo de acesso autorizado; o restante ficou fora desta rodada.
+
+Comparação do inventário antes/depois:
+
+```bash
+diff -u /tmp/rvl2-round2-inventory-before.log /tmp/rvl2-round2-inventory-after.log
+```
+
+Saída vazia, exit 0. Em ambos, `large_objects=0`, `probe_objects=0`, `probe_roles=0`,
+`advisory_locks=0`; mesmos privilégios inventariados, mesmos atributos/configurações
+dos logins e somente a sessão do próprio `ro.sh` no inventário de conexões. Não se
+comparou byte a byte o verificador SCRAM renovado pelo teste nem contadores internos.
+
+As primeiras tentativas de Docker/TCP foram bloqueadas pelo sandbox e repetidas com
+escalonamento autorizado. Superusuário foi usado pelo `ro.sh` e, excepcionalmente,
+pelo próprio `tests/test_acesso.py` autorizado. Nenhum build, reset, seed, sync,
+restauração, ledger ou comando de DAG foi executado; `data/memoria_do_legado/` ficou
+intocado. Só `REVISAO.md` foi editado entre os arquivos versionados; scripts/logs da
+revisão ficaram em `/tmp`. Os não rastreados `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já existiam. Nenhum commit ou push.
+
+Não houve fixture de LO de outro dono, teste de banco com nome hostil, decoder lógico,
+concorrência com DDL real, indisponibilidade durante cleanup, pipeline operacional ou
+restauração nova. Não afirmo completude absoluta da superfície de funções do PostgreSQL:
+o caminho concreto ainda aberto basta para impedir o encerramento do contrato de
+leitor nesta rodada. **Lote 2 permanece aberto para RVL2-2-01 a RVL2-2-03.**
