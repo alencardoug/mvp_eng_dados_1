@@ -3458,3 +3458,298 @@ concluir correção de todo o projeto.
 - [ ] Reexecutar os checks pertinentes e medir/declarar qualquer resultado
   adicional que mudar; atualizar as situações sem apagar as evidências nem
   confundir validação técnica com revisão do declarativo e aceite do Owner.
+
+## Rodada 8 — lote 3
+
+### Conclusão
+
+**Changes required — alterações necessárias.** Um bloqueante e um ajuste
+confirmados. A duplicidade por schema foi corrigida para o caso de R7-01,
+mas uma tabela com `identifier` ainda conserva descrição incorreta com os
+três modos do catálogo verdes. A guarda nova de fuso aceita datas sem offset.
+**O lote 3 continua aberto.** A reconciliação mantém o veredito nos dados
+atuais; o fallback e o sentinela corrigidos são independentes da sessão nas
+sondas executadas. Este parecer não é aceite formal da release.
+
+### Escopo e versão
+
+Revisão em 05/11/2026, branch `main`, HEAD
+`beca24432075a841e50356236757232a810ccdef`, contra **`0361d59`**, o estado da
+rodada 7. Exclusivamente `git log 0361d59..beca244`: `3cdd31f`, `f87c01d` e
+`beca244`. HEAD permaneceu igual durante a revisão. Nenhum arquivo rastreado
+estava alterado inicialmente; `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já estavam não rastreados, foram
+excluídos do escopo e não foram tocados.
+
+Li AGENTS.md, CLAUDE.md, a skill local `revisao`, o mapa do README,
+Governança §5.1, Qualidade §4, a decisão do Owner em RVL3-6-04 e os
+encerramentos pertinentes das rodadas anteriores. Parti do diff e expandi
+para os leitores/escritores de fontes, a guarda temporal e seus SQLs. As
+respostas do autor foram tratadas como alegações a conferir. Só este relatório
+foi editado no checkout; scripts, caches, compilações e geração ficaram em
+`/tmp/rvl3-r8-review`. Não houve escrita no warehouse nem operação de DAG.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-8-01 | `src/mvp_ed1/models/descriptions.py:157–180,237–245`; `sensitivity.py:422,730–736` | **O alias por `identifier` escapa da unicidade e do espelho de descrição.** Acrescentar `retail.order_items_alias`, com `identifier: order_items`, e dar à sua `quantity` a descrição monetária de um pedido é aceito pelo dbt. As duas entradas apontam para `raw.order_items`, mas o catálogo procura o texto da segunda por `order_items_alias`, que não existe na declaração SQLAlchemy. Após compilação nova, check → geração → check retornam **0/0/0** e o texto incorreto permanece. **Alta → bloqueante:** erro declarativo aceito silenciosamente, contra a barra da revisão. Preexistente; fechamento incompleto da identidade física solicitada em R7-01, não regressão nova de `3cdd31f`. Evidência R8-A. | `bloqueante` | **Corrigido.** A identidade de fonte passou a ser a tabela física, numa função só: `sensitivity.source_identity(fonte, tabela)` = (schema efetivo, `identifier` ou nome). Usam-na `read_yaml` (no mesmo arquivo), `descriptions._documents` (entre arquivos) e `disk_sources` (a redução que o catálogo lê). Seu `order_items_alias` com `identifier: order_items` agora para o catálogo como tabela repetida. Nenhuma fonte do projeto usa `identifier` hoje: `--check` dá 0 arquivo desatualizado. Caso no teste de fonte repetida; contraprova com `beca244`: não recusava. Governança §5.1 v2.19. |
+| RVL3-8-02 | `tests/test_vigencia_em_utc.py:84–99`, especialmente `_COM_FUSO` em 85 | **O dia de uma data passa por offset na guarda nova.** Restaurar o sentinela para `timestamptz '9999-12-31'` faz o teste passar: o regex reconhece `-31` como fuso. `timestamptz '2024-01-01'`, o próprio exemplo proibido na docstring, também passa por `-01`. SQL somente leitura confirma instantes diferentes conforme a sessão. **Média → ajuste:** a catraca aceita silenciosamente uma regressão temporal comum; os dois literais corrigidos neste diff estão corretos, sem mudança indevida de negócio demonstrada. Defeito novo da guarda em `f87c01d`. Evidência R8-B. | `ajuste` | **Corrigido.** `_COM_FUSO` exige o fuso **depois de uma hora** (`HH:MM[:SS[.f]]` seguido de `Z` ou `±HH[:MM]`), e o `-31` de `9999-12-31` deixa de contar como offset. Teste novo `test_a_guarda_le_o_fuso_e_nao_o_dia` é a contraprova da própria guarda: `2024-01-01`, `9999-12-31` e `2024-01-01 00:00` sem fuso; `… 00:00-03`, `… 00:00+00`, `…T12:30:00.5Z` e as duas formas Jinja do projeto com fuso. Medido: o regex de `f87c01d` aceitava `9999-12-31` e `2024-01-01` (`True`/`True`). |
+
+### Evidências e correções propostas
+
+**R8-A — identidade de fonte e descrição ignorada.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r8-review/probes.py
+# Com .env carregado, sem imprimir credenciais:
+PYTHONDONTWRITEBYTECODE=1 DBT_SEND_ANONYMOUS_USAGE_STATS=false \
+  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s' \
+  .venv/bin/python -P /tmp/rvl3-r8-review/identifier.py
+```
+
+`probes.py` copiou o projeto e o manifest atuais, executou a derivação real e
+conferiu a base antes de alterar qualquer declaração na cópia:
+
+```text
+BASE_STALE [] DERIVATION_PROBLEMS []
+SOURCE_INVENTORY 79 identifier_different []
+BASE ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+Não há recusa de fonte legítima no inventário atual exercitado. O alias
+`retail_alias` com mesmo schema e nome de tabela foi recusado nos três modos,
+no mesmo arquivo e entre arquivos, nas duas ordens. No mesmo arquivo ocorreu
+`ValueError … tabela(s) de fonte [('raw', 'order_items')] declarada(s) mais de
+uma vez`; entre arquivos, `RC 1 … recusado: tabela de fonte raw.order_items …`.
+O digest de todos os YAMLs da cópia permaneceu igual antes/depois de cada
+chamada (`YAML_UNCHANGED True`). Isso confirma a correção do caso concreto de
+R7-01, inclusive sem escrita parcial.
+
+A contraprova restante clona a declaração de `order_items`, mantém as colunas
+e níveis corretos, muda apenas o nome lógico para `order_items_alias`, declara
+`identifier: order_items` e troca a descrição de `quantity` para
+`Valor monetário total do pedido em reais.`. A original continua com
+`Quantidade comprada do SKU.`. `identifier.py` faz **novo `dbt ls` e novo
+`dbt compile` completo na cópia com o alias**, sem usar um manifest atrasado
+como premissa. Saída executada:
+
+```text
+ALIAS_DBT_LS_RC 0 retail.order_items
+retail.order_items_alias
+ALIAS_DBT_SOURCE order_items raw order_items "warehouse_db"."raw"."order_items" Quantidade comprada do SKU.
+ALIAS_DBT_SOURCE order_items_alias raw order_items "warehouse_db"."raw"."order_items" Valor monetário total do pedido em reais.
+ALIAS_DBT_COMPILE_RC 0
+ALIAS_FRESH_STALE [] PROBLEMS []
+FRESH_IDENTIFIER_ALIAS ['--check'] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+FRESH_IDENTIFIER_ALIAS [] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) escrito(s) ERR
+FRESH_IDENTIFIER_ALIAS ['--check'] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+FRESH_ALIAS_FINAL Valor monetário total do pedido em reais.
+```
+
+A análise estática explica a reprodução: `_documents`, `read_yaml` e
+`disk_sources` usam `table.name`; o espelho procura `(schema, table.name,
+column)` em `source_texts`. Para `raw.order_items_alias.quantity` não há
+`esperado`, e a coluna passa sem patch nem problema. Já `sensitivity.derive`
+e `plan` usam o `identifier` do manifest. `_declaracoes_no_disco` usa a
+identidade lógica `(source.name, table.name)`, coerente com a busca de
+atualidade feita por `_declaracao_atrasada`; ela não resolve a identidade
+física nem confere o texto do espelho. Portanto, a coincidência entre a nova
+recusa e `disk_sources` não cobre todos os leitores. A base `0361d59` já
+ignorava `identifier` nesses caminhos de descrição; não atribuo o defeito
+inteiro aos três commits novos.
+
+**Correção e validação de RVL3-8-01:** resolver a relação por schema efetivo e
+`identifier` quando declarado, preservando o endereço lógico da declaração
+para escrita. A duplicidade física deve ser recusada ou todas as suas
+declarações precisam ser conferidas, sem deixar uma ocorrência ignorada.
+Evitar apenas trocar a chave do leitor e continuar escrevendo pelo nome
+físico no lugar do nome lógico. Exercitar alias de fonte e de tabela, no
+mesmo arquivo e entre arquivos, invertendo a ordem, com manifest recém
+compilado: nenhuma descrição incorreta pode sobreviver aos três retornos 0.
+Ajustar a declaração/derivador, sem editar manualmente o espelho gerado.
+
+**R8-B — falso negativo da guarda de literais.**
+
+`probes.py` importa o módulo de teste real, aponta apenas seu `DBT` para a
+cópia e chama `test_todo_literal_timestamptz_diz_o_fuso`. Primeiro confere os
+SQLs atuais; depois altera somente o sentinela na cópia, restaurando-o ao
+final. Saída literal:
+
+```text
+GUARD_CURRENT PASS
+GUARD_SENTINEL '9999-12-31' PASS OFFSET_MATCH -31
+GUARD_SENTINEL '2024-01-01' PASS OFFSET_MATCH -01
+GUARD_SENTINEL '2024-01-01 00:00' REFUSED OFFSET_MATCH None
+GUARD_SENTINEL '2024-01-01 00:00+00' PASS OFFSET_MATCH +00
+```
+
+O teste é capaz de recusar a ausência de fuso após uma hora, mas não após
+uma data. Não é só preferência por regex: as duas grafias aceitas têm efeito
+real de sessão. A sonda SQL R8-C produziu, em UTC:
+
+| Sessão | `timestamptz '2024-01-01'` | `timestamptz '9999-12-31'` | Sentinela corrigido |
+|---|---|---|---|
+| UTC | `2024-01-01 00:00` | `9999-12-31 00:00` | `9999-12-31 00:00` |
+| America/Sao_Paulo | `2024-01-01 03:00` | `9999-12-31 03:00` | `9999-12-31 00:00` |
+| America/New_York | `2024-01-01 05:00` | `9999-12-31 05:00` | `9999-12-31 00:00` |
+
+**Correção e validação de RVL3-8-02:** reconhecer o offset na estrutura de
+data/hora, sem aceitar o último componente da data. Conferir a própria
+guarda com casos negativos de data sem hora e de data/hora sem fuso, e
+positivos com `+00`, `-03`, `Z`, os literais montados por Jinja e as exceções
+`infinity`/`-infinity`. A restauração do sentinela antigo deve falhar. A
+suíte verde atual não substitui essa contraprova: ela não introduz esses
+literais proibidos para demonstrar que o detector os rejeita.
+
+**R8-C — calendário, veredito atual e impacto medido sem build.**
+
+```sh
+# Com .env carregado; compile.py compila somente fato e reconciliação, em /tmp:
+PYTHONDONTWRITEBYTECODE=1 DBT_SEND_ANONYMOUS_USAGE_STATS=false \
+  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s' \
+  .venv/bin/python -P /tmp/rvl3-r8-review/compile.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r8-review/temporal.py
+ENG_DADOS_DIR="$PWD" /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r8-review/temporal.sql
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r8-review/compiled_fallback.py
+ENG_DADOS_DIR="$PWD" /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r8-review/compiled_fallback.sql
+```
+
+`compile.py` retornou `DBT_COMPILE_RC 0`, com o ramo incremental presente.
+A reconciliação antiga foi renderizada do arquivo de `git show 0361d59:…`;
+a nova vem do compile executado. Para a fato, foi conferido que a única
+diferença de fonte é o literal do fallback antes de substituir esse literal
+no SQL compilado. Os testes de sobreposição foram renderizados da macro
+real, com os argumentos dos quatro modelos declarados no YAML.
+
+As consultas usaram `transaction_read_only = on`, SELECTs/CTEs, transação
+somente leitura e mudança de fuso apenas na sessão descartável. A comparação
+principal usou `REPEATABLE READ`, encerrado por `ROLLBACK`. Resultados
+executados, reunidos por fuso:
+
+| Sessão | Eventos / divergentes na ingestão | Falhas antigas / novas | Corte antigo / novo, em UTC | Linhas da fato antiga / nova; diferenças por `EXCEPT ALL` nos dois sentidos |
+|---|---|---|---|---|
+| UTC | 15925 / 0 | 0 / 0 | `2026-10-28 13:30:18.413882` / mesmo | 2673 / 2673; 0 / 0 |
+| America/Sao_Paulo | 15925 / 0 | 0 / 0 | `2026-10-28 13:30:18.413882` / mesmo | 2673 / 2673; 0 / 0 |
+| America/New_York | 15925 / 0 | 0 / 0 | `2026-10-28 12:30:18.413882` / `2026-10-28 13:30:18.413882` | 2673 / 2673; 0 / 0 |
+
+O máximo de `recorded_at` era `2026-11-04 13:30:18.413882` UTC. O corte antigo
+muda em Nova York por atravessar a transição de horário de verão; o novo fica
+fixo. **O veredito atual não mudou**, e não apenas porque os cortes se
+igualariam: não havia evento divergente. Os conjuntos de falhas também
+coincidiram por `EXCEPT ALL`. Os quatro testes de sobreposição retornaram
+**0 antes e 0 depois**, nos três fusos. A comparação da fato é do SELECT do
+recorte incremental, não execução de merge nem reconstrução da tabela inteira.
+
+Para impedir que o conjunto atual sem divergências mascarasse a borda, a
+sonda acrescentou apenas em CTE um máximo em `2024-03-15 12:00+00` e eventos
+só no fluxo às `12:30`, `12:00` e `11:59` UTC de 08/03, além de um evento
+recente só no lote. IDs de falha retornados:
+
+```text
+UTC                old_failed_ids {4,5}     new_failed_ids {4,5}
+America/Sao_Paulo  old_failed_ids {4,5}     new_failed_ids {4,5}
+America/New_York   old_failed_ids {2,3,4,5} new_failed_ids {4,5}
+```
+
+A igualdade exata ao corte continua tolerada (`<`, não `<=`); falta no fluxo
+continua falhando imediatamente. O novo teste preserva os dois comportamentos
+e remove a variação de sessão demonstrada em R7-02.
+
+`compiled_fallback.py` extraiu **a expressão inteira compilada**, mantendo
+`coalesce`, subquery e filtro `source_system = 'retail'`, e substituiu só a
+relação `this` por uma CTE vazia ou com um máximo conhecido. Nos três fusos:
+
+```text
+empty     compiled_cutoff_utc 2023-12-25 03:00:00
+nonempty  compiled_cutoff_utc 2018-10-30 13:00:00
+```
+
+A macro real também retornou `2018-12-30 11:00:00` UTC ao somar 90 dias a
+`2018-10-01 12:00+00`, e `2018-10-30 13:00:00` UTC ao subtrair sete dias de
+`2018-11-06 12:00+00`, nos três fusos, atravessando transições de São Paulo.
+A expressão do escritor UTC lida novamente como UTC retornou
+`writer_preserves_instant = t` nos três. As portas do escritor e os leitores
+SCD não mudaram neste intervalo; os testes offline conferem ambos. A busca
+dirigida nos SQLs não encontrou outra janela efetiva nova fora da macro nos
+arquivos examinados; `dim_date` trabalha com datas e permanece a exceção
+declarada. A guarda é textual, não uma prova geral de toda expressão SQL.
+
+Não foi medida mudança adicional de negócio nos SELECTs alterados sobre os
+dados atuais. O deslocamento do fallback vazio foi exercitado em CTE, sem
+esvaziar a fato. Não refiz a medição histórica de clientes de R6/R7: esse
+código não mudou nos três commits. Mantém-se a mudança já declarada de
+`days_since_last_order`, sem atribuí-la novamente a esta rodada.
+
+### Reavaliação dos achados anteriores
+
+Estados técnicos do defeito demonstrado, sem substituir o aceite do Owner.
+Comandos e saídas são os das sondas acima, executadas nesta rodada.
+
+| Achado anterior | Estado nesta rodada | Comando e saída conferida |
+|---|---|---|
+| RVL3-7-01 | **Parcialmente resolvido.** Mesmo schema/nome é recusado, mas resta a identidade física por `identifier`, em R8-01. | `probes.py`: recusas nos três modos e duas ordens, `YAML_UNCHANGED True`; `identifier.py`: manifest novo, `ALIAS_FRESH_STALE []`, três `RC 0`, descrição monetária preservada. |
+| RVL3-7-02 | **Resolvido.** Tolerância pelo calendário explícito, veredito atual preservado e borda sintética estável. | `compile.py`: `DBT_COMPILE_RC 0`; `ro.sh temporal.sql`: atuais `old_failed=0`, `new_failed=0` nos três fusos; CTE nova sempre `{4,5}`. A guarda percorre modelos, testes e macros. |
+| RVL3-7-03 | **Resolvido quanto ao fallback e ao sentinela apontados.** A nova guarda geral tem defeito próprio, R8-02. | `ro.sh compiled_fallback.sql`: vazio `2023-12-25 03:00:00`, não vazio `2018-10-30 13:00:00`, nos três fusos; `temporal.sql`: sentinela novo fixo e quatro testes de sobreposição com `0/0`. |
+| RVL3-6-02 e RVL3-5-02 | **Parcialmente resolvidos quanto à garantia geral de nenhuma ocorrência de fonte ignorada.** Duplicidades originais permanecem protegidas; resta R8-01. | `probes.py`: recusa do alias de fonte por schema; `identifier.py`: alias de tabela válido conserva texto incorreto com `0/0/0`. `make check-offline`: `839 passed`, incluindo os casos de YAML estrito. |
+| RVL3-6-04 | **Resolvido para as expressões de negócio e de teste que restavam abertas.** A proteção preventiva não é completa, como registra R8-02. | `ro.sh temporal.sql`: macro positiva/negativa estável, reconciliação corrigida, fato com `2673/2673`, diferenças `0/0`; `ro.sh compiled_fallback.sql`: limites idênticos nos três fusos. |
+
+Os demais encerramentos de proveniência, promoção, união/coerções e
+manifest atrasado não receberam mudanças de implementação neste intervalo;
+a suíte offline passou e a base retornou `BASE_STALE []`. Não repeti toda a
+investigação encerrada. Mantêm-se os limites declarados de RVL3-07/RVL3-2-07
+para inventário novo/apagado e `dbt_project.yml`; não são nova garantia desta
+rodada. Nenhum ADR aceito foi reescrito e nenhuma decisão de negócio foi
+tomada pelo revisor.
+
+### Verificações executadas e limites
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+Ambos retornaram **0**, executados por este revisor:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+839 passed, 188 deselected in 146.82s (0:02:26)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+As sondas Python, os dois compiles e o `dbt ls` descritos também retornaram
+0; as recusas esperadas foram capturadas e identificadas acima. Os SQLs
+rodaram somente pelo wrapper autorizado e terminaram com `ROLLBACK`.
+Scripts e saídas completas estão no diretório temporário indicado, como
+apoio local; a evidência essencial está transcrita aqui. As rodadas anteriores
+foram preservadas integralmente. Após o registro, `make docs-check` e
+`git diff --check` foram conferidos novamente.
+
+**Não executados:** `make check`, build, run, snapshot, regeneração no checkout,
+cargas, sincronizações, concessões, operações de ledger/recuperação, troca de
+serviços ou operação da DAG. Os 188 testes de integração foram excluídos e
+listados pelo alvo offline. `PASS=907`, `1024 passed`, `3 skipped` e derivados
+atualizados em `make check` de `beca244` são **resultados informados pelo autor**,
+não execução desta revisão. `data/memoria_do_legado/` permaneceu somente leitura.
+
+As comparações não reconstituem um warehouse histórico nem exercitam merge
+ou abertura de uma nova versão SCD. Não se conclui correção de todo o projeto.
+Não há ambiguidade de baseline nem pergunta ao Owner necessária para corrigir
+os dois escapes demonstrados dentro das regras já aceitas.
+
+### Passagem ao Claude Code
+
+- [ ] **RVL3-8-01:** eliminar a ocorrência ignorada por `identifier`, com endereço
+  de escrita correto; contraprovar alias válido com manifest novo, ordens e
+  arquivos distintos. Aceitação: nenhuma coluna conserva descrição incorreta
+  com check → geração → check verdes.
+- [ ] **RVL3-8-02:** fazer a guarda recusar data sem offset, inclusive o
+  sentinela antigo, e preservar os positivos válidos. Aceitação: o detector
+  precisa falhar no cenário proibido, além de passar no projeto atual.
+- [ ] Reexecutar os checks pertinentes, medir e declarar qualquer mudança de
+  resultado, preencher as situações e preservar as evidências. Validação
+  técnica não encerra a revisão integral do declarativo nem o aceite do Owner.
