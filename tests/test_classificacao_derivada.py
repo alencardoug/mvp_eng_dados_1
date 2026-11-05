@@ -280,3 +280,34 @@ def test_o_espelho_de_raw_nao_sobrepoe_a_declaracao_sqlalchemy() -> None:
     assert derivado.levels["model.mvp_ed1.x"] == {"first_name": "personal", "capture_id": "confidential"}
     plano = s.plan(manifest, derivado)
     assert plano.patches[s.DBT / "models/staging/_retail__sources.yml"]["customers"]["first_name"] == "personal"
+
+
+def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatch) -> None:
+    """RVL3-07: o `.sql` mudou depois do último build — a derivação leria o compilado antigo, calada."""
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "snapshots").mkdir()
+    (tmp_path / "models" / "a.sql").write_text("select 2 as x\n", encoding="utf-8")
+    (tmp_path / "snapshots" / "scd.sql").write_text("{% snapshot scd %}\nselect 1 as x\n{% endsnapshot %}\n", encoding="utf-8")
+
+    def manifest(sql_modelo: str) -> dict:
+        return {"nodes": {
+            "model.p.a": {"resource_type": "model", "name": "a", "original_file_path": "models/a.sql", "raw_code": sql_modelo},
+            "snapshot.p.scd": {"resource_type": "snapshot", "name": "scd", "original_file_path": "snapshots/scd.sql",
+                               "raw_code": "\nselect 1 as x\n"},
+        }}
+    assert s.stale_nodes(manifest("select 1 as x")) == ["a"]
+    assert s.stale_nodes(manifest("select 2 as x")) == []        # o snapshot é o miolo do bloco
+
+
+def test_cabecalho_de_seed_com_quebra_entre_aspas_entra_na_chave(tmp_path, monkeypatch) -> None:
+    """RVL3-09: a chave lia a primeira linha física; o CSV lê o registro inteiro."""
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "seeds").mkdir()
+    seed = tmp_path / "seeds" / "x.csv"
+    seed.write_text('"a\nb",c\n1,2\n', encoding="utf-8")
+    antes = s._inputs_digest(b"{}")
+    seed.write_text('"a\nz",c\n1,2\n', encoding="utf-8")
+    assert s._inputs_digest(b"{}") != antes
+    seed.write_text('"a\nz",c\n3,4\n', encoding="utf-8")
+    assert s._inputs_digest(b"{}") == s._inputs_digest(b"{}")     # só o cabeçalho entra, como antes

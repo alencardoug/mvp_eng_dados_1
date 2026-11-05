@@ -314,10 +314,31 @@ def _inputs_digest(manifest: bytes) -> str:
     for caminho in codigo:
         h.update(caminho.name.encode() + b"\0" + caminho.read_bytes())
     for caminho in sorted((DBT / "seeds").rglob("*.csv")):
-        with caminho.open("rb") as arquivo:
-            h.update(caminho.name.encode() + b"\0" + arquivo.readline())
+        # O cabeçalho como o CSV o lê — um registro, que pode ter quebra de linha
+        # entre aspas —, e não a primeira linha física (RVL3-09).
+        with caminho.open(newline="", encoding="utf-8") as arquivo:
+            cabecalho = next(csv.reader(arquivo), [])
+        h.update(caminho.name.encode() + b"\0" + "\x1f".join(cabecalho).encode())
     h.update(f"{sqlglot.__version__}|{sys.version}".encode())
     return h.hexdigest()
+
+
+def stale_nodes(manifest: dict) -> list[str]:
+    """Os modelos e snapshots cujo SQL no disco não é o que o manifest compilou (RVL3-07).
+
+    A derivação lê o SQL **compilado** do manifest; a chave do cache e o 14fdf30
+    não veem um `.sql` alterado depois do último `dbt build`. O `raw_code` do
+    manifest é o texto do arquivo — inteiro no modelo, o miolo do bloco no snapshot."""
+    atrasados = []
+    for no in manifest["nodes"].values():
+        if no["resource_type"] not in ("model", "snapshot") or not no.get("original_file_path"):
+            continue
+        caminho = DBT / no["original_file_path"]
+        disco = caminho.read_text(encoding="utf-8").strip() if caminho.exists() else None
+        codigo = (no.get("raw_code") or "").strip()
+        if disco is None or (codigo != disco if no["resource_type"] == "model" else codigo not in disco):
+            atrasados.append(no["name"])
+    return sorted(atrasados)
 
 
 def load(manifest_path: pathlib.Path | None = None) -> tuple[dict, Derivation]:
@@ -706,6 +727,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     from mvp_ed1.models import descriptions, domains
     manifest, derivacao = load()
+    if atrasados := stale_nodes(manifest):
+        print(f"manifest atrasado: {len(atrasados)} modelo(s) mudaram no disco depois do último build "
+              f"({', '.join(atrasados[:5])}{'…' if len(atrasados) > 5 else ''}); rode `make dbt-build` antes — "
+              "nenhum arquivo é tocado", file=sys.stderr)
+        return 1
     for aviso in derivacao.warnings:
         print(f"aviso: {aviso}", file=sys.stderr)
     for problema in derivacao.problems:
