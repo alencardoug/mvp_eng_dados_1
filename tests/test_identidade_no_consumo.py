@@ -28,15 +28,18 @@ fica de fora. Seis formas, cada uma com a origem obrigatória ao lado:
   restringindo **os dois lados**.
 
 "Os dois lados" quer dizer: a origem igualada entre os mesmos dois lados, ou fixada
-em cada um com o mesmo valor — por literal (`f.source_system = 'retail'`) ou por
-ler uma fonte dbt de origem única (`source('retail', …)`, a forma de P12). Só vale
-o termo ligado por `and` no topo da condição: sob `or`, `not` ou numa subconsulta
-de terceiro ele não restringe a linha juntada (RVL2-2-02). Na projeção, `'retail'
+em cada um com o mesmo valor — por literal (`f.source_system = 'retail'`, também
+com `::text`) ou por ler, no escopo do próprio lado, uma fonte dbt de origem única
+(`source('retail', …)`, a forma de P12). Só vale o termo ligado por `and` no topo
+da condição: sob `or`, `not` ou numa subconsulta de terceiro ele não restringe a
+linha juntada (RVL2-2-02). No `in (select …)`, a origem de fora casa, na mesma
+posição, com a origem da subconsulta (RVL2-3-03). Na projeção, `'retail'
 as source_system` conta como origem: é a forma de quem só lê uma delas.
 
-**Limite:** a guarda lê a sintaxe de cada cláusula, não resolve escopo nem fluxo.
-O qualificador é o que está escrito, sem saber a que tabela o alias pertence; a
-origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
+**Limite:** a guarda lê a sintaxe de cada cláusula, não o fluxo entre elas. O
+escopo ela resolve só para a exceção da fonte de origem única: o qualificador é
+procurado no `from` do próprio `select` e dos que o envolvem, nunca numa CTE
+vizinha (RVL2-3-02); para o resto, é o que está escrito. A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
 cautela — mantenha o nome. Passam sem achado: uma CTE que já perdeu
 `source_system` e depois reduz por `count(*)` sobre linhas de identificadores
 repetidos, e um `union` (sem `all`) que deduplica sem a origem. As 16 views foram
@@ -115,31 +118,84 @@ def _conjuncoes(condicao: exp.Expression) -> list[exp.Expression]:
     return [condicao]
 
 
-def _origem_fixa_por_fonte(arvore: exp.Expression, qualificador: str) -> set[str]:
-    """A origem de um lado que lê uma fonte de origem única, pelo nome da fonte."""
-    return {t.db for t in arvore.find_all(exp.Table) if t.alias_or_name == qualificador and t.db in _ORIGENS}
+def _fontes_diretas(select: exp.Select) -> dict[str, exp.Expression]:
+    """O que o `from` e os `join` deste `select` nomeiam, pelo qualificador — sem descer."""
+    origem = select.args.get("from_")
+    itens = ([origem.this] if origem else []) + [j.this for j in select.args.get("joins") or []]
+    return {i.alias_or_name: i for i in itens}
 
 
-def _origem_correlaciona(condicao: exp.Expression, lados: set[str], arvore: exp.Expression) -> bool:
+def _relacao_do_lado(no: exp.Expression, qualificador: str) -> exp.Expression | None:
+    """A relação que o qualificador nomeia no escopo do nó: o `select` mais próximo
+    que o declara, subindo pelas subconsultas correlatas — nunca uma CTE vizinha,
+    nem de dentro de uma CTE para a consulta que a usa (RVL2-3-02)."""
+    atual = no
+    while atual is not None:
+        if isinstance(atual, exp.Select) and qualificador in (fontes := _fontes_diretas(atual)):
+            return fontes[qualificador]
+        if isinstance(atual, exp.CTE):
+            return None
+        atual = atual.parent
+    return None
+
+
+def _origem_fixa_por_fonte(no: exp.Expression, qualificador: str) -> set[str]:
+    """A origem de um lado que lê, no próprio escopo, uma fonte de origem única."""
+    relacao = _relacao_do_lado(no, qualificador) if qualificador else None
+    if isinstance(relacao, exp.Table) and relacao.db in _ORIGENS:
+        return {relacao.db}
+    return set()
+
+
+def _texto_literal(no: exp.Expression) -> str | None:
+    """`'retail'`, ou `'retail'::text` — o *cast* que não muda o valor (RVL2-3-04).
+
+    `varchar(3)` truncaria, e por isso só conta o tipo sem parâmetro."""
+    if isinstance(no, exp.Cast) and no.to.this in (exp.DataType.Type.TEXT, exp.DataType.Type.VARCHAR) \
+            and not no.to.expressions:
+        no = no.this
+    return no.this if isinstance(no, exp.Literal) and no.is_string else None
+
+
+def _origem_correlaciona(condicao: exp.Expression, lados: set[str], no: exp.Expression) -> bool:
     """A origem restringe **os dois lados** da igualdade de identificadores.
 
     Ou a condição iguala a origem entre esses mesmos dois lados, ou cada lado tem
-    a origem fixada — por literal na condição, ou por ler uma fonte de origem
-    única — e é a mesma nos dois. Literal num lado só deixa o outro livre:
-    `a.order_id = b.order_id and b.source_system = 'retail'` junta o 37 do
-    legado com o 37 do varejo (RVL2-2-02)."""
+    a origem fixada — por literal na condição, ou por ler, no próprio escopo, uma
+    fonte de origem única — e é a mesma nos dois. Literal num lado só deixa o
+    outro livre: `a.order_id = b.order_id and b.source_system = 'retail'` junta o
+    37 do legado com o 37 do varejo (RVL2-2-02)."""
     fixadas: dict[str, set[str]] = {}
     for termo in _conjuncoes(condicao):
         if not isinstance(termo, (exp.EQ, exp.NullSafeEQ)):
             continue
         colunas = [l for l in (termo.left, termo.right) if isinstance(l, exp.Column) and l.name == ORIGEM]
-        literais = [l for l in (termo.left, termo.right) if isinstance(l, exp.Literal) and l.is_string]
+        literais = [t for t in map(_texto_literal, (termo.left, termo.right)) if t is not None]
         if len(colunas) == 2 and {c.table for c in colunas} == lados:
             return True
         if len(colunas) == 1 and len(literais) == 1:
-            fixadas.setdefault(colunas[0].table, set()).add(literais[0].this)
-    origens = [fixadas.get(lado) or _origem_fixa_por_fonte(arvore, lado) for lado in lados]
+            fixadas.setdefault(colunas[0].table, set()).add(literais[0])
+    origens = [fixadas.get(lado) or _origem_fixa_por_fonte(no, lado) for lado in lados]
     return all(len(o) == 1 for o in origens) and len(set().union(*origens)) == 1
+
+
+def _pertence_correlaciona(pertence: exp.In) -> bool:
+    """`(origem, id) in (select origem, id from b)`: a origem de fora casa, na mesma
+    posição, com a origem **da subconsulta** — não com um literal, nem com a coluna
+    de fora citada de novo lá dentro (RVL2-3-03)."""
+    fora = pertence.this.expressions if isinstance(pertence.this, exp.Tuple) else [pertence.this]
+    consulta = pertence.args["query"]
+    consulta = consulta.this if isinstance(consulta, exp.Subquery) else consulta
+    if not isinstance(consulta, exp.Select) or len(consulta.expressions) != len(fora):
+        return False
+    proprias = _fontes_diretas(consulta)
+    for esquerda, direita in zip(fora, consulta.expressions):
+        direita = direita.this if isinstance(direita, exp.Alias) else direita
+        if (isinstance(esquerda, exp.Column) and esquerda.name == ORIGEM
+                and isinstance(direita, exp.Column) and direita.name == ORIGEM
+                and esquerda.table not in proprias and (not direita.table or direita.table in proprias)):
+            return True
+    return False
 
 
 def violacoes(sql: str) -> list[str]:
@@ -192,11 +248,15 @@ def violacoes(sql: str) -> list[str]:
         lados = (igualdade.left, igualdade.right)
         if not all(isinstance(l, exp.Column) and _e_identificador(l.name) for l in lados):
             continue
-        clausula = igualdade.find_ancestor(exp.Where, exp.Join)
-        if clausula is None:
-            continue  # comparação na projeção: não junta nem reduz linha nenhuma
+        # A cláusula mais próxima; se antes dela vem um `select`, a igualdade está
+        # na projeção, em qualquer nível — não junta nem reduz linha (RVL2-3-06).
+        clausula = igualdade.find_ancestor(exp.Where, exp.Join, exp.Select)
+        if not isinstance(clausula, (exp.Where, exp.Join)):
+            continue
         condicao = clausula.this if isinstance(clausula, exp.Where) else clausula.args.get("on")
-        if _origem_correlaciona(condicao, {l.table for l in lados}, arvore) or any(condicao is a for a in acusadas):
+        if condicao is None:
+            continue
+        if _origem_correlaciona(condicao, {l.table for l in lados}, igualdade) or any(condicao is a for a in acusadas):
             continue
         acusadas.append(condicao)
         achados.append(f"junção sem a origem: {condicao.sql()}")
@@ -214,7 +274,7 @@ def violacoes(sql: str) -> list[str]:
         if pertence.args.get("query") is None:
             continue
         nomes = _colunas(pertence.this)
-        if any(map(_e_identificador, nomes)) and ORIGEM not in nomes:
+        if any(map(_e_identificador, nomes)) and not _pertence_correlaciona(pertence):
             ids = sorted(n for n in nomes if _e_identificador(n))
             achados.append(f"in (subconsulta) sem a origem: {', '.join(ids)}")
 
@@ -292,6 +352,28 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from a where (source_system, order_id) in (select source_system, order_id from b)", 0),
         ("select * from a where order_id in (1, 2)", 0),
         ("select a.order_id = b.order_id from a cross join b", 0),
+        # RVL2-3-02: a fonte de origem única vale no escopo do lado, não em CTE vizinha
+        ("with c as (select * from retail.orders x cross join retail.order_items y)"
+         " select * from a x join b y on x.order_id = y.order_id", 1),
+        ("select * from a s join b f on s.order_id = f.order_id and f.source_system = 'retail'"
+         " where exists (select 1 from retail.orders s)", 1),
+        ("with c as (select * from retail.orders s)"
+         " select * from a s join b f on s.order_id = f.order_id and f.source_system = 'retail'", 1),
+        ("select * from retail.orders s join b f on s.order_id = f.order_id and f.source_system = 'retail'", 0),
+        # RVL2-3-03: no `in`, a origem de fora casa com a da subconsulta, na mesma posição
+        ("select * from a where (source_system, order_id) in (select 'retail', order_id from b)", 1),
+        ("select * from a where (a.source_system, a.order_id) in (select a.source_system, b.order_id from b)", 1),
+        ("select * from a where (a.source_system, a.order_id) in (select b.source_system, b.order_id from b)", 0),
+        ("select * from a where (order_id, source_system) in (select source_system, order_id from b)", 1),
+        ("select * from a where (source_system, order_id) not in (select order_id, source_system from b)", 1),
+        # RVL2-3-04: o cast para texto sem parâmetro não muda o literal; `varchar(3)` muda
+        ("select * from a join b on a.order_id = b.order_id"
+         " and a.source_system = 'retail'::text and b.source_system = 'retail'", 0),
+        ("select * from a join b on a.order_id = b.order_id"
+         " and a.source_system = 'retail'::varchar(3) and b.source_system = 'retail'", 1),
+        # RVL2-3-06: igualdade na projeção de uma subconsulta juntada por `using`
+        ("select * from a join (select order_id = other_id as flag, source_system, order_id from b) b"
+         " using (source_system, order_id)", 0),
         # Limite declarado: a origem renomeada não é reconhecida — acusa, por cautela
         ("with x as (select source_system as origin, order_id from a)"
          " select * from x join b on x.order_id = b.order_id and x.origin = b.source_system", 1),
