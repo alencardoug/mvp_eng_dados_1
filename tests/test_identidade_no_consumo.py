@@ -32,14 +32,20 @@ em cada um com o mesmo valor — por literal (`f.source_system = 'retail'`, tamb
 com `::text`) ou por ler, no escopo do próprio lado, uma fonte dbt de origem única
 (`source('retail', …)`, a forma de P12). Só vale o termo ligado por `and` no topo
 da condição: sob `or`, `not` ou numa subconsulta de terceiro ele não restringe a
-linha juntada (RVL2-2-02). No `in (select …)`, a origem de fora casa, na mesma
-posição, com a origem da subconsulta (RVL2-3-03). Na projeção, `'retail'
+linha juntada (RVL2-2-02). No `in (select …)`, uma forma só: tupla plana, a
+origem de fora casando na mesma posição com a origem **qualificada** de uma
+relação declarada na subconsulta, aliases distintos (RVL2-3-03, RVL2-4-02/03).
+
+O princípio, depois de quatro rodadas de revisão: **a guarda aceita o que consegue
+provar e acusa o resto.** Um falso positivo numa forma não reconhecida custa
+reescrever a view na forma reconhecida; um falso negativo é o pedido 37 fundido. Na projeção, `'retail'
 as source_system` conta como origem: é a forma de quem só lê uma delas.
 
 **Limite:** a guarda lê a sintaxe de cada cláusula, não o fluxo entre elas. O
 escopo ela resolve só para a exceção da fonte de origem única: o qualificador é
 procurado no `from` do próprio `select` e dos que o envolvem, nunca numa CTE
-vizinha (RVL2-3-02); para o resto, é o que está escrito. A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
+vizinha (RVL2-3-02), e só vale se nomeia uma relação só na consulta inteira
+(RVL2-4-01); para o resto, é o que está escrito. A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
 cautela — mantenha o nome. Passam sem achado: uma CTE que já perdeu
 `source_system` e depois reduz por `count(*)` sobre linhas de identificadores
 repetidos, e um `union` (sem `all`) que deduplica sem a origem. As 16 views foram
@@ -139,9 +145,20 @@ def _relacao_do_lado(no: exp.Expression, qualificador: str) -> exp.Expression | 
     return None
 
 
+def _ligacoes(arvore: exp.Expression, qualificador: str) -> list[exp.Expression]:
+    """Toda relação da consulta inteira que o qualificador nomeia — tabela, subconsulta ou CTE."""
+    return [n for n in arvore.find_all(exp.Table, exp.Subquery, exp.CTE) if n.alias_or_name == qualificador]
+
+
 def _origem_fixa_por_fonte(no: exp.Expression, qualificador: str) -> set[str]:
-    """A origem de um lado que lê, no próprio escopo, uma fonte de origem única."""
-    relacao = _relacao_do_lado(no, qualificador) if qualificador else None
+    """A origem de um lado que lê, no próprio escopo, uma fonte de origem única.
+
+    Só quando o qualificador nomeia **uma relação só na consulta inteira**: um
+    alias repetido — um join entre parênteses, uma subconsulta que o reaproveita —
+    é escopo que a guarda não resolve, e ela não concede a exceção (RVL2-4-01)."""
+    if not qualificador or len(_ligacoes(no.root(), qualificador)) != 1:
+        return set()
+    relacao = _relacao_do_lado(no, qualificador)
     if isinstance(relacao, exp.Table) and relacao.db in _ORIGENS:
         return {relacao.db}
     return set()
@@ -180,22 +197,34 @@ def _origem_correlaciona(condicao: exp.Expression, lados: set[str], no: exp.Expr
 
 
 def _pertence_correlaciona(pertence: exp.In) -> bool:
-    """`(origem, id) in (select origem, id from b)`: a origem de fora casa, na mesma
-    posição, com a origem **da subconsulta** — não com um literal, nem com a coluna
-    de fora citada de novo lá dentro (RVL2-3-03)."""
-    fora = pertence.this.expressions if isinstance(pertence.this, exp.Tuple) else [pertence.this]
+    """`(a.source_system, a.order_id) in (select b.source_system, b.order_id from b)`
+    — e só essa forma (RVL2-3-03, RVL2-4-02, RVL2-4-03).
+
+    A guarda aceita o que consegue provar e acusa o resto. Prova é: tupla plana de
+    colunas dos dois lados, do mesmo tamanho; a origem na mesma posição; de fora,
+    origem e identificadores com um qualificador só, que a subconsulta não declara;
+    de dentro, todos **qualificados** por uma relação só, declarada no `from` da
+    própria subconsulta. Coluna sem qualificador dentro pode ser a de fora — o
+    PostgreSQL a procura lá quando a relação interna não a tem —, e origem de uma
+    relação com identificador de outra não liga nada. Alias igual nos dois escopos,
+    tupla aninhada e `select *` também acusam: são formas que a guarda não resolve."""
     consulta = pertence.args["query"]
     consulta = consulta.this if isinstance(consulta, exp.Subquery) else consulta
-    if not isinstance(consulta, exp.Select) or len(consulta.expressions) != len(fora):
+    if not isinstance(pertence.this, exp.Tuple) or not isinstance(consulta, exp.Select):
         return False
+    fora = list(pertence.this.expressions)
+    dentro = [d.this if isinstance(d, exp.Alias) else d for d in consulta.expressions]
+    if len(fora) != len(dentro) or not all(isinstance(c, exp.Column) for c in fora + dentro):
+        return False
+    pares = [(f, d) for f, d in zip(fora, dentro) if f.name == ORIGEM or _e_identificador(f.name)]
     proprias = _fontes_diretas(consulta)
-    for esquerda, direita in zip(fora, consulta.expressions):
-        direita = direita.this if isinstance(direita, exp.Alias) else direita
-        if (isinstance(esquerda, exp.Column) and esquerda.name == ORIGEM
-                and isinstance(direita, exp.Column) and direita.name == ORIGEM
-                and esquerda.table not in proprias and (not direita.table or direita.table in proprias)):
-            return True
-    return False
+    de_fora = {f.table for f, _ in pares}
+    de_dentro = {d.table for _, d in pares}
+    return (
+        any(f.name == ORIGEM and d.name == ORIGEM for f, d in pares)
+        and len(de_fora) == 1 and not de_fora & set(proprias)
+        and len(de_dentro) == 1 and "" not in de_dentro and de_dentro <= set(proprias)
+    )
 
 
 def violacoes(sql: str) -> list[str]:
@@ -349,7 +378,8 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from a join b using (source_system, order_id)", 0),
         ("select * from a where order_id in (select order_id from b)", 1),
         ("select * from a where order_id not in (select order_id from b)", 1),
-        ("select * from a where (source_system, order_id) in (select source_system, order_id from b)", 0),
+        ("select * from a where (source_system, order_id) in (select b.source_system, b.order_id from b)", 0),
+        ("select * from a where (source_system, order_id) in (select source_system, order_id from b)", 1),
         ("select * from a where order_id in (1, 2)", 0),
         ("select a.order_id = b.order_id from a cross join b", 0),
         # RVL2-3-02: a fonte de origem única vale no escopo do lado, não em CTE vizinha
@@ -366,6 +396,23 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from a where (a.source_system, a.order_id) in (select b.source_system, b.order_id from b)", 0),
         ("select * from a where (order_id, source_system) in (select source_system, order_id from b)", 1),
         ("select * from a where (source_system, order_id) not in (select order_id, source_system from b)", 1),
+        # RVL2-4-01: alias repetido num join entre parênteses não empresta a fonte de fora
+        ("select * from retail.orders s where exists (select 1 from (a x join b s"
+         " on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        # RVL2-4-02: origem sem qualificador dentro, ou de outra relação, não prova nada
+        ("select * from a where (a.source_system, a.order_id) in (select source_system, b.order_id from b)", 1),
+        ("select * from a where (a.source_system, a.order_id) in"
+         " (select b.source_system, c.order_id from b cross join c)", 1),
+        ("select * from a where (a.source_system, a.order_id) in (select source_system, 37)", 1),
+        # RVL2-4-03: formas que a guarda não resolve acusam, declaradas — alias igual nos dois
+        # escopos, tupla aninhada, `select *`; com aliases distintos e alias de coluna, passa
+        ("select * from a x where (x.source_system, x.order_id) in"
+         " (select x.source_system, x.order_id from b x)", 1),
+        ("select * from a where ((a.source_system, a.order_id), a.customer_id) in"
+         " (select (b.source_system, b.order_id), b.customer_id from b)", 1),
+        ("select * from a where (a.source_system, a.order_id) in (select * from b)", 1),
+        ("select * from a x where (x.source_system, x.order_id) in"
+         " (select y.source_system as source_system, y.order_id as order_id from b y)", 0),
         # RVL2-3-04: o cast para texto sem parâmetro não muda o literal; `varchar(3)` muda
         ("select * from a join b on a.order_id = b.order_id"
          " and a.source_system = 'retail'::text and b.source_system = 'retail'", 0),
