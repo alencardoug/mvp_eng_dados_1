@@ -11,8 +11,9 @@ lote 3 da v1.1.0, RVL3-5-01).
 from __future__ import annotations
 
 import json
-import re
 import pathlib
+import re
+import zoneinfo
 
 import pytest
 
@@ -81,27 +82,106 @@ def test_o_hoje_dos_modelos_e_a_meia_noite_de_sao_paulo() -> None:
         assert "\"date '\" ~ var(\"as_of_date\")" not in texto, caminho.name
 
 
-_TZ = r"(?:timestamptz|timestamp\s+with\s+time\s+zone)"
-#: Toda grafia de literal de instante, sobre o texto inteiro (o `\s` atravessa linha):
-#: prefixo de tipo, `::` e `cast(… as …)` (RVL3-9-03).
-_LITERAIS = (
-    re.compile(_TZ + r"\s+'([^']*)'", re.I),
-    re.compile(r"'([^']*)'\s*::\s*" + _TZ + r"\b", re.I),
-    re.compile(r"cast\s*\(\s*'([^']*)'\s+as\s+" + _TZ + r"\s*\)", re.I),
-)
 #: O fuso vem **depois de uma hora**: o `-31` de `9999-12-31` é o dia, não um offset (RVL3-8-02).
+#: Offset numérico, `Z`, ou zona nomeada que o catálogo IANA conhece — `AM` não é fuso (RVL3-10-02).
 _COM_FUSO = re.compile(r"\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*(Z|[+-]\d{1,2}(:?\d{2})?)\s*$")
+_COM_ZONA = re.compile(r"\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s+([A-Za-z][A-Za-z0-9_+\-]*(/[A-Za-z0-9_+\-]+)*)\s*$")
+_ZONAS = zoneinfo.available_timezones() | {"UTC", "GMT", "Z"}
+
+#: Os tokens do SQL que importam para a guarda; comentário e espaço não são token (RVL3-10-02).
+_TOKEN = re.compile(r"""
+    (?P<string>'(?:[^']|'')*')
+  | (?P<palavra>[A-Za-z_][A-Za-z0-9_]*)
+  | (?P<numero>\d+)
+  | (?P<duplo>::)
+  | (?P<outro>\S)
+""", re.X)
+
+
+def _sem_comentarios(texto: str) -> str:
+    """O texto com comentários trocados por espaço: `--` até o fim da linha, `/* */` aninhado (como o
+    PostgreSQL lê) e `{# #}` do Jinja. A string SQL é copiada inteira — `--` dentro dela não é comentário."""
+    saida, i, n = [], 0, len(texto)
+    while i < n:
+        if texto.startswith("{#", i):
+            j = texto.find("#}", i + 2)
+            i = n if j < 0 else j + 2
+            saida.append(" ")
+        elif texto.startswith("--", i):
+            j = texto.find("\n", i)
+            i = n if j < 0 else j
+            saida.append(" ")
+        elif texto.startswith("/*", i):
+            nivel, i = 1, i + 2
+            while i < n and nivel:
+                if texto.startswith("/*", i):
+                    nivel, i = nivel + 1, i + 2
+                elif texto.startswith("*/", i):
+                    nivel, i = nivel - 1, i + 2
+                else:
+                    i += 1
+            saida.append(" ")
+        elif texto[i] == "'":
+            m = re.compile(r"'(?:[^']|'')*'").match(texto, i)
+            j = m.end() if m else n
+            saida.append(texto[i:j])
+            i = j
+        else:
+            saida.append(texto[i])
+            i += 1
+    return "".join(saida)
+
+
+def _tokens(texto: str) -> list[tuple[str, str]]:
+    return [(m.lastgroup, m.group()) for m in _TOKEN.finditer(_sem_comentarios(texto))]
+
+
+def _tipo_com_fuso(tokens: list[tuple[str, str]], i: int) -> int | None:
+    """Se em `i` começa `timestamptz[(p)]` ou `timestamp[(p)] with time zone`, o índice depois dele."""
+    def palavra(k: int, valor: str) -> bool:
+        return k < len(tokens) and tokens[k][0] == "palavra" and tokens[k][1].lower() == valor
+
+    def precisao(k: int) -> int:
+        if k + 2 < len(tokens) and tokens[k][1] == "(" and tokens[k + 1][0] == "numero" and tokens[k + 2][1] == ")":
+            return k + 3
+        return k
+    if palavra(i, "timestamptz"):
+        return precisao(i + 1)
+    if palavra(i, "timestamp"):
+        k = precisao(i + 1)
+        if palavra(k, "with") and palavra(k + 1, "time") and palavra(k + 2, "zone"):
+            return k + 3
+    return None
+
+
+def _valor(string: str) -> str:
+    return string[1:-1].replace("''", "'")
+
+
+def _tem_fuso(valor: str) -> bool:
+    if valor.strip().lower() in ("infinity", "-infinity") or _COM_FUSO.search(valor):
+        return True
+    zona = _COM_ZONA.search(valor)
+    return bool(zona) and zona.group(3) in _ZONAS
 
 
 def literais_sem_fuso(texto: str) -> list[str]:
-    """Os literais de instante do SQL sem fuso escrito — comentários de linha e de Jinja fora."""
-    sem_comentario = re.sub(r"\{#.*?#\}", "", texto, flags=re.S)
-    sem_comentario = "\n".join(linha.split("--", 1)[0] for linha in sem_comentario.splitlines())
+    """Os literais de instante do SQL sem fuso escrito, lidos **por token**: prefixo de tipo, `::` e
+    `cast(… as …)`, com precisão opcional, atravessando linha e comentário (RVL3-9-03, RVL3-10-02)."""
+    tokens = _tokens(texto)
     achados = []
-    for padrao in _LITERAIS:
-        for valor in padrao.findall(sem_comentario):
-            if valor.strip().lower() not in ("infinity", "-infinity") and not _COM_FUSO.search(valor):
-                achados.append(valor)
+    for i, (tipo, valor) in enumerate(tokens):
+        literal = None
+        if (depois := _tipo_com_fuso(tokens, i)) is not None and depois < len(tokens) and tokens[depois][0] == "string":
+            literal = tokens[depois][1]                                            # timestamptz '…'
+        elif tipo == "string" and i + 1 < len(tokens) and tokens[i + 1][0] == "duplo" and _tipo_com_fuso(tokens, i + 2) is not None:
+            literal = valor                                                        # '…'::timestamptz
+        elif (tipo == "palavra" and valor.lower() == "cast" and i + 3 < len(tokens) and tokens[i + 1][1] == "("
+              and tokens[i + 2][0] == "string" and tokens[i + 3][0] == "palavra" and tokens[i + 3][1].lower() == "as"
+              and _tipo_com_fuso(tokens, i + 4) is not None):
+            literal = tokens[i + 2][1]                                             # cast('…' as timestamptz)
+        if literal is not None and not _tem_fuso(_valor(literal)):
+            achados.append(_valor(literal))
     return achados
 
 
@@ -135,7 +215,41 @@ def test_literal_em_comentario_nao_conta() -> None:
     ("2024-01-01", False), ("9999-12-31", False), ("2024-01-01 00:00", False),
     ("2024-01-01 00:00-03", True), ("9999-12-31 00:00+00", True), ("2024-01-01T12:30:00.5Z", True),
     ('" ~ var("period_start") ~ " 00:00-03', True), ("{{ var(\"as_of_date\") }} 00:00-03", True),
+    ("2024-01-01 00:00 America/Sao_Paulo", True), ("2024-01-01 00:00 UTC", True),
+    ("2024-01-01 00:00 AM", False), ("2024-01-01 00:00 America/Atlantida", False),
 ])
 def test_a_guarda_le_o_fuso_e_nao_o_dia(literal: str, tem_fuso: bool) -> None:
-    """RVL3-8-02: a contraprova da própria guarda."""
-    assert bool(_COM_FUSO.search(literal)) is tem_fuso
+    """RVL3-8-02, RVL3-10-02: a contraprova da própria guarda — zona nomeada só se o catálogo IANA a conhece."""
+    assert _tem_fuso(literal) is tem_fuso
+
+
+@pytest.mark.parametrize("sql", [
+    "select timestamptz /* limite aberto */ '9999-12-31'",
+    "select '9999-12-31' /* limite aberto */ ::timestamptz",
+    "select cast('9999-12-31' /* limite aberto */ as timestamptz)",
+    "select timestamptz -- limite aberto\n '9999-12-31'",
+    "select timestamptz {# limite aberto #} '9999-12-31'",
+    "select timestamptz(6) '9999-12-31'",
+    "select cast('9999-12-31' as timestamptz(6))",
+    "select '9999-12-31'::timestamp(3) with time zone",
+    "select TIMESTAMP ( 3 ) WITH /* x */ TIME ZONE '9999-12-31'",
+])
+def test_comentario_entre_tokens_e_precisao_nao_escondem_o_literal(sql: str) -> None:
+    """RVL3-10-02: o comentário separa tokens, não some com a expressão; a precisão é parte do tipo."""
+    assert literais_sem_fuso(sql) == ["9999-12-31"]
+    assert literais_sem_fuso(sql.replace("9999-12-31", "9999-12-31 00:00+00")) == []
+
+
+@pytest.mark.parametrize("sql", [
+    "/* timestamptz '2024-01-01' */ select 1",
+    "/* fora /* aninhado */ timestamptz '2024-01-01' */ select 1",
+    "select 'timestamptz ''2024-01-01'''",
+    "select '-- não é comentário', timestamptz '2024-01-01 00:00-03'",
+    "select timestamptz '2024-01-01 00:00 America/Sao_Paulo'",
+    "select x at time zone 'America/Sao_Paulo'",
+    "select timestamp '2024-01-01'",
+])
+def test_comentario_string_e_zona_nomeada_nao_sao_falso_positivo(sql: str) -> None:
+    """RVL3-10-02: o exemplo em comentário ou dentro de string não é literal; zona IANA é fuso escrito.
+    `timestamp` sem fuso não é instante — não é o que esta guarda vigia."""
+    assert literais_sem_fuso(sql) == []
