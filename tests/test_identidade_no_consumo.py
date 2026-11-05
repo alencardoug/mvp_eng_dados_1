@@ -146,8 +146,15 @@ def _relacao_do_lado(no: exp.Expression, qualificador: str) -> exp.Expression | 
 
 
 def _ligacoes(arvore: exp.Expression, qualificador: str) -> list[exp.Expression]:
-    """Toda relação da consulta inteira que o qualificador nomeia — tabela, subconsulta ou CTE."""
-    return [n for n in arvore.find_all(exp.Table, exp.Subquery, exp.CTE) if n.alias_or_name == qualificador]
+    """Toda relação da consulta inteira que o qualificador nomeia.
+
+    Todo alias de relação — de tabela, subconsulta, CTE, `values`, `lateral`,
+    `unnest` — é um `TableAlias`; tabela sem alias se nomeia pelo próprio nome.
+    Contar o alias, e não os tipos de relação, é o que não deixa uma forma nova
+    de fora (RVL2-5-01)."""
+    return [a.parent for a in arvore.find_all(exp.TableAlias) if a.name == qualificador] + [
+        t for t in arvore.find_all(exp.Table) if not t.alias and t.name == qualificador
+    ]
 
 
 def _origem_fixa_por_fonte(no: exp.Expression, qualificador: str) -> set[str]:
@@ -202,9 +209,11 @@ def _pertence_correlaciona(pertence: exp.In) -> bool:
 
     A guarda aceita o que consegue provar e acusa o resto. Prova é: tupla plana de
     colunas dos dois lados, do mesmo tamanho; a origem na mesma posição; de fora,
-    origem e identificadores com um qualificador só, que a subconsulta não declara;
-    de dentro, todos **qualificados** por uma relação só, declarada no `from` da
-    própria subconsulta. Coluna sem qualificador dentro pode ser a de fora — o
+    **todas as posições** com um qualificador só, não vazio, que a subconsulta
+    não declara; de dentro, todas **qualificadas** por uma relação só, declarada no
+    `from` da própria subconsulta. Nenhuma posição sai da prova — uma coluna comum
+    de outra relação também multiplica as linhas (RVL2-5-03) —, e coluna de fora sem
+    qualificador pode ser de qualquer relação de fora (RVL2-5-02). Coluna sem qualificador dentro pode ser a de fora — o
     PostgreSQL a procura lá quando a relação interna não a tem —, e origem de uma
     relação com identificador de outra não liga nada. Alias igual nos dois escopos,
     tupla aninhada e `select *` também acusam: são formas que a guarda não resolve."""
@@ -216,14 +225,13 @@ def _pertence_correlaciona(pertence: exp.In) -> bool:
     dentro = [d.this if isinstance(d, exp.Alias) else d for d in consulta.expressions]
     if len(fora) != len(dentro) or not all(isinstance(c, exp.Column) for c in fora + dentro):
         return False
-    pares = [(f, d) for f, d in zip(fora, dentro) if f.name == ORIGEM or _e_identificador(f.name)]
-    proprias = _fontes_diretas(consulta)
-    de_fora = {f.table for f, _ in pares}
-    de_dentro = {d.table for _, d in pares}
+    proprias = set(_fontes_diretas(consulta))
+    de_fora = {f.table for f in fora}
+    de_dentro = {d.table for d in dentro}
     return (
-        any(f.name == ORIGEM and d.name == ORIGEM for f, d in pares)
-        and len(de_fora) == 1 and not de_fora & set(proprias)
-        and len(de_dentro) == 1 and "" not in de_dentro and de_dentro <= set(proprias)
+        any(f.name == ORIGEM and d.name == ORIGEM for f, d in zip(fora, dentro))
+        and len(de_fora) == 1 and "" not in de_fora and not de_fora & proprias
+        and len(de_dentro) == 1 and "" not in de_dentro and de_dentro <= proprias
     )
 
 
@@ -378,7 +386,18 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         ("select * from a join b using (source_system, order_id)", 0),
         ("select * from a where order_id in (select order_id from b)", 1),
         ("select * from a where order_id not in (select order_id from b)", 1),
-        ("select * from a where (source_system, order_id) in (select b.source_system, b.order_id from b)", 0),
+        ("select * from a where (a.source_system, a.order_id) in (select b.source_system, b.order_id from b)", 0),
+        # RVL2-5-02: de fora sem qualificador pode ser origem de `a` e identificador de `c`
+        ("select * from a where (source_system, order_id) in (select b.source_system, b.order_id from b)", 1),
+        ("select * from a cross join c where (source_system, order_id) in"
+         " (select b.source_system, b.order_id from b)", 1),
+        # RVL2-5-03: nenhuma posição sai da prova
+        ("select * from a where (a.source_system, a.tag, a.order_id) in"
+         " (select b.source_system, c.customer_id, b.order_id from b cross join c)", 1),
+        ("select * from a where (a.source_system, a.tag, a.order_id) in"
+         " (select b.source_system, c.tag, b.order_id from b cross join c)", 1),
+        ("select * from a where (a.source_system, a.tag, a.order_id) in"
+         " (select b.source_system, b.tag, b.order_id from b)", 0),
         ("select * from a where (source_system, order_id) in (select source_system, order_id from b)", 1),
         ("select * from a where order_id in (1, 2)", 0),
         ("select a.order_id = b.order_id from a cross join b", 0),
@@ -399,6 +418,13 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
         # RVL2-4-01: alias repetido num join entre parênteses não empresta a fonte de fora
         ("select * from retail.orders s where exists (select 1 from (a x join b s"
          " on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        # RVL2-5-01: alias de `values`, `lateral` ou `unnest` também esconde o de fora
+        ("select * from retail.orders s where exists (select 1 from (a x join (values ('legacy', 1))"
+         " s(source_system, order_id) on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        ("select * from retail.orders s where exists (select 1 from (a x join lateral"
+         " (select order_id from b) s on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        ("select * from retail.orders s where exists (select 1 from (a x join unnest(array[1])"
+         " s(order_id) on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
         # RVL2-4-02: origem sem qualificador dentro, ou de outra relação, não prova nada
         ("select * from a where (a.source_system, a.order_id) in (select source_system, b.order_id from b)", 1),
         ("select * from a where (a.source_system, a.order_id) in"
