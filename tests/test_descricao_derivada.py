@@ -28,7 +28,7 @@ CATALOGO = {"wh": {
     "raw": {"orders": {"id": "text", "customer_id": "text", "total_amount": "text", "deleted_at": "text", "quantity": "text"}},
     "staging": {"a": {"x": "text"}, "b": {"x": "text"}},
 }}
-TIPOS = {("raw", "orders", "quantity"): "INT"}
+TIPOS = {("raw", "orders", "quantity"): "INT", ("staging", "a", "x"): "TEXT", ("staging", "b", "x"): "TEXT"}
 ORDERS = Base.metadata.tables["oltp.orders"].columns
 TEXTO_TOTAL = ORDERS["total_amount"].info["description"].strip()
 
@@ -103,7 +103,7 @@ def test_is_not_null_e_a_forma_da_exclusao_logica_nas_duas_grafias() -> None:
 # ── O texto que cada coluna recebe ──────────────────────────────────────────────
 
 def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[str, tr.Transport]], disco: dict[str, d.Entry],
-            folhas: dict[str, dict[str, set]] | None = None, registro: dict | None = None) -> d.Texts:
+            folhas: dict[str, dict[str, set]] | None = None) -> d.Texts:
     """Um manifest mínimo — modelo, schema e dependências —, a derivação dada, e o disco dado."""
     manifest = {"sources": {}, "nodes": {
         f"model.p.{nome}": {"resource_type": "model", "name": nome, "schema": schema, "depends_on": {"nodes": [f"model.p.{x}" for x in deps]}}
@@ -114,7 +114,7 @@ def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[s
         carries={f"model.p.{n}": transportes[n] for n in nos},
         leaves={f"model.p.{n}": c for n, c in (folhas or {}).items()},
     )
-    return d.derive_texts(manifest, derivacao, disco=disco, fontes={}, registro=registro or {})
+    return d.derive_texts(manifest, derivacao, disco=disco, fontes={})
 
 
 def _entrada(caminho, tipo: str, **colunas: dict) -> d.Entry:
@@ -158,7 +158,7 @@ def test_texto_herdado_que_ficou_no_yml_a_mao_nao_vira_raiz_quando_a_coluna_pass
     calcula = {"stg": {"a": tr.Computed("mul")}}
     velho = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": TEXTO_TOTAL})}, folhas)
     assert velho.problems == ["stg.a: não transporta mais (mul) e guarda o texto de quem lê — "
-                              "escreva o texto do que ela calcula, ou declare `description_reason`"]
+                              "escreva o texto do que ela calcula, tire a marca de herdado ou declare `description_reason`"]
     raiz = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "O total vezes cem."})}, folhas)
     assert raiz.problems == [] and raiz.origin[("staging", "stg", "a")] == "written"
     motivo = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={
@@ -166,35 +166,50 @@ def test_texto_herdado_que_ficou_no_yml_a_mao_nao_vira_raiz_quando_a_coluna_pass
     assert motivo.problems == []
 
 
-def test_o_registro_do_herdado_pega_o_texto_de_dois_saltos_e_o_doc_de_outras_aspas(tmp_path) -> None:
-    """RVL3-2-01: a igualdade com a folha não basta — a folha já mudou, ou o `doc()` veio com outras aspas."""
+def test_a_marca_de_herdado_anda_com_a_coluna_e_acusa_quando_ela_deixa_de_transportar(tmp_path) -> None:
+    """RVL3-2-01, RVL3-3-01: a proveniência está na coluna — nem a folha atual, nem um registro à parte."""
     yml = tmp_path / "_m.yml"
     nos, folhas = {"stg": ("staging", [])}, {"stg": {"a": {("raw", "orders", "total_amount")}}}
     calcula = {"stg": {"a": tr.Computed("mul")}}
-    dois_saltos = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "Texto de antes."})}, folhas,
-                          registro={"stg": {"a": "Texto de antes."}})
-    assert len(dois_saltos.problems) == 1 and "não transporta mais (mul)" in dois_saltos.problems[0]
-    assert dois_saltos.inherited_in_hand["stg"] == {"a": "Texto de antes."}     # a prova fica até resolver
-    aspas = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "{{ doc('x') }}"})}, folhas,
-                    registro={"stg": {"a": '{{ doc("x") }}'}})
-    assert len(aspas.problems) == 1
-    revisto = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "O total vezes cem."})}, folhas,
-                      registro={"stg": {"a": "Texto de antes."}})
-    assert revisto.problems == [] and dict(revisto.inherited_in_hand) == {}
+    marcada = {"description": "Texto de dois saltos acima.", "meta": {d.MARK: True}}
+    # A folha imediata já tem outro texto: só a marca diz que este era herdado.
+    velho = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a=marcada)}, folhas)
+    assert len(velho.problems) == 1 and "não transporta mais (mul)" in velho.problems[0]
+    # Renomeada junto com a mudança de SQL: a marca vai junto.
+    renomeada = _textos(nos, {"stg": {"b": tr.Computed("mul")}}, {"stg": _entrada(yml, "hand", b=marcada)},
+                        {"stg": {"b": set()}})
+    assert len(renomeada.problems) == 1
+    # Revista: quem escreveu tirou a marca.
+    revista = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "O total vezes cem."})}, folhas)
+    assert revista.problems == []
+    # Marca e motivo juntos se contradizem.
+    contradicao = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={
+        "description": "x", "meta": {d.MARK: True, "description_reason": "y"}})}, folhas)
+    assert len(contradicao.problems) == 1 and "juntos" in contradicao.problems[0]
 
 
-def test_o_registro_guarda_o_que_a_derivacao_escreveu_no_yml_a_mao(tmp_path) -> None:
+def test_o_herdado_escrito_no_yml_a_mao_e_no_gerado_leva_a_marca(tmp_path) -> None:
     yml = tmp_path / "_m.yml"
     textos = _textos({"stg": ("staging", [])}, {"stg": {"a": _carry(("raw", "orders", "total_amount"))}},
                      {"stg": _entrada(yml, "hand", a={})})
-    assert textos.inherited_in_hand["stg"] == {"a": TEXTO_TOTAL}
-    assert d.render_inherited(textos).startswith('{\n  "stg": {\n    "a": ')
+    assert textos.marks[yml] == {"stg": {"a": {d.MARK: True}}}
+    gerado = s.render_generated({"m": {"a": "internal", "b": "internal"}}, textos={"m": {"a": "Texto."}})
+    colunas = {c["name"]: c for c in yaml.safe_load(gerado)["models"][0]["columns"]}
+    assert colunas["a"]["meta"] == {"sensitivity": "internal", d.MARK: True}
+    assert colunas["b"]["meta"] == {"sensitivity": "internal"}
+
+
+def test_toda_grafia_do_mesmo_doc_e_a_mesma_referencia() -> None:
+    """RVL3-3-02: espaço, aspas e controle de espaço do Jinja não revisam o texto."""
+    formas = ['{{ doc("x") }}', "{{doc('x')}}", '{{ doc ("x") }}', '{{- doc( "x" ) -}}']
+    assert {d._normal(f) for f in formas} == {'{{ doc("x") }}'}
 
 
 def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() -> None:
     """RVL3-02: o PostgreSQL resolve um tipo para a coluna da união e converte cada ramo para ele."""
-    catalogo = {"wh": {"staging": {"a": {"id": "text", "q": "text", "r": "text"}}}}
-    tipos = {("staging", "a", "id"): "BIGINT", ("staging", "a", "q"): "INTEGER", ("staging", "a", "r"): "REAL"}
+    catalogo = {"wh": {"staging": {"a": {"id": "text", "q": "text", "r": "text", "ts": "text", "tz": "text"}}}}
+    tipos = {("staging", "a", "id"): "BIGINT", ("staging", "a", "q"): "INTEGER", ("staging", "a", "r"): "REAL",
+             ("staging", "a", "ts"): "TIMESTAMP", ("staging", "a", "tz"): "TIMESTAMPTZ"}
 
     def coluna(sql: str) -> tr.Transport:
         arvore = qualify(sqlglot.parse_one(sql, read="postgres"), schema=catalogo, dialect="postgres",
@@ -202,12 +217,25 @@ def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() ->
         return next(iter(tr.carries_by_output(arvore, ("trusted", "t"), tipos.get).values()))
     base = 'select id from "wh"."staging"."a" union all '
     assert coluna(base + "select 0::real as id") == tr.Computed("union_coercion")      # 16777217 → 16777216
-    assert coluna(base + "select cast(null as text) as id") == tr.Computed("union_coercion")
+    assert isinstance(coluna(base + "select cast(-1 as numeric) as id"), tr.Carry)        # bigint → numeric: exato
+    # data e hora: o ramo transportado é convertido para o tipo mais alto presente
+    data = 'select {c} as v from "wh"."staging"."a" union all select {k} as v'
+    assert coluna(data.format(c="ts", k="cast(null as timestamptz)")) == tr.Computed("union_coercion")  # fuso da sessão
+    assert isinstance(coluna(data.format(c="tz", k="date '2020-01-01'")), tr.Carry)   # só a constante converte
     assert coluna(base + 'select r from "wh"."staging"."a"') == tr.Computed("union_coercion")
     assert isinstance(coluna(base + "select -1 as id"), tr.Carry)                       # sem tipo: resolve pelo ramo
     assert isinstance(coluna(base + "select cast(null as bigint) as id"), tr.Carry)
     assert isinstance(coluna(base + "select cast(-1 as integer) as id"), tr.Carry)      # inteiro alarga sem perda
     assert isinstance(coluna(base + 'select q from "wh"."staging"."a"'), tr.Carry)
+    # RVL3-3-03: tipo desconhecido não prova a preservação — duas folhas assim não herdam
+    catalogo["wh"]["staging"]["c"] = {"y": "text"}
+    duas = 'select id from "wh"."staging"."a" union all select y as id from "wh"."staging"."c"'
+    assert coluna(duas) == tr.Computed("union_unproven")
+    # … e o tipo que o cálculo declara conta como conhecido para quem o lê
+    assert tr.carries_by_output(qualify(sqlglot.parse_one('select cast(q as bigint) as b, q > 0 as p, '
+                                                          "q || 'x' as t from \"wh\".\"staging\".\"a\"",
+                                                          read="postgres"), schema=catalogo, dialect="postgres",
+                                        validate_qualify_columns=False), ("trusted", "t"), tipos.get)["b"].type == "BIGINT"
     # RVL3-2-02: a subunião de constantes guarda os tipos que viu
     assert coluna(base + "(select 0::real as id union all select 1::double precision as id)") == tr.Computed("union_coercion")
     assert isinstance(coluna(base + "(select -1 as id union all select null as id)"), tr.Carry)
@@ -311,7 +339,7 @@ def test_a_escrita_da_descricao_insere_substitui_e_preserva_o_resto(tmp_path) ->
 def test_arquivo_gerado_leva_a_descricao_antes_da_sensibilidade() -> None:
     texto = s.render_generated({"t": {"a": "internal", "b": "public"}}, "models", {"t": {"a": "Texto."}})
     colunas = yaml.safe_load(texto)["models"][0]["columns"]
-    assert colunas == [{"name": "a", "description": "Texto.", "meta": {"sensitivity": "internal"}},
+    assert colunas == [{"name": "a", "description": "Texto.", "meta": {"sensitivity": "internal", d.MARK: True}},
                        {"name": "b", "meta": {"sensitivity": "public"}}]
 
 

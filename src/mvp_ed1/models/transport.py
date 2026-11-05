@@ -30,7 +30,7 @@ importa aqui: a pergunta é só se o valor da saída é o valor de uma entrada.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from sqlglot import exp
@@ -49,11 +49,14 @@ class Carry:
 class Computed:
     """A saída é calculada; `kind` diz como, e `shape` a forma, quando uma convenção pode reconhecê-la.
 
-    `type` é o tipo explícito de uma constante com `cast` (`0::real`): numa união,
-    ele entra na resolução do tipo de saída e pode estreitar o ramo que transporta."""
+    `type` é o tipo que a própria expressão declara, quando declara: o do `cast`
+    (`0::real`, `(payload->>'id')::bigint`), `BOOLEAN` de teste e comparação,
+    `TEXT` de concatenação. Numa união, o da constante entra na resolução do tipo de
+    saída; e o de qualquer cálculo vira o tipo conhecido da coluna para quem a lê
+    depois (RVL3-3-03). Não entra na igualdade: é anotação, não classificação."""
     kind: str
     shape: str | None = None
-    type: str | None = None
+    type: str | None = field(default=None, compare=False)
 
 
 Transport = Carry | Computed
@@ -92,6 +95,46 @@ def _is_not_null(e: exp.Expression) -> exp.Expression | None:
     return None
 
 
+_BOOLEANOS = (exp.Is, exp.Not, exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.And, exp.Or,
+              exp.In, exp.Between, exp.Like, exp.ILike, exp.Exists, exp.NullSafeEQ, exp.NullSafeNEQ)
+
+
+def _declared_type(e: exp.Expression) -> str | None:
+    """O tipo que a expressão declara por si, sem precisar do tipo das entradas — ou `None`."""
+    e = unparen(e)
+    if isinstance(e, exp.Cast):
+        return e.to.sql("postgres")
+    if isinstance(e, _BOOLEANOS):
+        return "BOOLEAN"
+    if isinstance(e, exp.DPipe):
+        return "TEXT"
+    return None
+
+
+def materialized_type(t: "Transport") -> str | None:
+    """O tipo que a coluna calculada tem depois de materializada, quando a expressão o diz:
+    o declarado (`cast`, teste, concatenação) e o da constante sem `cast` — booleano,
+    inteiro, numérico, texto. `null` sem tipo não diz nada."""
+    if not isinstance(t, Computed):
+        return None
+    if t.type:
+        return None if "|" in t.type else t.type
+    if t.kind != "constant" or not t.shape:
+        return None
+    valores = [v for v in t.shape.removeprefix("constant:").split("|") if v]
+    if not valores or "null" in valores:
+        return None
+    if all(v in ("true", "false") for v in valores):
+        return "BOOLEAN"
+    if all(v.lstrip("-").isdigit() for v in valores):
+        return "INTEGER"
+    try:
+        [float(v) for v in valores]
+        return "NUMERIC"
+    except ValueError:
+        return "TEXT"
+
+
 def constant_type(e: exp.Expression) -> str | None:
     """O tipo explícito de uma constante — o do `cast` mais de fora —, ou `None` se ela não tiver."""
     e = unparen(e)
@@ -106,30 +149,59 @@ def _constant(valores: list[str], tipo: str | None = None) -> Computed:
     return Computed("constant", "constant:" + "|".join(sorted(set(valores))), tipo)
 
 
-#: Famílias de tipo para a resolução de tipo da união do PostgreSQL. Dentro da mesma
-#: família, e entre inteiro e numérico exato, a conversão não muda o valor; ponto
-#: flutuante só com o mesmo tipo; família diferente muda (RVL3-02).
-_FAMILIAS = {
-    "inteiro": ("SMALLINT", "INT", "INTEGER", "BIGINT", "INT2", "INT4", "INT8"),
-    "exato": ("NUMERIC", "DECIMAL", "MONEY"),
-    "flutuante": ("REAL", "FLOAT", "FLOAT4", "FLOAT8", "DOUBLE", "DOUBLE PRECISION"),
-    "texto": ("TEXT", "VARCHAR", "CHAR", "CHARACTER", "CHARACTER VARYING", "BPCHAR", "STRING"),
+#: Os tipos pelo nome canônico do PostgreSQL — o `sqlglot` e o SQLAlchemy grafam diferente.
+_SINONIMOS = {
+    "INT": "INTEGER", "INT4": "INTEGER", "INT2": "SMALLINT", "INT8": "BIGINT",
+    "DECIMAL": "NUMERIC", "FLOAT4": "REAL", "FLOAT": "DOUBLE PRECISION", "FLOAT8": "DOUBLE PRECISION",
+    "DOUBLE": "DOUBLE PRECISION", "TIMESTAMPTZ": "TIMESTAMP WITH TIME ZONE",
+    "TIMESTAMP WITHOUT TIME ZONE": "TIMESTAMP", "BOOL": "BOOLEAN", "CHARACTER VARYING": "VARCHAR",
+    "CHARACTER": "CHAR", "BPCHAR": "CHAR", "STRING": "TEXT",
+}
+
+#: Categoria e posição na ordem de conversão implícita de cada tipo que a união pode converter.
+#: Numa categoria, a união resolve o tipo mais alto presente (o preferido, quando há), e todo
+#: ramo é convertido para ele (PostgreSQL, "UNION, CASE, and Related Constructs").
+_ORDEM = {
+    "SMALLINT": ("numerico", 0), "INTEGER": ("numerico", 1), "BIGINT": ("numerico", 2), "NUMERIC": ("numerico", 3),
+    "REAL": ("numerico", 4), "DOUBLE PRECISION": ("numerico", 5),
+    "DATE": ("data", 0), "TIMESTAMP": ("data", 1), "TIMESTAMP WITH TIME ZONE": ("data", 2),
 }
 
 
-def _familia(tipo: str) -> str:
-    base = tipo.upper().split("(")[0].strip()
-    return next((f for f, nomes in _FAMILIAS.items() if base in nomes), base)
+def canonical_type(tipo: str) -> str:
+    base = " ".join(tipo.upper().split("(")[0].split())
+    return _SINONIMOS.get(base, base)
 
 
-def _uniao_preserva(tipos: set[str]) -> bool:
-    """Converter todos estes tipos para o tipo que a união resolve não muda valor nenhum."""
-    familias = {_familia(t) for t in tipos}
-    if familias <= {"inteiro", "exato"} or familias <= {"texto"}:
+def _conversao_preserva(de: str, para: str) -> bool:
+    """Converter um valor de `de` para `para` não muda o valor: alargar inteiro, inteiro para
+    numérico exato. Inteiro ou exato para ponto flutuante perde; data para instante muda o
+    tipo do valor; `timestamp` para `timestamptz` depende do fuso da sessão."""
+    if de == para:
         return True
-    if familias == {"flutuante"}:
-        return len({t.upper() for t in tipos}) == 1
-    return len(familias) == 1 and len({t.upper() for t in tipos}) == 1
+    cd, pd = _ORDEM[de]
+    cp, pp = _ORDEM[para]
+    return cd == cp == "numerico" and pp <= 3 and pd <= pp
+
+
+def _uniao_preserva(transportados: set[str], todos: set[str]) -> bool:
+    """O tipo que a união resolve deixa intacto todo valor transportado?
+
+    Só as categorias numérica e de data/hora convertem implicitamente entre tipos
+    diferentes; entre as demais — texto e `uuid`, texto e `jsonb` — o PostgreSQL
+    recusaria a união, e uma união que constrói tem os tipos físicos iguais (o
+    declarado na origem pode diferir do físico que o Airbyte grava: `uuid` vira
+    `varchar`)."""
+    todos = {canonical_type(t) for t in todos}
+    transportados = {canonical_type(t) for t in transportados}
+    for categoria in ("numerico", "data"):
+        presentes = {t for t in todos if _ORDEM.get(t, ("", 0))[0] == categoria}
+        if len(presentes) < 2:
+            continue
+        resolvido = max(presentes, key=lambda t: _ORDEM[t][1])
+        if not all(_conversao_preserva(t, resolvido) for t in transportados if t in presentes):
+            return False
+    return True
 
 
 def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | None] = lambda _: None) -> Transport:
@@ -141,8 +213,9 @@ def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | N
     a conversão não pode mudar o valor transportado: os tipos declarados das folhas
     e os das constantes com `cast` cabem juntos sem perda (`_uniao_preserva`).
     Constante sem tipo — literal, `null` — se resolve pelo tipo dos outros ramos e
-    não muda o valor. Folha de tipo desconhecido não se confere, salvo diante de uma
-    constante de ponto flutuante, que calcula por cautela: limite declarado."""
+    não muda o valor. Folha de tipo desconhecido não prova nada: com mais de uma
+    folha, ou diante de constante tipada, a união não transporta (RVL3-3-03). O tipo
+    conhecido vem da origem, do `cast` e do que a expressão declara (`_declared_type`)."""
     transportam = [p for p in partes if isinstance(p, Carry)]
     calculam = [p for p in partes if isinstance(p, Computed)]
     if all(p.kind == "constant" for p in calculam):
@@ -153,10 +226,12 @@ def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | N
             folhas = frozenset().union(*(p.leaves for p in transportam))
             tipos = [origin_type(f) for f in folhas]
             conhecidos = {t for t in tipos if t is not None}
-            if not _uniao_preserva(conhecidos | tipados):
+            if not _uniao_preserva(conhecidos, conhecidos | tipados):
                 return Computed("union_coercion")
-            if None in tipos and any(_familia(t) == "flutuante" for t in tipados):
-                return Computed("union_coercion")
+            # Tipo desconhecido não se prova: com mais de uma folha, ou diante de
+            # constante tipada, a união pode converter — e a herança não vale (RVL3-3-03).
+            if None in tipos and (len(folhas) > 1 or tipados):
+                return Computed("union_unproven")
             return Carry(folhas)
         return _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v],
                          "|".join(sorted(tipados)) if tipados else None)
@@ -200,16 +275,16 @@ def carries_by_output(query: exp.Expression, propria: tuple[str, str], origin_ty
             return _constant([valor], constant_type(e))
         if isinstance(e, exp.Cast) and isinstance(unparen(e.this), exp.Column):
             dentro = resolver(unparen(e.this), escopo)
-            if not isinstance(dentro, Carry):
-                return Computed("cast")
             alvo = e.to.sql("postgres")
+            if not isinstance(dentro, Carry):
+                return Computed("cast", None, alvo)
             if all(origin_type(folha) == alvo for folha in dentro.leaves):
                 return dentro
-            return Computed("cast")
+            return Computed("cast", None, alvo)
         sujeito = _is_not_null(e)
         if isinstance(sujeito, exp.Column):
-            return Computed("is_not_null", f"not_null:{sujeito.name}")
-        return Computed(type(e).__name__.lower())
+            return Computed("is_not_null", f"not_null:{sujeito.name}", "BOOLEAN")
+        return Computed(type(e).__name__.lower(), None, _declared_type(e))
 
     for escopo in traverse_scope(query):
         consulta = escopo.expression
