@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.11 |
+| Versão | 2.12 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §7: o login de leitura sem mensagem no WAL, o que fica aberto a ele classificado por oráculo e o alcance de "não interfere" (rodada 2 do lote 2 da v1.1.0) |
+| Última revisão | 05/11/2026 — §7: o recorte do oráculo do que fica aberto ao leitor e o padrão de leitura reposto no global e por banco (rodada 3 do lote 2 da v1.1.0) |
 
 ---
 
@@ -291,11 +291,15 @@ marca chamador vivo, e que um leitor poderia segurar para deixar uma tentativa p
 (revisão do lote 2 da v1.1.0, RVL2-01) —, e gravar mensagem no WAL (`pg_logical_emit_message`,
 RVL2-2-01). Sem isso, "não escreve" teria exceções. A lista é argumento; o oráculo é o que **sobra**:
 toda função volátil que o leitor ainda executa está classificada com o motivo em
-`tests/test_acesso.py` (`ABERTAS_AO_LEITOR`) — leitura ou efeito na própria sessão, ler *large
-object* e soltar lock, recusa feita pelo próprio servidor (atributo de replicação, modo de
-*upgrade*, superusuário, dono do objeto) e interferência declarada —, a recusa do servidor é sondada
-família a família pelo leitor, e uma função nova numa versão do PostgreSQL falha o teste até ser
-classificada ou fechada. O superusuário, por
+`tests/test_acesso.py` (`ABERTAS_AO_LEITOR`) — leitura ou efeito na própria sessão, execução de SQL
+de quem chama com o privilégio dele (`query_to_xml`, `ts_stat`), efeito interno sem dado
+(`pg_export_snapshot`), ler *large object* e soltar lock, recusa feita pelo próprio servidor
+(atributo de replicação, modo de *upgrade*, superusuário, dono do objeto) e interferência declarada
+—, e a recusa do servidor é sondada família a família pelo leitor. O motivo diz por que a função
+fica aberta, não que ela não tenha efeito nenhum, e o recorte é declarado (RVL2-3-05): por **nome**
+— um nome volátil novo numa versão do PostgreSQL falha o teste até ser classificado ou fechado, uma
+sobrecarga nova de nome já classificado não —, e só **voláteis**: `txid_current` é estável e aloca
+um XID. O superusuário, por
 onde Airbyte, dbt, Beam e o certificado se conectam, não depende de `EXECUTE`; um componente que
 passe a se conectar pelo próprio papel precisa declarar o que dessas funções usa. O que vem do
 catálogo — os papéis de que o login é membro, o nome do banco — se compõe no servidor, nunca em
@@ -304,9 +308,10 @@ não toma lock que a captura use e não sinaliza sessão de outro login, mas ain
 sessão de PostgreSQL pode — `notify`/`listen` (canais não isolam usuários), alongar os próprios
 *timeouts*, cancelar ou encerrar sessão do **próprio** login, e segurar `access share` numa view
 durante uma leitura longa, o que atrasa um DDL concorrente (o `dbt-build` que a recria). E pode tirar
-o próprio padrão de leitura (`alter role … set default_transaction_read_only`, que o PostgreSQL
-permite a todo papel sobre si): o padrão é conveniência, a garantia é o privilégio, e o `garantir()`
-seguinte o repõe. Nenhum consumidor usa `listen`/`notify` hoje. A prova é por
+o próprio padrão de leitura (`alter role … [in database …] set default_transaction_read_only`, que o
+PostgreSQL permite a todo papel sobre si): o padrão é conveniência, a garantia é o privilégio, e o
+`garantir()` seguinte apaga todo padrão do papel — o global e o de cada banco, que vence o global —
+e repõe só o de leitura (RVL2-3-07). Nenhum consumidor usa `listen`/`notify` hoje. A prova é por
 **conexão de verdade** com ele, não por `set role` (`tests/test_acesso.py`): lê toda view de
 `consumption`; é recusado em todo objeto das outras oito camadas; não cria tabela, tabela
 temporária, schema nem *large object*, nem toma *advisory lock* nem grava no WAL, mesmo pedindo
