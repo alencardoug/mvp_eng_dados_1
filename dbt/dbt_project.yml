@@ -163,6 +163,11 @@ snapshots:
 seeds:
   mvp_ed1:
     +schema: trusted
+    # Descrição de coluna no banco, como nos modelos e snapshots: sem isto as
+    # sete colunas descritas das seeds ficavam sem comentário (RVL3-08).
+    +persist_docs:
+      relation: true
+      columns: true
     # Versionadas no Git: reconstruíveis de qualquer commit. Vivem em
     # `trusted` e seguem o acesso da camada.
     +meta:
