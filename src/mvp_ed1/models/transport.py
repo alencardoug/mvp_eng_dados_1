@@ -47,9 +47,13 @@ class Carry:
 
 @dataclass(frozen=True)
 class Computed:
-    """A saída é calculada; `kind` diz como, e `shape` a forma, quando uma convenção pode reconhecê-la."""
+    """A saída é calculada; `kind` diz como, e `shape` a forma, quando uma convenção pode reconhecê-la.
+
+    `type` é o tipo explícito de uma constante com `cast` (`0::real`): numa união,
+    ele entra na resolução do tipo de saída e pode estreitar o ramo que transporta."""
     kind: str
     shape: str | None = None
+    type: str | None = None
 
 
 Transport = Carry | Computed
@@ -88,18 +92,72 @@ def _is_not_null(e: exp.Expression) -> exp.Expression | None:
     return None
 
 
-def _constant(valores: list[str]) -> Computed:
-    return Computed("constant", "constant:" + "|".join(sorted(set(valores))))
+def constant_type(e: exp.Expression) -> str | None:
+    """O tipo explícito de uma constante — o do `cast` mais de fora —, ou `None` se ela não tiver."""
+    e = unparen(e)
+    if isinstance(e, exp.Cast):
+        return e.to.sql("postgres")
+    if isinstance(e, exp.Neg):
+        return constant_type(e.this)
+    return None
 
 
-def combine_union(partes: list[Transport]) -> Transport:
-    """Uma coluna de `union`, a partir do que ela é em cada ramo (N41, N45)."""
+def _constant(valores: list[str], tipo: str | None = None) -> Computed:
+    return Computed("constant", "constant:" + "|".join(sorted(set(valores))), tipo)
+
+
+#: Famílias de tipo para a resolução de tipo da união do PostgreSQL. Dentro da mesma
+#: família, e entre inteiro e numérico exato, a conversão não muda o valor; ponto
+#: flutuante só com o mesmo tipo; família diferente muda (RVL3-02).
+_FAMILIAS = {
+    "inteiro": ("SMALLINT", "INT", "INTEGER", "BIGINT", "INT2", "INT4", "INT8"),
+    "exato": ("NUMERIC", "DECIMAL", "MONEY"),
+    "flutuante": ("REAL", "FLOAT", "FLOAT4", "FLOAT8", "DOUBLE", "DOUBLE PRECISION"),
+    "texto": ("TEXT", "VARCHAR", "CHAR", "CHARACTER", "CHARACTER VARYING", "BPCHAR", "STRING"),
+}
+
+
+def _familia(tipo: str) -> str:
+    base = tipo.upper().split("(")[0].strip()
+    return next((f for f, nomes in _FAMILIAS.items() if base in nomes), base)
+
+
+def _uniao_preserva(tipos: set[str]) -> bool:
+    """Converter todos estes tipos para o tipo que a união resolve não muda valor nenhum."""
+    familias = {_familia(t) for t in tipos}
+    if familias <= {"inteiro", "exato"} or familias <= {"texto"}:
+        return True
+    if familias == {"flutuante"}:
+        return len({t.upper() for t in tipos}) == 1
+    return len(familias) == 1 and len({t.upper() for t in tipos}) == 1
+
+
+def combine_union(partes: list[Transport], origin_type: Callable[[Leaf], str | None] = lambda _: None) -> Transport:
+    """Uma coluna de `union`, a partir do que ela é em cada ramo (N41, N45).
+
+    O PostgreSQL resolve **um** tipo para a coluna da união, a partir de todos os
+    ramos, e converte cada ramo para ele (RVL3-02): `id` `bigint` unido a `0::real`
+    sai `real`, e `16777217` vira `16777216`. Por isso a união só transporta quando
+    a conversão não pode mudar o valor transportado: os tipos declarados das folhas
+    e os das constantes com `cast` cabem juntos sem perda (`_uniao_preserva`).
+    Constante sem tipo — literal, `null` — se resolve pelo tipo dos outros ramos e
+    não muda o valor. Folha de tipo desconhecido não se confere, salvo diante de uma
+    constante de ponto flutuante, que calcula por cautela: limite declarado."""
     transportam = [p for p in partes if isinstance(p, Carry)]
     calculam = [p for p in partes if isinstance(p, Computed)]
     if all(p.kind == "constant" for p in calculam):
+        tipados = {p.type for p in calculam if p.type is not None}
         if transportam:
-            return Carry(frozenset().union(*(p.leaves for p in transportam)))
-        return _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v])
+            folhas = frozenset().union(*(p.leaves for p in transportam))
+            tipos = [origin_type(f) for f in folhas]
+            conhecidos = {t for t in tipos if t is not None}
+            if not _uniao_preserva(conhecidos | tipados):
+                return Computed("union_coercion")
+            if None in tipos and any(_familia(t) == "flutuante" for t in tipados):
+                return Computed("union_coercion")
+            return Carry(folhas)
+        return _constant([v for p in calculam for v in (p.shape or "constant:").removeprefix("constant:").split("|") if v],
+                         next(iter(tipados)) if len(tipados) == 1 else None)
     return Computed("union")
 
 
@@ -137,7 +195,7 @@ def carries_by_output(query: exp.Expression, propria: tuple[str, str], origin_ty
             return resolver(e, escopo)
         valor = constant_value(e)
         if valor is not None:
-            return _constant([valor])
+            return _constant([valor], constant_type(e))
         if isinstance(e, exp.Cast) and isinstance(unparen(e.this), exp.Column):
             dentro = resolver(unparen(e.this), escopo)
             if not isinstance(dentro, Carry):
@@ -159,7 +217,8 @@ def carries_by_output(query: exp.Expression, propria: tuple[str, str], origin_ty
             ramos = [saidas.get(id(r), saidas.get(id(r.expression), {})) for r in (escopo.union_scopes or [])]
             nomes = [list(r.keys()) for r in ramos]
             resultado = {
-                nome: combine_union([ramo[ramo_nomes[posicao]] for ramo, ramo_nomes in zip(ramos, nomes) if posicao < len(ramo_nomes)])
+                nome: combine_union([ramo[ramo_nomes[posicao]] for ramo, ramo_nomes in zip(ramos, nomes) if posicao < len(ramo_nomes)],
+                                    origin_type)
                 for posicao, nome in enumerate(nomes[0] if nomes else [])
             }
         elif isinstance(consulta, exp.Query):

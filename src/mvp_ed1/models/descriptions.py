@@ -265,6 +265,15 @@ def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
                     saida.generated[no["name"]][coluna] = herdado
             elif escrito and entrada and entrada.kind == "hand":
                 final, origem = escrito, "written"
+                # O `.yml` à mão guarda também o herdado que a derivação escreveu nele.
+                # Quando a coluna deixa de transportar, esse texto ficaria como raiz
+                # escrita, calado — e é o texto de quem ela lia, não do que ela calcula
+                # agora (RVL3-01). Igual ao texto de uma folha, sem motivo: problema.
+                folhas = derivation.leaves.get(node_id, {}).get(coluna, set())
+                if not motivo and any(saida.texts.get(f) == escrito for f in folhas):
+                    saida.problems.append(
+                        f"{no['name']}.{coluna}: não transporta mais ({_why_not(t, candidatos)}) e guarda o texto "
+                        "de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`")
             else:
                 final, origem = None, None
 

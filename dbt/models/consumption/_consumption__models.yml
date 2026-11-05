@@ -581,7 +581,7 @@ models:
           sensitivity: internal
         data_type: integer
       - name: inventory_value_amount
-        description: "Semiaditiva — valor do estoque: o saldo atual vezes o custo unitário médio das saídas de venda; soma-se entre SKUs e armazéns, nunca entre trimestres."
+        description: "Semiaditiva — valor do estoque: o saldo atual vezes o custo unitário médio de todos os movimentos do SKU no armazém que têm custo, de qualquer tipo e de todo o período; soma-se entre SKUs e armazéns, nunca entre trimestres."
         meta:
           sensitivity: confidential
         data_type: numeric
@@ -889,6 +889,7 @@ models:
       - name: on_time_rate
         meta:
           sensitivity: internal
+          description_reason: o conceito do glossário define a medida e a marca de que ela é feita, com o mesmo bloco
         description: '{{ doc("on_time_delivery") }}'
         data_type: numeric
       - name: avg_delay_days_when_late
@@ -972,6 +973,7 @@ models:
       - name: avg_order_to_delivery_days
         meta:
           sensitivity: internal
+          description_reason: o conceito do glossário define a medida e a marca de que ela é feita, com o mesmo bloco
         description: '{{ doc("order_to_delivery_cycle") }}'
         data_type: numeric
       - name: median_order_to_delivery_days
@@ -1119,7 +1121,7 @@ models:
           duas vezes.
         data_type: bigint
       - name: repeat_order_count
-        description: "Aditiva — pedidos com recompra em até 90 dias, por mês, canal e por ter ou não chamado."
+        description: "**Não aditiva entre categorias** — pedidos com janela fechada que tiveram recompra em até 90 dias, por mês, canal, ter ou não chamado e categoria do chamado. Um pedido com chamados de duas categorias conta nas duas linhas: somar entre categorias o conta duas vezes."
         meta:
           sensitivity: internal
         data_type: bigint

@@ -4,7 +4,8 @@ Quem revisa a descrição derivada revisa **a regra** (`models/transport.py`,
 `models/descriptions.py`), não os milhares de linhas que ela escreve. Estes
 testes são a regra por extenso: só a coluna pura, o apelido e o `cast` de volta
 ao tipo declarado transportam; soma de mesmo nome não herda; união herda com o
-mesmo texto em todo ramo que transporta, e ramo constante não vota; convenção
+mesmo texto em todo ramo que transporta, e ramo constante não vota — salvo quando o
+tipo dele, ou o de outro ramo, faz a união converter o valor; convenção
 pede nome **e** forma; texto à mão vale com motivo; a ponte só herda pela
 declaração; e a escrita no `.yml` preserva o resto.
 """
@@ -101,7 +102,8 @@ def test_is_not_null_e_a_forma_da_exclusao_logica_nas_duas_grafias() -> None:
 
 # ── O texto que cada coluna recebe ──────────────────────────────────────────────
 
-def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[str, tr.Transport]], disco: dict[str, d.Entry]) -> d.Texts:
+def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[str, tr.Transport]], disco: dict[str, d.Entry],
+            folhas: dict[str, dict[str, set]] | None = None) -> d.Texts:
     """Um manifest mínimo — modelo, schema e dependências —, a derivação dada, e o disco dado."""
     manifest = {"sources": {}, "nodes": {
         f"model.p.{nome}": {"resource_type": "model", "name": nome, "schema": schema, "depends_on": {"nodes": [f"model.p.{x}" for x in deps]}}
@@ -110,6 +112,7 @@ def _textos(nos: dict[str, tuple[str, list[str]]], transportes: dict[str, dict[s
     derivacao = s.Derivation(
         levels={f"model.p.{n}": dict.fromkeys(transportes[n], "internal") for n in nos},
         carries={f"model.p.{n}": transportes[n] for n in nos},
+        leaves={f"model.p.{n}": c for n, c in (folhas or {}).items()},
     )
     return d.derive_texts(manifest, derivacao, disco=disco, fontes={})
 
@@ -146,6 +149,40 @@ def test_uniao_so_herda_quando_todo_ramo_chega_ao_mesmo_texto(tmp_path) -> None:
     )
     assert textos.texts[("trusted", "u", "igual")] == TEXTO_TOTAL    # o legado declara o mesmo texto
     assert textos.undescribed[("trusted", "u", "diferente")] == "union_differs"
+
+
+def test_texto_herdado_que_ficou_no_yml_a_mao_nao_vira_raiz_quando_a_coluna_passa_a_calcular(tmp_path) -> None:
+    """RVL3-01: `quantity` transportava, o herdado foi escrito no `.yml` à mão; o SQL passou a multiplicar."""
+    yml = tmp_path / "_m.yml"
+    nos, folhas = {"stg": ("staging", [])}, {"stg": {"a": {("raw", "orders", "total_amount")}}}
+    calcula = {"stg": {"a": tr.Computed("mul")}}
+    velho = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": TEXTO_TOTAL})}, folhas)
+    assert velho.problems == ["stg.a: não transporta mais (mul) e guarda o texto de quem lê — "
+                              "escreva o texto do que ela calcula, ou declare `description_reason`"]
+    raiz = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={"description": "O total vezes cem."})}, folhas)
+    assert raiz.problems == [] and raiz.origin[("staging", "stg", "a")] == "written"
+    motivo = _textos(nos, calcula, {"stg": _entrada(yml, "hand", a={
+        "description": TEXTO_TOTAL, "meta": {"description_reason": "o mesmo conceito"}})}, folhas)
+    assert motivo.problems == []
+
+
+def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() -> None:
+    """RVL3-02: o PostgreSQL resolve um tipo para a coluna da união e converte cada ramo para ele."""
+    catalogo = {"wh": {"staging": {"a": {"id": "text", "q": "text", "r": "text"}}}}
+    tipos = {("staging", "a", "id"): "BIGINT", ("staging", "a", "q"): "INTEGER", ("staging", "a", "r"): "REAL"}
+
+    def coluna(sql: str) -> tr.Transport:
+        arvore = qualify(sqlglot.parse_one(sql, read="postgres"), schema=catalogo, dialect="postgres",
+                         validate_qualify_columns=False)
+        return next(iter(tr.carries_by_output(arvore, ("trusted", "t"), tipos.get).values()))
+    base = 'select id from "wh"."staging"."a" union all '
+    assert coluna(base + "select 0::real as id") == tr.Computed("union_coercion")      # 16777217 → 16777216
+    assert coluna(base + "select cast(null as text) as id") == tr.Computed("union_coercion")
+    assert coluna(base + 'select r from "wh"."staging"."a"') == tr.Computed("union_coercion")
+    assert isinstance(coluna(base + "select -1 as id"), tr.Carry)                       # sem tipo: resolve pelo ramo
+    assert isinstance(coluna(base + "select cast(null as bigint) as id"), tr.Carry)
+    assert isinstance(coluna(base + "select cast(-1 as integer) as id"), tr.Carry)      # inteiro alarga sem perda
+    assert isinstance(coluna(base + 'select q from "wh"."staging"."a"'), tr.Carry)
 
 
 def test_convencao_pede_nome_e_forma(tmp_path) -> None:
