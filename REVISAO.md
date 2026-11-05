@@ -2762,3 +2762,449 @@ preservados. Scripts e logs de apoio ficaram em `/tmp`. Sem commit ou push.
 RVL2-4-04 estão fechados; RVL2-4-01 e RVL2-4-02 estão parcialmente fechados,
 com os exemplos originais corrigidos e três ajustes restantes nesta tabela.
 O aceite formal continua sendo do Owner.
+
+## Rodada 6 — lote 2
+
+Revisão em **05/11/2026**, no HEAD `6b06205bdea4de86a5235a9db488c0833a4edff4`,
+restrita a `git log 1dbb2c5..6b06205`: `54f81e6` e `6b06205`.
+Parecer técnico, sem poder de aprovação e sem implementar correções.
+**O lote 2 permanece aberto.** Os exemplos B/C/D da rodada 5 foram corrigidos,
+mas persistem três falsos negativos nos caminhos revisados e uma divergência
+entre a recusa documentada de `*` e a implementação. As 16 views e os dois gates
+passam. Os casos adicionais também passam indevidamente em `1dbb2c5`: não atribuo
+sua introdução aos dois commits desta rodada. Não identifiquei regressão nova
+introduzida pelo diff nas sondas executadas.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL2-6-01 | `tests/test_identidade_no_consumo.py:148–169` | **RVL2-5-01 parcialmente fechado: comparação textual de nomes perde aliases equivalentes.** Um alias interno `S` sem aspas oculta o `s` externo no PostgreSQL, mas `_ligacoes(..., 's')` não o conta. A exceção concede `retail` ao identificador interno `legacy`; `violacoes` retorna `[]`. Também ocorre com referência externa escrita `"s"`. Proposta: comparar identificadores pela semântica do dialeto, preservando a distinção dos nomes entre aspas, ou recusar a forma não resolvida. Evidência B. | `ajuste` | **Corrigido.** A árvore passa por `normalize_identifiers(…, dialect="postgres")` antes de tudo: sem aspas vira minúscula, entre aspas fica como está — `S` e `s` são o mesmo alias, `"S"` é outro, como no PostgreSQL. O caso de B 0 → 1. |
+| RVL2-6-02 | `tests/test_identidade_no_consumo.py:148–169` | **RVL2-5-01 parcialmente fechado: função no `FROM` tem nome implícito que não entra na contagem.** `json_to_record(…) AS (source_system text, order_id int)` declara colunas, mas não um alias de relação explícito; no PostgreSQL, `json_to_record.order_id` aponta para essa função. No AST, `TableAlias.name` e `Table.name` são vazios. A guarda só conta o alias externo homônimo e empresta sua origem. Proposta: reconhecer o nome implícito ou impedir a exceção diante dessa relação não resolvida. Evidência C. | `ajuste` | **Corrigido**, de modo conservador: `_relacao_sem_nome` — um `TableAlias` ou `Table` sem nome legível, como `json_to_record(…) as (…)` — retira a exceção da fonte única da consulta inteira. O caso de C 0 → 1. |
+| RVL2-6-03 | `tests/test_identidade_no_consumo.py:228–234` | **`Column.table` não identifica sozinho a procedência.** `orders.source_system` e `trusted.orders.order_id` têm o mesmo `.table`, mas podem apontar para uma relação local e outra externa. `_pertence_correlaciona` retorna `True` tanto quando a mistura está na tupla externa quanto na projeção interna; `violacoes` retorna `[]`, e o PostgreSQL casa `legacy/37` com `retail/37`. Proposta: considerar a qualificação completa e o escopo ou recusar conservadoramente colunas com schema/catalog antes de conceder a prova. Evidência D. | `ajuste` | **Corrigido**, de modo conservador: `_qualificacao_longa` — coluna com schema ou catálogo — não entra em prova nenhuma, nem na correlação de junção nem no `in`. O caso de D 0 → 1. |
+| RVL2-6-04 | `tests/test_identidade_no_consumo.py:210–226` | **A recusa documentada de expansão `*` não cobre `a.*`/`b.*`.** O sqlglot representa o asterisco qualificado como `Column(Star)`, que passa no teste de `exp.Column`. A consulta válida de E recebe `True` e `[]`, embora a prova prometa tupla plana de colunas e recusa de `select *`. Este caso é divergência documental, não uma colisão de origem demonstrada. Proposta: recusar também a expansão qualificada ou delimitar explicitamente e justificar o suporte no contrato. | `ajuste` | **Corrigido.** `Column(Star)` (`b.*`) é recusado na prova do `in`, como expansão. `(a.source_system, a.order_id) in (select b.source_system, b.* from b)`: `[]` em `6b06205`, uma acusação agora. |
+| RVL2-6-05 | `tests/test_identidade_no_consumo.py::_e_identificador` e `violacoes` — fora do diff | Identificadores não delimitados em maiúsculas, como `a.ORDER_ID=b.ORDER_ID`, não são reconhecidos pelo regex sensível a caixa. A sonda casa `retail/37` com `legacy/37` e retorna `[]`. É lacuna preexistente da detecção, distinta da contagem de aliases de RVL2-6-01; fica como observação por estar fora do escopo dos dois commits. Evidência F. | `observação` | **Corrigido** pela mesma normalização de RVL2-6-01: `a.ORDER_ID = b.ORDER_ID` vira `order_id` e acusa (0 → 1). Identificador entre aspas em maiúsculas continua sendo, como no PostgreSQL, outro nome. |
+| RVL2-6-06 | `tests/test_identidade_no_consumo.py::violacoes`, chamada de `_pertence_correlaciona` — fora do diff | Se o único identificador está no lado interno do `IN`, a chamada à prova é omitida: o filtro examina somente os nomes externos. Na sonda de F, `_pertence_correlaciona` corretamente retorna `False`, mas `violacoes` retorna `[]`. A alteração de todas as posições dentro da prova está correta; o chamador não alterado continua com essa lacuna. | `observação` | **Corrigido.** O chamador junta os nomes dos dois lados antes de decidir chamar a prova: `a.tag in (select b.order_id from b)` 0 → 1. Com a origem casada, `(a.source_system, a.tag) in (select b.source_system, b.order_id from b)` passa — é o caso de teste que mostra que a prova, não o filtro, decide. |
+
+### A — respostas da rodada 5 e reexecução da matriz B/C/D
+
+“Fechado” abaixo é conclusão técnica sobre o achado específico, não aceite do
+Owner nem declaração de completude da guarda.
+
+| Achado anterior | Conclusão desta rodada | Comando e saída que a sustentam |
+|---|---|---|
+| RVL2-5-01 | **Parcialmente fechado.** Os três exemplos originais e a enumeração de aliases explícitos foram corrigidos. A garantia de contar toda relação nomeada ainda falha por caixa e nome implícito: RVL2-6-01/02. | `.venv/bin/python /tmp/rvl2-round6-matrix.py`: `values_shadow`, `lateral_shadow`, `unnest_shadow`: `1dbb2c5= 0 HEAD= 1`. O script original da rodada 5 agora mostra duas ligações e `origem(s)= set()` nos três. |
+| RVL2-5-02 | **Fechado quanto ao qualificador externo vazio.** O código exige `"" not in de_fora`, e o exemplo com origem/identificador não qualificados acusa. A confusão de qualificação completa tem registro próprio em RVL2-6-03. | Mesmo comando: `outer_unqualified 1dbb2c5= 0 HEAD= 1`; `.venv/bin/python /tmp/rvl2-round5-extra.py`: `HEAD ['in (subconsulta) sem a origem: order_id']`, `pertence_correlaciona= False`. |
+| RVL2-5-03 | **Fechado quanto às posições descartadas dentro da prova.** Todos os elementos externos e internos participam dos conjuntos; não há mais filtro por nome antes da comparação. Tanto `c.customer_id` quanto `c.tag` acusam. O filtro anterior à chamada, fora do diff, é a observação RVL2-6-06. | `.venv/bin/python /tmp/rvl2-round6-matrix.py`: `inner_extra_id` e `inner_extra_non_id`: `1dbb2c5= 0 HEAD= 1`; script original: `pertence_correlaciona= False` nos dois. |
+
+Comandos executados, com código 0:
+
+```bash
+.venv/bin/python /tmp/rvl2-round5-extra.py > /tmp/rvl2-round6-round5-extra.log
+.venv/bin/python /tmp/rvl2-round6-matrix.py > /tmp/rvl2-round6-matrix.log
+.venv/bin/python /tmp/rvl2-round5-c1-c3.py
+```
+
+O primeiro reutiliza **sem alteração** todas as entradas B/C/D e os controles da
+rodada 5; seu rótulo antigo `36acc2d` continua sendo aquela base, e `HEAD` lê o
+arquivo atual. O segundo reutiliza essas mesmas entradas e compara com a base
+correta desta rodada, `1dbb2c5`. Saída literal dessa comparação:
+
+```text
+values_shadow 1dbb2c5= 0 HEAD= 1
+lateral_shadow 1dbb2c5= 0 HEAD= 1
+unnest_shadow 1dbb2c5= 0 HEAD= 1
+outer_unqualified 1dbb2c5= 0 HEAD= 1
+inner_extra_id 1dbb2c5= 0 HEAD= 1
+inner_extra_non_id 1dbb2c5= 0 HEAD= 1
+qualified_star 1dbb2c5= 0 HEAD= 0
+qualified_outer_control 1dbb2c5= 1 HEAD= 1
+qualified_inner_control 1dbb2c5= 1 HEAD= 1
+values_direct_control 1dbb2c5= 1 HEAD= 1
+valid_tuple 1dbb2c5= 0 HEAD= 0
+valid_tuple_reversed 1dbb2c5= 0 HEAD= 0
+```
+
+No extrato C1–C3, cada um de `parenthesized_join_shadow`,
+`in_unqualified_correlated`, `in_no_from`, `in_wrong_table_origin`,
+`in_shadow_alias_valid`, `in_nested_valid` e `in_star` retorna uma acusação;
+`in_alias_projection => []` e `views_com_IN_subconsulta= 0`.
+As recusas conservadoras dessas formas não são achados.
+
+Também conferi a representação dos aliases explícitos. Saída literal de `matrix.py`:
+
+```text
+alias table TableAlias= [('Table', 's')] ligacoes= 1
+alias subquery TableAlias= [('Subquery', 's')] ligacoes= 1
+alias cte TableAlias= [('CTE', 's')] ligacoes= 2
+alias values TableAlias= [('Values', 's')] ligacoes= 1
+alias lateral TableAlias= [('Lateral', 's')] ligacoes= 1
+alias unnest TableAlias= [('Unnest', 's')] ligacoes= 1
+alias function_explicit TableAlias= [('Table', 's')] ligacoes= 1
+alias rows_from TableAlias= [('Table', 's')] ligacoes= 1
+alias xmltable TableAlias= [('Table', 's')] ligacoes= 1
+alias unaliased TableAlias= [] ligacoes= 1
+```
+
+Na CTE, as duas ligações são a declaração e a referência `FROM s`; essa
+supercontagem conservadora não é um achado. O problema é deixar passar uma
+ligação real, como nas próximas duas evidências.
+
+### B — alias sem aspas com caixa diferente ainda oculta o externo
+
+Comandos comuns às sondas adicionais de B–F:
+
+```bash
+.venv/bin/python /tmp/rvl2-round6-probes.py > /tmp/rvl2-round6-probes.log
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl2-round6-proofs.sql > /tmp/rvl2-round6-proofs.log
+```
+
+Ambos terminaram com código 0. O script compara a guarda de `1dbb2c5` com a
+atual, imprime a prova e gera o SQL de leitura. Entrada `case_shadow`:
+
+```sql
+select * from retail.orders s
+where exists (
+  select 1 from (a x join (values ('legacy',37)) S(source_system,order_id)
+    on x.order_id=s.order_id and x.source_system='retail')
+)
+```
+
+Saída literal:
+
+```text
+1dbb2c5 []
+HEAD []
+ligacoes= ['retail.orders AS s']
+origem= ['retail']
+aliases= [('Table', 's'), ('Table', 'x'), ('Values', 'S')]
+```
+
+O parser preserva `S`; a comparação de strings não o considera igual a `s`.
+No PostgreSQL, o `S` **sem aspas** nomeia `s`, e o identificador do `ON` é do
+`VALUES` interno, de origem `legacy`. Para a prova SQL, como na rodada 5,
+substituí apenas a fonte externa `retail.orders s` por
+`(values ('retail',37)) s(source_system,order_id)` e declarei
+`a(source_system,order_id) as (values ('retail',37))`. Não alterei o join interno.
+O controle acrescenta `and x.source_system=s.source_system` ao `ON`.
+Saída literal do PostgreSQL:
+
+```text
+case_shadow
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+
+case_shadow_origin_control
+ source_system | order_id
+---------------+----------
+(0 rows)
+```
+
+`case_quoted_reference`, com alias externo e referência escritos `"s"`, também
+retorna `HEAD []`, uma linha SQL e zero no controle de origem. Já
+`quoted_exact_shadow`, com `"S"` nos dois escopos, é corretamente acusado no
+HEAD; `quoted_distinct_control`, com `s` externo e `"S"` interno, passa
+corretamente: esses dois nomes são distintos, e a referência `s.order_id` é
+externa. Não se propõe simplesmente converter todo nome para minúsculas.
+
+### C — função sem alias explícito declara um qualificador implícito
+
+Entrada `function_implicit`:
+
+```sql
+select * from retail.orders json_to_record
+where exists (
+  select 1 from (a x join
+    json_to_record('{"source_system":"legacy","order_id":37}')
+      as (source_system text,order_id int)
+    on x.order_id=json_to_record.order_id and x.source_system='retail')
+)
+```
+
+Saída literal da guarda:
+
+```text
+1dbb2c5 []
+HEAD []
+ligacoes= ['retail.orders AS json_to_record']
+origem= ['retail']
+aliases= [('Table', 'json_to_record'), ('Table', 'x'), ('Table', '')]
+```
+
+O alias de colunas existe no AST, mas seu nome de relação é vazio; o `Table`
+que envolve a função também tem `.name == ''`. O PostgreSQL resolve
+`json_to_record.order_id` para a função interna, não para a fonte externa.
+A mesma substituição da fonte externa por `VALUES` e a mesma declaração de `a`
+de B permitem executar a prova sem criar objetos. Controle: acrescentar
+`and x.source_system=json_to_record.source_system`.
+
+```text
+function_implicit
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+
+function_implicit_origin_control
+ source_system | order_id
+---------------+----------
+(0 rows)
+```
+
+Ao escrever explicitamente `AS json_to_record(source_system text, order_id int)`,
+o SQL ainda casa as mesmas linhas, mas a guarda corretamente acusa:
+
+```text
+HEAD ["junção sem a origem: x.order_id = json_to_record.order_id AND x.source_system = 'retail'"]
+origem= []
+```
+
+Portanto, contar `TableAlias` resolve as seis formas explícitas descritas na
+resposta, mas não sustenta a promessa de que nenhuma relação nomeada fica fora.
+
+### D — qualificação de schema ignorada nos dois lados do IN
+
+A consulta seguinte é **a mesma** passada à guarda e ao PostgreSQL. Lê somente
+o pedido sintético existente `trusted.orders.order_id=37`, de origem `legacy`:
+
+```sql
+with a(source_system,order_id) as (values ('retail',37))
+select trusted.orders.source_system as actual_origin,
+       trusted.orders.order_id, a.source_system as borrowed_origin
+from trusted.orders cross join a
+where trusted.orders.source_system='legacy' and trusted.orders.order_id=37
+  and (a.source_system,a.order_id) in (
+    select orders.source_system,trusted.orders.order_id
+    from (values ('retail',999)) orders(source_system,order_id)
+  );
+```
+
+Saída literal de `inner_schema`:
+
+```text
+1dbb2c5 []
+HEAD []
+pertence_correlaciona= True
+colunas= [('a.source_system', 'a', ''), ('a.order_id', 'a', ''), ('orders.source_system', 'orders', ''), ('trusted.orders.order_id', 'orders', 'trusted')]
+```
+
+A coluna de origem vem do `VALUES` interno; o identificador vem da tabela
+externa. A prova vê apenas `de_dentro={'orders'}` e encontra esse nome no
+`FROM` interno. O `999` interno nem participa do casamento. O controle troca
+`orders.source_system` por `trusted.orders.source_system` na projeção interna.
+Saída literal do PostgreSQL:
+
+```text
+inner_schema
+ actual_origin | order_id | borrowed_origin
+---------------+----------+-----------------
+ legacy        |       37 | retail
+(1 row)
+
+inner_schema_control
+ actual_origin | order_id | borrowed_origin
+---------------+----------+-----------------
+(0 rows)
+```
+
+A mistura também passa na tupla **externa**, caso `outer_schema`:
+
+```sql
+with a(source_system,order_id) as (values ('retail',37))
+select * from a where exists (
+  select 1 from trusted.orders
+  where trusted.orders.source_system='legacy' and trusted.orders.order_id=37
+    and exists (
+      select 1 from (values ('retail',999)) orders(source_system,order_id)
+      where (orders.source_system,trusted.orders.order_id) in
+        (select a.source_system,a.order_id from a)
+    )
+);
+```
+
+```text
+1dbb2c5 []
+HEAD []
+pertence_correlaciona= True
+colunas= [('orders.source_system', 'orders', ''), ('trusted.orders.order_id', 'orders', 'trusted'), ('a.source_system', 'a', ''), ('a.order_id', 'a', '')]
+```
+
+O PostgreSQL devolve `retail | 37`, `(1 row)`. Substituir a primeira posição por
+`trusted.orders.source_system` devolve `(0 rows)`. O problema não é uma recusa
+excessiva de sintaxe desconhecida: são dois falsos negativos com referência
+qualificada válida, aceitos como prova de procedência comum.
+
+### E — docstrings e expansão qualificada
+
+Os requisitos de qualificador externo não vazio e de participação de todas as
+posições estão implementados. Permanecem falsas a garantia de unicidade de
+ligação (B/C) e a de que os campos internos vêm de uma relação declarada na
+subconsulta (D). A recusa de `SELECT *` simples, tupla aninhada e alias idêntico
+nos exemplos C1–C3 continua funcionando e não foi tratada como defeito.
+
+Há, porém, uma expansão **qualificada** válida que a prova aceita:
+
+```sql
+with a(source_system,order_id) as (values ('retail',37)),
+     b(source_system,order_id) as (values ('retail',37))
+select * from a
+where (a.source_system,a.order_id,a.*) in
+  (select b.source_system,b.order_id,b.* from b);
+```
+
+Saída literal do caso `qualified_star` de `probes.py`:
+
+```text
+1dbb2c5 []
+HEAD []
+pertence_correlaciona= True
+colunas= [('a.source_system', 'a', ''), ('a.order_id', 'a', ''), ('a.*', 'a', ''), ('b.source_system', 'b', ''), ('b.order_id', 'b', ''), ('b.*', 'b', '')]
+```
+
+PostgreSQL:
+
+```text
+qualified_star
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+```
+
+O SQL é válido porque expande os dois lados. A guarda compara três nós por
+lado, mas o banco compara quatro campos. Não demonstrei colisão de origem
+nesta consulta; o achado é a aceitação de expansão que a descrição da prova
+promete recusar. A entrada `qualified_star` antiga da matriz B/C/D tem outra
+aridade; este exemplo com expansão nos dois lados elimina essa dúvida.
+
+### F — observações fora do diff
+
+As duas sondas abaixo estão no mesmo `probes.py` e foram executadas por `ro.sh`.
+Não atribuo sua correção aos dois commits desta rodada.
+
+```sql
+-- uppercase_identifier_outside_scope
+with a(source_system,order_id) as (values ('retail',37)),
+     b(source_system,order_id) as (values ('legacy',37))
+select * from a join b on a.ORDER_ID=b.ORDER_ID;
+
+-- inner_identifier_only_outside_scope
+with a(source_system,tag) as (values ('retail',37)),
+     b(source_system,order_id) as (values ('legacy',37)),
+     c(source_system) as (values ('retail'))
+select * from a
+where (a.source_system,a.tag) in
+  (select c.source_system,b.order_id from b cross join c);
+```
+
+Saída literal da guarda para a primeira:
+
+```text
+1dbb2c5 []
+HEAD []
+```
+
+Para a segunda:
+
+```text
+1dbb2c5 []
+HEAD []
+pertence_correlaciona= False
+```
+
+Saída literal do PostgreSQL:
+
+```text
+uppercase_identifier_outside_scope
+ source_system | order_id | source_system | order_id
+---------------+----------+---------------+----------
+ retail        |       37 | legacy        |       37
+(1 row)
+
+inner_identifier_only_outside_scope
+ source_system | tag
+---------------+-----
+ retail        |  37
+(1 row)
+```
+
+Na segunda, a prova atual rejeitaria a procedência de `c.source_system` e
+`b.order_id`; é o filtro de identificadores somente externos que a impede de
+ser chamada. Isso distingue essa observação do defeito corrigido em RVL2-5-03.
+
+### G — as 16 views, P12 e regressões
+
+Saída literal de `.venv/bin/python /tmp/rvl2-round5-extra.py` no HEAD desta rodada:
+
+```text
+average_order_value_by_channel_and_segment => []
+cart_conversion_rate_by_channel => []
+discount_share_by_channel => []
+gross_margin_by_category => []
+inventory_turnover_by_sku_and_warehouse => []
+monthly_revenue_by_channel_and_category => []
+new_and_repeat_customers_by_month => []
+on_time_delivery_rate_by_carrier => []
+order_to_delivery_time_by_region => []
+payment_approval_rate_by_method => []
+refund_rate_by_reason => []
+repeat_purchase_rate_after_support => []
+revenue_by_delivery_region => []
+skus_below_reorder_point => []
+support_tickets_per_hundred_orders => []
+top_skus_by_revenue => []
+P12= skus_below_reorder_point.sql
+P12 ligacoes(s)= ['retail.inventory_movements_stream AS s']
+P12 sem excecao= ["junção sem a origem: f.source_system = 'retail' AND f.movement_id = s.movement_id"]
+```
+
+O controle de P12 substitui `_origem_fixa_por_fonte` apenas em memória por uma
+função que retorna `set()`. Confirma que a passagem depende da fonte única.
+Não executei as 16 views no banco nem recalculei métricas; conferi a guarda
+sobre cada SQL, que é o objeto desta rodada.
+
+Gates executados antes de acrescentar o parecer, ambos com código 0:
+
+```bash
+make check-offline > /tmp/rvl2-round6-check-offline.log 2>&1
+make secrets-history > /tmp/rvl2-round6-secrets-history.log 2>&1
+```
+
+Saídas literais pertinentes, omitindo progresso e inventário de integração:
+
+```text
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+809 passed, 188 deselected in 144.65s (0:02:24)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Reproduzida a contagem do autor, `809 passed, 188 deselected`. O gate não cobre
+os escapes adicionais: sua evidência vem das sondas separadas acima.
+
+### H — preservação do ambiente e conclusão
+
+Todo SQL real passou por `ro.sh` com `ENG_DADOS_DIR` neste checkout. Foram
+somente consultas de metadados, `SELECT` com `VALUES`/CTEs/função de construção
+de registro e leitura de `trusted.orders`. Nenhum DDL, DML, build, alteração de
+configuração, chamada a `garantir()`, reset, seed, sync, DAG, ledger ou operação
+de recuperação. Não disparei nem pausei `fluxo_batch`, não subi nem pausei
+serviços e não escrevi em `data/memoria_do_legado/`. Não fiz inventário completo
+antes/depois; a preservação se apoia no conteúdo das sondas e na sessão de leitura.
+
+Somente `REVISAO.md` foi editado como entrega no repositório. Scripts e logs
+ficaram em `/tmp/rvl2-round6-*`. Os não rastreados `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já existiam e não foram tocados.
+Sem commit ou push; nenhuma correção implementada.
+
+**Conclusão técnica: o lote 2 ainda não pode ser encerrado.** RVL2-5-02 e
+RVL2-5-03 estão fechados nos pontos que descreviam; RVL2-5-01 está parcialmente
+fechado. Restam os ajustes RVL2-6-01 a RVL2-6-04; RVL2-6-05/06 são observações
+fora do diff. O aceite formal continua sendo do Owner.
