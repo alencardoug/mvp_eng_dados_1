@@ -3165,3 +3165,296 @@ estratégia ou de sentinela no warehouse. A cobertura desses caminhos combina
 leitura do código instalado, dispatch efetivo e oráculos SQL somente leitura;
 não é alegação de integração destrutiva executada. Os checks verdes não encerram
 as contraprovas acima. **O lote 3 não pode ser encerrado nesta rodada.**
+
+## Rodada 7 — lote 3
+
+**Changes required — alterações necessárias.** Um bloqueante, um ajuste e uma
+observação confirmados. A leitura agora preserva `config.meta` e a promoção
+volta a funcionar, mas um alias de fonte ainda encobre uma descrição incorreta.
+A reconciliação de ingestão também continua podendo passar ou falhar conforme o
+fuso da sessão. **O lote 3 não pode ser encerrado.** Parecer técnico, sem aceite
+formal da implementação ou da release.
+
+### Escopo e versão
+
+Revisão em 05/11/2026, na branch `main`, de **`8e6e400..0361d59`**, exclusivamente
+`e12ac3b`, `984d4a6` e `0361d59`. HEAD conferido no início e antes do registro:
+`0361d59f2e6fe8525c3db2926a06d29f008a78b1`; nenhum arquivo rastreado estava alterado.
+`GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md` já estavam não rastreados,
+não integram a revisão e não foram tocados. Só `REVISAO.md` foi editado neste
+checkout; sondas, geração, cache e parsing ficaram em `/tmp/rvl3-r7-review`.
+Nenhuma correção implementada, commit, build, snapshot, operação de DAG ou
+escrita no warehouse.
+
+Foram lidos o diff, AGENTS.md, CLAUDE.md, a skill local `revisao`, Governança
+§5.1, Qualidade §4, a decisão do Owner em RVL3-6-04 e os encerramentos anteriores
+pertinentes. A expansão além dos arquivos alterados se limita aos consumidores
+dos metadados, ao dbt instalado, às janelas remanescentes e às contraprovas
+abaixo. As situações preenchidas pelo autor foram tratadas como alegações.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-7-01 | `src/mvp_ed1/models/descriptions.py:157–178`, especialmente as identidades em 159 e 178 | **Um alias de fonte ainda encobre uma descrição incorreta.** A recusa usa `(source.name, table.name)`, mas `disk_sources` reduz por `(schema, table.name)`. `retail` e `retail_alias` no mesmo schema passam pela recusa e colidem depois: a ocorrência correta que vem por último esconde a incorreta da primeira. Check → geração → check retornam **0/0/0**, sem corrigir `retail.order_items.quantity = "Valor monetário total do pedido em reais."`. O dbt aceita ambas e conserva os dois textos. **Alta → bloqueante:** declaração errada aceita silenciosamente no catálogo, contrariando a barra desta revisão e a Governança §5.1. Preexistente, fechamento incompleto da unicidade de R6-02, sem regressão nova atribuída a `984d4a6`. Evidência R7-A. | `bloqueante` | **Corrigido.** A recusa passou a usar a mesma identidade com que `disk_sources` reduz: `(schema efetivo, tabela)` — `schema` declarado, ou o nome da fonte quando não há — em `_documents` (entre arquivos) e em `read_yaml` (no mesmo arquivo). Seu `retail` × `retail_alias` no schema `retail` agora para o catálogo com "tabela de fonte `retail.t` em … e em …". Casos no teste de `config.meta`/fonte repetida; contraprova com `0361d59`: não recusava. Governança §5.1 v2.18. |
+| RVL3-7-02 | `dbt/tests/caminhos_de_ingestao_reconciliam.sql:40–46`; `tests/test_vigencia_em_utc.py:60` | **A reconciliação de ingestão ainda passa ou falha pelo fuso da sessão.** O teste mantém `max(recorded_at) - interval '7 days'`. Com máximo em `2024-03-15 12:00+00` e evento só no fluxo em `2024-03-08 12:30+00`, retorna **0 falhas em UTC e 1 em America/New_York**, sem mudar nenhum dado. A guarda nova só percorre `models`, por isso não acusa essa janela. **Média → ajuste:** muda o veredito da catraca de completude do caminho de ingestão; não demonstrei divergência nos dados atuais. Preexistente, omissão na extensão da decisão de R6-04 aos testes. Evidência R7-B. | `ajuste` | **Corrigido**, estendendo a decisão do Owner aos testes: a tolerância de `caminhos_de_ingestao_reconciliam` passa por `dias_no_calendario(max(recorded_at), -atraso_maximo_dias)`. A guarda de `tests/test_vigencia_em_utc.py` agora percorre `models`, `tests` e `macros` (fora a própria macro); contraprova com os arquivos de `0361d59`: acusa `tests/caminhos_de_ingestao_reconciliam.sql:44`. Qualidade §4 diz que a regra vale também para os testes de dados. |
+| RVL3-7-03 | `dbt/models/analytics/fact_inventory_movement.sql:87–89` | **O fallback de `period_start` continua dependendo da sessão.** A macro explicita o calendário da soma, mas recebe `timestamptz '2024-01-01'` quando não há máximo retail. Esse literal sem offset já representa instantes diferentes: o corte de menos sete dias sai em `2023-12-25 00:00`, `03:00` e `05:00` UTC conforme a sessão. **Baixa → observação:** quebra a independência declarada do limite, mas o ramo não foi acionado no estado atual, e o início de `dim_date` é posterior a esses cortes; não atribuo perda de linhas a esta contraprova. Preexistente, remanescente no call site alterado em `e12ac3b`. Evidência R7-B. | `observação` | **Corrigido.** O fallback da fato incremental passou a `timestamptz '<period_start> 00:00-03'`, como os demais literais; e o sentinela de `test_vigencias_sem_sobreposicao` (`timestamptz '9999-12-31'`) a `'9999-12-31 00:00+00'`. Teste novo `test_todo_literal_timestamptz_diz_o_fuso` recusa literal `timestamptz` sem fuso escrito (salvo `infinity`) em modelos, testes, macros e snapshots; contraprova com os arquivos de `0361d59`: acusa o fallback. |
+
+### Evidências e correções propostas
+
+**R7-A — leitura estrita, alias de fonte e promoção.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r7-review/catalog.py
+# Com .env carregado; todo o projeto dbt usado pelo comando fica em /tmp:
+PYTHONDONTWRITEBYTECODE=1 DBT_SEND_ANONYMOUS_USAGE_STATS=false \
+  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s' \
+  .venv/bin/python -P /tmp/rvl3-r7-review/dbt_probe.py
+```
+
+`catalog.py` copiou o projeto e o manifest atuais, carregou a derivação real e
+confirmou `BASE_STALE [] DERIVATION_PROBLEMS []`. O check inicial retornou 0,
+com 2.983 colunas, 199 nós e nenhum arquivo desatualizado. Para o alias, manteve
+`schema: raw`, copiou a tabela `order_items` para uma segunda fonte denominada
+`retail_alias` e alterou **somente** a descrição de `quantity` na fonte original
+para o texto monetário acima. Saída executada, abreviada nas mensagens repetidas:
+
+```text
+SOURCE_ALIAS_SHADOW ['--check'] RC 0 ... 0 arquivo(s) desatualizado(s)
+SOURCE_ALIAS_SHADOW [] RC 0 ... 0 arquivo(s) escrito(s)
+SOURCE_ALIAS_SHADOW ['--check'] RC 0 ... 0 arquivo(s) desatualizado(s)
+SOURCE_ALIAS_DESCRIPTIONS [('retail', 'Valor monetário total do pedido em reais.'), ('retail_alias', 'Quantidade comprada do SKU.')]
+DBT_LS_RC 0 OUTPUT retail.order_items
+retail_alias.order_items
+DBT_SOURCE_DESCRIPTION retail Valor monetário total do pedido em reais.
+DBT_SOURCE_DESCRIPTION retail_alias Quantidade comprada do SKU.
+```
+
+A sonda de alias usa `load` e `stale_nodes` reais, sem substituí-los. O parsing
+dbt foi feito numa segunda cópia com os mesmos YAMLs; o manifest confirma as
+duas fontes aceitas. Não é mera hipótese de análise estática nem duplicidade
+que o dbt rejeita. A chave que perde a ocorrência já existia em `8e6e400`;
+o novo teste cobre fonte **de mesmo nome**, não esse alias válido.
+
+**Correção de RVL3-7-01:** preservar e conferir todas as declarações antes de
+reduzi-las ao mapa de relações. Aliases legítimos não podem dispensar a
+validação de uma ocorrência: corrigir cada declaração ou recusar o conflito
+explicitamente, sem escrita parcial. Considerar a identidade física efetiva,
+inclusive `identifier`, ao verificar colisões. Validar com dois nomes de fonte
+para a mesma relação, no mesmo arquivo e em arquivos distintos, invertendo a
+ordem: nenhuma descrição incorreta pode sobreviver a check → geração → check
+com três retornos 0.
+
+A correção de proveniência e a promoção foram exercitadas separadamente:
+
+```text
+CONFIG_META_CONSTANT ['--check'] RC 1
+CONFIG_META_CONSTANT [] RC 1
+CONFIG_META_CONSTANT ['--check'] RC 1
+# Nos três: probe_marker.quantity: não transporta mais (constant) e guarda o texto de quem lê
+PROMOTION [] RC 0 ... 1 arquivo(s) escrito(s)
+PROMOTION_RECHECK ['--check'] RC 0 ... 0 arquivo(s) desatualizado(s)
+HAND_DERIVED_HAND _a.yml _z.yml REFUSED
+HAND_DERIVED_HAND _a.yml _0.yml REFUSED
+HAND_DERIVED_HAND _z.yml _0.yml REFUSED
+```
+
+A promoção real de `delivery_events` removeu a entrada gerada e preservou a
+manual. As três ordenações com duas entradas manuais e uma derivada recusaram
+as manuais duplicadas. Não confirmei abuso da exceção de promoção nesses casos.
+Para a constante, foi acrescentado um nó sintético `select 100 as quantity`
+ao manifest em memória, refeita a derivação e reutilizado esse par entre os
+três modos; o marcador e a sensibilidade estavam apenas em `config.meta`.
+Esse isolamento é distinto da sonda de alias, que usa o manifest original.
+
+No dbt **1.12.3** instalado, `dbt/parser/common.py:273–298` monta
+`column_meta = {**column.meta, **column_config_meta}`. O parsing confirmou:
+
+```text
+DBT_COLUMN_META probe_meta_merge {'sensitivity': 'internal', 'description_inherited': True}
+DBT_COLUMN_META probe_meta_conflict {'description_inherited': True}
+```
+
+`read_yaml` coincide na união sem conflito e recusa o segundo caso, em vez de
+aceitar a precedência do dbt. É a restrição explícita proposta pela correção,
+com falha fechada, não perda silenciosa de metadados. Não encontrei defeito
+nesse merge de coluna.
+
+**R7-B — macro, janelas remanescentes e independência da sessão.**
+
+Todos os SQLs superusuários foram executados pelo wrapper autorizado:
+
+```sh
+ENG_DADOS_DIR="$PWD" /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r7-review/temporal.sql
+```
+
+Saída: `transaction_read_only = on`. A sonda renderizou a macro real e usou
+somente CTEs/SELECTs e `SET TIME ZONE` na sessão descartável. Para a soma de
+90 dias a `2018-10-01 12:00+00`, o resultado foi `2018-12-30 11:00 UTC`; para
+menos sete dias de `2018-11-06 12:00+00`, `2018-10-30 13:00 UTC`. As duas
+atravessam horário de verão de São Paulo. Os três fusos produziram os mesmos
+resultados, tipo `timestamp with time zone`, e deslocamento zero preservou o
+instante. Assim, os sinais positivo e negativo da **macro** estão corretos.
+
+Os caminhos que ainda usam a sessão produziram:
+
+```text
+zone                 empty_retail_cutoff_utc   failed_rows  reconciliation_cutoff_utc
+UTC                  2023-12-25 00:00:00       0            2024-03-08 12:00:00
+America/Sao_Paulo    2023-12-25 03:00:00       0            2024-03-08 12:00:00
+America/New_York     2023-12-25 05:00:00       1            2024-03-08 13:00:00
+```
+
+São duas consultas por fuso, reunidas acima para comparação. `failed_rows`
+reproduz a condição completa do teste sobre duas linhas sintéticas: máximo
+presente nos dois caminhos e linha anterior presente só no fluxo. O outro
+valor reproduz o `coalesce(max(...), timestamptz '2024-01-01')` com conjunto
+vazio, seguido pela macro real com `-7`.
+
+**Correção de RVL3-7-02:** aplicar o calendário decidido pelo Owner também à
+janela do teste de ingestão e incluir os testes SQL na guarda pertinente.
+Validar passagem/falha nas bordas com os mesmos instantes em UTC, São Paulo e
+Nova York, incluindo transições de horário de verão; não basta contar os
+`at time zone` no texto da macro.
+
+**Correção de RVL3-7-03:** tornar explícito o instante inicial de `period_start`,
+coerente com a meia-noite de São Paulo já usada pelas dimensões. Validar a
+expressão compilada inteira com a subquery `{{ this }}`, máximo nulo e não
+nulo. O manifest atual já compila corretamente `this` e `-var(...)`; o defeito
+é o literal de entrada, não erro de sintaxe Jinja. No warehouse observado há
+15.925 linhas retail na fato; não executei esvaziamento nem incremental real.
+
+A busca dirigida em modelos, macros e testes encontrou essas duas lacunas. As
+reduções de instante a data dos modelos examinados explicitam São Paulo, e as
+vigências continuam escritas/lidas como UTC. A sentinela distante do teste de
+sobreposição também é um literal `timestamptz` sem offset; não demonstrou
+mudança de veredito nas vigências atuais e não foi elevada a novo achado.
+As duas views físicas P15/P12 contêm `America/Sao_Paulo`, confirmado por
+`pg_views` em `physical_windows.sql`.
+
+**R7-C — impacto de negócio, medido sem build.**
+
+`compare.py` conferiu que o `raw_code` dos cinco modelos compilados antigos
+corresponde exatamente a `git show 8e6e400:dbt/<arquivo>`, e o dos novos a
+`0361d59`. Só então reutilizou o manifest de R6 e o atual para gerar
+`business.sql`. As dependências SQL/macros anteriores desses modelos não
+mudaram fora do diff examinado. O wrapper acima executou comparações
+`EXCEPT ALL` nos dois sentidos, sobre os mesmos dados atuais, em UTC:
+
+```text
+model                              old_n  new_n  old_only  new_only
+orders                             3661   3661   0         0
+customers                          1574   1574   1389      1389
+new_and_repeat_customers_by_month   560    560    0         0
+skus_below_reorder_point            532    532    0         0
+fact_inventory_movement            2673   2673   0         0
+
+active_changed  churn_changed  repeat_changed  days_changed  old_avg   new_avg
+0               0              0               1389          330.9424  331.0677
+
+delta  n
+0.12   653
+0.13   736
+NULL   185
+```
+
+`business_details.sql` comparou todos os campos de clientes, retirando apenas
+`days_since_last_order` do JSON de cada linha:
+
+```text
+other_fields_changed  active  churn  repeat
+0                     497     892    243
+closed_windows
+3307
+```
+
+Confirma-se o deslocamento subjacente de três horas, com a precisão efetiva de
+`numeric(12,2)` explicando os aumentos de 0,12/0,13, e não exatamente 0,125 em
+cada valor armazenado. Não encontrei outro resultado alterado nesses cinco
+SELECTs. A comparação da fato usa o **recorte incremental**, não toda a tabela;
+o máximo é retail nos dois SQLs, com subquery e sinal negativo preservados.
+
+`fingerprints.sql` repetiu os cinco SELECTs novos nos três fusos. Normalizou
+cada coluna `timestamptz` para epoch antes de serializar, evitando confundir
+formatação de timestamp com mudança de instante. Os fingerprints de cada
+modelo coincidiram nos três fusos, com as contagens acima. Isso sustenta a
+independência dos resultados **nos dados atuais**; as CTEs de R7-B mostram por
+que esse resultado não prova o caminho de máximo vazio nem o teste de ingestão.
+
+### Reavaliação dos achados anteriores
+
+Comandos de sondas Python abaixo: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P
+/tmp/rvl3-r7-review/<script>`. “Resolvido” se refere ao defeito demonstrado,
+não a aceite formal ou garantia sobre todo SQL futuro.
+
+| Achado anterior | Estado nesta rodada | Comando e saída conferida |
+|---|---|---|
+| RVL3-6-01 | **Resolvido.** A marca de coluna em `config.meta` não desaparece; divergências são recusadas. | `catalog.py`: `CONFIG_META_CONSTANT` com **1/1/1**, diagnóstico de constante com texto herdado. `dbt_probe.py`: merge reconhecido pelo dbt. `followup.py`: `CONFLICT REFUSED … tem ['description_inherited'] em meta e em config.meta, diferentes`. |
+| RVL3-6-02 | **Parcialmente resolvido.** A tabela com a mesma identidade lógica é recusada no mesmo arquivo e entre arquivos. O alias de relação física ainda encobre outra ocorrência, em R7-01. | `catalog.py`: `SAME_SOURCE_DUP … ValueError … [('retail', 'order_items')] … mais de uma vez`; `followup.py`: `SOURCE_CROSS_FILE REFUSED tabela de fonte retail.t …`; alias **0/0/0**. |
+| RVL3-6-03 | **Resolvido.** Promoção com coexistência transitória funciona e não permite interpor um gerado entre duas declarações manuais nas ordenações exercitadas. | `catalog.py`: `PROMOTION RC 0`, `PROMOTION_RECHECK RC 0`; três `HAND_DERIVED_HAND … REFUSED`. |
+| RVL3-6-04 | **Parcialmente resolvido.** Macro e janelas de negócio alteradas corretas nos cenários medidos, com impacto declarado confirmado. Restam R7-02/03. | `ro.sh business.sql`: resultados acima; `ro.sh temporal.sql`: sinais corretos, porém reconciliação **0/0/1** e três limites distintos no fallback; `ro.sh fingerprints.sql`: cinco modelos estáveis nos três fusos sobre os dados atuais. |
+| RVL3-5-02 | **Parcialmente resolvido.** As duplicidades originais e a migração para `config.meta` estão protegidas; a alegação geral de nenhuma ocorrência encoberta ainda falha em R7-01. | `followup.py`: `DUP_META REFUSED … chave meta repetida (linha 7)` e `DUP_COLUMN REFUSED … ['x'] mais de uma vez`; `catalog.py` acima. |
+| RVL3-4-01, RVL3-3-01, RVL3-2-01 e RVL3-01 | **Resolvidos quanto à proveniência que restava aberta em R6.** A nova lacuna de fontes é registrada separadamente em R7-01; não muda o resultado da contraprova de marca em cálculo. | `followup.py`, reaproveitando apenas o trecho de transições de R6: `DOIS_SALTOS`, `COLUNA_RENOMEADA`, `MODELO_RENOMEADO` e `GERADO_PROMOVIDO` retornam problema `não transporta mais (mul)`; marca + motivo retorna problema; `REVISTO PROBLEMAS []`. `catalog.py`: caso config corrigido **1/1/1**. |
+
+Os encerramentos anteriores de coerções/arrays, união, snapshot UTC e manifest
+atrasado não receberam alteração de implementação neste intervalo. Não refiz
+a investigação inteira: a suíte offline passou, e R7-A confirmou manifest
+atual sem atrasos. Mantém-se a delimitação de RVL3-07/RVL3-2-07: nó/macro
+novo ou apagado e `dbt_project.yml` não ganham garantia geral de atualidade.
+Nenhum ADR aceito foi reescrito.
+
+### Verificações executadas e limites
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+Ambos retornaram **0**, executados por este revisor:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+838 passed, 188 deselected in 193.27s (0:03:13)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Após acrescentar esta rodada, `make docs-check` e `git diff --check` também
+retornaram 0. As rodadas anteriores foram preservadas byte a byte (231.860 bytes).
+
+As sondas Python/SQL citadas também foram executadas; saídas completas no
+diretório temporário indicado. Esses arquivos são apoio local, não evidência
+retida versionada; os resultados essenciais foram transcritos aqui. O check
+real inicial do catálogo foi feito na cópia, sem escrita neste checkout.
+O parsing `dbt ls` foi feito na cópia; não executei novo `dbt compile`, pois os
+SQLs compilados foram conferidos contra as duas revisões antes de compará-los.
+
+**Não executados:** `make check`, build, run, snapshot, regeneração do legado,
+concessões, carga, sincronização, reset, alteração de serviços ou DAG. Os
+188 testes de integração foram excluídos/listados pelo alvo offline; não se
+alega integração completa. `PASS=907`, `1023 passed`, `3 skipped` e derivados
+atualizados em `make check` de `0361d59` são **resultados informados pelo autor**,
+não execução desta revisão. Nenhum estado de `data/memoria_do_legado/` foi
+alterado.
+
+As comparações medem expressões antigas e novas sobre o warehouse encontrado;
+não reconstituem um warehouse histórico nem exercitam escrita incremental ou
+abertura de nova versão SCD. Não demonstraram mudança de negócio adicional à
+declarada. Não há ambiguidade de baseline nem decisão de negócio nova tomada
+pelo revisor. Os achados confirmados bastam para exigir correções, sem
+concluir correção de todo o projeto.
+
+### Passagem ao Claude Code
+
+- [ ] **RVL3-7-01:** eliminar o encobrimento por alias; comprovar que nenhuma
+  ocorrência mantém descrição incorreta com check → geração → check verdes,
+  inclusive entre arquivos e com ordem invertida.
+- [ ] **RVL3-7-02:** alinhar a reconciliação ao calendário decidido e provar
+  veredito igual nas bordas nos três fusos; estender a guarda aos testes SQL.
+- [ ] **RVL3-7-03:** explicitar o instante do fallback e validar a subquery
+  compilada com/sem máximo; registrar o tratamento da observação.
+- [ ] Reexecutar os checks pertinentes e medir/declarar qualquer resultado
+  adicional que mudar; atualizar as situações sem apagar as evidências nem
+  confundir validação técnica com revisão do declarativo e aceite do Owner.
