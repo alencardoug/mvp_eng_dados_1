@@ -2164,3 +2164,553 @@ agora `timestamptz` em todas (medido no armazém depois do build); o teste dbt
 dizem a leitura em UTC. Sob UTC os valores são os mesmos — as reconciliações e a fato incremental
 passaram no build (`PASS=908`).
 
+
+## Rodada 5 — lote 3
+
+Revisão exclusiva de `afca255..9cef25b` (os quatro commits indicados), com
+HEAD em `9cef25b7cad049cfddd588ded6723f9f0103a00b`, em 05/11/2026.
+**Parecer técnico, sem aceite ou poder de aprovação. Nenhuma correção
+implementada. O lote 3 continua aberto: dois bloqueantes e um ajuste.**
+
+Somente `REVISAO.md` foi editado no checkout. As sondas e cópias estão em
+`/tmp/rvl3-r5-review`; os dois arquivos não rastreados preexistentes foram
+preservados. SQL pelo `ro.sh` autorizado, com `transaction_read_only=on`.
+Não houve build, carga, alteração de papel/banco, escrita na memória do
+legado, acionamento/pausa de `fluxo_batch` ou troca de ambiente. Os `SET LOCAL`
+das contraprovas de fuso ficaram em transações somente leitura encerradas
+com `ROLLBACK`. `dbt ls` foi executado apenas numa cópia em `/tmp`.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-5-01 | `dbt/tests/snapshot_grava_em_utc.sql:8`; `airflow/dags/fluxo_batch.py:295–338`; Qualidade §4 | **O teste não protege a gravação do snapshot contra mudança de fuso.** Ele não tem pais nem filhos no grafo. A seleção conjunta dos testes das camadas da DAG e de `tag:fronteira` contém 690 testes e **zero** ocorrências dele; a tarefa de snapshots usa `dbt snapshot`, que não executa testes. No build completo ele é selecionado, mas sua falha não bloqueia snapshots sem dependência dele: não há `--fail-fast` obrigatório nem uma validação antes da gravação. Uma mudança ordinária de `TimeZone` do papel/banco pode fazer a DAG inteira gravar horas locais e lê-las como UTC, sem essa catraca. A sonda somente leitura mostra deslocamento de três horas e uma versão escolhida antes de sua abertura real. Os valores atuais em UTC não mudaram (R5-A). Garantir a premissa no caminho que grava, antes da escrita, e ajustar a afirmação “o teste falha antes”. **Regressão/garantia incompleta de 6bd6447: a dependência de fuso já existia, mas a interpretação agora fixa exige UTC no escritor, que o novo teste não assegura.** R5-A/B. | `bloqueante` | **Corrigido no escritor, e o teste saiu.** Você tem razão: o teste não tinha pais nem filhos e o `dbt snapshot` da DAG não roda testes. A premissa foi removida em vez de vigiada: `dbt/macros/snapshot_get_time.sql` sobrepõe a macro do dbt-postgres (`now()::timestamp without time zone`, hora local da sessão) por `(now() at time zone 'UTC')`, nas duas portas — a chamada direta e `postgres__snapshot_get_time`, que a checagem de tipo do snapshot chama por `adapter.dispatch`. O tipo continua `timestamp` sem fuso. Medido: um `dbt snapshot` depois da mudança deixou no `dbt.log` 60 ocorrências de `(now() at time zone 'UTC')` e **zero** de `now()::timestamp without time zone`; antes da segunda porta, a checagem de tipo ainda usava a do adaptador. Assim nenhum modelo do projeto depende do fuso da sessão: o snapshot grava UTC, as dimensões leem UTC, e as fatos reduzem instante a data com `America/Sao_Paulo` explícito (conferido nos modelos). `dbt/tests/snapshot_grava_em_utc.sql` foi removido; `tests/test_vigencia_em_utc.py` confere as duas macros, a leitura nas quatro dimensões e que o manifest as carrega. Qualidade §4 reescrita: a guarda está no escritor. |
+| RVL3-5-02 | `src/mvp_ed1/models/sensitivity.py:784–795,902–903`; `descriptions.py:168–177,281–284`; Governança §5.1 | **A marca ainda pode desaparecer na leitura e o catálogo passar silenciosamente.** `verify_meta` só percorre `textos.marks`, que contém marcas **novas**, não todas as entradas lidas nem os gerados. No HEAD sem alterações esse conjunto tem zero arquivos. Uma segunda entrada da mesma coluna sem marca, ou uma segunda chave `meta`, encobre a primeira marcada. Se a expressão passou a calcular, nenhuma marca nova é solicitada; o YAML não passa pelo carregador estrito e o texto antigo vira raiz `written`. Na cópia completa, `quantity = 100` conserva “Quantidade comprada do SKU.” e check → geração → check retornam **0**, tanto com coluna duplicada quanto com `meta` duplicado; sem a duplicidade, retornam 1. `dbt ls` também aceita a coluna duplicada. Além disso, `verify_meta` não recusa nomes de coluna repetidos em sequência, pois os reduz a dicionário. Duplicidade acidental durante edição/merge é mudança ordinária; não exige apagar a marca original. Validar os documentos antes de perder essas ocorrências, incluindo unicidade de nomes, e cobrir a proveniência já existente. **Preexistente; fechamento incompleto de RVL3-4-01/RVL3-3-01/RVL3-2-01, não nova regressão demonstrada.** R5-C. | `bloqueante` | **Corrigido na leitura.** `sensitivity.read_yaml` — o carregador de C com o construtor de mapa que recusa chave repetida — lê **todo** `.yml` do projeto (`descriptions._documents`, `manual_entries`, `generator_entries`, `_declaracoes_no_disco`, `verify_meta`) e recusa coluna listada duas vezes numa entrada; `_documents` recusa também a mesma entrada em dois arquivos. Seus dois casos (coluna duplicada sem a marca, `meta` duplicado) agora param o `make catalog` e o `--check` com "recusado: … nenhum arquivo é tocado", antes de qualquer marca se perder. A conferência deixou de depender de haver marca nova. Teste `test_a_leitura_nao_deixa_uma_segunda_ocorrencia_encobrir_a_marca`; contraprova com `9cef25b`: não recusava. |
+| RVL3-5-03 | `src/mvp_ed1/models/transport.py:183–185,317–329` | **Array textual com parâmetro ainda é provado falsamente como texto escalar.** `canonical_type('VARCHAR(8)[]')` apaga tudo a partir do parêntese e devolve `VARCHAR`. Assim, `_e_texto` aceita os operandos de `'{abcdef}'::varchar(8)[] \|\| '{}'::varchar(8)[]`; o primeiro modelo recebe tipo conhecido `TEXT`, e `x::text` no segundo fica `Carry`, herdando a descrição sem problema. PostgreSQL confirma `character varying[] → text`: houve serialização da lista, não transporte intacto. Também ocorre com operandos vindos de colunas tipadas. Arrays parametrizados são SQL normal, embora não haja coluna atual afetada identificada. A prova deve conservar o contêiner array; retirar somente parâmetros não prova escalaridade. **Preexistente em `afca255`; a nova prova cobre arrays sem parâmetro e bits, mas não fecha RVL3-4-03 integralmente.** R5-D. | `ajuste` | **Corrigido.** `canonical_type` tira só os parâmetros (`(8)`, `(12,2)`) e conserva o `[]`: `VARCHAR(8)[]` → `VARCHAR[]`, que não é texto escalar; `_e_texto` e as regras da união o tratam como array. Seu caso `'{…}'::varchar(8)[] \|\| …` não recebe mais tipo `TEXT`. Caso no teste da união; contraprova com `9cef25b`: `'VARCHAR' == 'VARCHAR[]'`. |
+
+### Conferência das respostas e dos itens anteriores ainda encadeados
+
+“Fechado” significa encerramento do achado técnico específico, não aprovação
+da entrega. Os comandos abaixo usam `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python`
+e os scripts de `/tmp/rvl3-r5-review`; as saídas estão nas subseções seguintes.
+
+| Achado | Resultado nesta rodada | Comando e saída |
+|---|---|---|
+| RVL3-4-01 | **Não fechado integralmente.** Inline recusado e comentário preservado; a leitura ainda perde proveniência por duplicidade e não é validada em todos os caminhos. | `full.py`: `PRIMEIRA_GERACAO_META_INLINE RC 1`, `CHECK_META_INLINE RC 1`; `yaml_extra.py`: `FULL DUP_COLUMN_SHADOW ['--check'] RC 0` e `FULL DUP_META_SHADOW ['--check'] RC 0`. R5-C. |
+| RVL3-4-02 | **Fechado para os escapes levantados.** Arrays de tipos diferentes e `CHAR/TEXT` deixaram de transportar. As combinações adicionais não demonstraram nova coerção com perda aceita pela allowlist. | `types.py`: `ARRAY … union_coercion`, `CHAR_TEXT … union_coercion`; `extra_union.py`: `NUMERIC_ARRAY … union_coercion`, `CHAR_REVERSE … union_coercion`. R5-D. |
+| RVL3-4-03 | **Não fechado integralmente.** Espécie da string, arrays simples e bits corrigidos; arrays textuais parametrizados continuam anotados como `TEXT`. | `materialized.py`: `STRING_BOOL TIPO_A TEXT … Computed(kind='cast' …) TEXTO_B None`; `types_extra.py`: `VARCHAR_ARRAY_CONCAT … TIPO_A TEXT B Carry … PROBLEMAS [] []`. R5-D. |
+| RVL3-4-04 | **Fechado.** Remoção da entrada inteira recusa o manifest antigo; mover a declaração conservando seu conteúdo não causa falso positivo. | `full.py`: `SEED_REMOVIDA_STALE ['declaração de order_status_transitions']`, `SEED_DECLARACAO_REMOVIDA RC 1`; `stale_extra.py`: `SEED_ENTRY_MOVED []`. R5-E. |
+| RVL3-3-01 | **Não fechado integralmente**, pela leitura que esconde a marca em R5-02. Renomeações/promoção com marca continuam recusadas corretamente. | `transitions.py`: `COLUNA_RENOMEADA`, `MODELO_RENOMEADO`, `GERADO_PROMOVIDO` com problema `não transporta mais (mul)`; `yaml_extra.py`: duplicidades com RC 0. |
+| RVL3-2-01 | **Não fechado integralmente**, pela mesma perda de proveniência. Dois saltos com marca estão cobertos. | `transitions.py`: `DOIS_SALTOS PROBLEMAS ['b.v: não transporta mais (mul) …']`; contraprova R5-C. |
+| RVL3-01 | **Permanece aberto na cadeia da proveniência**, embora o exemplo original simples seja recusado. | `full.py`: `CONSTANTE_COM_MARCA RC 1`; `yaml_extra.py`: `DUP_COLUMN_SHADOW`/`DUP_META_SHADOW` com RC 0. |
+| RVL3-3-03 | **Fechado quanto à união de folhas desconhecidas**; a resposta como conjunto ainda depende de R5-03. | `types.py`: `MODELOS R3_ORIGINAL … union_unproven … TEXTO None PROBLEMAS [] []`; `extra_union.py`: `UNKNOWN_TYPED … union_unproven`. |
+| RVL3-02 e RVL3-2-02 | **Fechados quanto às coerções de união demonstradas nessas rodadas.** A recusa das subuniões continua funcionando. | `extra_union.py`: `R2_NESTED … union_coercion`, `R2_DEEP … union_coercion`; R5-D para a matriz ampliada. |
+| RVL3-3-04 | **Fechado quanto aos metadados lidos do manifest**, inclusive declaração retirada, renomeada ou movida. | `full.py`: ponte alterada e seed retirada com RC 1; `stale_extra.py`: fonte renomeada/removida acusa suas duas tabelas. R5-E. |
+| RVL3-2-07 | **Fechado quanto aos escapes concretos de macro e declaração apontados nas rodadas anteriores.** Não virou verificador geral de atualidade: inventário novo e `dbt_project.yml` continuam limites declarados. | `full.py`: `MACRO_ANTIGA_COMENTADA RC 1`, `PONTE_NIVEL_ALTERADO RC 1`, `SEED_DECLARACAO_REMOVIDA RC 1`; `stale.py`: seed e fonte não espelhada alteradas acusadas. |
+
+RVL3-3-02 e RVL3-3-05, já fechados na rodada 4, não reabriram:
+`transitions.py` continua normalizando as quatro grafias de `doc()` para
+`'{{ doc("x") }}'`; `full.py` continua recusando a macro antiga comentada.
+Os demais itens encerrados anteriormente não foram submetidos a uma revisão
+nova fora do intervalo solicitado.
+
+### Evidências da rodada 5
+
+**R5-A — SQL anterior e novo, resultados e limites temporais.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/temporal.py
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r5-review/temporal.sql
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r5-review/temporal_edges.sql
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r5-review/oracle.sql
+```
+
+`temporal.py` reconstrói as quatro dimensões anteriores removendo **somente**
+os dois `at time zone 'UTC'` de cada SQL compilado; mantém o `CASE` e a união
+com o membro desconhecido. Substitui as referências a essas dimensões por
+CTEs, recursivamente, nos dez fatos e nas dezesseis views descendentes. Compara
+linhas completas e multiplicidades com `EXCEPT ALL` nos dois sentidos, numa
+única transação `REPEATABLE READ READ ONLY`, em UTC. São CTEs da consulta, não
+objetos persistidos. Nenhum resultado anterior é estimado por contagem apenas.
+
+A primeira passada conserva inclusive a janela incremental compilada de
+`fact_inventory_movement`. O resumo abaixo foi produzido por
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/temporal_summary.py`,
+que extrai as linhas do log SQL e exige 26 objetos, ausência de erro e o
+`ROLLBACK` final:
+
+```text
+OBJETOS 26 FATOS 10 VIEWS 16 DIFERENCAS 0
+objeto | n_antes | n_depois | diferencas
+average_order_value_by_channel_and_segment | 751 | 751 | 0
+cart_conversion_rate_by_channel | 96 | 96 | 0
+discount_share_by_channel | 387 | 387 | 0
+fact_cart_event | 81354 | 81354 | 0
+fact_coupon_redemption | 602 | 602 | 0
+fact_inventory_movement | 2673 | 2673 | 0
+fact_order_status_event | 16432 | 16432 | 0
+fact_payment_transaction | 7426 | 7426 | 0
+fact_purchase_order_item | 1630 | 1630 | 0
+fact_refund | 120 | 120 | 0
+fact_sales_order_item | 7738 | 7738 | 0
+fact_shipment_item | 7556 | 7556 | 0
+fact_support_ticket_event | 1727 | 1727 | 0
+gross_margin_by_category | 532 | 532 | 0
+inventory_turnover_by_sku_and_warehouse | 919 | 919 | 0
+monthly_revenue_by_channel_and_category | 1494 | 1494 | 0
+new_and_repeat_customers_by_month | 560 | 560 | 0
+on_time_delivery_rate_by_carrier | 1175 | 1175 | 0
+order_to_delivery_time_by_region | 1857 | 1857 | 0
+payment_approval_rate_by_method | 537 | 537 | 0
+refund_rate_by_reason | 105 | 105 | 0
+repeat_purchase_rate_after_support | 175 | 175 | 0
+revenue_by_delivery_region | 469 | 469 | 0
+skus_below_reorder_point | 532 | 532 | 0
+support_tickets_per_hundred_orders | 118 | 118 | 0
+top_skus_by_revenue | 25 | 25 | 0
+```
+
+Para cobrir também o histórico fora da janela, a segunda sonda retira
+**simetricamente**, apenas no SQL da consulta, o predicado incremental de
+varejo. Reconstrói a fato de estoque inteira e suas três views descendentes;
+as demais 22 consultas já não tinham esse recorte:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/temporal_full_inventory.py
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r5-review/temporal_full_inventory.sql
+```
+
+```text
+objeto | n_antes | n_depois | diferencas
+fact_inventory_movement | 16398 | 16398 | 0
+gross_margin_by_category | 542 | 542 | 0
+inventory_turnover_by_sku_and_warehouse | 6402 | 6402 | 0
+skus_below_reorder_point | 532 | 532 | 0
+```
+
+Nenhuma diferença de resultado foi encontrada nos dez fatos e dezesseis views
+nesses recortes complementares, incluindo o histórico completo de estoque.
+
+O servidor confirmou `PostgreSQL 16.15`, `transaction_read_only=on`,
+`TimeZone=UTC` e os **oito** campos `valid_from`/`valid_to` como
+`timestamp with time zone`. O estado SCD continua sem versões encerradas:
+
+```text
+    modelo     |  n   | encerradas
+---------------+------+------------
+ customer      | 1574 |          0
+ coupon        |   19 |          0
+ product       |  622 |          0
+ support_agent |    7 |          0
+```
+
+Por isso a prova com dados atuais não exercita `valid_to` não nulo. A sonda
+adicional usa somente literais em CTEs para as bordas de uma versão fechada:
+
+```text
+               t               | antes | depois
+-------------------------------+-------+--------
+ 2026-11-05 11:59:59.999999+00 | f     | f
+ 2026-11-05 12:00:00+00        | t     | t
+ 2026-11-05 12:59:59.999999+00 | t     | t
+ 2026-11-05 13:00:00+00        | f     | f
+```
+
+O adaptador instalado e o `macro_sql` do manifest confirmam:
+
+```jinja
+{% macro postgres__snapshot_get_time() -%}
+  {{ current_timestamp() }}::timestamp without time zone
+{%- endmacro %}
+```
+
+Os quatro snapshots usam `check`, sem `updated_at` próprio. Logo,
+`AT TIME ZONE 'UTC'` é a leitura correta **se a sessão que capturou estava em
+UTC**; PostgreSQL não gravou UTC por propriedade intrínseca de `timestamp`.
+O SQL novo remove a dependência do fuso do leitor, mas ainda depende do fuso
+do escritor. Em sessão local `America/Sao_Paulo`, a reprodução de uma captura
+real às 15:00 UTC mostrou:
+
+```text
+      real_capture      |   dbt_valid_from    |         antes          |         depois         | nova_versao_uma_hora_antes
+------------------------+---------------------+------------------------+------------------------+----------------------------
+ 2026-11-05 12:00:00-03 | 2026-11-05 12:00:00 | 2026-11-05 12:00:00-03 | 2026-11-05 09:00:00-03 | t
+```
+
+O instante gravado sem fuso é reinterpretado três horas antes. Uma versão
+nova pode então receber um evento ocorrido às 14:00 UTC, antes da captura
+real. Isso é uma contraprova com literais; não foi aberta versão no warehouse.
+
+Os oito textos novos correspondem às expressões sob a premissa UTC, com a
+exceção da primeira versão explicitada no próprio texto. O início desta é
+`2024-01-01 00:00-03` (03:00 UTC), não meia-noite UTC. A nota de `dim_product`
+sobre escolher `period_start` em vez de infinito continua correta: o
+[TIMESTAMP do BigQuery tem intervalo finito](https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-types#timestamp_type).
+Isso não prova execução do SQL PostgreSQL sem adaptação no BigQuery: a grafia
+`AT TIME ZONE`, o tipo do snapshot de cada adaptador e a sintaxe já específica
+do modelo precisam ser tratados na migração. Nenhum ADR aceito foi alterado.
+
+**R5-B — seleção e alcance real do teste de UTC.**
+
+Na cópia `/tmp/rvl3-r5-review/selection`, com as dependências dbt e os docs
+disponíveis somente para leitura, executei (ambiente de conexão carregado do
+`.env`, sem imprimi-lo):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/dbt --quiet ls \
+  --project-dir /tmp/rvl3-r5-review/selection/dbt --profiles-dir dbt \
+  --select staging trusted quarantine analytics consumption tag:fronteira \
+  --resource-type test --output name
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/dbt --quiet ls \
+  --project-dir /tmp/rvl3-r5-review/selection/dbt --profiles-dir dbt \
+  --select snapshot_grava_em_utc --resource-type test --output name
+```
+
+A primeira seleção é até mais ampla que a DAG, pois não aplica seus
+`--exclude`. Contagem das saídas e leitura do manifest:
+
+```text
+UTC_TEST test.mvp_ed1.snapshot_grava_em_utc PARENTS [] CHILDREN []
+DAG_SELECTION_TESTS 690 UTC_MATCHES 0
+EXPLICIT_SELECTION ['snapshot_grava_em_utc']
+```
+
+`dbt snapshot` não executa testes; a tarefa final seleciona apenas
+`tag:fronteira`, etiqueta que este teste não tem. No `make dbt-build` completo,
+o teste roda, mas não é portão: `dbt/task/runnable.py:631–644` marca para pular
+os dependentes do nó que falhou, e este não tem nenhum. A receita não impõe
+`--fail-fast`. É o comportamento documentado de
+[bloqueio dos descendentes no dbt build](https://docs.getdbt.com/reference/commands/build).
+Não executei build defeituoso para provocar escrita: a conclusão sobre o
+bloqueio vem do grafo e do executor instalado, não de alteração de dados.
+
+O teste lê a sessão **dele**. `profiles.yml` usa quatro threads; o adaptador
+`postgres/connections.py:159–206` abre conexões `psycopg2` sem fixar fuso, e
+não há hook de fuso no projeto. No mesmo processo, com configurações estáveis,
+as conexões de teste e snapshot herdam os mesmos defaults; não há garantia de
+ser a mesma sessão nem de cobrir uma invocação distinta. `PGTZ` muda o default
+via [libpq](https://www.postgresql.org/docs/16/libpq-envars.html); mudanças de
+papel/banco valem para as conexões que as herdarem. Assim, **quando selecionado
+e sob os mesmos defaults**, o teste detecta a mudança; ele não valida
+retroativamente a sessão que escreveu nem previne a escrita nesta DAG.
+
+O oráculo executou exatamente seu predicado: em UTC devolveu zero linhas;
+com `SET LOCAL TIME ZONE 'America/Sao_Paulo'`, uma linha:
+
+```text
+  fuso_da_sessao
+-------------------
+ America/Sao_Paulo
+(1 row)
+```
+
+O catálogo `pg_db_role_setting` não contém override de `timezone` no estado
+consultado (`0 rows`). Não alterei `PGTZ` de processos do serviço nem defaults
+de papel/banco; a propagação desses parâmetros foi conferida por código e
+contrato do cliente, não por mutação de configuração. A frase “o teste falha
+antes” no teste e na Qualidade §4 v1.16 não é sustentada por esse caminho.
+
+**R5-C — R4-A/B, escrita YAML e proveniência que some na leitura.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/baseline.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/transitions.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/full.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/yaml_extra.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/yaml_validate_loaded.py
+```
+
+A derivação em memória do HEAD, sem cache escrito no checkout:
+
+```text
+STALE []
+NOS 199 COLUNAS 2983
+PROBLEMAS [] []
+ARQUIVOS_DIFERENTES []
+OBSOLETOS []
+MARCAS 1375 ESPERADAS 1375 EXATAS True EXCEDENTES [] FALTANTES []
+DETERMINISTICO True
+VERIFY_SCOPE marks_files 0 generated_files 5 generated_marked_columns 290
+```
+
+A queda de 1.378 para 1.375 marcas corresponde aos três `valid_to` que saíram
+da convenção herdada para texto próprio; o do atendente já tinha texto próprio.
+Os três avisos conhecidos de `legacy_classifications` permanecem. A última
+linha mede o conjunto que o `main` usa para chamar `verify_meta`: ele não
+valida todos os arquivos marcados, e os cinco gerados, com 290 textos, também
+não passam por essa função. Não encontrei marca faltante no HEAD atual.
+
+A sonda original `transitions.py` executou as transições e depois terminou
+com `ValueError` **esperado** no inline que antes passava; a matriz adicional
+captura essas recusas para continuar até os outros formatos:
+
+```text
+WRITER NORMAL PASS [{'name': 'x', 'description': 'Novo', 'meta': {'description_inherited': True, 'sensitivity': 'public'}}]
+WRITER COMMENT PASS [{'name': 'x', 'description': 'Novo', 'meta': {'description_inherited': True, 'sensitivity': 'public'}}]
+WRITER INLINE RECUSA ValueError m.x: `meta` escrito em linha; escreva-o em bloco para o gerador editar
+WRITER CRLF PASS [{'name': 'x', 'description': 'Novo', 'meta': {'description_inherited': True, 'sensitivity': 'public'}}]
+WRITER FLOW_COLUMNS RECUSA KeyError '`m` sem `columns:` — a sensibilidade é escrita antes da descrição'
+WRITER FLOW_MODELS RECUSA KeyError 'entrada `m` não encontrada'
+WRITER BLOCK_META PASS [{'name': 'x', 'description': 'Novo', 'meta': {'description_inherited': True, 'sensitivity': 'public'}}]
+WRITER ANCHOR RECUSA ValueError m.x: `meta` escrito em linha; escreva-o em bloco para o gerador editar
+WRITER ALIAS RECUSA ValueError m.x: `meta` escrito em linha; escreva-o em bloco para o gerador editar
+WRITER MERGE RECUSA ConstructorError could not determine a constructor for the tag 'tag:yaml.org,2002:merge'
+WRITER DUP_COLUMN RECUSA RuntimeError probe.yml: `m.x` não ficou com {'description_inherited': True}
+WRITER DUP_KEY RECUSA RuntimeError probe.yml: chave `meta` repetida (linha 9)
+VERIFY_DUPLICATE_COLUMN_WITH_MARK PASS
+```
+
+Os erros de flow/merge não são todos convertidos na mensagem amigável de
+“escrita recusada”, mas impedem o passe silencioso nos casos exercitados;
+não abri achado de conveniência por isso. A primeira duplicidade de coluna
+é recusada porque a **marca nova** falta na última ocorrência, não por
+unicidade: com marca nas duas, `verify_meta` aceita a duplicidade.
+
+`full.py` reconferiu geração e check reais na cópia completa:
+
+```text
+BASE RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+PRIMEIRA_GERACAO_META_INLINE RC 1 OUT  ERR escrita recusada: stg_retail__order_items.quantity: `meta` escrito em linha; escreva-o em bloco para o gerador editar — nenhum arquivo é tocado
+CHECK_META_INLINE RC 1 OUT  ERR escrita recusada: stg_retail__order_items.quantity: `meta` escrito em linha; escreva-o em bloco para o gerador editar — nenhum arquivo é tocado
+CONSTANTE_COM_MARCA RC 1 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR gerador: stg_retail__order_items.quantity: não transporta mais (constant) e guarda o texto de quem lê — escreva o texto do que ela calcula, tire a marca de herdado ou declare `description_reason`
+```
+
+A contraprova acrescenta à cópia um modelo isolado `probe_marker`, com SQL
+compilado e arquivo concordantes (`select 100 as quantity`), classificação
+`internal` e o texto antigo. O controle tem a marca. Nas variantes, a marca
+original permanece, mas outra ocorrência da coluna ou de `meta` a esconde:
+
+```yaml
+columns:
+  - name: quantity
+    description: Quantidade comprada do SKU.
+    meta:
+      description_inherited: true
+      sensitivity: internal
+  - name: quantity
+    description: Quantidade comprada do SKU.
+    meta:
+      sensitivity: internal
+```
+
+Saída literal da execução do `main` nos três modos sucessivos:
+
+```text
+FULL MARKED_CONTROL ['--check'] RC 1 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR gerador: probe_marker.quantity: não transporta mais (constant) e guarda o texto de quem lê — escreva o texto do que ela calcula, tire a marca de herdado ou declare `description_reason`
+FULL DUP_COLUMN_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR
+FULL DUP_COLUMN_SHADOW [] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) escrito(s) ERR
+FULL DUP_COLUMN_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR
+FULL DUP_META_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR
+FULL DUP_META_SHADOW [] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) escrito(s) ERR
+FULL DUP_META_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+`dbt --quiet ls --project-dir /tmp/rvl3-r5-review/selection/dbt --profiles-dir
+dbt --select probe_marker --output name` também retornou zero e imprimiu
+`probe_marker` com a declaração de coluna duplicada. Portanto não cabe supor
+que o parser do dbt rejeitará esse caso antes do catálogo.
+
+**R5-D — R4-C/D, allowlist, inferência de tipos e tipos físicos do Airbyte.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/types.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/extra_union.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/materialized.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/types_extra.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/array_columns.py
+```
+
+Os controles originais agora mostram:
+
+```text
+MODELOS ARRAY TIPOS ['BIGINT[]', 'REAL[]', None] TRANSPORTE Computed(kind='union_coercion', shape=None, type=None, materialized=None) TEXTO None PROBLEMAS [] []
+MODELOS R3_ORIGINAL TIPOS [None, 'REAL', None] TRANSPORTE Computed(kind='union_unproven', shape=None, type=None, materialized=None) TEXTO None PROBLEMAS [] []
+CHAR_REVERSE {'x': Computed(kind='union_coercion', shape=None, type=None, materialized=None)}
+NUMERIC_ARRAY {'x': Computed(kind='union_coercion', shape=None, type=None, materialized=None)}
+STRING_BOOL TIPO_A TEXT TRANSPORTE_B Computed(kind='cast', shape=None, type='BOOLEAN', materialized=None) TEXTO_B None PROBLEMAS [] []
+ARRAY_TEXT TIPO_A None TRANSPORTE_B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+BIT_CONCAT TIPO_A None TRANSPORTE_B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+```
+
+A nova contraprova usa `derive()` e `derive_texts()` com dois modelos, não
+somente uma chamada isolada de `canonical_type`:
+
+```sql
+-- a, com descrição própria:
+select '{abcdef}'::varchar(8)[] || '{}'::varchar(8)[] as x;
+-- b, sobre a:
+select x::text as x from wh.trusted.a;
+```
+
+```text
+VARCHAR_ARRAY_CONCAT A Computed(kind='dpipe', shape=None, type='TEXT', materialized=None) TIPO_A TEXT B Carry(leaves=frozenset({('trusted', 'a', 'x')})) TEXTO_B Valor integral de origem, sem truncamento nem arredondamento. PROBLEMAS [] [] TIPO_ANTES TEXT
+```
+
+`TIPO_ANTES` executa `transport.py` de `afca255` obtido por `git show`: o
+escape é preexistente. No PostgreSQL, pelo `ro.sh …/oracle.sql`:
+
+```text
+         caso         |        antes        | depois |    x     |    x
+----------------------+---------------------+--------+----------+----------
+ VARCHAR_ARRAY_CONCAT | character varying[] | text   | {abcdef} | {abcdef}
+```
+
+A variante com `p.x` tipado como `VARCHAR(8)[]`, `a.x = p.x || p.x` e
+`b.x = a.x::text` confirma também o caminho de operandos coluna:
+
+```text
+COLUMN_ARRAY_CONCAT TIPO_P VARCHAR(8)[] TIPO_A TEXT B Carry(leaves=frozenset({('trusted', 'a', 'x')})) TEXTO_B Lista de códigos completos de origem. PROBLEMAS [] []
+```
+
+A aparência impressa é igual, mas o segundo valor é a serialização escalar,
+não uma lista transportada intacta. `varchar[]` **sem** parâmetro não passa
+por esse falso reconhecimento; é o apagamento de `(...)[]` que abre o caso.
+
+Matriz adicional (saídas completas em `types_extra.txt` e `oracle.txt`):
+
+| Caso | Resultado observado |
+|---|---|
+| `VARCHAR[] ∪ TEXT[]`; `VARCHAR(8)[] ∪ TEXT[]` | `_uniao_preserva=False`; recusa conservadora, sem passe indevido demonstrado. |
+| `NUMERIC[] ∪ NUMERIC(12,2)[]` | `False`, pois os canônicos são `NUMERIC[]` e `NUMERIC`. Perde informação, mas neste caso produz recusa, não descrição falsa. |
+| `NUMERIC(12,2) ∪ NUMERIC(14,4)` | `Carry`, preservação na união; não é cast que estreita escala. |
+| `varchar(8)[] → varchar(2)[]`, `numeric(12,4)[] → numeric(12,2)[]` | `Computed(cast)`, sem texto herdado. Oráculo confirma `{abcdef} → {ab}` e `{1.2345} → {1.23}`. O cast compara o tipo completo, não usa `canonical_type`. |
+| `varchar(8) → varchar(2)`; `bpchar → char` sem comprimento | Ambos `Computed(cast)`, sem herança; oráculo `abcdef → ab` e `abcd → a`. A distinção de `bpchar` ilimitado e `char(1)` não escapou neste caminho. |
+| Domínio `information_schema.sql_identifier`, enum `mood`, `citext`, `name`, `bpchar`, cada um com `TEXT` | Allowlist recusa; casts para texto calculam. O domínio real foi exercitado no servidor. Não há enum/citext instalado neste banco; estes dois foram exercitados apenas na AST/derivação, sem criar tipos/extensão. |
+| `'true'`, `true`, `'1.5'`, `1.5` materializados | Respectivamente `TEXT`, `BOOLEAN`, `TEXT`, `NUMERIC`: espécie corrigida. |
+| `2147483648`, `9223372036854775808` materializados | O motor ainda diz `INTEGER`; servidor diz `bigint` e `numeric`. Limite preexistente de faixa, já citado em R4-D; não demonstrei herança silenciosa de valor alterado por ele nesta rodada. Cast para inteiro desses valores falharia por faixa, portanto não o inflei em outro achado de perda silenciosa. |
+
+`real → double precision` continua recusado conservadoramente. A allowlist
+não é uma implementação geral da [resolução de tipos do PostgreSQL](https://www.postgresql.org/docs/16/typeconv-union-case.html),
+mas os casos adicionais de domínio/enum/extensão não demonstraram falso
+positivo de herança. A distinção de comprimento em
+[`bpchar`/`char`](https://www.postgresql.org/docs/16/datatype-character.html)
+foi conferida com o oráculo, não só com nomes canônicos.
+
+Também reexecutei os três oráculos SQL originais de R4-C/D com
+`ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh`
+sobre `/tmp/rvl3-r4-review/{oracle,warehouse,materialized}.sql`. Os dois
+últimos retornaram 0; `oracle.sql` retornou 3 **esperado** no controle final:
+`ERROR: UNION could not convert type numeric to money`. Os resultados foram
+gravados em `r4_oracle.txt`, `r4_warehouse.txt` e `r4_materialized.txt` nesta
+rodada e confirmam as coerções descritas em R4-C/D.
+
+Tipos físicos obtidos novamente com `ro.sh …/physical.sql -t -A`, consultando
+`pg_attribute`/`pg_class`/`pg_namespace`, e cruzados com `source_types()` por
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/airbyte.py`:
+
+```text
+AIRBYTE ('raw', 'inventory_movements', 'movement_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements', 'correlation_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements', 'causation_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements', 'metadata') JSONB character varying
+AIRBYTE ('raw', 'inventory_movements_stream', 'movement_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements_stream', 'correlation_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements_stream', 'causation_id') UUID character varying
+AIRBYTE ('raw', 'inventory_movements_stream', 'metadata') JSONB character varying
+```
+
+São todas as oito folhas declaradas UUID/JSON/JSONB em `raw` que o motor usa;
+não há folha declarada `JSON` nessa lista. A premissa Airbyte da resposta foi
+confirmada para elas, inclusive o caminho de streaming em `raw`. Não significa
+que toda coluna `raw` seja texto: há `jsonb` físico, inclusive metadados de
+transporte. A medição não garante o mesmo mapeamento para um futuro conector.
+
+**R5-E — R4-E e desaparecimento/reorganização das declarações.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/stale.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/stale_extra.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/full.py
+```
+
+Trechos literais, sempre na cópia:
+
+```text
+SEED_NIVEL ['declaração de brazilian_states']
+FONTE_NAO_ESPELHADA governance ['declaração da fonte governance.legacy_captures']
+SEED_REMOVIDA_STALE ['declaração de order_status_transitions']
+SEED_DECLARACAO_REMOVIDA RC 1 OUT  ERR manifest atrasado: 1 modelo(s) mudaram no disco depois do último build (declaração de order_status_transitions); rode `make dbt-build` antes — nenhum arquivo é tocado
+PONTE_NIVEL_ALTERADO RC 1 OUT  ERR manifest atrasado: 1 modelo(s) mudaram no disco depois do último build (declaração de legado__brands); rode `make dbt-build` antes — nenhum arquivo é tocado
+MACRO_ANTIGA_COMENTADA RC 1 OUT  ERR manifest atrasado: 1 modelo(s) mudaram no disco depois do último build (macro empilhado); rode `make dbt-build` antes — nenhum arquivo é tocado
+SEED_YAML_RENAMED []
+SEED_ENTRY_MOVED []
+SEED_CSV_RENAMED_STALE []
+SEED_CSV_RENAMED_DERIVE FileNotFoundError [Errno 2] No such file or directory: '/tmp/rvl3-r5-review/stale_extra/seeds/order_status_transitions.csv'
+SOURCE_RENAMED ['declaração da fonte governance._versions', 'declaração da fonte governance.legacy_captures']
+SOURCE_REMOVED ['declaração da fonte governance._versions', 'declaração da fonte governance.legacy_captures']
+MODELO_MOVIDO_ENTRE_ARQUIVOS RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+Renomear o YAML mantendo a entrada, ou movê-la para outro YAML, conserva a
+mesma declaração: `[]` é o resultado correto. Renomear o CSV não é tratado
+pela função `stale_nodes`, mas a chave do cache inclui seus caminhos/cabeçalhos
+e `derive()` abre o caminho do manifest e falha; não há passe silencioso no
+caminho normal. Renomear/remover a fonte `governance` compara as declarações
+antigas com vazio e acusa ambas. A fonte espelhada continua sendo gerada a
+partir de SQLAlchemy, não uma declaração manual de nível no manifest.
+
+O fluxo dos dois geradores de R4-E também foi reexecutado por
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r5-review/flow.py`, com
+mudança da descrição SQLAlchemy **só em memória**, diretório corrente e
+escritas na cópia `/tmp/rvl3-r5-review/flow`. A primeira derivação retorna 1
+pelos textos da ponte ainda antigos; depois de `legacy.cli.main(['models'])`,
+a segunda geração e o check passam. Trechos literais:
+
+```text
+STALE_1 []
+LEGACY_MODELS RC 0 OUT 93 modelos e a declaração de fontes em dbt/models/staging/legacy/
+STALE_2 []
+CATALOG_2 RC 0 OUT escrito: dbt/models/analytics/_analytics__models.yml
+escrito: dbt/models/trusted/_trusted__models.yml
+classificação e descrição derivadas de 2983 colunas em 199 nós; 2 arquivo(s) escrito(s) ERR trocado: orders.order_total_amount: texto sem `description_reason`, diferente do herdado, reescrito
+CATALOG_CHECK RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+MARCAS_APOS_LEGACY 1375
+TEXTOS_PONTE 417 COM_DESCRIPTION_FROM 417 COM_MARCA 0
+```
+
+As 417 descrições da ponte continuam identificadas por `description_from`,
+conforme o contrato do outro gerador. Nenhuma das 1.375 marcas foi perdida
+nesse fluxo. Como em R4-E, isso exercita a parte de classificação/descrição
+e o gerador do legado, não o alvo inteiro de exportação de catálogo.
+
+**R5-F — documentação e regressões.**
+
+Governança §5.1 v2.16 corresponde ao código no tratamento de inline/comentário,
+na nova allowlist e na declaração retirada. Sua garantia geral de conferir
+proveniência no YAML carregado precisa do alcance de R5-02; “operandos provam
+ser texto” precisa de R5-03. O mapeamento Airbyte foi medido acima. A ressalva
+sobre “macro apagada” continua excessivamente ampla: a macro já presente no
+manifest cujo arquivo desapareceu é acusada por `stale_nodes`; o que não há
+é reconciliação geral de inventário novo. É a imprecisão preexistente já
+registrada em R4-F, não um quarto defeito independente desta rodada.
+
+Qualidade §4 v1.16 descreve corretamente o tipo e a premissa de UTC, mas a
+promessa de falha **antes** da escrita não corresponde à seleção/ordenação
+real (R5-01). Os textos das dimensões foram conferidos em R5-A.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+Ambos retornaram **0**. Saídas de `check-offline.txt` e `secrets-history.txt`:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+827 passed, 188 deselected in 230.28s (0:03:50)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Os 188 testes de integração foram excluídos e listados pelo alvo. Não refiz
+`make check` do autor (`PASS=908`, `1012 passed`, `3 skipped`): ele faria build,
+fora desta autorização. Não executei DAG, segunda versão SCD real, alteração
+de defaults de conexão ou SQL no BigQuery. Os checks verdes e a equivalência
+dos resultados atuais não encerram as três contraprovas desta rodada.
