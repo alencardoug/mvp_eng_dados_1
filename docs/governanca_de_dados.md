@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.16 |
+| Versão | 2.17 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a marca conferida no YAML carregado, a união fora das categorias ordenadas só com tipo provado e a declaração de `.yml` retirada inteira (rodada 4 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: todo `.yml` lido sem deixar uma segunda ocorrência encobrir a primeira, e o array com parâmetro continua array (rodada 5 do lote 3 da v1.1.0) |
 
 ---
 
@@ -166,7 +166,8 @@ transportado não muda o valor — alargar inteiro, inteiro para numérico exato
 com mais de uma folha, ou diante de constante tipada, não se herda. Fora das categorias ordenadas,
 construir a união prova compatibilidade, não igualdade: aceita-se o mesmo tipo, `varchar` com
 `text` e `uuid`/`json`/`jsonb` com texto (o Airbyte grava texto no lugar deles); `char(n)` com
-texto, que perde o preenchimento, e `array` de tipos diferentes não herdam (RVL3-4-02). O tipo
+texto, que perde o preenchimento, e `array` de tipos diferentes não herdam (RVL3-4-02); o
+parâmetro do tipo sai na comparação, o `[]` não — `varchar(8)[]` é array, não texto (RVL3-5-03). O tipo
 conhecido vem da origem, do `cast`, do teste e da comparação, da espécie do literal (`'true'` é
 texto) e de `||` cujos operandos provam ser texto (RVL3-4-03). A ponte do legado só herda pela declaração `meta.description_from` que
 `legacy/ponte.py` gera, apontando a coluna do `stg_retail__*` que ela reproduz — onde o legado põe
@@ -178,9 +179,12 @@ mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o he
 troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` escreveu nele; o que separa um do outro
 é a marca `meta.description_inherited: true`, que a derivação põe em todo texto que escreve — no
 `.yml` à mão e no gerado — e que anda com a coluna quando ela é renomeada, movida ou promovida a um
-`.yml` à mão. A marca é conferida no YAML como ele é carregado, sem chave repetida, nos dois modos
-do `make catalog`; `meta` escrito em linha (`meta: {…}`) o escritor recusa, em vez de duplicar a chave
-(RVL3-4-01). Coluna marcada que deixou de transportar é recusada, como a que guarda, sem motivo, o
+`.yml` à mão. A marca é conferida no YAML como ele é carregado, nos dois modos do `make catalog`; `meta`
+escrito em linha (`meta: {…}`) o escritor recusa, em vez de duplicar a chave (RVL3-4-01). E todo
+`.yml` do projeto é **lido** sem deixar uma ocorrência encobrir outra: chave repetida num mapa,
+coluna listada duas vezes numa entrada e entrada documentada em dois arquivos são recusa, não a
+última que vence — sem isso, uma segunda ocorrência sem a marca faria o texto velho virar raiz
+(RVL3-5-02). Coluna marcada que deixou de transportar é recusada, como a que guarda, sem motivo, o
 texto de quem ela lê; escreve-se o texto do cálculo e tira-se a marca, que só sai por quem revisa
 (RVL3-01, RVL3-2-01, RVL3-3-01). Toda grafia de `{{ doc("x") }}` é a mesma referência (RVL3-3-02). E o texto herdado diz o que o valor é, não como somá-lo **no grão de
 quem o recebe**: medida da remessa repetida em cada item, valor atual que a dimensão repete em cada versão
