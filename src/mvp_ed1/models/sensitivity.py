@@ -95,6 +95,8 @@ AIRBYTE_COLUMNS = ("_airbyte_raw_id", "_airbyte_extracted_at", "_airbyte_meta", 
 STREAM_SINKS = {"inventory_movements_stream": "inventory_movements"}
 STREAM_COLUMNS = ("_stream_partition", "_stream_offset", "_stream_lsn", "_stream_from_snapshot", "_stream_extracted_at")
 SNAPSHOT_COLUMNS = ("dbt_scd_id", "dbt_updated_at", "dbt_valid_from", "dbt_valid_to")
+#: O tipo físico que o dbt-postgres dá a elas (medido no armazém em 05/11/2026): sem fuso.
+SNAPSHOT_TYPES = {"dbt_scd_id": "TEXT", "dbt_updated_at": "TIMESTAMP", "dbt_valid_from": "TIMESTAMP", "dbt_valid_to": "TIMESTAMP"}
 GENERATED_FILE = "_derived.yml"
 GENERATED_HEADER = (
     "# Gerado por `make catalog` (mvp_ed1/models/sensitivity.py). Não edite: a\n"
@@ -287,7 +289,8 @@ def derive(manifest: dict) -> Derivation:
         saida.leaves[node_id] = folhas
         saida.carries[node_id] = {c: transportes.get(c, transport.Computed("unresolved")) for c in folhas}
         for coluna, t in saida.carries[node_id].items():
-            tipos = {saida.origin_types.get(f) for f in t.leaves} if isinstance(t, transport.Carry) else {None}
+            tipos = ({saida.origin_types.get(f) for f in t.leaves} if isinstance(t, transport.Carry)
+                     else {SNAPSHOT_TYPES.get(coluna)} if t.kind == "snapshot_meta" else {transport.materialized_type(t)})
             if len(tipos) == 1 and None not in tipos:
                 saida.origin_types[(no["schema"], relacao, coluna)] = tipos.pop()
         # Exceção declarada e justificada vale — e vale para quem lê o modelo
@@ -327,6 +330,63 @@ def _inputs_digest(manifest: bytes) -> str:
 _BLOCO_SNAPSHOT = re.compile(r"\{%-?\s*snapshot\s+\w+\s*-?%\}(.*?)\{%-?\s*endsnapshot\s*-?%\}", re.S)
 
 
+_COMENTARIO_JINJA = re.compile(r"\{#.*?#\}", re.S)
+
+
+def _sem_comentario(texto: str) -> str:
+    """O texto sem os comentários Jinja: uma definição antiga guardada em `{# … #}` não é a ativa (RVL3-3-05)."""
+    return _COMENTARIO_JINJA.sub("", texto)
+
+
+def _declaracoes_no_disco() -> tuple[dict[str, dict[str, dict]], dict[tuple[str, str], dict[str, dict]]]:
+    """O que os `.yml` do disco declaram como entrada da derivação: nó → coluna → meta, e fonte → coluna → meta."""
+    nos: dict[str, dict[str, dict]] = {}
+    fontes: dict[tuple[str, str], dict[str, dict]] = {}
+    for pasta in ("models", "snapshots", "seeds"):
+        for caminho in sorted((DBT / pasta).rglob("*.yml")):
+            documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+            for chave in ("models", "snapshots", "seeds"):
+                for entrada in documento.get(chave) or []:
+                    nos[entrada["name"]] = {c["name"]: (c.get("meta") or {}) for c in entrada.get("columns") or []}
+            for fonte in documento.get("sources") or []:
+                for tabela in fonte.get("tables") or []:
+                    fontes[(fonte["name"], tabela["name"])] = {c["name"]: (c.get("meta") or {}) for c in tabela.get("columns") or []}
+    return nos, fontes
+
+
+def _declaracao_atrasada(manifest: dict) -> list[str]:
+    """As declarações de `.yml` que a derivação lê do manifest e que mudaram no disco depois do build (RVL3-3-04).
+
+    São três, e só elas: o nível com `sensitivity_reason` de uma coluna de modelo
+    (a ponte do legado), o nível de cada coluna de seed, e o de cada coluna das
+    fontes que não são espelho (`governance`). O resto do `.yml` a derivação lê do
+    disco, ou escreve."""
+    nos_disco, fontes_disco = _declaracoes_no_disco()
+    atrasadas = []
+    for no in manifest["nodes"].values():
+        if no["resource_type"] not in ("model", "seed", "snapshot") or no["name"] not in nos_disco:
+            continue
+        manifesto = {c["name"]: (c.get("meta") or {}) for c in no.get("columns", {}).values()}
+        disco = nos_disco[no["name"]]
+        if no["resource_type"] == "seed":
+            par = lambda m: m.get("sensitivity")
+            nomes = set(manifesto) | set(disco)
+        else:
+            par = lambda m: (m.get("sensitivity"), m.get("sensitivity_reason"))
+            nomes = {c for c, m in {**manifesto, **disco}.items()
+                     if (manifesto.get(c) or {}).get("sensitivity_reason") or (disco.get(c) or {}).get("sensitivity_reason")}
+        if any(par(manifesto.get(c) or {}) != par(disco.get(c) or {}) for c in nomes):
+            atrasadas.append(f"declaração de {no['name']}")
+    for fonte in manifest.get("sources", {}).values():
+        if fonte["schema"] in ("raw", "raw_legacy"):
+            continue
+        disco = fontes_disco.get((fonte["source_name"], fonte["name"]), {})
+        manifesto = {c["name"]: (c.get("meta") or {}) for c in fonte.get("columns", {}).values()}
+        if {c: m.get("sensitivity") for c, m in manifesto.items()} != {c: m.get("sensitivity") for c, m in disco.items()}:
+            atrasadas.append(f"declaração da fonte {fonte['source_name']}.{fonte['name']}")
+    return atrasadas
+
+
 def _linhas(texto: str) -> str:
     """Quebras normalizadas (o manifest guarda o `\\r\\n` que o disco lido em modo texto perde) e bordas aparadas."""
     return texto.replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -341,9 +401,13 @@ def stale_nodes(manifest: dict) -> list[str]:
     snapshot, comparado ao miolo do bloco do disco, não por trecho (RVL3-2-05) — e
     o `macro_sql` de cada macro do projeto tem de estar no arquivo dela.
 
-    **Limite declarado** (RVL3-2-07): metadado de `.yml`, macro nova ou apagada e
-    nó que o manifest não tem não se conferem aqui; a compilação recente continua
-    sendo a premissa, e o `make check` a cumpre com o build antes."""
+    Do `.yml`, conferem-se as declarações que a derivação lê do manifest
+    (`_declaracao_atrasada`, RVL3-3-04); o comentário Jinja não conta como
+    definição de macro (RVL3-3-05).
+
+    **Limite declarado** (RVL3-2-07): macro nova ou apagada, o `dbt_project.yml`
+    e nó que o manifest não tem não se conferem aqui; a compilação recente
+    continua sendo a premissa, e o `make check` a cumpre com o build antes."""
     atrasados = []
     for no in manifest["nodes"].values():
         if no["resource_type"] not in ("model", "snapshot") or not no.get("original_file_path"):
@@ -360,9 +424,10 @@ def stale_nodes(manifest: dict) -> list[str]:
         if macro.get("package_name") != manifest.get("metadata", {}).get("project_name", "mvp_ed1"):
             continue
         caminho = DBT / macro.get("original_file_path", "")
-        if not caminho.is_file() or _linhas(macro.get("macro_sql") or "") not in _linhas(caminho.read_bytes().decode("utf-8")):
+        ativo = _linhas(_sem_comentario(caminho.read_bytes().decode("utf-8"))) if caminho.is_file() else None
+        if ativo is None or _linhas(_sem_comentario(macro.get("macro_sql") or "")) not in ativo:
             atrasados.append(f"macro {macro['name']}")
-    return sorted(atrasados)
+    return sorted(atrasados + _declaracao_atrasada(manifest))
 
 
 def load(manifest_path: pathlib.Path | None = None) -> tuple[dict, Derivation]:
@@ -634,53 +699,64 @@ def _find_entry(linhas: list[str], nome: str, indent: int | None = None) -> int 
     return None
 
 
-def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
-    """Insere ou atualiza `meta.sensitivity` de cada coluna de cada entrada, preservando o resto."""
+def _valor_yaml(valor) -> str:
+    return "true" if valor is True else "false" if valor is False else str(valor)
+
+
+def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) -> str:
+    """Insere ou atualiza chaves de `meta` de cada coluna de cada entrada, preservando o resto."""
     linhas = texto.split("\n")
     for entrada, colunas in entradas.items():
-        for coluna, nivel in colunas.items():
-            inicio = _find_entry(linhas, entrada)
-            if inicio is None:
-                raise KeyError(f"entrada `{entrada}` não encontrada")
-            base = _indent(linhas[inicio])
-            fim = _block_end(linhas, inicio, base)
-            bloco = linhas[inicio:fim]
-            # `columns:` do bloco, criado se não existir
-            idx_cols = next((i for i, l in enumerate(bloco) if l.strip() == "columns:" and _indent(l) == base + 2), None)
-            if idx_cols is None:
-                while bloco and not bloco[-1].strip():
-                    bloco.pop()
-                bloco.append(" " * (base + 2) + "columns:")
-                idx_cols = len(bloco) - 1
-            item_indent = base + 4
-            idx_col = next((i for i in range(idx_cols + 1, len(bloco)) if bloco[i].strip() == f"- name: {coluna}" and _indent(bloco[i]) == item_indent), None)
-            if idx_col is None:
-                # fim do bloco de colunas: última linha não vazia
-                fim_cols = len(bloco)
-                while fim_cols > idx_cols + 1 and not bloco[fim_cols - 1].strip():
-                    fim_cols -= 1
-                bloco[fim_cols:fim_cols] = [
-                    " " * item_indent + f"- name: {coluna}",
-                    " " * (item_indent + 2) + "meta:",
-                    " " * (item_indent + 4) + f"sensitivity: {nivel}",
-                ]
-            else:
-                fim_col = _block_end(bloco, idx_col, item_indent)
-                idx_meta = next((i for i in range(idx_col + 1, fim_col) if bloco[i].strip() == "meta:" and _indent(bloco[i]) == item_indent + 2), None)
-                if idx_meta is None:
-                    bloco[idx_col + 1:idx_col + 1] = [
+        for coluna, chaves in colunas.items():
+            for chave, valor in chaves.items():
+                linha_valor = f"{chave}: {_valor_yaml(valor)}"
+                inicio = _find_entry(linhas, entrada)
+                if inicio is None:
+                    raise KeyError(f"entrada `{entrada}` não encontrada")
+                base = _indent(linhas[inicio])
+                fim = _block_end(linhas, inicio, base)
+                bloco = linhas[inicio:fim]
+                # `columns:` do bloco, criado se não existir
+                idx_cols = next((i for i, l in enumerate(bloco) if l.strip() == "columns:" and _indent(l) == base + 2), None)
+                if idx_cols is None:
+                    while bloco and not bloco[-1].strip():
+                        bloco.pop()
+                    bloco.append(" " * (base + 2) + "columns:")
+                    idx_cols = len(bloco) - 1
+                item_indent = base + 4
+                idx_col = next((i for i in range(idx_cols + 1, len(bloco)) if bloco[i].strip() == f"- name: {coluna}" and _indent(bloco[i]) == item_indent), None)
+                if idx_col is None:
+                    # fim do bloco de colunas: última linha não vazia
+                    fim_cols = len(bloco)
+                    while fim_cols > idx_cols + 1 and not bloco[fim_cols - 1].strip():
+                        fim_cols -= 1
+                    bloco[fim_cols:fim_cols] = [
+                        " " * item_indent + f"- name: {coluna}",
                         " " * (item_indent + 2) + "meta:",
-                        " " * (item_indent + 4) + f"sensitivity: {nivel}",
+                        " " * (item_indent + 4) + linha_valor,
                     ]
                 else:
-                    fim_meta = _block_end(bloco, idx_meta, item_indent + 2)
-                    idx_sens = next((i for i in range(idx_meta + 1, fim_meta) if bloco[i].strip().startswith("sensitivity:")), None)
-                    if idx_sens is None:
-                        bloco.insert(idx_meta + 1, " " * (item_indent + 4) + f"sensitivity: {nivel}")
+                    fim_col = _block_end(bloco, idx_col, item_indent)
+                    idx_meta = next((i for i in range(idx_col + 1, fim_col) if bloco[i].strip() == "meta:" and _indent(bloco[i]) == item_indent + 2), None)
+                    if idx_meta is None:
+                        bloco[idx_col + 1:idx_col + 1] = [
+                            " " * (item_indent + 2) + "meta:",
+                            " " * (item_indent + 4) + linha_valor,
+                        ]
                     else:
-                        bloco[idx_sens] = " " * (item_indent + 4) + f"sensitivity: {nivel}"
-            linhas[inicio:fim] = bloco
+                        fim_meta = _block_end(bloco, idx_meta, item_indent + 2)
+                        idx_chave = next((i for i in range(idx_meta + 1, fim_meta) if bloco[i].strip().startswith(f"{chave}:")), None)
+                        if idx_chave is None:
+                            bloco.insert(idx_meta + 1, " " * (item_indent + 4) + linha_valor)
+                        else:
+                            bloco[idx_chave] = " " * (item_indent + 4) + linha_valor
+                linhas[inicio:fim] = bloco
     return "\n".join(linhas)
+
+
+def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
+    """Insere ou atualiza `meta.sensitivity` de cada coluna de cada entrada, preservando o resto."""
+    return patch_meta(texto, {e: {c: {"sensitivity": n} for c, n in cols.items()} for e, cols in entradas.items()})
 
 
 def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models", textos: dict[str, dict[str, str]] | None = None,
@@ -691,7 +767,10 @@ def render_generated(modelos: dict[str, dict[str, str]], chave: str = "models", 
 
     def coluna(modelo: str, c: str, n: str) -> dict:
         texto = textos.get(modelo, {}).get(c)
-        return {"name": c, **({"description": texto} if texto else {}), "meta": {"sensitivity": n}}
+        # Todo texto daqui foi escrito pela derivação: leva a marca, que acompanha a
+        # coluna se ela for promovida a um `.yml` à mão (RVL3-3-01).
+        meta = {"sensitivity": n, **({"description_inherited": True} if texto else {})}
+        return {"name": c, **({"description": texto} if texto else {}), "meta": meta}
 
     corpo = {"version": 2, chave: [
         {"name": nome, **({"meta": {"domain": dominios[nome]}} if nome in dominios else {}),
@@ -707,13 +786,16 @@ def render_files(plano: Plan, textos=None, dominios=None) -> dict[pathlib.Path, 
     from mvp_ed1.models import descriptions, domains
     saida: dict[pathlib.Path, str] = {}
     a_descrever = textos.patches if textos is not None else {}
+    a_marcar = textos.marks if textos is not None else {}
     a_classificar = dominios.patches if dominios is not None else {}
-    for caminho in sorted(set(plano.patches) | set(a_descrever) | set(a_classificar)):
+    for caminho in sorted(set(plano.patches) | set(a_descrever) | set(a_marcar) | set(a_classificar)):
         texto = caminho.read_text(encoding="utf-8")
         if caminho in plano.patches:
             texto = patch_yaml(texto, plano.patches[caminho])
         if caminho in a_descrever:
             texto = descriptions.patch_descriptions(texto, a_descrever[caminho])
+        if caminho in a_marcar:
+            texto = patch_meta(texto, a_marcar[caminho])
         if caminho in a_classificar:
             texto = domains.patch_domains(texto, a_classificar[caminho])
         saida[caminho] = texto
@@ -772,7 +854,6 @@ def main(argv: list[str] | None = None) -> int:
     textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
     dominios = domains.derive_domains(manifest, disco)
     arquivos = render_files(plano, textos, dominios)
-    arquivos[descriptions.INHERITED_FILE] = descriptions.render_inherited(textos)
 
     for mudanca in plano.changes + textos.changes + dominios.changes:
         print(f"trocado: {mudanca}", file=sys.stderr)
@@ -794,10 +875,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if falhou else 0
 
     for caminho, texto in mudados.items():
-        if caminho == descriptions.INHERITED_FILE:
-            caminho.write_text(texto, encoding="utf-8")
-            print(f"escrito: {caminho.relative_to(ROOT)}")
-            continue
         esperado = plano.patches.get(caminho) or plano.generated.get(caminho) or {}
         _verify(caminho, texto, esperado)
         if caminho in textos.patches:

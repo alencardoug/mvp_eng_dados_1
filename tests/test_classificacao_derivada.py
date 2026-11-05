@@ -326,3 +326,55 @@ def test_cabecalho_de_seed_com_quebra_entre_aspas_entra_na_chave(tmp_path, monke
     assert s._inputs_digest(b"{}") != um                          # RVL3-2-09: o separador não colide
     seed.write_text('"a\nz",c\n3,4\n', encoding="utf-8")
     assert s._inputs_digest(b"{}") == s._inputs_digest(b"{}")     # só o cabeçalho entra, como antes
+
+
+def test_declaracao_do_yml_mudada_depois_do_build_e_recusada(tmp_path, monkeypatch) -> None:
+    """RVL3-3-04: o nível com motivo da ponte, o da seed e o da fonte não espelhada vêm do manifest."""
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    for pasta in ("models", "snapshots", "seeds"):
+        (tmp_path / pasta).mkdir()
+    (tmp_path / "models" / "_p.yml").write_text(textwrap.dedent("""\
+        version: 2
+        models:
+          - name: ponte
+            columns:
+              - name: x
+                meta: {sensitivity: personal, sensitivity_reason: "extraído do payload"}
+              - name: y
+                meta: {sensitivity: internal}
+        sources:
+          - name: governance
+            tables:
+              - name: g
+                columns:
+                  - name: c
+                    meta: {sensitivity: internal}
+        """), encoding="utf-8")
+    (tmp_path / "seeds" / "_s.yml").write_text("version: 2\nseeds:\n  - name: sd\n    columns:\n      - name: k\n"
+                                                "        meta: {sensitivity: public}\n", encoding="utf-8")
+
+    def manifest(nivel_x: str, nivel_y: str, nivel_k: str, nivel_c: str) -> dict:
+        return {"nodes": {
+            "model.p.ponte": {"resource_type": "model", "name": "ponte", "columns": {
+                "x": {"name": "x", "meta": {"sensitivity": nivel_x, "sensitivity_reason": "extraído do payload"}},
+                "y": {"name": "y", "meta": {"sensitivity": nivel_y}}}},
+            "seed.p.sd": {"resource_type": "seed", "name": "sd", "columns": {"k": {"name": "k", "meta": {"sensitivity": nivel_k}}}},
+        }, "sources": {"source.p.governance.g": {"source_name": "governance", "name": "g", "schema": "governance",
+                                                  "columns": {"c": {"name": "c", "meta": {"sensitivity": nivel_c}}}}}}
+    assert s.stale_nodes(manifest("personal", "internal", "public", "internal")) == []
+    assert s.stale_nodes(manifest("personal", "public", "public", "internal")) == []      # nível sem motivo é saída
+    assert s.stale_nodes(manifest("internal", "internal", "public", "internal")) == ["declaração de ponte"]
+    assert s.stale_nodes(manifest("personal", "internal", "internal", "internal")) == ["declaração de sd"]
+    assert s.stale_nodes(manifest("personal", "internal", "public", "public")) == ["declaração da fonte governance.g"]
+
+
+def test_definicao_antiga_em_comentario_nao_passa_pela_macro_ativa(tmp_path, monkeypatch) -> None:
+    """RVL3-3-05."""
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "macros").mkdir()
+    (tmp_path / "macros" / "m.sql").write_text(
+        "{# {% macro m() %}union all{% endmacro %} #}\n{% macro m() %}union{% endmacro %}\n", encoding="utf-8")
+    manifest = {"nodes": {}, "sources": {}, "metadata": {"project_name": "p"}, "macros": {"macro.p.m": {
+        "name": "m", "package_name": "p", "original_file_path": "macros/m.sql",
+        "macro_sql": "{% macro m() %}union all{% endmacro %}"}}}
+    assert s.stale_nodes(manifest) == ["macro m"]
