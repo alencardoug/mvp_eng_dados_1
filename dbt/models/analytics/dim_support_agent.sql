@@ -48,9 +48,13 @@ select
 
     case
         when v.numero_da_versao = 1 then timestamptz '{{ var("period_start") }} 00:00-03'
-        else v.dbt_valid_from
+        else v.dbt_valid_from at time zone 'UTC'
     end                                                     as valid_from,
-    v.dbt_valid_to                                          as valid_to,
+    -- O snapshot grava `dbt_valid_*` como `timestamp` sem fuso, no fuso da sessão do
+    -- dbt, que é UTC (teste `snapshot_grava_em_utc`). Lê-se como instante UTC, explícito:
+    -- sem isto, o `valid_to` saía sem fuso e a comparação com o `timestamptz` das fatos
+    -- dependia do fuso de quem consulta (RVL3-3-03).
+    v.dbt_valid_to at time zone 'UTC'                       as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
 join atual a

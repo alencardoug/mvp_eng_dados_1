@@ -226,13 +226,13 @@ models:
           description_inherited: true
           sensitivity: public
       - name: valid_from
-        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
+        description: "Início da vigência da versão, lido como instante UTC do `dbt_valid_from` do snapshot. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
-        description: "{{ doc(\"dbt_valid_to\") }}"
+        description: "Fim da vigência da versão: o `dbt_valid_to` do snapshot, gravado em UTC sem fuso, lido como instante UTC (`at time zone 'UTC'`); nulo na versão vigente."
         meta:
-          description_inherited: true
+          description_reason: a leitura explícita em UTC calcula sobre o `dbt_valid_to`, que é `timestamp` sem fuso — o texto da convenção diria o valor intacto (RVL3-3-03)
           sensitivity: internal
       - name: is_current
         description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
@@ -374,13 +374,13 @@ models:
           description_inherited: true
           sensitivity: internal
       - name: valid_from
-        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
+        description: "Início da vigência da versão, lido como instante UTC do `dbt_valid_from` do snapshot. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
-        description: "{{ doc(\"dbt_valid_to\") }}"
+        description: "Fim da vigência da versão: o `dbt_valid_to` do snapshot, gravado em UTC sem fuso, lido como instante UTC (`at time zone 'UTC'`); nulo na versão vigente."
         meta:
-          description_inherited: true
+          description_reason: a leitura explícita em UTC calcula sobre o `dbt_valid_to`, que é `timestamp` sem fuso — o texto da convenção diria o valor intacto (RVL3-3-03)
           sensitivity: internal
       - name: is_current
         description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
@@ -2372,13 +2372,13 @@ models:
           description_inherited: true
           sensitivity: internal
       - name: valid_from
-        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
+        description: "Início da vigência da versão, lido como instante UTC do `dbt_valid_from` do snapshot. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
-        description: "{{ doc(\"dbt_valid_to\") }}"
+        description: "Fim da vigência da versão: o `dbt_valid_to` do snapshot, gravado em UTC sem fuso, lido como instante UTC (`at time zone 'UTC'`); nulo na versão vigente."
         meta:
-          description_inherited: true
+          description_reason: a leitura explícita em UTC calcula sobre o `dbt_valid_to`, que é `timestamp` sem fuso — o texto da convenção diria o valor intacto (RVL3-3-03)
           sensitivity: internal
       - name: is_current
         description: "Verdadeiro na versão vigente — a que não tem fim de vigência."
@@ -2470,14 +2470,14 @@ models:
           description_inherited: true
           sensitivity: internal
       - name: valid_from
-        description: "Início da vigência da versão. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
+        description: "Início da vigência da versão, lido como instante UTC do `dbt_valid_from` do snapshot. Na primeira, o início do período simulado (01/01/2024), e não o instante da primeira captura do snapshot."
         meta:
           sensitivity: internal
       - name: valid_to
-        description: "Fim da vigência da versão: o `dbt_valid_to` do snapshot, que é `timestamp` sem fuso, convertido para `timestamptz` pelo fuso da sessão na união com o membro desconhecido; nulo na versão vigente."
+        description: "Fim da vigência da versão: o `dbt_valid_to` do snapshot, gravado em UTC sem fuso, lido como instante UTC (`at time zone 'UTC'`); nulo na versão vigente."
         meta:
+          description_reason: a leitura explícita em UTC calcula sobre o `dbt_valid_to`, que é `timestamp` sem fuso — o texto da convenção diria o valor intacto (RVL3-3-03)
           sensitivity: internal
-          description_reason: a união com `cast(null as timestamptz)` converte o `timestamp` do snapshot pelo fuso da sessão — o texto da convenção diria o valor intacto (RVL3-3-03)
       - name: is_current
         description: "Verdadeiro na versão vigente — a que não tem fim de vigência. O membro desconhecido é sempre vigente."
         meta:
