@@ -119,9 +119,11 @@ passar por ausência do caso.
   macro `dias_no_calendario`, com o "hoje" na meia-noite de São Paulo de `as_of_date` (decisão do
   Owner, RVL3-6-04; antes, `customers` contava o "hoje" da meia-noite do fuso da sessão, e o
   `days_since_last_order` subiu 0,125 dia em 1.389 clientes, sem nenhuma classificação mudar). A
-  guarda está no escritor e nos modelos, não num teste depois da gravação
-  (`tests/test_vigencia_em_utc.py`, que também recusa um `± interval` novo fora da macro; revisão do
-  lote 3 da v1.1.0, RVL3-3-03, RVL3-5-01, RVL3-6-04);
+  guarda está no escritor, nos modelos e nos testes de dados — a tolerância de
+  `caminhos_de_ingestao_reconciliam` também passa pela macro, porque uma janela num teste muda o
+  veredito dele —, não num teste depois da gravação (`tests/test_vigencia_em_utc.py`, que recusa um
+  `± interval` novo fora da macro em modelos, testes e macros, e todo literal `timestamptz` sem o
+  fuso escrito; revisão do lote 3 da v1.1.0, RVL3-3-03, RVL3-5-01, RVL3-6-04, RVL3-7-02/03);
 - teste de **grão** por fato: a chave declarada é única, o que prova que o grão é o que se afirma
   ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
 - verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando

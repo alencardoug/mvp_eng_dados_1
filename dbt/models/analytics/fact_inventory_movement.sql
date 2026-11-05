@@ -85,7 +85,7 @@ with movimentos as (
     -- para fora de quase toda a captura legada.
     where source_system = 'legacy'
        or occurred_at >= {{ dias_no_calendario(
-              "(select coalesce(max(occurred_at), timestamptz '" ~ var("period_start") ~ "') from " ~ this ~ " where source_system = 'retail')",
+              "(select coalesce(max(occurred_at), timestamptz '" ~ var("period_start") ~ " 00:00-03') from " ~ this ~ " where source_system = 'retail')",
               -var("atraso_maximo_dias")) }}
     {% endif %}
 

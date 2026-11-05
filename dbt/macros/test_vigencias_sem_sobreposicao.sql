@@ -26,7 +26,7 @@ with vigencias as (
     select
         {% if origem %}{{ origem }} || '-' || {% endif %}{{ chave_natural }} as chave,
         {{ inicio }}        as inicio,
-        coalesce({{ fim }}, timestamptz '9999-12-31') as fim
+        coalesce({{ fim }}, timestamptz '9999-12-31 00:00+00') as fim
     from {{ model }}
 )
 

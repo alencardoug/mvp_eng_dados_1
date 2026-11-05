@@ -11,6 +11,7 @@ lote 3 da v1.1.0, RVL3-5-01).
 from __future__ import annotations
 
 import json
+import re
 import pathlib
 
 import pytest
@@ -57,8 +58,10 @@ def test_janela_de_dias_sobre_instante_passa_pelo_calendario_de_sao_paulo() -> N
     Toda soma de dias nos modelos passa por `dias_no_calendario`, salvo a de `date`
     declarada acima — um `+ interval` novo sobre `timestamptz` falha aqui."""
     soltas = []
-    for caminho in sorted((DBT / "models").rglob("*.sql")):
-        if caminho.name in SOMA_DE_DIAS_SEM_INSTANTE or "legacy" in caminho.parts:
+    # Modelos, testes e macros: uma janela num teste muda o veredito dele (RVL3-7-02).
+    arquivos = [c for pasta in ("models", "tests", "macros") for c in sorted((DBT / pasta).rglob("*.sql"))]
+    for caminho in arquivos:
+        if caminho.name in SOMA_DE_DIAS_SEM_INSTANTE | {"dias_no_calendario.sql"} or "legacy" in caminho.parts:
             continue
         for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
             codigo = linha.split("--", 1)[0]
@@ -76,3 +79,21 @@ def test_o_hoje_dos_modelos_e_a_meia_noite_de_sao_paulo() -> None:
             continue
         texto = caminho.read_text(encoding="utf-8")
         assert "\"date '\" ~ var(\"as_of_date\")" not in texto, caminho.name
+
+
+_LITERAL_TIMESTAMPTZ = re.compile(r"timestamptz\s+'([^']*)'", re.I)
+_COM_FUSO = re.compile(r"(Z|[+-]\d{2}(:?\d{2})?)\s*$")
+
+
+def test_todo_literal_timestamptz_diz_o_fuso() -> None:
+    """RVL3-7-03: `timestamptz '2024-01-01'` é a meia-noite do fuso da **sessão**; o literal diz o seu."""
+    sem_fuso = []
+    for pasta in ("models", "tests", "macros", "snapshots"):
+        for caminho in sorted((DBT / pasta).rglob("*.sql")):
+            if "legacy" in caminho.parts:
+                continue
+            for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
+                for valor in _LITERAL_TIMESTAMPTZ.findall(linha.split("--", 1)[0]):
+                    if valor.strip().lower() not in ("infinity", "-infinity") and not _COM_FUSO.search(valor):
+                        sem_fuso.append(f"{caminho.relative_to(DBT)}:{numero}: {valor}")
+    assert sem_fuso == []

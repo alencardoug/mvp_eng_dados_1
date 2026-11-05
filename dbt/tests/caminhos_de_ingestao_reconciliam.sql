@@ -40,7 +40,6 @@ from divergentes
 -- mesma margem de atraso da fato incremental: um número já declarado, e não
 -- mais um limiar inventado aqui.
 where arrived_by_stream is false
-   or recorded_at < (
-        select max(recorded_at) - interval '{{ var("atraso_maximo_dias") }} days'
-        from {{ ref('stg_retail__inventory_movements') }}
-      )
+   or recorded_at < {{ dias_no_calendario(
+        "(select max(recorded_at) from " ~ ref('stg_retail__inventory_movements') ~ ")",
+        -var("atraso_maximo_dias")) }}
