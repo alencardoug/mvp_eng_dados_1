@@ -13,38 +13,47 @@ models:
     description: Identificador da remessa na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: shipment_code
     description: Chave natural da remessa.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: order_id
     description: Pedido que a remessa atende.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: carrier_id
     description: Transportadora responsável.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_id
     description: Armazém de origem da remessa.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: shipment_status
     description: Estado da remessa; transições válidas em Modelo de Dados §4.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: shipped_at
     description: Momento do despacho.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: estimated_delivery_at
     description: Prazo de entrega prometido ao cliente.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: delivered_at_projected
     description: Momento da entrega efetiva.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: delivery_event_count
     meta:
       sensitivity: internal

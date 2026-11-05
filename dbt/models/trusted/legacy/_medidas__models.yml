@@ -34,10 +34,12 @@ models:
       - name: order_id
         description: "Identificador do pedido na origem, gerado pelo banco transacional."
         meta:
+          description_inherited: true
           sensitivity: internal
       - name: subtotal_amount
         description: "Soma dos itens antes de desconto, frete e imposto."
         meta:
+          description_inherited: true
           sensitivity: confidential
       - name: items_gross_revenue_amount
         meta:

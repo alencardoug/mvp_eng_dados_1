@@ -13,30 +13,37 @@ models:
     description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: delivery_event_id
     description: Único depois da deduplicação de entrega ao menos uma vez.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: shipment_id
     description: Remessa à qual o evento se refere.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: delivery_event_type
     description: Natureza do evento de entrega.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: occurred_at
     description: Momento de negócio do evento.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: event_location
     description: Localidade registrada pela transportadora.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: event_description
     description: Descrição textual do evento.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: is_delivery
     meta:
       sensitivity: public
@@ -59,10 +66,12 @@ models:
     description: '{{ doc("is_deleted_append_only") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_created_at
     description: Momento em que o evento foi registrado na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
 - name: geographies
   meta:
     domain: transversal
@@ -71,22 +80,27 @@ models:
     description: País em código ISO de duas letras.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: state_code
     description: Unidade federativa em sigla de duas letras.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: state_name
     description: Nome da unidade federativa por extenso.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: region
     description: Região do IBGE a que a unidade federativa pertence.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: city
     description: Cidade; alimenta a dimensão de geografia.
     meta:
       sensitivity: public
+      description_inherited: true
 - name: inventory_balances
   meta:
     domain: estoque
@@ -95,34 +109,42 @@ models:
     description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: inventory_balance_id
     description: Identificador do saldo de estoque de uma variante num armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: warehouse_id
     description: Armazém do saldo.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: product_variant_id
     description: SKU do saldo.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: quantity_on_hand
     description: Quantidade fisicamente disponível.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: quantity_reserved
     description: Quantidade reservada para carrinhos e pedidos.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: quantity_available
     description: Quantidade livre para venda; derivada pelo banco.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: last_movement_at
     description: Momento do último movimento aplicado ao saldo.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: rebuilt_quantity_on_hand
     meta:
       sensitivity: internal
@@ -148,14 +170,17 @@ models:
     description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_created_at
     description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_updated_at
     description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
+      description_inherited: true
 - name: sales_channels
   meta:
     domain: vendas
@@ -164,38 +189,47 @@ models:
     description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: sales_channel_id
     description: Identificador do canal de venda na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: sales_channel_code
     description: Código estável do canal.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: sales_channel_name
     description: Nome do canal de venda.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: channel_type
     description: 'Natureza do canal: web, app ou store.'
     meta:
       sensitivity: public
+      description_inherited: true
   - name: is_active
     description: Indica se o canal continua operando.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: is_deleted
     description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_created_at
     description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_updated_at
     description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
+      description_inherited: true
 - name: suppliers
   meta:
     domain: compras
@@ -204,54 +238,67 @@ models:
     description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: supplier_id
     description: Identificador do fornecedor na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: supplier_code
     description: Chave natural do fornecedor na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: supplier_legal_name
     description: Razão social do fornecedor (sintética).
     meta:
       sensitivity: confidential
+      description_inherited: true
   - name: supplier_trade_name
     description: Nome fantasia do fornecedor.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: supplier_document
     description: Documento de identificação do fornecedor (sintético).
     meta:
       sensitivity: confidential
+      description_inherited: true
   - name: supplier_contact_email
     description: E-mail de contato comercial (sintético).
     meta:
       sensitivity: personal
+      description_inherited: true
   - name: supplier_country
     description: País do fornecedor, em código ISO.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: payment_terms_days
     description: Prazo de pagamento negociado, em dias.
     meta:
       sensitivity: confidential
+      description_inherited: true
   - name: is_active
     description: Indica se o fornecedor continua ativo.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: is_deleted
     description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_created_at
     description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_updated_at
     description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
+      description_inherited: true
 - name: warehouses
   meta:
     domain: estoque
@@ -260,55 +307,69 @@ models:
     description: '{{ doc("source_system") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: warehouse_id
     description: Identificador do armazém na origem, gerado pelo banco transacional.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: warehouse_code
     description: Código estável do armazém.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_name
     description: Nome do armazém.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_city
     description: Cidade do armazém.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_state
     description: Unidade federativa do armazém.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_state_name
     description: Nome da unidade federativa por extenso.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_region
     description: Região do IBGE a que a unidade federativa pertence.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: warehouse_country
     description: País, em código ISO.
     meta:
       sensitivity: public
+      description_inherited: true
   - name: capacity_units
     description: Capacidade máxima em unidades.
     meta:
       sensitivity: confidential
+      description_inherited: true
   - name: is_active
     description: Indica se o armazém está operando.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: is_deleted
     description: '{{ doc("is_deleted") }}'
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_created_at
     description: Momento de criação do registro na origem.
     meta:
       sensitivity: internal
+      description_inherited: true
   - name: source_updated_at
     description: Momento da última alteração; cursor da carga incremental (ADR-0015).
     meta:
       sensitivity: internal
+      description_inherited: true

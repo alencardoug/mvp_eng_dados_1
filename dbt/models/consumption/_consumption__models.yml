@@ -23,37 +23,44 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: channel_type
         description: "Natureza do canal: web, app ou store."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: root_category_name
         description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: category_name
         description: "Nome comercial da categoria."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: order_count
@@ -92,27 +99,32 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: customer_segment_name
         description: "Nome do segmento do cliente; 'Sem segmento' quando ele não tem um."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: order_count
@@ -147,16 +159,19 @@ models:
       - name: product_natural_key
         description: "Identificador da variante do produto (o SKU) na origem, gerado pelo banco transacional."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: bigint
       - name: sku
         description: "Código de estoque da variante; chave natural do SKU."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: product_name
         description: "Nome comercial do produto."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: category_name
@@ -167,11 +182,13 @@ models:
       - name: root_category_name
         description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: brand_name
         description: "Nome da marca."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: is_deleted
@@ -211,27 +228,32 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: customer_segment_name
         description: "Nome do segmento do cliente; 'Sem segmento' quando ele não tem um."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: new_customer_count
@@ -260,11 +282,13 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: quarter_number
         description: "Trimestre do ano, de 1 a 4."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_quarter
@@ -276,21 +300,25 @@ models:
       - name: region
         description: "Região do IBGE a que a unidade federativa pertence."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: state_code
         description: "Unidade federativa em sigla de duas letras."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: state_name
         description: "Nome da unidade federativa por extenso."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: order_count
@@ -324,32 +352,38 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: channel_type
         description: "Natureza do canal: web, app ou store."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: root_category_name
         description: "Nome da categoria raiz da variante, no topo da árvore de categorias."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: order_count
@@ -395,21 +429,25 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: channel_type
         description: "Natureza do canal: web, app ou store."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: cart_count
@@ -528,11 +566,13 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: quarter_number
         description: "Trimestre do ano, de 1 a 4."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_quarter
@@ -543,26 +583,31 @@ models:
       - name: sku
         description: "Código de estoque da variante; chave natural do SKU."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: product_name
         description: "Nome comercial do produto."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: category_name
         description: "Nome comercial da categoria."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: warehouse_name
         description: "Nome do armazém."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: warehouse_region
         description: "Região do IBGE a que a unidade federativa pertence."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: quantity_out
@@ -602,36 +647,43 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: payment_method_name
         description: "Nome do meio de pagamento."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: method_type
         description: "Natureza do meio: cartão, pix, boleto, carteira ou vale."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: installments
         description: "Número de parcelas acordadas."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: integer
       - name: is_instalment_plan
         description: "Verdadeiro quando o pagamento é parcelado, em mais de uma parcela."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: boolean
       - name: authorization_attempt_count
@@ -670,21 +722,25 @@ models:
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: payment_method_name
         description: "Nome do meio de pagamento."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: refund_reason
@@ -728,31 +784,37 @@ models:
       - name: warehouse_name
         description: "Nome do armazém."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: warehouse_region
         description: "Região do IBGE a que a unidade federativa pertence."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: sku
         description: "Código de estoque da variante; chave natural do SKU."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: product_name
         description: "Nome comercial do produto."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: category_name
         description: "Nome comercial da categoria."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: brand_name
         description: "Nome da marca do produto; 'Sem marca' quando ele não tem uma."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: quantity_on_hand
@@ -832,22 +894,26 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: carrier_name
         description: "Nome da transportadora."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: service_level
@@ -859,11 +925,13 @@ models:
       - name: warehouse_name
         description: "Nome do armazém."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: warehouse_region
         description: "Região do IBGE a que a unidade federativa pertence."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: delivered_count
@@ -921,27 +989,32 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: region
         description: "Região do IBGE a que a unidade federativa pertence."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: state_code
         description: "Unidade federativa em sigla de duas letras."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: service_level
@@ -953,6 +1026,7 @@ models:
       - name: carrier_name
         description: "Nome da transportadora."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: order_count
@@ -1003,37 +1077,44 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: channel_type
         description: "Natureza do canal: web, app ou store."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: support_category_name
         description: "Nome da categoria de chamado."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: support_category_group
         description: "Grupo que reúne categorias de chamado afins."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: ticket_count
@@ -1084,22 +1165,26 @@ models:
       - name: year_number
         description: "Ano da data."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: month_number
         description: "Mês do ano, de 1 a 12."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: integer
       - name: year_month
         description: "Ano e mês, no formato AAAA-MM."
         meta:
+          description_inherited: true
           sensitivity: internal
         data_type: text
         constraints: [{type: not_null}]
       - name: sales_channel_name
         description: "Nome do canal de venda."
         meta:
+          description_inherited: true
           sensitivity: public
         data_type: text
       - name: has_support_ticket
