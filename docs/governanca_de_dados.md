@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.15 |
+| Versão | 2.16 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a marca de proveniência na coluna no lugar do registro, a união pela resolução de tipo do PostgreSQL e a recusa da declaração de `.yml` atrasada (rodada 3 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a marca conferida no YAML carregado, a união fora das categorias ordenadas só com tipo provado e a declaração de `.yml` retirada inteira (rodada 4 do lote 3 da v1.1.0) |
 
 ---
 
@@ -163,8 +163,12 @@ segue a resolução do servidor: nas categorias numérica e de data/hora a uniã
 alto presente e converte todo ramo para ele, e só vale herdar quando a conversão do que é
 transportado não muda o valor — alargar inteiro, inteiro para numérico exato; `bigint` para `real` e
 `timestamp` para `timestamptz` (pelo fuso da sessão) não valem. Tipo desconhecido não prova nada:
-com mais de uma folha, ou diante de constante tipada, não se herda. O tipo conhecido vem da origem,
-do `cast`, do que a expressão declara e da constante. A ponte do legado só herda pela declaração `meta.description_from` que
+com mais de uma folha, ou diante de constante tipada, não se herda. Fora das categorias ordenadas,
+construir a união prova compatibilidade, não igualdade: aceita-se o mesmo tipo, `varchar` com
+`text` e `uuid`/`json`/`jsonb` com texto (o Airbyte grava texto no lugar deles); `char(n)` com
+texto, que perde o preenchimento, e `array` de tipos diferentes não herdam (RVL3-4-02). O tipo
+conhecido vem da origem, do `cast`, do teste e da comparação, da espécie do literal (`'true'` é
+texto) e de `||` cujos operandos provam ser texto (RVL3-4-03). A ponte do legado só herda pela declaração `meta.description_from` que
 `legacy/ponte.py` gera, apontando a coluna do `stg_retail__*` que ela reproduz — onde o legado põe
 outra coisa no lugar, como a identidade física em `event_sequence`, não há par. As colunas de
 convenção (`source_system`, `is_deleted`) e as que as ferramentas acrescentam (`_airbyte_*`,
@@ -174,7 +178,9 @@ mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o he
 troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` escreveu nele; o que separa um do outro
 é a marca `meta.description_inherited: true`, que a derivação põe em todo texto que escreve — no
 `.yml` à mão e no gerado — e que anda com a coluna quando ela é renomeada, movida ou promovida a um
-`.yml` à mão. Coluna marcada que deixou de transportar é recusada, como a que guarda, sem motivo, o
+`.yml` à mão. A marca é conferida no YAML como ele é carregado, sem chave repetida, nos dois modos
+do `make catalog`; `meta` escrito em linha (`meta: {…}`) o escritor recusa, em vez de duplicar a chave
+(RVL3-4-01). Coluna marcada que deixou de transportar é recusada, como a que guarda, sem motivo, o
 texto de quem ela lê; escreve-se o texto do cálculo e tira-se a marca, que só sai por quem revisa
 (RVL3-01, RVL3-2-01, RVL3-3-01). Toda grafia de `{{ doc("x") }}` é a mesma referência (RVL3-3-02). E o texto herdado diz o que o valor é, não como somá-lo **no grão de
 quem o recebe**: medida da remessa repetida em cada item, valor atual que a dimensão repete em cada versão
@@ -183,7 +189,8 @@ da entidade, ou acumulado que o snapshot congela na captura que abriu a versão 
 snapshots e das seeds no banco (as seeds desde a revisão do lote 3, RVL3-08); as fontes (`raw`, `raw_legacy`), que o dbt não constrói e o Airbyte recria a cada
 recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). A derivação lê o SQL compilado do manifest: um modelo, snapshot ou macro (fora de comentário
 Jinja) mudado no disco depois do último build, ou uma declaração de `.yml` que ela lê do manifest
-— o nível com motivo da ponte, o da seed, o da fonte não espelhada —, faz `make catalog` recusar e
+— o nível com motivo da ponte, o da seed, o da fonte não espelhada, inclusive a entrada retirada
+inteira (RVL3-4-04) —, faz `make catalog` recusar e
 não tocar em nada, até o `make dbt-build` (RVL3-07, RVL3-2-05, RVL3-3-04/05). Macro nova ou apagada
 e o `dbt_project.yml` não se conferem — a compilação recente continua sendo a premissa, que o `make
 check` cumpre com o build antes (RVL3-2-07). A catraca de descrição
