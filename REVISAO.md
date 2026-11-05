@@ -2714,3 +2714,454 @@ Os 188 testes de integração foram excluídos e listados pelo alvo. Não refiz
 fora desta autorização. Não executei DAG, segunda versão SCD real, alteração
 de defaults de conexão ou SQL no BigQuery. Os checks verdes e a equivalência
 dos resultados atuais não encerram as três contraprovas desta rodada.
+
+## Rodada 6 — lote 3
+
+Revisão de `9cef25b..8e6e400`, **somente os quatro commits** `4a1ee22`,
+`8f1dce1`, `4c84339` e `8e6e400`, no checkout `8e6e400`, em 05/11/2026.
+**Parecer técnico, sem aceite ou poder de aprovação. Nenhuma correção implementada.
+O lote 3 continua aberto: um bloqueante e três ajustes.**
+
+As sondas e suas saídas estão em `/tmp/rvl3-r6-review`. Os scripts de R5 foram
+copiados para esse diretório e reexecutados com o código atual; geração, cache e
+parsing ficaram nas cópias em `/tmp`, ou em memória. Só este dossiê foi alterado
+no repositório. `GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md` já estavam
+não rastreados e não foram tocados. Não executei snapshot, build, DAG, concessões,
+reset, carga ou sincronização. Nenhuma escrita no warehouse.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-6-01 | `src/mvp_ed1/models/descriptions.py:175–176,248–251`; leitores de metadados em `sensitivity.py` | **A proveniência desaparece ao mover `meta` da coluna para `config.meta`, formato aceito pelo dbt instalado.** O leitor combina as duas grafias no nível do modelo, mas a coluna continua sendo consultada apenas por `c.get('meta')`. Em `probe_marker.quantity = 100`, o dbt reconhece `description_inherited: true` em `config.meta`; a derivação mantém “Quantidade comprada do SKU.” como texto escrito. Com a sensibilidade no `meta` direto, check → geração → check dão **0/0/0**. Movendo todo o `meta` para `config`, a geração só repõe `meta.sensitivity`, retorna 0 e o check seguinte também retorna 0, sem revisar o texto. É migração normal de sintaxe, não eliminação deliberada da marca. Normalizar os metadados da coluna conforme o dbt, ou recusar explicitamente a forma que o motor não suporta, antes de consumir a marca. **Preexistente; fechamento incompleto de RVL3-5-02 e da cadeia de proveniência, não regressão de 8f1dce1.** R6-C. | `bloqueante` | **Corrigido na leitura.** `read_yaml` junta o `config.meta` de cada coluna em `meta`, como o dbt as junta, antes de qualquer leitor ver a coluna; a mesma chave nas duas grafias com valores diferentes é recusa. A marca movida para `config.meta` continua sendo vista, e seu `quantity = 100` volta a ser acusado. Teste `test_config_meta_da_coluna_e_lido_como_meta_e_a_fonte_repetida_e_recusada`; contraprova com `8e6e400`: a marca sumia. |
+| RVL3-6-02 | `descriptions.py:145–164`; `sensitivity.py:418–423`; Governança §5.1 v2.17 | **A unicidade não cobre a tabela de fonte.** `_documents` verifica só `models/snapshots/seeds`; `read_yaml` verifica colunas dentro de cada tabela, mas não a repetição da tabela. `disk_sources` e `_declaracoes_no_disco` continuam ficando com a última ocorrência. Duplicar `retail.order_items` e deixar uma descrição monetária errada em `quantity` na primeira ocorrência conserva o erro no arquivo: check → geração → check dão **0/0/0**, sem arquivo alterado. A mesma tabela em dois arquivos também é aceita pelo catálogo. O parser dbt recusa a duplicidade, limitando o impacto: não demonstrei que um build completo passe. Ainda é passe silencioso da catraca de catálogo numa edição/merge comum e contradiz a garantia documental. Validar a identidade das fontes/tabelas antes de reduzi-las a mapas. **Preexistente; lacuna da cobertura prometida por 8f1dce1/4c84339.** R6-C. | `ajuste` | **Corrigido.** A tabela de fonte repetida é recusa: no mesmo arquivo, em `read_yaml`; em dois arquivos, em `_documents`, pelo par fonte × tabela. Seu caso de `retail.order_items` duplicada agora para o catálogo. No mesmo teste. |
+| RVL3-6-03 | `descriptions.py:143–150`; contrato de promoção em `sensitivity.py:628–633` | **A recusa nova impede a promoção documentada de gerado para manual.** Acrescentar `delivery_events` a um YAML manual, preservando colunas e marcas, deveria fazer a geração retirar a entrada de `_derived.yml` antes do próximo parse. Agora geração e check retornam 1 na duplicidade, antes de reconciliar os arquivos. Usando somente `_documents` de `9cef25b`, a mesma geração retorna 0, remove a entrada gerada e o check passa. Não é a divisão de um modelo manual entre dois arquivos: é a transição explicitamente suportada pelo projeto. Preservar essa transição sem permitir que uma ocorrência esconda outra. **Regressão de 8f1dce1.** Falha fechada, sem descrição falsa demonstrada por este caso; registrada como ajuste de regressão/alarme indevido no fluxo ordinário solicitado para conferência. R6-D. | `ajuste` | **Corrigido** — a regressão era minha. `_documents` aceita a duplicidade só quando uma das ocorrências está num `_derived.yml`: é a promoção documentada, vale a entrada à mão, e a gerada sai da leitura (e de `_declaracoes_no_disco`) até a geração a remover. À mão contra à mão continua recusa. Teste `test_a_promocao_do_gerado_a_mao_continua_valendo`; contraprova com `8e6e400`: recusava. |
+| RVL3-6-04 | `dbt/models/trusted/orders.sql:95–103`; `customers.sql:103–116`; resposta a RVL3-5-01 | **“Nenhum modelo depende do fuso da sessão” é falso para a aritmética das janelas.** Somar dias a `timestamptz` usa o calendário do fuso da sessão. Na expressão real de recompra, pedido em `2024-01-01 12:00+00` e recompra em `2024-03-31 11:30+00` dão `true` em UTC e `false` em `America/New_York`, sem mudar nenhum instante de entrada. O snapshot UTC não protege esse cálculo. Nos 3.661 pedidos atuais, 1.641 limites de janela mudam entre esses fusos, mas **zero** indicadores comparados mudaram; a divergência de classificação foi medida com duas linhas sintéticas em CTE. Fuso com horário de verão e compra junto ao limite são casos normais, não SQL adversarial. Delimitar a garantia do escritor e encaminhar ao Owner o fuso/semântica dessas janelas, sem decidir tratamento de negócio na revisão. **Preexistente (os modelos não mudam neste intervalo), não regressão do escritor.** R6-B. | `ajuste` | **Corrigido por decisão do Owner** ("São Paulo, explícito"): toda janela de dias sobre instante passa pela macro nova `dias_no_calendario(instante, dias)`, que soma os dias no calendário de `America/Sao_Paulo` — o das datas das fatos — e não no fuso da sessão: recompra de 90 dias (`orders`, `customers`, P15), cliente ativo e churn (`customers`), cobertura de estoque (P12) e a reprocessada da fato incremental de estoque. E o "hoje" de `customers`, que era `date 'as_of_date'` (meia-noite do fuso da **sessão**), passou a `timestamptz 'as_of_date 00:00-03'`, como nos demais modelos. Medido antes e depois do build: clientes ativos 497 → 497, churn 892 → 892, recompra 243 → 243, janelas fechadas 3307 → 3307; só `days_since_last_order` mudou, +0,125 dia (médio 330,9424 → 331,0677) em 1.389 clientes, porque o "hoje" andou três horas. `tests/test_vigencia_em_utc.py` recusa agora um `± interval 'N days'` novo fora da macro (contraprova com os modelos anteriores: os 11 acusados) e o `date 'as_of'`. Qualidade §4 diz a regra e a mudança medida. |
+
+### Conferência dos encerramentos
+
+“Fechado” encerra o defeito técnico identificado, não aprova a entrega.
+Os comandos de sondas abaixo são `.venv/bin/python -P /tmp/rvl3-r6-review/<script>`,
+com `PYTHONDONTWRITEBYTECODE=1`; SQL usa o `ro.sh` indicado em R6-A.
+
+| Achado anterior | Resultado nesta rodada | Comando e saída |
+|---|---|---|
+| RVL3-5-01 | **Fechado quanto ao escritor dos quatro snapshots atuais.** A chamada direta e o dispatch produzem UTC, independentemente da sessão; a afirmação sobre todos os modelos fica corrigida pelo novo R6-04. | `dbt run-operation review_clock` na cópia: `DIRECT=(now() at time zone 'UTC')`, `DISPATCH=(now() at time zone 'UTC')`, `CLOCK=('America/Sao_Paulo', 'timestamp without time zone', True, True)`; `ro.sh clock_oracle.sql`: `writer_preserves_instant=t`, `early=f`. |
+| RVL3-5-02 | **Não fechado integralmente.** As duas duplicidades originais agora são recusadas; ainda há proveniência ignorada em `config.meta` e fontes encobertas. | `yaml_extra.py`: `DUP_COLUMN_SHADOW` → `ValueError … mais de uma vez`; `DUP_META_SHADOW` → `ValueError … chave meta repetida`; `config_all.py`: geração e recheck `RC 0`; `source_shadow.py`: `RC 0` nos três modos. |
+| RVL3-5-03 | **Fechado.** O array parametrizado não é mais provado como texto escalar, por literal ou por operandos coluna. | `types_extra.py`: `VARCHAR_ARRAY_CONCAT … TIPO_A None … TEXTO_B None`; `array_columns.py`: `COLUMN_ARRAY_CONCAT … TIPO_A None … TEXTO_B None`; `arrays_more.py`: quatro variantes com `Computed(kind='cast')`, sem texto herdado. |
+| RVL3-4-01, RVL3-3-01, RVL3-2-01 e RVL3-01 | **Continuam abertos quanto à garantia de proveniência**, agora pelo caso válido de `config.meta` em R6-01. Inline, comentários, renomeação e dois saltos originalmente exercitados continuam recusados/preservados corretamente. | `transitions.py`: renomeações e `DOIS_SALTOS` com problema; `full.py`: `CONSTANTE_COM_MARCA RC 1`; `strict_more.py`: `CONFIG_META_ONLY_MARK`/`GENERATE`/`RECHECK RC 0`. |
+| RVL3-4-03 | **Fechado para os escapes demonstrados**, inclusive o array com parâmetro que restava. | `materialized.py`: `STRING_BOOL … Computed(kind='cast') TEXTO_B None`; `types_extra.py` e `array_columns.py` acima. |
+| RVL3-3-03 | **Fechado para a união de folhas desconhecidas e para a vigência dos snapshots atuais.** Não se estende a toda aritmética temporal possível. | `types.py`: `R3_ORIGINAL … union_unproven … TEXTO None`; R6-A: duas portas UTC e comparação dos resultados. |
+| RVL3-4-02, RVL3-02 e RVL3-2-02 | **Permanecem fechados quanto às coerções apontadas.** | `types.py`: arrays/`CHAR_TEXT` → `union_coercion`; `extra_union.py`: `R2_NESTED`, `R2_DEEP`, `CHAR_REVERSE`, `NUMERIC_ARRAY` → `union_coercion`. |
+| RVL3-4-04, RVL3-3-04 e RVL3-2-07 | **Permanecem fechados para os escapes concretos de declaração retirada/alterada e macro antiga.** O problema novo de fonte duplicada está em R6-02; o limite de inventário novo/`dbt_project.yml` não virou garantia geral. | `full.py`: `PONTE_NIVEL_ALTERADO RC 1`, `MACRO_ANTIGA_COMENTADA RC 1`, `SEED_REMOVIDA_STALE ['declaração de order_status_transitions']`, `SEED_DECLARACAO_REMOVIDA RC 1`; `MODELO_MOVIDO_ENTRE_ARQUIVOS RC 0`. |
+
+RVL3-07 fica com a mesma delimitação de atualidade das rodadas anteriores;
+RVL3-3-02/05 não reabriram. Os demais itens já encerrados não foram reavaliados
+fora do intervalo solicitado. A promoção detectada em R6-03 é diferente da
+sonda antiga `GERADO_PROMOVIDO`: aquela já entregava ao motor a entrada promovida,
+sem exercer a coexistência transitória dos dois arquivos.
+
+### Evidências da rodada 6
+
+**R6-A — reexecução de R5-A/B e alcance do escritor.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/run_sql.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/snapshot_audit.py
+```
+
+`run_sql.py` regenera `temporal.sql` e `temporal_full_inventory.sql` com os scripts
+de R5 e executa ambos, `temporal_edges.sql` e `oracle.sql` com:
+
+```sh
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh <arquivo.sql>
+```
+
+São CTEs e `EXCEPT ALL`, nas duas direções, em transação `REPEATABLE READ READ ONLY`,
+com `ROLLBACK` final. A segunda consulta retira a janela incremental para conferir
+todo o estoque e seus descendentes, como em R5. Os quatro comandos SQL retornaram 0.
+`temporal_summary.py` exige 26 objetos, ausência de erro e o `ROLLBACK` final:
+
+```text
+OBJETOS 26 FATOS 10 VIEWS 16 DIFERENCAS 0
+```
+
+Sem a janela incremental, saída literal das quatro comparações:
+
+```text
+ fact_inventory_movement |   16398 |    16398 |          0
+ gross_margin_by_category |     542 |      542 |          0
+ inventory_turnover_by_sku_and_warehouse |    6402 |     6402 |          0
+ skus_below_reorder_point |     532 |      532 |          0
+ROLLBACK
+```
+
+O estado dos snapshots e o oráculo de inclusão/exclusão de limites:
+
+```text
+    modelo     |  n   | encerradas
+---------------+------+------------
+ customer      | 1574 |          0
+ coupon        |   19 |          0
+ product       |  622 |          0
+ support_agent |    7 |          0
+
+               t               | antes | depois
+-------------------------------+-------+--------
+ 2026-11-05 11:59:59.999999+00 | f     | f
+ 2026-11-05 12:00:00+00        | t     | t
+ 2026-11-05 12:59:59.999999+00 | t     | t
+ 2026-11-05 13:00:00+00        | f     | f
+```
+
+Não há versões encerradas reais nesse estado: os limites acima são CTEs sintéticos.
+`temporal_edges.sql` conserva também a contraprova do **escritor antigo** em sessão
+São Paulo, que segue dando `nova_versao_uma_hora_antes=t`; o escritor novo é
+contrastado em `clock_oracle.sql` abaixo, onde `early=f`.
+
+Inventário do manifest e dos pacotes instalados:
+
+```text
+VERSIONS 1.12.3 1.11.0
+SNAPSHOT scd_coupon {'strategy': 'check', 'updated_at': None, 'hard_deletes': None, 'invalidate_hard_deletes': None, 'dbt_valid_to_current': None}
+SNAPSHOT scd_customer {'strategy': 'check', 'updated_at': None, 'hard_deletes': None, 'invalidate_hard_deletes': None, 'dbt_valid_to_current': None}
+SNAPSHOT scd_support_agent {'strategy': 'check', 'updated_at': None, 'hard_deletes': None, 'invalidate_hard_deletes': None, 'dbt_valid_to_current': None}
+SNAPSHOT scd_product {'strategy': 'check', 'updated_at': None, 'hard_deletes': None, 'invalidate_hard_deletes': None, 'dbt_valid_to_current': None}
+```
+
+**Nem todo valor temporal escrito por qualquer configuração passa pelas macros.**
+A leitura integral de `dbt/include/global_project/macros/materializations/snapshots/`
+e das variantes PostgreSQL instaladas encontrou estes caminhos:
+
+| Caminho | Origem do tempo no SQL |
+|---|---|
+| Novo snapshot, `check` sem `updated_at` | `strategies.sql:148` escolhe `snapshot_get_time()`; `helpers.sql:237–244` usa `strategy.updated_at` nas colunas de vigência. Coberto. |
+| Snapshot existente, inserção e fechamento por mudança | `helpers.sql:72–85` usa a mesma expressão da estratégia; `snapshot_merge.sql` copia a vigência do staging. Coberto no `check` atual. |
+| Hard delete `invalidate` | `helpers.sql:145–147`: chamadas diretas de `snapshot_get_time()`. Coberto. |
+| Hard delete `new_record` | Chamadas diretas para fechamento, abertura da linha de exclusão e componente temporal do novo hash (`helpers.sql:44,145–147,194–195`); a linha nova conserva o `valid_to` da anterior. Relógio coberto; sentinela continua configurada. |
+| `timestamp`, ou `check` com `updated_at` | `strategies.sql:56,148` usa a expressão configurada, não o relógio sobrescrito. Tipo/fuso dessa expressão precisa ser coerente com o consumidor. Não é configuração atual. |
+| `dbt_valid_to_current` | `helpers.sql:293–296` usa a expressão configurada como sentinela; não a normaliza para UTC. Sem configuração, produz nulo tipado pela estratégia. |
+| Checagem de tipo | `get_snapshot_get_time_data_type` chama `adapter.dispatch('snapshot_get_time', 'dbt')`; a segunda macro do projeto cobre essa porta. |
+
+O uso de `updated_at` nas duas estratégias também está no
+[contrato oficial do dbt](https://docs.getdbt.com/reference/resource-configs/updated_at).
+Não interpretei o override como conversão universal de colunas fornecidas pelo usuário.
+
+A sonda `review_clock`, criada **somente na cópia** `dispatch_copy/dbt/macros`,
+loga as duas chamadas e executa apenas um `SELECT` de tipo/igualdade com `now()`.
+Ambiente carregado do `.env`, sem imprimir credenciais:
+
+```sh
+PGTZ=America/Sao_Paulo PGOPTIONS='-c default_transaction_read_only=on' \
+  PYTHONDONTWRITEBYTECODE=1 .venv/bin/dbt run-operation review_clock \
+  --project-dir /tmp/rvl3-r6-review/dispatch_copy/dbt --profiles-dir dbt
+```
+
+```text
+DIRECT=(now() at time zone 'UTC')
+DISPATCH=(now() at time zone 'UTC')
+CLOCK=('America/Sao_Paulo', 'timestamp without time zone', True, True)
+```
+
+Essa execução foi somente leitura, mas o SELECT da sonda usou a conexão do perfil
+dbt, em vez de `ro.sh`; fica registrado esse desvio do procedimento exigido para
+SQL de superusuário. As demais sondas SQL usaram o wrapper. A confirmação
+independente pelo wrapper, `ro.sh clock_oracle.sql`, devolveu:
+
+```text
+ zone | legacy_equals_new |         writer_type
+------+-------------------+-----------------------------
+ UTC  | t                 | timestamp without time zone
+
+       zone        | writer_preserves_instant | old_shift
+-------------------+--------------------------+-----------
+ America/Sao_Paulo | t                        | -03:00:00
+
+   dbt_valid_from    | preserves | early
+---------------------+-----------+-------
+ 2026-11-05 15:00:00 | t         | f
+```
+
+As doze colunas temporais físicas dos quatro snapshots continuam `timestamp
+without time zone`. Para linhas escritas na sessão UTC, como informado e medido
+nas rodadas anteriores, o escritor antigo e o novo são equivalentes. Um timestamp
+sem fuso não permite recuperar o fuso histórico só olhando seu valor; não afirmo
+ter reconstruído sessões antigas a partir dessas colunas.
+
+`dbt_readonly.py` reexecutou `dbt --quiet ls --select staging trusted quarantine
+analytics consumption tag:fronteira --resource-type test --output name` na cópia:
+
+```text
+DAG_SELECTION RC 0 LINES 690 UTC_MATCHES 0
+UTC_TEST_PRESENT False
+```
+
+A ausência é agora intencional: a guarda está no escritor. O teste Python novo
+passou na suíte offline, mas comparar strings e presença no manifest, isoladamente,
+não provaria dispatch; a sonda acima fornece essa evidência. O log preexistente
+consultado já não continha as 60 ocorrências alegadas pelo autor (`UTC 0 LOCAL 0`);
+não tratei essa contagem histórica como uma nova medição desta rodada.
+
+**R6-B — dependência de sessão nos modelos, testes e consumo.**
+
+```sh
+rg -in '::\s*date|date_trunc\s*\(|extract\s*\(|to_char\s*\(|now\s*\(|current_date|as\s+date\b' \
+  dbt/models dbt/macros dbt/tests -g '*.sql'
+```
+
+A busca completa ficou em `timezone-full.txt`. Nos usos encontrados, a redução
+de evento `timestamptz` a data usa `America/Sao_Paulo`; `extract(epoch)` opera
+sobre diferenças de instantes; `dim_date` opera sobre calendário/data; o legado
+converte strings de data, não eventos `timestamptz` implicitamente. `current_date`
+aparece em comentários, e `now()` ativo nas duas macros UTC. As definições das
+16 views de consumo, obtidas por `pg_views` em `clock_oracle.sql`, também não
+introduzem essas conversões implícitas de eventos. Não encontrei outro escape
+nessas operações específicas.
+
+Isso **não cobre a soma/subtração de dias**. O PostgreSQL usa o fuso da sessão na
+aritmética de dias sobre `timestamptz`, inclusive ajustes de horário de verão.
+[Documentação PostgreSQL 16](https://www.postgresql.org/docs/16/functions-datetime.html).
+`ro.sh interval_sessions.sql`, com a própria expressão de `orders.sql`, CTEs
+sintéticos e dois `SET LOCAL` dentro de transação somente leitura:
+
+```text
+ zone |       window_end       | has_post_order_repeat
+------+------------------------+-----------------------
+ UTC  | 2024-03-31 12:00:00+00 | t
+
+       zone       |       window_end       | has_post_order_repeat
+------------------+------------------------+-----------------------
+ America/New_York | 2024-03-31 07:00:00-04 | f
+```
+
+`ro.sh interval.sql` compara os mesmos limites com os 3.661 pedidos atuais,
+conservando os instantes e `next_order_at` armazenados:
+
+```text
+  n   | boundary_changed | window_closed_changed | repeat_changed
+------+------------------+-----------------------+----------------
+ 3661 |             1641 |                     0 |              0
+```
+
+Portanto **não há medição de classificação atual incorreta** nessa comparação.
+O defeito demonstrado é a dependência do cálculo para um caso ordinário de borda.
+UTC e São Paulo não atravessam mudança de offset no período desses dados; isso
+explica por que conferir apenas esses dois fusos não demonstra o problema.
+O mesmo padrão existe nas janelas de atividade/recompra de `customers`, mas não
+extrapolei a contagem de `orders` para os clientes nem para indicadores finais.
+
+**R6-C — reexecução de R5-C e leitura estrita adicional.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/baseline.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/run_probes.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/strict_more.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/config_all.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/source_shadow.py
+```
+
+O baseline derivou em memória e comparou com o disco; **os 18 YAMLs atuais de
+models/snapshots/seeds carregam sem erro**:
+
+```text
+STALE []
+NOS 199 COLUNAS 2983
+PROBLEMAS [] []
+ARQUIVOS_DIFERENTES []
+OBSOLETOS []
+MARCAS 1375 ESPERADAS 1375 EXATAS True EXCEDENTES [] FALTANTES []
+DETERMINISTICO True
+```
+
+Os três avisos conhecidos de `legacy_classifications` permanecem. No baseline,
+`textos.marks` continua vazio, mas isso já não deixa duplicidades de chave/coluna
+passarem: o carregador estrito roda antes. Saídas de `yaml_extra.py`:
+
+```text
+FULL DUP_COLUMN_SHADOW ['--check'] RC ValueError:/tmp/rvl3-r6-review/yaml_copy/dbt/models/staging/_probe_marker.yml: `probe_marker` lista a(s) coluna(s) ['quantity'] mais de uma vez OUT  ERR
+FULL DUP_META_SHADOW ['--check'] RC ValueError:/tmp/rvl3-r6-review/yaml_copy/dbt/models/staging/_probe_marker.yml: chave `meta` repetida (linha 11) OUT  ERR
+```
+
+A geração e o segundo check recusaram igualmente os dois casos. A recusa acontece
+em `stale_nodes`, antes do `try` do `main`: lança exceção em vez da mensagem
+“recusado … nenhum arquivo é tocado” prometida na resposta. **Não é passe
+silencioso nem novo bloqueante de usabilidade.** `yaml_validate_loaded.py` agora
+termina com a recusa esperada da coluna repetida, mesmo com marca nas duas.
+`transitions.py` termina na recusa esperada do inline; suas transições anteriores
+continuam exercitadas. O runner captura esses retornos e segue para as demais sondas.
+
+| Formato adicional | Resultado medido |
+|---|---|
+| `meta` com comentário, CRLF e descrição em bloco | Escritor conserva marca e texto; verificação carregada passa. |
+| Âncora/alias de `meta` já marcado | Leitura resolve a marca e recusa cálculo sem revisão (`ANCHOR RC 1`). Escrita que precisa editar o alias é recusada. |
+| Alias da mesma coluna duas vezes | `DUP_ALIAS` → `ValueError … ['quantity'] mais de uma vez`. |
+| Merge `<<` | `ConstructorError` no carregador, inclusive no merge sem conflito. Limitação conservadora/recusa, não passe silencioso; nenhum arquivo atual usa esse formato. |
+| Coluna/marca deslocada para `tests:` | O catálogo não a interpreta como coluna (`TESTS_MARK RC 0`); `dbt ls` retorna 2: `test definition dictionary must have exactly one key`. Não é uma segunda grafia válida de metadado de coluna, ao contrário de `config.meta`. |
+| Mesmo modelo manual dividido entre arquivos | Catálogo recusa e `dbt ls` retorna 2: `Resources and their associated columns may only be described a single time`. Não é divisão legítima para o dbt instalado. |
+| Entrada movida, removendo a antiga | `MODELO_MOVIDO_ENTRE_ARQUIVOS RC 0`. |
+| `config.meta` da coluna | dbt aceita e reconhece a marca; derivação a ignora — R6-01. |
+| Mesma tabela de fonte em dois arquivos | `SOURCE_DUPLICATE RC 0`; `disk_sources` devolve só `Segundo texto`; `dbt ls` retorna 2 por duas fontes com o mesmo nome — R6-02. |
+
+Contraprova válida para `config.meta`, sobre `select 100 as quantity`:
+
+```yaml
+columns:
+  - name: quantity
+    description: Quantidade comprada do SKU.
+    config:
+      meta:
+        description_inherited: true
+        sensitivity: internal
+```
+
+`dbt_readonly.py`/`more_yaml_dbt.py`, com `dbt ls` na cópia:
+
+```text
+DBT_CONFIG_META RC 0 OUT probe_marker
+DBT_COLUMN_META {'sensitivity': 'internal', 'description_inherited': True}
+DBT_CONFIG_ALL RC 0 OUT probe_marker
+DBT_CONFIG_ALL_META {'description_inherited': True, 'sensitivity': 'internal'}
+```
+
+Essa posição está no [contrato oficial de meta de coluna](https://docs.getdbt.com/reference/resource-configs/meta).
+`config_all.py` usa o `main` e o cache reais, sem substituir `load()`:
+
+```text
+CONFIG_ALL ['--check'] RC 1 SECONDS 26.098 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 1 arquivo(s) desatualizado(s) ERR desatualizado: dbt/models/staging/_probe_marker.yml
+CONFIG_ALL [] RC 0 SECONDS 3.295 OUT escrito: dbt/models/staging/_probe_marker.yml
+classificação e descrição derivadas de 2984 colunas em 200 nós; 1 arquivo(s) escrito(s) ERR
+CONFIG_ALL ['--check'] RC 0 SECONDS 1.742 OUT classificação e descrição derivadas de 2984 colunas em 200 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+A única adição foi `meta.sensitivity: internal` diretamente na coluna; descrição
+e marca em `config.meta` permaneceram. O primeiro RC 1 acusa **arquivo diferente**,
+não proveniência inválida. Com a sensibilidade já no `meta` direto e só a marca
+sob `config.meta`, os três modos passam sem alteração. O controle com a marca
+no `meta` direto retorna `RC 1 … não transporta mais (constant)`.
+
+`source_shadow.py` duplica uma tabela **existente**, no espelho de `retail`, com
+descrição errada na primeira ocorrência e a correta na última. Como só o YAML muda,
+reutiliza em memória a derivação do baseline, mantendo o restante do `main` real:
+
+```text
+EXISTING_SOURCE_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+EXISTING_SOURCE_SHADOW [] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) escrito(s) ERR
+EXISTING_SOURCE_SHADOW ['--check'] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+SOURCE_QUANTITY_DESCRIPTIONS ['Valor monetário total do pedido em reais.', 'Quantidade comprada do SKU.']
+```
+
+Não se deve confundir a recusa do parser dbt com a recusa que a documentação
+promete para ambos os modos do catálogo. Não foi demonstrado build completo
+verde com essa fonte duplicada.
+
+**R6-D — promoção e custo da leitura.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/promotion.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r6-review/check_time.py
+```
+
+A promoção copia a declaração inteira de `delivery_events` para `_z_promoted.yml`,
+sem editar o gerado. Reutiliza a derivação inalterada do baseline. Com o código
+atual, os dois modos retornam 1; substituindo **só `_documents`** pela função de
+`9cef25b` carregada em memória:
+
+```text
+CURRENT_PROMOTION ['--check'] RC 1 OUT  ERR recusado: `delivery_events` documentado em /tmp/rvl3-r6-review/promotion_copy/dbt/models/trusted/_derived.yml e em /tmp/rvl3-r6-review/promotion_copy/dbt/models/trusted/_z_promoted.yml — nenhum arquivo é tocado
+CURRENT_PROMOTION [] RC 1 OUT  ERR recusado: `delivery_events` documentado em /tmp/rvl3-r6-review/promotion_copy/dbt/models/trusted/_derived.yml e em /tmp/rvl3-r6-review/promotion_copy/dbt/models/trusted/_z_promoted.yml — nenhum arquivo é tocado
+PREVIOUS_DOCUMENTS [] RC 0 OUT escrito: dbt/models/trusted/_derived.yml
+classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) escrito(s) ERR
+PREVIOUS_DOCUMENTS ['--check'] RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+O `--check` real, com cache aquecido na cópia completa e **sem substituir `load`**:
+
+```text
+CHECK 1 RC 0 SECONDS 10.896
+CHECK 2 RC 0 SECONDS 10.705
+```
+
+São medições durante outras validações concorrentes; não são benchmark isolado.
+A sonda `config_all` acima mediu 26,098 s com cache novo e 1,742 s no último check
+com cache aquecido. O custo é aceitável para a catraca local nesta medição; não
+identifiquei regressão de desempenho que impedisse seu uso. Não estimei tempo de
+volume futuro nem atribuí toda diferença de tempo ao carregador C.
+
+**R6-E — reexecução de R5-D e arrays adicionais.**
+
+`run_probes.py` executou `types.py`, `extra_union.py`, `materialized.py`,
+`types_extra.py` e `array_columns.py`. A última sonda antiga terminou inicialmente
+com `KeyError` porque exigia justamente o tipo/texto indevidos que deixaram de
+existir; reexecutei trocando apenas o acesso do diagnóstico por `.get()`.
+O resultado é ausência de herança, não falha da derivação:
+
+```text
+VARCHAR_ARRAY_CONCAT A Computed(kind='dpipe', shape=None, type=None, materialized=None) TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] [] TIPO_ANTES TEXT
+COLUMN_ARRAY_CONCAT TIPO_P VARCHAR(8)[] TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+```
+
+`arrays_more.py` testa dois modelos em sequência, com concatenação no primeiro e
+`x::text` no segundo:
+
+```text
+CANON 'int[][]' = INTEGER[][]
+CANON '_int4' = _INT4
+CANON 'character varying(8)[]' = VARCHAR[]
+CANON 'character varying(8)[][]' = VARCHAR[][]
+CANON 'numeric(12,2)[][]' = NUMERIC[][]
+ARRAY int[][] TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+ARRAY _int4 TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+ARRAY character varying(8)[] TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+ARRAY character varying(8)[][] TIPO_A None B Computed(kind='cast', shape=None, type='TEXT', materialized=None) TEXTO_B None PROBLEMAS [] []
+```
+
+`ro.sh arrays_oracle.sql` confirma `int[][]` e `_int4` como `integer[]`, e
+`character varying(8)[]` como `character varying[]`; `x::text` é `text` nos três
+casos. `_int4` e dimensões distintas não são normalizados ao mesmo nome no motor;
+é conservador, sem falso texto escalar demonstrado. Casts que estreitam tamanho
+ou escala continuam `Computed(cast)`. Arrays de tipos distintos, `CHAR/TEXT` e
+subuniões perigosas continuam recusados; o limite preexistente de faixa de
+literais inteiros permanece, sem nova perda silenciosa demonstrada nesta rodada.
+
+`ro.sh physical.sql -t -A` renovou `physical.json`; `airbyte.py` reconfirmou as
+mesmas oito folhas UUID/JSONB de `inventory_movements` e
+`inventory_movements_stream` como `character varying` físico. Não usei o JSON
+antigo como evidência atual e não extrapolei para futuros conectores.
+
+**R6-F — documentos e regressões gerais.**
+
+Governança §5.1 v2.17 corresponde ao tratamento do sufixo `[]` e às recusas de
+chave/coluna duplicadas. Sua afirmação de que nenhuma ocorrência encobre outra
+é excessiva: não inclui tabelas de fonte, e a proveniência em `config.meta` segue
+invisível. A recusa indiscriminada de entradas também quebra a promoção que o
+código documenta. São os três achados de leitura/fluxo acima, não novos achados
+editoriais independentes. “Todo `.yml`” aqui cobre as declarações que o motor lê
+em `models/snapshots/seeds`; não é validador universal de configuração dbt.
+
+Qualidade §4 v1.16 e os comentários das quatro dimensões correspondem à escrita
+UTC e à leitura `at time zone 'UTC'` **na configuração atual**. As reduções de
+instante a data usam o fuso declarado. A frase mais ampla na resposta a R5-01
+não se sustenta pelas janelas de dias; os limites das estratégias/sentinelas
+foram explicitados em R6-A. Nenhum ADR aceito foi alterado.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+Ambos retornaram **0**:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+834 passed, 188 deselected in 420.07s (0:07:00)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Os 188 testes de integração foram excluídos/listados pelo alvo. Não refiz o
+`make check` informado pelo autor (`PASS=907`, `1019 passed`, `3 skipped`), pois
+faria build. Não executei segunda versão SCD real, hard delete real, troca de
+estratégia ou de sentinela no warehouse. A cobertura desses caminhos combina
+leitura do código instalado, dispatch efetivo e oráculos SQL somente leitura;
+não é alegação de integração destrutiva executada. Os checks verdes não encerram
+as contraprovas acima. **O lote 3 não pode ser encerrado nesta rodada.**
