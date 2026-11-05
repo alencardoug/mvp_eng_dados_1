@@ -277,6 +277,11 @@ def test_config_meta_da_coluna_e_lido_como_meta_e_a_fonte_repetida_e_recusada(tm
     with pytest.raises(ValueError, match="mais de uma vez"):
         s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: a\n    schema: raw\n    tables:\n"
                                         "      - name: t\n  - name: b\n    schema: raw\n    tables:\n      - name: t\n")
+    # RVL3-8-01: outro nome de tabela com o mesmo `identifier` é a mesma tabela física
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: retail\n    schema: raw\n    tables:\n"
+                                        "      - name: order_items\n      - name: order_items_alias\n"
+                                        "        identifier: order_items\n")
 
 
 def test_a_promocao_do_gerado_a_mao_continua_valendo(tmp_path, monkeypatch) -> None:

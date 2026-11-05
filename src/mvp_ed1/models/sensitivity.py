@@ -408,6 +408,14 @@ def _mapa_sem_repeticao(carregador, no, deep=False):
 _SemChaveRepetida.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapa_sem_repeticao)
 
 
+def source_identity(fonte: dict, tabela: dict) -> tuple[str, str]:
+    """A tabela física que a declaração de fonte nomeia: schema efetivo e `identifier`, ou o nome.
+
+    É a identidade com que o dbt resolve a fonte e com que o catálogo lê o texto: o
+    nome da fonte e o nome da tabela são apelidos (RVL3-7-01, RVL3-8-01)."""
+    return (fonte.get("schema") or fonte.get("name"), tabela.get("identifier") or tabela.get("name"))
+
+
 def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
     """Um `.yml` do projeto, lido **sem perder ocorrência** (RVL3-5-02): chave repetida num
     mapa e coluna repetida numa entrada são erro, não a última que vence — uma marca de
@@ -419,7 +427,7 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
         raise ValueError(f"{caminho}: {erro}") from None
     entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
-    tabelas = [(f.get("schema") or f.get("name"), t.get("name")) for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    tabelas = [source_identity(f, t) for f in documento.get("sources") or [] for t in f.get("tables") or []]
     if repetidas := sorted({x for x in tabelas if tabelas.count(x) > 1}):
         raise ValueError(f"{caminho}: tabela(s) de fonte {repetidas} declarada(s) mais de uma vez")   # RVL3-6-02
     for entrada in entradas:

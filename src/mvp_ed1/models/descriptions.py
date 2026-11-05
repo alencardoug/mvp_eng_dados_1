@@ -156,9 +156,10 @@ def _documents() -> list[tuple[pathlib.Path, dict]]:
                     vistas[e["name"]] = caminho
         for f in documento.get("sources") or []:
             for tabela in f.get("tables") or []:
-                # A identidade é a que `disk_sources` usa para reduzir — o schema efetivo, e não o
-                # nome da fonte: dois apelidos no mesmo schema colidiriam ali (RVL3-7-01).
-                chave_fonte = (f.get("schema") or f.get("name"), tabela.get("name"))
+                # A identidade é a que `disk_sources` usa para reduzir — a tabela física, e não os
+                # apelidos: fonte com outro nome no mesmo schema, ou tabela com outro nome e o mesmo
+                # `identifier`, colidiriam ali (RVL3-7-01, RVL3-8-01).
+                chave_fonte = sensitivity.source_identity(f, tabela)
                 if chave_fonte in fontes:
                     raise ValueError(f"tabela de fonte `{chave_fonte[0]}.{chave_fonte[1]}` em {fontes[chave_fonte]} e em {caminho}")
                 fontes[chave_fonte] = caminho
@@ -177,7 +178,7 @@ def disk_sources(documentos: list[tuple[pathlib.Path, dict]] | None = None) -> d
     for caminho, documento in (_documents() if documentos is None else documentos):
         for fonte in documento.get("sources") or []:
             for t in fonte.get("tables") or []:
-                saida[(fonte.get("schema") or fonte["name"], t["name"])] = Entry(caminho, _kind(caminho), {c["name"]: c for c in t.get("columns") or []})
+                saida[sensitivity.source_identity(fonte, t)] = Entry(caminho, _kind(caminho), {c["name"]: c for c in t.get("columns") or []})
     return saida
 
 
