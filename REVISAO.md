@@ -3208,3 +3208,269 @@ Sem commit ou push; nenhuma correção implementada.
 RVL2-5-03 estão fechados nos pontos que descreviam; RVL2-5-01 está parcialmente
 fechado. Restam os ajustes RVL2-6-01 a RVL2-6-04; RVL2-6-05/06 são observações
 fora do diff. O aceite formal continua sendo do Owner.
+
+## Rodada 7 — lote 2
+
+Revisão em **05/11/2026**, no HEAD `e1f7c9ce442323a8cddfbce24c3f443a255515ad`,
+restrita a `git log 6b06205..e1f7c9c`: `d43b998` e `e1f7c9c`.
+Rodada final de regressão, pelas quatro categorias delimitadas pelo Owner.
+Parecer técnico, sem poder de aprovação, sem correções, commit ou push.
+
+**As seis sondas originais da rodada 6 estão corrigidas. Não encontrei regressão
+introduzida por `d43b998` nas verificações executadas.** As 16 views retornam
+`[]`, P12 continua passando pela exceção de fonte única, e os dois gates passam.
+Resta **um ajuste documental, da categoria 4**: a nova promessa de recusar a
+exceção diante de qualquer relação sem nome legível excede a implementação.
+O falso negativo usado para demonstrá-lo já existia na base; não é apresentado
+como regressão nem como nova exigência de ampliar a análise sintática.
+**O lote 2 ainda não pode ser encerrado pelo critério desta rodada**, pois essa
+divergência de docstring permanece aberta.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL2-7-01 | `tests/test_identidade_no_consumo.py:47–48,163–168` | **A docstring promete mais do que `_relacao_sem_nome` verifica.** A exceção ainda vale diante de `unnest` sem alias: seu nó é `Unnest`, sem nome e sem `TableAlias`, e não entra nas duas buscas por `TableAlias`/`Table`. A sonda de C retorna `_relacao_sem_nome=False`, uma ligação e origem `retail`, embora o qualificador interno seja da função. A frase nova «nenhuma relação ficou sem nome legível» e a descrição geral de função sem alias não são honradas. O SQL já retorna `[]` em `6b06205`: o achado é **documental, categoria 4**, não uma regressão funcional. Ajuste proposto: delimitar a promessa aos nós efetivamente inspecionados e declarar o limite de funções implícitas representadas por outros nós; alternativamente, cobrir a forma. | `ajuste` | **Corrigido, coberta a forma em vez de só delimitar a promessa.** `_relacao_sem_nome` inspeciona agora todo item de `from`/`join` de todo `select` que não seja tabela nomeada nem tenha alias, e todo `unnest` sem alias em qualquer ponto, além dos `TableAlias`/`Table` de nome vazio; o docstring lista exatamente esses nós, e o limite do módulo aponta para ele. O SQL de "Limites remanescentes" passou de `[]` (em `e1f7c9c`) a uma acusação, com caso de teste próprio; as 16 views continuam `[]` e P12 passa pela fonte única. Com isso, a lista de limites remanescentes desta rodada fica vazia. |
+
+### A — fechamento das seis respostas e matriz B–F
+
+Reutilizei as entradas de `/tmp/rvl2-round6-probes.py`, substituindo a base
+`1dbb2c5` por `6b06205`. A inspeção dos auxiliares no HEAD agora recebe a árvore
+normalizada, tal como o caminho real de `violacoes`; a guarda da base permanece
+intacta. Retirei a geração do arquivo SQL da rodada anterior. Os comandos abaixo
+terminaram com código 0; o segundo imprime o número de acusações de cada caso:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl2-round7-probes.py > /tmp/rvl2-round7-probes.log
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl2-round7-summary.py > /tmp/rvl2-round7-summary.log
+```
+
+Saída literal do segundo comando, com os mesmos SQLs de B–F da rodada 6:
+
+```text
+case_shadow 6b06205= 0 HEAD= 1
+case_quoted_reference 6b06205= 0 HEAD= 1
+quoted_exact_shadow 6b06205= 1 HEAD= 1
+quoted_distinct_control 6b06205= 0 HEAD= 0
+function_implicit 6b06205= 0 HEAD= 1
+function_explicit_control 6b06205= 1 HEAD= 1
+inner_schema 6b06205= 0 HEAD= 1
+outer_schema 6b06205= 0 HEAD= 1
+qualified_star 6b06205= 0 HEAD= 1
+uppercase_identifier_outside_scope 6b06205= 0 HEAD= 1
+inner_identifier_only_outside_scope 6b06205= 0 HEAD= 1
+inner_schema_control 6b06205= 0 HEAD= 1
+outer_schema_control 6b06205= 0 HEAD= 1
+```
+
+| Resposta | Fechamento técnico | Comando e saída que sustentam o fechamento |
+|---|---|---|
+| RVL2-6-01 | **Fechado.** `S` sem aspas e `s` passam a ser contados juntos, inclusive diante da referência `"s"`; `"S"` continua distinto de `s`. | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl2-round7-summary.py`: `case_shadow` e `case_quoted_reference`, `0 → 1`; `quoted_exact_shadow`, `1 → 1`; `quoted_distinct_control`, `0 → 0`. |
+| RVL2-6-02 | **Fechado quanto ao achado C da rodada 6:** `json_to_record(…) AS (…)` retira a exceção. A generalização documental da solução tem a ressalva própria RVL2-7-01. | Mesmo comando: `function_implicit 6b06205= 0 HEAD= 1`; `function_explicit_control 6b06205= 1 HEAD= 1`. O log detalhado imprime `origem= []` nos dois casos. |
+| RVL2-6-03 | **Fechado.** A qualificação longa impede a prova nos dois lados do `IN`. | Mesmo comando: `inner_schema` e `outer_schema`, `0 → 1`; no log detalhado, ambos dão `HEAD ['in (subconsulta) sem a origem: order_id']` e `pertence_correlaciona= False`. |
+| RVL2-6-04 | **Fechado.** A expansão qualificada válida nos dois lados é recusada. | Mesmo comando: `qualified_star 6b06205= 0 HEAD= 1`; log detalhado: `HEAD ['in (subconsulta) sem a origem: order_id']`, `pertence_correlaciona= False`. |
+| RVL2-6-05 | **Fechado.** `ORDER_ID` sem aspas é reconhecido como identificador. | Mesmo comando: `uppercase_identifier_outside_scope 6b06205= 0 HEAD= 1`; log detalhado: `HEAD ['junção sem a origem: a.order_id = b.order_id']`. |
+| RVL2-6-06 | **Fechado.** O identificador apenas na projeção interna da sonda F agora chama a prova. | Mesmo comando: `inner_identifier_only_outside_scope 6b06205= 0 HEAD= 1`; log detalhado: `HEAD ['in (subconsulta) sem a origem: order_id']`, `pertence_correlaciona= False`. |
+
+Os controles `inner_schema_control` e `outer_schema_control` também passam de
+zero para uma acusação. É a recusa conservadora explícita de schema, inclusive
+quando a origem está correta. Não é achado pela categoria 1: nenhuma das 16
+views foi rejeitada. A expansão qualificada de E tem o mesmo enquadramento;
+sua recusa fecha o contrato pedido na rodada anterior.
+
+### B — regressões, 16 views, P12 e normalização
+
+Comandos, todos com código 0:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl2-round7-views-controls.py > /tmp/rvl2-round7-views-controls.log
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl2-round7-extra.py > /tmp/rvl2-round7-extra.log
+```
+
+O primeiro reutiliza os controles da rodada 5 com base `6b06205`: sombras por
+`values`, `lateral` e `unnest` **com alias**, qualificadores externos vazios e
+posições internas de outra relação continuam acusados. As duas tuplas válidas,
+inclusive com posições invertidas, continuam aceitas. O segundo extrai por AST
+as 69 contraprovas declaradas em `6b06205` e compara as duas guardas com o
+resultado esperado de cada uma. Não houve divergência nem exceção de execução.
+Trecho literal de sua saída:
+
+```text
+VERSAO sqlglot= 30.18.0
+CONTRAPROVAS_BASE total= 69 divergencias= []
+VIEW average_order_value_by_channel_and_segment 6b06205= [] HEAD= []
+VIEW cart_conversion_rate_by_channel 6b06205= [] HEAD= []
+VIEW discount_share_by_channel 6b06205= [] HEAD= []
+VIEW gross_margin_by_category 6b06205= [] HEAD= []
+VIEW inventory_turnover_by_sku_and_warehouse 6b06205= [] HEAD= []
+VIEW monthly_revenue_by_channel_and_category 6b06205= [] HEAD= []
+VIEW new_and_repeat_customers_by_month 6b06205= [] HEAD= []
+VIEW on_time_delivery_rate_by_carrier 6b06205= [] HEAD= []
+VIEW order_to_delivery_time_by_region 6b06205= [] HEAD= []
+VIEW payment_approval_rate_by_method 6b06205= [] HEAD= []
+VIEW refund_rate_by_reason 6b06205= [] HEAD= []
+VIEW repeat_purchase_rate_after_support 6b06205= [] HEAD= []
+VIEW revenue_by_delivery_region 6b06205= [] HEAD= []
+VIEW skus_below_reorder_point 6b06205= [] HEAD= []
+VIEW support_tickets_per_hundred_orders 6b06205= [] HEAD= []
+VIEW top_skus_by_revenue 6b06205= [] HEAD= []
+```
+
+O controle de P12 substitui `_origem_fixa_por_fonte` somente em memória por uma
+função que retorna `set()`. Saída literal do primeiro comando:
+
+```text
+P12= skus_below_reorder_point.sql
+P12 ligacoes(s)= ['retail.inventory_movements_stream AS s']
+P12 sem excecao= ["junção sem a origem: f.source_system = 'retail' AND f.movement_id = s.movement_id"]
+```
+
+Li a implementação instalada de `normalize_identifiers` e de
+`Dialect.normalize_identifier`: o percurso normaliza nós `Identifier`; no
+dialeto escolhido, preserva os delimitados por aspas. A sonda compara os valores
+dos nós antes/depois, com asserts sobre todos os literais e identificadores do
+exemplo abaixo:
+
+```sql
+select A.ORDER_ID, "A"."ORDER_ID", A.SOURCE_SYSTEM,
+       "source_system", "SOURCE_SYSTEM", 'Retail', 'retail',
+       'LEGACY', 'legacy', 'SOURCE_SYSTEM', 37, 'retail'::text
+from RETAIL.ORDERS A
+```
+
+Saída literal pertinente:
+
+```text
+NORMALIZE identifiers_before= [('ORDER_ID', False), ('A', False), ('ORDER_ID', True), ('A', True), ('SOURCE_SYSTEM', False), ('A', False), ('source_system', True), ('SOURCE_SYSTEM', True), ('ORDERS', False), ('RETAIL', False), ('A', False)]
+NORMALIZE identifiers_after= [('order_id', False), ('a', False), ('ORDER_ID', True), ('A', True), ('source_system', False), ('a', False), ('source_system', True), ('SOURCE_SYSTEM', True), ('orders', False), ('retail', False), ('a', False)]
+NORMALIZE literals_before=after= [('Retail', True), ('retail', True), ('LEGACY', True), ('legacy', True), ('SOURCE_SYSTEM', True), ('37', False), ('retail', True)]
+P12 source db before= [('retail', 'inventory_movements_stream', 's')] after= [('retail', 'inventory_movements_stream', 's')]
+```
+
+Os controles de comportamento no mesmo script confirmam: `Retail` e `retail`
+como **literais** continuam distintos, assim como `legacy` e `retail`;
+`'retail'::text` continua aceito. A coluna `SOURCE_SYSTEM` sem aspas passa a ser
+reconhecida, mas `"SOURCE_SYSTEM"` não ganha o significado de `source_system`.
+O schema `RETAIL` sem aspas normaliza para `retail`, enquanto `"RETAIL"` continua
+fora de `_ORIGENS`; `"retail"` continua aceito. O literal `'RETAIL'` não passa a
+casar com a fonte `retail`. A substituição de `source('retail', …)` preserva o
+`Table.db` de P12. Essas diferenças removem falsos positivos anteriores, sem
+apagar um alerta correto nos casos verificados.
+
+Outros trechos literais do mesmo comando:
+
+```text
+CONTROL join_schema 6b06205= [] HEAD= ['junção sem a origem: trusted.orders.order_id = a.order_id AND trusted.orders.source_system = a.source_system']
+CONTROL in_catalog 6b06205= [] HEAD= ['in (subconsulta) sem a origem: order_id']
+CONTROL in_inner_id_safe 6b06205= [] HEAD= []
+CONTROL in_inner_id_scalar 6b06205= [] HEAD= ['in (subconsulta) sem a origem: order_id']
+```
+
+### C — docstrings: limite da recusa de relações sem nome
+
+Confrontei as docstrings com o fluxo: qualificação longa é recusada nas provas
+de igualdade e `IN`; todas as posições da tupla participam da prova; expansão
+qualificada é recusada; nomes delimitados são preservados. A divergência
+encontrada é a generalização de `_relacao_sem_nome`, também incorporada ao
+limite declarado no início do módulo. SQL passado às duas guardas:
+
+```sql
+select * from retail.orders unnest where exists (
+  select 1 from (a x join unnest(array[json_populate_record(
+    null::trusted.orders, '{"source_system":"legacy","order_id":37}')])
+  on x.order_id=unnest.order_id and x.source_system='retail')
+)
+```
+
+Saída literal de `/tmp/rvl2-round7-extra.py`:
+
+```text
+UNNEST 6b06205= [] HEAD= []
+UNNEST ast= [('Table', 'orders', 'unnest'), ('TableAlias', 'unnest', ''), ('Table', 'a', 'x'), ('TableAlias', 'x', ''), ('Unnest', '', '')]
+UNNEST relacao_sem_nome= False
+UNNEST ligacoes= ['retail.orders AS unnest']
+UNNEST origem= ['retail']
+```
+
+`Unnest` não é `Table` e não tem `TableAlias` neste caso. Seu nome implícito no
+PostgreSQL oculta o alias externo, mas a guarda empresta a origem externa. Para
+validar a resolução, usei o mesmo procedimento de B/C da rodada 6: substituí
+somente `retail.orders unnest` por
+`(values ('retail',37)) unnest(source_system,order_id)` e antepus
+`with a(source_system,order_id) as (values ('retail',37))`. A função constrói um
+registro sintético usando o tipo composto já existente de `trusted.orders`;
+não cria tipo, tabela ou dado. O controle acrescenta
+`and x.source_system=unnest.source_system` ao `ON`.
+
+Comando com código 0:
+
+```bash
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl2-round7-unnest.sql > /tmp/rvl2-round7-unnest.log 2>&1
+```
+
+Saída pertinente, preservando valores e contagens:
+
+```text
+ default_transaction_read_only
+-------------------------------
+ on
+(1 row)
+
+unnest_implicit
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+
+unnest_origin_control
+ source_system | order_id
+---------------+----------
+(0 rows)
+```
+
+O caso original `json_to_record` está corrigido. O que não se sustenta é a nova
+promessa geral: «nenhuma relação ficou sem nome legível» e «a função no `from`
+sem alias […] a exceção não vale para a consulta». Pelo escopo fixado pelo Owner,
+é suficiente corrigir essa descrição e registrar o limite preexistente; este
+parecer não exige implementar resolução geral de funções ou de escopos.
+
+### D — gates, preservação e alcance do parecer
+
+Executados antes de acrescentar este parecer, ambos com código 0:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 make check-offline > /tmp/rvl2-round7-check-offline.log 2>&1
+PYTHONDONTWRITEBYTECODE=1 make secrets-history > /tmp/rvl2-round7-secrets-history.log 2>&1
+```
+
+Saídas literais pertinentes, omitindo progresso e inventário de integração:
+
+```text
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+816 passed, 188 deselected in 145.52s (0:02:25)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Reproduzida a contagem do autor. A execução das 16 views nesta rodada significa
+a aplicação da **guarda ao SQL de cada modelo**, não execução das views no
+armazém ou recálculo de métricas. Não executei integração, build, rebuild,
+`governance garantir`, reset, seed, sync, DAG, ledger ou recuperação. Não subi
+nem pausei serviços ou `fluxo_batch`. A única sonda de banco foi a leitura de C,
+com `default_transaction_read_only=on`; não escrevi no armazém nem em
+`data/memoria_do_legado/`. Não fiz inventário completo de estado antes/depois.
+
+Somente `REVISAO.md` foi editado como entrega no repositório. Scripts e logs
+ficaram em `/tmp/rvl2-round7-*`. Os não rastreados `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já existiam e não foram tocados.
+As verificações não constituem prova exaustiva de todas as construções SQL;
+o único ponto aberto nas quatro categorias desta rodada é RVL2-7-01.
+
+### Limites remanescentes da abordagem sintática
+
+- Nome implícito de `unnest` sem alias não participa da contagem de ligações nem da recusa global de relação sem nome (`6b06205=[]`, `HEAD=[]`): `select * from retail.orders unnest where exists (select 1 from (a x join unnest(array[json_populate_record(null::trusted.orders, '{"source_system":"legacy","order_id":37}')]) on x.order_id=unnest.order_id and x.source_system='retail'))`.
