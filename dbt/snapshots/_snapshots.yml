@@ -1,9 +1,10 @@
 version: 2
 
-# Escrito à mão: só as medidas acumuladas dos snapshots, cuja aditividade muda com o
-# grão — um snapshot guarda uma linha por **versão** da entidade, e o texto herdado
-# da tabela de trusted (uma linha por entidade) diria aditiva (RVL3-03, revisão do
-# lote 3 da v1.1.0). O resto de cada entrada é derivado por `make catalog`.
+# Escrito à mão: só as medidas acumuladas dos snapshots. Um snapshot guarda uma
+# linha por **versão** da entidade, e o acumulado é o da captura que abriu a versão,
+# congelado — ele não está em `check_cols`. O texto herdado da tabela de trusted
+# (uma linha por entidade, valor atual) diria aditiva (RVL3-03, RVL3-2-04, revisão
+# do lote 3 da v1.1.0). O resto de cada entrada é derivado por `make catalog`.
 
 snapshots:
   - name: scd_coupon
@@ -11,15 +12,15 @@ snapshots:
       domain: marketing
     columns:
       - name: redemption_count
-        description: "**Semiaditiva** — resgates do cupom até esta versão: soma entre cupons numa mesma data de vigência, nunca entre versões do mesmo cupom."
+        description: "**Não soma entre versões** — resgates do cupom na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.coupons`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: internal
-          description_reason: o snapshot repete a contagem acumulada em cada versão — o herdado diria aditiva
       - name: redeemed_discount_amount
-        description: "**Semiaditiva** — desconto concedido nos resgates do cupom até esta versão: soma entre cupons numa mesma data de vigência, nunca entre versões do mesmo cupom."
+        description: "**Não soma entre versões** — desconto concedido nos resgates do cupom na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.coupons`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: confidential
-          description_reason: o snapshot repete o valor acumulado em cada versão — o herdado diria aditiva
       - name: source_system
         description: "{{ doc(\"source_system\") }}"
         meta:
@@ -123,15 +124,15 @@ snapshots:
       domain: clientes
     columns:
       - name: order_count
-        description: "**Semiaditiva** — pedidos do cliente até esta versão: soma entre clientes numa mesma data de vigência, nunca entre versões do mesmo cliente."
+        description: "**Não soma entre versões** — pedidos realizados do cliente na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.customers`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: internal
-          description_reason: o snapshot repete a contagem acumulada em cada versão — o herdado diria aditiva entre clientes, sem a vigência
       - name: lifetime_net_revenue_amount
-        description: "**Semiaditiva** — receita líquida dos pedidos do cliente até esta versão: soma entre clientes numa mesma data de vigência, nunca entre versões do mesmo cliente."
+        description: "**Não soma entre versões** — receita líquida dos itens dos pedidos realizados do cliente na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.customers`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: confidential
-          description_reason: o snapshot repete o valor acumulado em cada versão — o herdado diria aditiva entre clientes, sem a vigência
       - name: source_system
         description: "{{ doc(\"source_system\") }}"
         meta:
@@ -254,10 +255,10 @@ snapshots:
       domain: atendimento
     columns:
       - name: handled_event_count
-        description: "**Semiaditiva** — eventos de chamado registrados pelo atendente até esta versão: soma entre atendentes numa mesma data de vigência, nunca entre versões do mesmo atendente."
+        description: "**Não soma entre versões** — eventos de chamado registrados pelo atendente na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.support_agents`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: internal
-          description_reason: o snapshot repete a contagem acumulada em cada versão — o herdado diria aditiva
       - name: source_system
         description: "{{ doc(\"source_system\") }}"
         meta:
@@ -299,8 +300,9 @@ snapshots:
         meta:
           sensitivity: internal
       - name: handled_ticket_count
-        description: "Não aditiva entre atendentes — chamados distintos em que o atendente registrou algum evento; um chamado atendido por dois conta para os dois."
+        description: "**Não aditiva entre atendentes nem entre versões** — chamados distintos em que o atendente registrou algum evento, na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.support_agents`."
         meta:
+          description_reason: o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
           sensitivity: internal
       - name: is_deleted
         description: "{{ doc(\"is_deleted\") }}"

@@ -161,13 +161,15 @@ models:
         meta:
           sensitivity: internal
       - name: order_count
-        description: "Aditiva entre clientes — número de pedidos realizados do cliente; zero para quem nunca comprou."
+        description: "**Aditiva entre clientes, só na versão vigente** (`is_current`) — pedidos realizados do cliente, com o valor atual repetido em cada versão dele; zero para quem nunca comprou."
         meta:
           sensitivity: internal
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: lifetime_net_revenue_amount
-        description: "Aditiva entre clientes — receita líquida dos itens de todos os pedidos realizados do cliente; zero para quem nunca comprou."
+        description: "**Aditiva entre clientes, só na versão vigente** (`is_current`) — receita líquida dos itens dos pedidos realizados do cliente, com o valor atual repetido em cada versão dele; zero para quem nunca comprou."
         meta:
           sensitivity: confidential
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: is_churned
         description: "Verdadeiro quando o cliente já comprou, mas o último pedido realizado é anterior a 180 dias da data de referência do armazém (`active_customer_window_days`)."
         meta:
@@ -1600,7 +1602,7 @@ models:
       - name: quantity_shipped
         meta:
           sensitivity: internal
-          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz; aditiva, porque é delta assinado (RVL3-10)"
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
         description: '**Aditiva** — unidades que viajaram nesta caixa.'
         data_tests: [not_null]
       - name: shipment_status
@@ -1704,9 +1706,10 @@ models:
         meta:
           sensitivity: internal
       - name: quantity_ordered
-        description: "Quantidade comprada do SKU."
+        description: "**Não aditiva entre itens de remessa** — quantidade comprada do SKU na linha do pedido, repetida em cada item de remessa da linha: some uma vez por linha do pedido, nunca por item de remessa."
         meta:
           sensitivity: internal
+          description_reason: a fato está no grão do item de remessa e o valor é da linha do pedido — o herdado não diz o grão (RVL3-2-03)
       - name: shipped_share_of_line
         description: "Fração da linha do pedido que viajou nesta remessa: a quantidade enviada sobre a pedida, de 0 a 1."
         meta:
@@ -2023,13 +2026,15 @@ models:
         meta:
           sensitivity: internal
       - name: redemption_count
-        description: "Aditiva — número de resgates do cupom; zero quando ele nunca foi usado."
+        description: "**Aditiva entre cupons, só na versão vigente** (`is_current`) — resgates do cupom, com o valor atual repetido em cada versão dele; zero quando ele nunca foi usado."
         meta:
           sensitivity: internal
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: redeemed_discount_amount
-        description: "Aditiva — desconto total concedido nos resgates do cupom; zero quando ele nunca foi usado."
+        description: "**Aditiva entre cupons, só na versão vigente** (`is_current`) — desconto total concedido nos resgates do cupom, com o valor atual repetido em cada versão dele; zero quando ele nunca foi usado."
         meta:
           sensitivity: confidential
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: is_exhausted
         description: "Verdadeiro quando o cupom tem limite de usos e os resgates já o alcançaram."
         meta:
@@ -2139,13 +2144,15 @@ models:
         meta:
           sensitivity: internal
       - name: handled_ticket_count
-        description: "Não aditiva entre atendentes — chamados distintos em que o atendente registrou algum evento; um chamado atendido por dois conta para os dois."
+        description: "**Não aditiva entre atendentes nem entre versões** — chamados distintos em que o atendente registrou algum evento, com o valor atual repetido em cada versão dele; um chamado atendido por dois conta para os dois."
         meta:
           sensitivity: internal
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: handled_event_count
-        description: "Aditiva — eventos de chamado registrados pelo atendente."
+        description: "**Aditiva entre atendentes, só na versão vigente** (`is_current`) — eventos de chamado registrados pelo atendente, com o valor atual repetido em cada versão dele."
         meta:
           sensitivity: internal
+          description_reason: o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
       - name: agent_is_active
         description: "Indica se o agente continua atuando."
         meta:
@@ -2254,7 +2261,7 @@ models:
       - name: coupon_discount_amount
         meta:
           sensitivity: confidential
-          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz; aditiva, porque é delta assinado (RVL3-10)"
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
         description: '**Aditiva** — desconto efetivamente concedido.'
         data_tests: [not_null]
       - name: source_system

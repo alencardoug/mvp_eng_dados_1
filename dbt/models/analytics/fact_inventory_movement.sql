@@ -120,10 +120,10 @@ select
     m.is_sale,
 
     -- ── Medidas ──────────────────────────────────────────────────────────────
-    -- `quantity_delta` é **semiaditiva**: soma por armazém e SKU para dar
-    -- saldo, e **não** se soma ao longo do tempo — três meses somados dariam um
-    -- estoque que nunca existiu. `quantity_in` e `quantity_out` são aditivas em
-    -- qualquer recorte, e é por elas que se mede fluxo.
+    -- `quantity_delta` é **aditiva**: é delta assinado, e a soma num período é a
+    -- variação líquida do estoque nele (RVL3-10). Semiaditivo é o saldo, que é
+    -- fotografia — esse não se soma ao longo do tempo. `quantity_in` e
+    -- `quantity_out` são aditivas em qualquer recorte e separam entrada de saída.
     m.quantity_delta,
     m.quantity_in,
     m.quantity_out,
