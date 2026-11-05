@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.13 |
+| Versão | 2.14 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a união que converte tipo não herda, o herdado que ficou para trás não vira raiz, o manifest atrasado é recusado e as seeds com `persist_docs` (revisão do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: o registro do herdado escrito nos `.yml` à mão, a medida repetida por versão nas dimensões e nos snapshots e o alcance da recusa do manifest atrasado (rodada 2 do lote 3 da v1.1.0) |
 
 ---
 
@@ -166,14 +166,19 @@ convenção (`source_system`, `is_deleted`) e as que as ferramentas acrescentam 
 `_stream_*`, `dbt_*`, `legacy_row_id`) têm o texto num bloco `{% docs %}` único
 (`dbt/models/_convencoes.md`), aplicado onde a coluna nasce com **nome e forma** da convenção. Texto à
 mão numa coluna que herda vale só com `meta.description_reason`; sem ele, o herdado o substitui, e a
-troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` escreveu nele; quando a
-coluna deixa de transportar, um texto igual ao de quem ela lê, sem motivo, é recusado — escreve-se o
-texto do cálculo (RVL3-01). E o texto herdado diz o que o valor é, não como somá-lo **no grão de
-quem o recebe**: medida da remessa repetida em cada item, ou contagem acumulada que o snapshot repete
-em cada versão, pede texto próprio com motivo no destino (RVL3-03). O `persist_docs` leva o texto aos comentários das colunas dos modelos, dos
+troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` escreveu nele, e o `.yml` não diz qual
+texto é herdado e qual é raiz: quem diz é `dbt/_descricoes_herdadas.json`, gerado e conferido pelo
+`--check`, com todo texto que a derivação pôs num `.yml` à mão. Quando a coluna deixa de transportar,
+o texto que o registro diz herdado — ou igual ao de quem ela lê —, sem motivo, é recusado, e
+escreve-se o texto do cálculo (RVL3-01, RVL3-2-01). E o texto herdado diz o que o valor é, não como somá-lo **no grão de
+quem o recebe**: medida da remessa repetida em cada item, valor atual que a dimensão repete em cada versão
+da entidade, ou acumulado que o snapshot congela na captura que abriu a versão (a coluna não está em
+`check_cols`), pede texto próprio com motivo no destino (RVL3-03, RVL3-2-03/04). O `persist_docs` leva o texto aos comentários das colunas dos modelos, dos
 snapshots e das seeds no banco (as seeds desde a revisão do lote 3, RVL3-08); as fontes (`raw`, `raw_legacy`), que o dbt não constrói e o Airbyte recria a cada
-recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). A derivação lê o SQL compilado do manifest: um `.sql` mudado depois do último build faz `make
-catalog` recusar e não tocar em nada, até o `make dbt-build` (RVL3-07). A catraca de descrição
+recarga, o mostram só no catálogo do dbt — limitação declarada (medido em 03/11/2026). A derivação lê o SQL compilado do manifest: um modelo, snapshot ou macro mudado no disco depois do
+último build faz `make catalog` recusar e não tocar em nada, até o `make dbt-build` (RVL3-07,
+RVL3-2-05). Metadado de `.yml` e macro nova ou apagada não se conferem — a compilação recente
+continua sendo a premissa, que o `make check` cumpre com o build antes (RVL3-2-07). A catraca de descrição
 (`tests/test_descricao.py`) conta o catálogo, não o comentário físico. O texto da ponte é cópia que o gerador do legado faz: quando um texto do `staging` muda, `make catalog`,
 `make legacy-models` e `make catalog` de novo — o `make check` acusa a ponte atrasada. A regra está
 provada em `tests/test_descricao_derivada.py`.
