@@ -3753,3 +3753,309 @@ os dois escapes demonstrados dentro das regras já aceitas.
 - [ ] Reexecutar os checks pertinentes, medir e declarar qualquer mudança de
   resultado, preencher as situações e preservar as evidências. Validação
   técnica não encerra a revisão integral do declarativo nem o aceite do Owner.
+
+## Rodada 9 — lote 3
+
+### Conclusão
+
+**Changes required — alterações necessárias.** Dois bloqueantes e um ajuste
+confirmados. A duplicidade exata por `identifier` agora é recusada e o dia de
+uma data deixou de passar por offset. Restam uma identidade física incompleta,
+um endereço de escrita incorreto e formas usuais de literal que a guarda não
+examina. **O lote 3 continua aberto.** Os achados são sobre declarações e
+proteções aceitas silenciosamente nas reproduções; não demonstram que o
+catálogo atual já contenha esses erros. Este parecer não é aceite da release
+nem declaração de correção integral do projeto.
+
+### Escopo e versão
+
+Revisão em 05/11/2026, branch `main`, HEAD
+`39c5c85f48c5c4ff63cdf84343fc6d347deae678`, contra **`beca244`**, a árvore da
+rodada 8. Exclusivamente `git log beca244..39c5c85`: `d3f32bc`, `8da81c0` e
+`39c5c85`. Li o diff dos seis arquivos, AGENTS.md, CLAUDE.md, a skill local
+`revisao`, o mapa do README, Governança §5.1, Qualidade §4 e os encerramentos
+pertinentes anteriores, incluindo a decisão do Owner em RVL3-6-04. As
+situações do autor foram tratadas como alegações a verificar.
+
+Nenhum arquivo rastreado estava alterado inicialmente. `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já estavam não rastreados e ficaram
+fora do escopo, sem alteração. Só `REVISAO.md` foi editado no checkout.
+Sondas, caches, cópias e compilações ficaram em `/tmp/rvl3-r9-review`.
+Nenhuma operação de DAG ou escrita no warehouse foi executada. HEAD permaneceu
+em `39c5c85` até o encerramento da revisão.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-9-01 | `src/mvp_ed1/models/sensitivity.py:411–416,430`; `descriptions.py:162,181,240–245` | **A identidade ignora quoting e a equivalência de caixa do PostgreSQL.** Um alias com `identifier: ORDER_ITEMS` e `quoting: {identifier: false}` lê a mesma `raw.order_items`, mas recebe chave diferente, escapa da unicidade e da conferência de descrição. Com manifest recém-compilado, a descrição monetária incorreta em `quantity` sobrevive a check → geração → check com **0/0/0**. **Alta (high) → bloqueante:** declaração errada aceita silenciosamente. Preexistente; fechamento incompleto de RVL3-8-01/RVL3-7-01, não regressão nova de caixa nestes commits. R9-A. | `bloqueante` | **Corrigido fechando a porta, não resolvendo a variante.** Três rodadas seguidas acharam um novo apelido de fonte (nome de fonte, `identifier`, `quoting`/caixa). O projeto não usa nenhum — medido: 3 fontes, uma por schema (`raw`, `raw_legacy`, `governance`), sem `identifier`, sem `quoting`, tudo em minúsculas. `sensitivity._conferir_fonte` agora recusa, na leitura: `quoting` na fonte ou na tabela; `identifier` diferente do nome; nome de fonte, schema ou tabela fora de `[a-z_][a-z0-9_]*`; e duas fontes no mesmo schema, no mesmo arquivo (`read_yaml`) ou entre arquivos (`_documents`). Com isso o nome lógico com que o catálogo escreve é o físico com que ele lê, e `source_identity` volta a ser (schema, nome). Seu `ORDER_ITEMS` com `quoting` é recusado. Casos no teste de fonte; contraprova com `39c5c85`: não recusava. Governança §5.1 v2.20. |
+| RVL3-9-02 | `src/mvp_ed1/models/descriptions.py:175–181,238–242,347–355,383–389`; `sensitivity.py:738–744` | **O leitor conserva a identidade física, mas perde o endereço lógico de escrita.** Uma única entrada `order_items_alias`, com `identifier: order_items`, produz patch para `order_items`. Sem homônima, os três modos levantam `KeyError`; com a entrada legítima `legacy.order_items` no mesmo YAML, a geração e o recheck retornam **0/0** e a descrição errada do alias permanece. **Alta (high) → bloqueante:** a geração declara sucesso conferindo outra entrada. A troca da chave de descrição em `d3f32bc` introduz o endereço incorreto; o uso do identifier como endereço em `plan` já existia. R9-B. | `bloqueante` | **Corrigido** pela mesma convenção — a regressão do endereço de escrita era minha, de `d3f32bc`: sem `identifier`, não há alias cuja descrição o catálogo escreva noutra entrada; o seu `order_items_alias` com `identifier: order_items` é recusado na leitura, antes de qualquer patch. |
+| RVL3-9-03 | `tests/test_vigencia_em_utc.py:84–100,103–110` | **O detector ignora casts e literais partidos em linhas.** Substituir apenas o sentinela por `'9999-12-31'::timestamptz`, `cast('9999-12-31' as timestamptz)`, `timestamp with time zone '9999-12-31'` ou pelo prefixo `timestamptz` numa linha e a string na seguinte faz a guarda passar. O instante continua variando com a sessão. **Média (medium) → ajuste:** regressão temporal comum pode passar silenciosamente pela proteção prometida; os 14 literais de prefixo atuais têm offset. Lacuna preexistente do scanner introduzido antes deste intervalo; a correção de `_COM_FUSO` em `8da81c0` funciona para os valores que chegam a ele. R9-C. | `ajuste` | **Corrigido.** `literais_sem_fuso` lê o texto inteiro (comentários de linha e Jinja fora), e o `\s` atravessa linha: `timestamptz '…'`, `timestamp with time zone '…'`, `'…'::timestamptz` (com espaço em volta do `::`) e `cast('…' as timestamptz)`. Teste parametrizado com as seis grafias, cada uma acusada sem fuso e aceita com fuso, e teste de literal em comentário. Contraprova: o leitor de `8da81c0` não achava nenhuma das três primeiras formas (`[]`). Os 14 literais atuais continuam passando. Qualidade §4. |
+
+### Evidências e correções propostas
+
+**R9-A — relação física, quoting e caixa.**
+
+As sondas executaram o código atual em cópia descartável. O comando foi,
+com `.env` carregado sem imprimir credenciais:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 DBT_SEND_ANONYMOUS_USAGE_STATS=false \
+  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s' \
+  .venv/bin/python -P /tmp/rvl3-r9-review/probes.py
+# Retomada das sondas após corrigir o harness temporário:
+PYTHONDONTWRITEBYTECODE=1 DBT_SEND_ANONYMOUS_USAGE_STATS=false \
+  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=120s' \
+  .venv/bin/python -P /tmp/rvl3-r9-review/resume.py
+```
+
+A base retornou:
+
+```text
+BASE_STALE [] DERIVATION_PROBLEMS []
+SOURCE_INVENTORY 79 nondefault []
+BASE ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+```
+
+`nondefault` procura `name != identifier` ou alguma opção de quoting falsa.
+Não há esses casos no inventário atual. O alias exato de R8-01 foi recusado
+nos três modos, no mesmo arquivo e entre arquivos, nas duas ordens, sempre
+com `YAML_UNCHANGED True`: no mesmo arquivo, `ValueError … tabela(s) de fonte
+[('raw', 'order_items')] declarada(s) mais de uma vez`; entre arquivos,
+`RC 1 … recusado: tabela de fonte raw.order_items …`. A exceção no primeiro
+caso sai antes do bloco de tratamento de `main`, mas não é passe silencioso.
+
+A variação restante mantém a entrada original e acrescenta
+`order_items_alias`, com `identifier: ORDER_ITEMS`,
+`quoting: {identifier: false}` e descrição de `quantity` igual a
+`Valor monetário total do pedido em reais.`. O compile completo na cópia usa
+sessões somente leitura. Saída essencial executada:
+
+```text
+CASE_ALIAS COMPILE_RC 0
+CASE_ALIAS STALE [] PROBLEMS []
+CASE_ALIAS SOURCE order_items order_items "warehouse_db"."raw"."order_items"
+CASE_ALIAS SOURCE order_items_alias ORDER_ITEMS "warehouse_db"."raw".ORDER_ITEMS
+CASE_ALIAS ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+CASE_ALIAS [] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) escrito(s) ERR
+CASE_ALIAS ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+CASE_ALIAS_FINAL Valor monetário total do pedido em reais.
+```
+
+Pelo wrapper autorizado, `ro.sh oracle.sql` confirmou
+`transaction_read_only = on`, `unquoted_same_relation = t` e ausência de uma
+tabela distinta `"ORDER_ITEMS"`. A chave textual nova distingue
+`('raw', 'ORDER_ITEMS')` de `('raw', 'order_items')`; `source_texts` só conhece
+a segunda, e a primeira passa por `esperado = None`, sem problema nem patch.
+
+Conferi a implementação instalada: dbt-core **1.12.3**,
+`dbt/parser/sources.py:134,155–179`, resolve database com o padrão do perfil,
+schema com `source.schema or source.name`, identifier com
+`table.identifier or table.name` e combina quoting da fonte com o da tabela.
+`dbt/adapters/base/relation.py:350–378` aplica essa política ao renderizar a
+relação. O novo helper reproduz apenas os dois fallbacks textuais. A
+[documentação de identifier](https://docs.getdbt.com/reference/resource-properties/identifier),
+a de [quoting](https://docs.getdbt.com/reference/resource-properties/quoting)
+e a de [database](https://docs.getdbt.com/reference/resource-properties/database)
+confirmam os respectivos contratos. O padrão de database dos 79 sources
+atuais é o warehouse do perfil; não alego defeito de consulta entre bancos
+no PostgreSQL, que não foi exercitada nem é necessária à reprodução.
+
+**Correção e validação de R9-01:** definir a identidade a partir da relação
+efetivamente resolvida, respeitando quoting e caixa do adaptador, inclusive
+os defaults e overrides da tabela. Conferir ou recusar explicitamente formas
+não suportadas, sem ignorar a coluna por falta de chave. Não aplicar
+`lower()` indistintamente a identificadores entre aspas. Exercitar os aliases
+exato e sem aspas, mesmo arquivo/arquivos distintos e ordens invertidas, com
+manifest novo: nenhuma descrição errada pode sobreviver aos três retornos 0.
+
+**R9-B — identidade de leitura não é endereço da declaração.**
+
+`resume.py` também substitui a entrada original por `order_items_alias`,
+conserva `identifier: order_items` e atualiza seu único consumidor
+`source('retail', 'order_items')` para o nome lógico novo. Não muda a relação
+física consultada. Com compile novo e `STALE [] PROBLEMS []`, check, geração
+e recheck levantaram, cada um:
+
+```text
+RC KeyError: 'entrada `order_items` não encontrada' YAML_UNCHANGED True
+```
+
+Busquei a hipótese contrária de recusa segura também quando há uma entrada
+homônima. `shadow.py` move **a declaração existente** de
+`legacy.order_items` de `_legacy__sources.yml` para o mesmo YAML da fonte
+retail, mantendo schema `raw_legacy`, colunas e propriedades. São relações
+físicas diferentes e declarações lógicas únicas; não há duplicidade proibida.
+O dbt compila essa organização. A retomada usa a indentação de listas do
+projeto, sem mudar o conteúdo YAML já compilado:
+
+```sh
+# Compile por shadow.py com as mesmas variáveis e PGOPTIONS de R9-A;
+# derivação e chamadas reais do catálogo, exclusivamente na cópia:
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r9-review/shadow_resume.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -P /tmp/rvl3-r9-review/inspect_shadow.py
+```
+
+Saída final executada:
+
+```text
+SHADOW_COMPILE_RC 0
+SHADOW_STALE [] PROBLEMS []
+SHADOW ['--check'] RC 1 UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) desatualizado(s) ERR desatualizado: dbt/models/staging/_retail__sources.yml
+SHADOW [] RC 0 UNCHANGED False OUT escrito: dbt/models/staging/_retail__sources.yml
+classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) escrito(s) ERR
+SHADOW ['--check'] RC 0 UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+SHADOW_FINAL Valor monetário total do pedido em reais.
+DESCRIPTION_PATCHES {'dbt/models/staging/_retail__sources.yml': {'order_items': {'quantity': 'Quantidade comprada do SKU.'}}}
+DISK retail raw order_items_alias order_items [('quantity', 'Valor monetário total do pedido em reais.')]
+DISK legacy raw_legacy order_items None [('quantity', 'Quantidade comprada do SKU.')]
+```
+
+O patch continua pendente semanticamente no alias, mas renderiza sobre
+`legacy.order_items`. A primeira geração muda a representação textual dessa
+outra entrada; a próxima renderização já coincide com o disco. `verify`
+também reduz as fontes a `table.name` e valida a homônima, fazendo o catálogo
+retornar 0 sem corrigir o alvo. Isto demonstra impacto além de um traceback.
+
+`_declaracoes_no_disco` usa `(source.name, table.name)` e
+`_declaracao_atrasada` consulta pelo mesmo par: aí a identidade lógica é
+adequada para localizar a declaração do manifest. Não basta substituir
+indiscriminadamente todos os pares pelo helper físico. Já `plan`, na
+sensibilidade do espelho `raw`, consulta níveis por `identifier` e usa esse
+mesmo identifier para endereçar o patch: contém a mesma confusão de escrita,
+preexistente. A mudança de `disk_sources` expôs a confusão também na descrição.
+
+**Correção e validação de R9-02:** guardar separadamente a relação física e o
+endereço completo da declaração, incluindo fonte e nome lógico da tabela;
+usar o primeiro na derivação/unicidade e o segundo na escrita e na verificação.
+Cobrir descrição e sensibilidade com alias único e duas tabelas de mesmo nome
+lógico em schemas/fontes distintos no mesmo arquivo. Aceitação: o alias
+correto passa; texto/nível incorreto é corrigido no alvo certo ou recusado
+explicitamente; a tabela vizinha conserva seu conteúdo; geração seguida de
+check verde implica que o alvo foi de fato corrigido.
+
+**R9-C — o regex de offset foi corrigido; a extração ainda perde literais.**
+
+A chamada da guarda real por `resume.py`, apontando `DBT` somente para a
+cópia, passou nos arquivos atuais e produziu:
+
+```text
+GUARD_CURRENT PASS
+GUARD_SENTINEL "timestamptz '9999-12-31'" REFUSED
+GUARD_SENTINEL "timestamptz '2024-01-01'" REFUSED
+GUARD_SENTINEL "timestamptz '2024-01-01 00:00'" REFUSED
+GUARD_SENTINEL "timestamptz '9999-12-31 00:00+00'" PASS
+GUARD_SENTINEL "'9999-12-31'::timestamptz" PASS
+GUARD_SENTINEL "cast('9999-12-31' as timestamptz)" PASS
+GUARD_SENTINEL "timestamptz\n '9999-12-31'" PASS
+GUARD_SENTINEL "timestamp with time zone '9999-12-31'" PASS
+```
+
+A extração só reconhece `timestamptz '…'` na mesma linha; as outras formas
+nem chegam ao novo `_COM_FUSO`. Não são strings SQL inválidas. A consulta
+somente leitura, pelo wrapper, confirmou que as três formas sem quebra de
+linha produzem, em UTC, `9999-12-31 00:00:00`, `03:00:00` e `05:00:00`,
+respectivamente nas sessões UTC, São Paulo e Nova York. O sentinela com
+`00:00+00` permanece `00:00:00` nas três. Transação terminada por `ROLLBACK`:
+
+```sh
+ENG_DADOS_DIR="$PWD" /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r9-review/oracle.sql
+```
+
+Inventário dirigido atual, excluindo `legacy` como faz a guarda: 108 SQLs de
+modelos com 13 literais de prefixo, 34 de testes com zero, 13 de macros com
+um, quatro snapshots com zero; `OFFSET_FAILURES []`. Os casts de colunas de
+payload não são literais constantes e não constituem o defeito. Não encontrei
+falso positivo nos 14 literais atuais, incluindo as duas montagens Jinja.
+
+**Correção e validação de R9-03:** extrair também as formas equivalentes de
+literal/cast e atravessar quebras de linha, preservando comentários e strings
+Jinja. Testar a guarda completa, com pequenas mutações reais de arquivo,
+além do regex isolado: cada forma sem fuso deve falhar e sua contraparte com
+offset deve passar, junto com `Z`, Jinja e `infinity`/`-infinity`. Não é
+necessário converter casts de colunas dinâmicas em literais nem impor uma
+ferramenta nova para corrigir a cobertura.
+
+### Reavaliação dos achados anteriores
+
+Estados técnicos, sem substituir o aceite do Owner. Comandos e saídas são os
+das sondas desta rodada acima.
+
+| Achado anterior | Estado nesta rodada | Comando e saída conferida |
+|---|---|---|
+| RVL3-8-01 | **Parcialmente resolvido.** O exemplo exato é recusado, inclusive entre arquivos; restam identidade efetiva e endereço de escrita, R9-01/02. | `probes.py`: 12 recusas, `YAML_UNCHANGED True`; `resume.py`: `CASE_ALIAS` com manifest novo e **0/0/0**; `shadow_resume.py`: geração/recheck **0/0**, texto errado preservado. |
+| RVL3-8-02 | **Resolvido quanto ao dia confundido com offset.** A extração incompleta é registrada separadamente em R9-03. | `resume.py`: as duas datas sem hora e a data/hora sem offset foram `REFUSED`; sentinela com offset `PASS`. `make check-offline`: oito casos novos da guarda passaram dentro de `847 passed`. |
+| RVL3-7-01 | **Parcialmente resolvido quanto à identidade física geral.** Aliases textualmente iguais são recusados; a relação equivalente sem aspas ainda passa. | `probes.py`: recusas de fonte/tabela no mesmo arquivo e entre arquivos; `resume.py`: `CASE_ALIAS_FINAL Valor monetário total do pedido em reais.` com **0/0/0**; `ro.sh oracle.sql`: `unquoted_same_relation = t`. |
+| RVL3-6-02 e RVL3-5-02 | **Parcialmente resolvidos na garantia geral de nenhuma declaração ignorada.** As duplicidades originais continuam protegidas; restam R9-01/02. | `probes.py`/`resume.py`/`shadow_resume.py`, resultados acima; `make check-offline`: `847 passed`, incluindo YAML estrito e proveniência. |
+| RVL3-6-04 | **Mantido o encerramento técnico das expressões corrigidas**, sem nova medição de clientes nesta rodada. A proteção preventiva ainda exige R9-03. | `git diff beca244..39c5c85 -- dbt` vazio; `make check-offline`: `847 passed`; `ro.sh oracle.sql` distingue os sentinelas sem/com offset. As medições de negócio de R7/R8 são evidência anterior, não reexecução agora. |
+
+Os demais encerramentos de proveniência, promoção, união/coerções, escritor
+UTC e manifest atrasado não receberam mudanças de implementação pertinentes
+neste intervalo; a suíte offline passou e a base deu `BASE_STALE []`.
+Não repeti a investigação integral encerrada. Mantêm-se os limites
+anteriores de RVL3-07/RVL3-2-07 para inventário novo/apagado e
+`dbt_project.yml`. Nenhum ADR aceito foi reescrito pelo diff examinado.
+
+### Verificações executadas, limites e questões abertas
+
+Executados pelo revisor, ambos com **RC 0**:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+847 passed, 188 deselected in 156.98s (0:02:36)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Após salvar o relatório, `make docs-check` e `git diff --check` também
+retornaram 0, e a preservação byte a byte das rodadas anteriores foi conferida.
+
+Os três compiles completos em cópias retornaram 0; as sondas finais e suas
+recusas esperadas estão transcritas acima. As primeiras tentativas do harness
+temporário tiveram erros de preparo/importação, leitura de diretório com
+sufixo `.yml` no digest e formatação de listas incompatível com o escritor.
+Foram corrigidos apenas os scripts/cópias em `/tmp`; as retomadas reutilizaram
+os compiles válidos e verificaram a igualdade do conteúdo YAML após a
+formatação. Essas falhas não são apresentadas como defeitos do projeto nem
+como verificações aprovadas. Logs e scripts permanecem no diretório temporário;
+a evidência necessária ao parecer está neste relatório.
+
+O intervalo não altera SQL, snapshots, macros, parâmetros de negócio nem os
+YAMLs declarativos do dbt (`git diff beca244..39c5c85 -- dbt` vazio). O catálogo
+base não pediu atualização. **Não foi identificada mudança de resultado de
+negócio nestes commits; não refiz as medições de negócio das rodadas 7/8.**
+As mutações das sondas existem só nas cópias; não houve build, merge, carga,
+concessão, reconstrução de fato nem gravação de nova versão SCD. Não se
+exercitou consulta entre databases ou um inventário exaustivo de toda sintaxe
+PostgreSQL/Jinja. Esses limites não impedem concluir pelos defeitos reproduzidos.
+
+**Não executados:** `make check`, catálogo ou regeneração no checkout, build,
+run, snapshot, reset, seed, sincronização, DAG, ledger, recuperação ou troca de
+serviços. Os 188 testes de integração foram excluídos pelo alvo offline.
+`dbt PASS=907`, `1032 passed`, `3 skipped` e derivados atualizados de
+`make check` em `39c5c85` são **informados pelo autor**, não resultados desta
+revisão. `data/memoria_do_legado/` permaneceu somente leitura. Não há decisão
+nova de negócio nem ambiguidade de baseline a devolver ao Owner para corrigir
+os três achados.
+
+### Passagem ao Claude Code
+
+- [ ] **RVL3-9-01:** conferir a relação física efetiva com quoting/defaults;
+  contraprovar o alias sem aspas com manifest novo e sem descrição ignorada.
+- [ ] **RVL3-9-02:** preservar endereço lógico completo nos leitores, patches
+  e verificadores de descrição/sensibilidade; provar que a geração corrige o
+  alias e preserva a tabela homônima, sem `KeyError` nem recheck enganoso.
+- [ ] **RVL3-9-03:** exercitar a guarda completa com casts, nome completo do
+  tipo e quebras de linha, nos negativos e positivos de fuso.
+- [ ] Reexecutar os checks pertinentes, preencher as situações e medir/declarar
+  qualquer mudança de resultado de negócio. Aceitação: nenhuma coluna com
+  descrição errada, nenhum passe silencioso e nenhum resultado alterado sem
+  medição. O fechamento técnico não substitui revisão do declarativo nem
+  aceite formal do Owner.
