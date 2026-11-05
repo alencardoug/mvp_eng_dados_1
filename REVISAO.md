@@ -1282,3 +1282,414 @@ versões e de novo acumulado são consultas com CTE, não novas cargas. Não há
 aprovação, commit ou push nesta revisão. No checkout, a única edição deliberada
 é o acréscimo desta seção em `REVISAO.md`; os arquivos não rastreados que já
 existiam (`GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md`) foram preservados.
+
+## Rodada 3 — lote 3
+
+Revisão restrita a `ed08efa..2ab4d4e`, seis commits, com checkout em
+`2ab4d4eefd915fe75ba28868700898a863c355e3`, em 05/11/2026. **Parecer técnico,
+sem aceite nem poder de aprovação.** Nenhuma correção implementada. Somente
+este dossiê foi editado no checkout; sondas, projetos dbt e gerações ficaram em
+`/tmp/rvl3-r3-review`. Consultas exclusivamente pelo `ro.sh` autorizado. Nenhum
+build, carga, alteração de serviço ou acionamento/pausa de `fluxo_batch`.
+
+**O lote 3 ainda não pode ser encerrado tecnicamente.** As correções dos textos,
+da subunião tipada, do snapshot/CRLF e do digest foram confirmadas. Restam
+escapes de proveniência, de tipos desconhecidos e de atualidade do manifest.
+Os cinco achados abaixo são **falhas preexistentes que a correção não cobre**,
+não regressões demonstradas dos seis commits. A distinção importa: os testes
+corrigidos passam, mas não provam a garantia inteira. A graduação aplica o
+critério solicitado nesta rodada, inclusive aos limites antes declarados.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-3-01 | `src/mvp_ed1/models/descriptions.py:194–196,287–288,303–312`; `sensitivity.py:775–800` | **A prova de proveniência ainda pode desaparecer sem revisão do texto.** O registro atual está completo, mas só reconhece a chave literal modelo/coluna. Renomear a coluna ou o modelo junto com a mudança de expressão, ou promover um gerado a YAML à mão conservando o texto anterior, pode transformá-lo em `written` sem problema quando a folha imediata já mudou. A remoção de uma entrada é um escape comprovado também no projeto completo: substituindo `quantity` por constante e removendo só sua entrada, `--check=0`. Sem o arquivo, o primeiro `--check` acusa sua ausência, mas a primeira geração o recria incompleto, aceita o texto velho e o próximo `--check=0`. É necessário conservar/verificar a proveniência nessas transições e não interpretar ausência como revisão do autor. **Preexistente; fechamento incompleto de RVL3-01/RVL3-2-01.** R3-A/B. | `bloqueante` | **Corrigido, trocando o registro à parte por proveniência na própria coluna.** O `dbt/_descricoes_herdadas.json` saiu. Todo texto que a derivação escreve leva `meta.description_inherited: true`, no `.yml` à mão e no `_derived.yml` (1378 colunas marcadas). A marca anda com a coluna: renomear coluna ou modelo junto com a mudança de SQL, ou promover um gerado a `.yml` à mão copiando o bloco, leva a marca, e a coluna marcada que deixou de transportar é problema. Não há arquivo a apagar nem primeira geração que o recrie incompleto; tirar a marca é ato explícito, como escrever `description_reason`, e marca com motivo é contradição acusada. A igualdade com a folha imediata continua como segunda rede. Teste `test_a_marca_de_herdado_anda_com_a_coluna_e_acusa_quando_ela_deixa_de_transportar` (dois saltos, renomeada, revista, contradição) e `test_o_herdado_escrito_no_yml_a_mao_e_no_gerado_leva_a_marca`; contraprova com o código de `2ab4d4e`: `assert (0 == 1)`. |
+| RVL3-3-02 | `src/mvp_ed1/models/descriptions.py:187–191,305–306` | **Formatação Jinja equivalente ainda apaga a prova de herança.** `_normal` iguala aspas e espaços repetidos, mas não iguala `{{ doc("x") }}` a `{{doc("x")}}` ou `{{ doc ("x") }}`. Todos renderizam o mesmo bloco; os dois últimos passam como texto novo, sem `description_reason`, e saem do registro. Não é caso adversarial: compactar a referência durante edição/formatação do YAML não revisa seu significado. Normalizar a referência semanticamente, preservando a distinção entre formatação e texto revisto. **Preexistente; a correção cobre as aspas da R2-A, mas não a equivalência de referências.** R3-A. | `ajuste` | **Corrigido.** `_normal` reescreve toda grafia de `{{ doc(...) }}` — espaço, aspas, `{{-`/`-}}`, espaço antes do parêntese — para a forma canônica antes de comparar. Teste `test_toda_grafia_do_mesmo_doc_e_a_mesma_referencia`; contraprova com `2ab4d4e`: as grafias ficavam distintas. |
+| RVL3-3-03 | `src/mvp_ed1/models/transport.py:153–160`; `sensitivity.py:288–291`; Governança §5.1 | **União entre colunas de tipo desconhecido continua herdando após perder valor.** A correção `A\|B` funciona, mas o ramo `None` é descartado ao conferir tipos, salvo quando há constante flutuante diretamente na união. Com dois modelos calculados, um produzindo `16777217::bigint + 0` e outro `0::real`, ambos recebem tipo desconhecido; a união é `Carry`, herda “Quantidade exata de unidades.” e não registra problema. PostgreSQL entrega `16777216`. Consumir cálculos de modelos anteriores é uma composição comum; ponto flutuante aqui é uma medida não monetária. Não foi demonstrada perda nos dados atuais. Recusar herança cuja preservação não foi provada, ou resolver os tipos desses ramos, é necessário para a garantia de RVL3-02. **Preexistente, confirmado também com `transport.py` de `ed08efa`.** R3-C. | `ajuste` | **Corrigido, e achou um caso real.** (a) O tipo conhecido passou a vir também do cálculo: `cast`, testes e comparações (`BOOLEAN`), concatenação (`TEXT`), constantes e as colunas do snapshot (`dbt_valid_*` são `timestamp` sem fuso, medido no armazém). (b) Tipo desconhecido não prova: com mais de uma folha, ou diante de constante tipada, a união não transporta (`union_unproven`). (c) A regra passou a seguir a resolução do PostgreSQL: nas categorias numérica e de data/hora, o tipo resolvido é o mais alto presente, e só se herda se a conversão do **transportado** não muda o valor; entre categorias que o servidor recusaria unir (texto × `uuid`, texto × `jsonb`), a união construída prova tipos físicos iguais — o declarado na origem diverge do que o Airbyte grava. Nos modelos reais, a regra achou `dim_support_agent.valid_to`: o `dbt_valid_to` do snapshot (`timestamp`) unido a `cast(null as timestamptz)` é convertido pelo fuso da sessão, e herdava o texto de "fim da vigência" como valor intacto; ganhou texto próprio que diz a conversão, com motivo. Nenhum outro texto real mudou. Testes no da união (`ts` × `timestamptz` calcula; `timestamptz` × `date` transporta; `bigint` × `numeric` transporta; duas folhas desconhecidas não herdam; o tipo declarado do cálculo é anotado); contraprova com `2ab4d4e`: `Carry == union_unproven`. |
+| RVL3-3-04 | `src/mvp_ed1/models/sensitivity.py:344–346,348–364`; Governança §5.1 | **A ressalva de YAML documenta, mas não impede, um `--check` silenciosamente verde com declaração alterada.** Na cópia atual, mudar `sensitivity: internal` para `personal` na primeira coluna correspondente de `_pontes__models.yml` mantém retorno zero e “0 arquivo(s) desatualizado(s)”. A derivação lê o metadado anterior no manifest; não identifica que a entrada da verificação mudou. É edição comum do declarativo, não SQL adversarial. Pela regra desta rodada, permanece ajuste: detectar o insumo declarativo atrasado ou recusar a verificação sem evidência de compilação correspondente. O `make check` completo compila antes; não foi demonstrado escape nesse fluxo completo. **Preexistente, já reproduzido em RVL3-2-07; a documentação do limite não é correção técnica.** R3-D. | `ajuste` | **Corrigido.** `_declaracao_atrasada` compara com o disco as três declarações de `.yml` que a derivação lê do manifest — o nível com `sensitivity_reason` (a ponte), o nível de cada coluna de seed e o de cada coluna das fontes não espelhadas — e entra em `stale_nodes`. Seu caso (nível da ponte trocado) agora faz `make catalog` e `--check` recusarem. O nível sem motivo, que é saída da derivação, não entra, para não recusar o fluxo `catalog → legacy-models → catalog`. Zero falsos alarmes no projeto atual. Teste `test_declaracao_do_yml_mudada_depois_do_build_e_recusada`; contraprova com `2ab4d4e`: `[] == ['declaração de ponte']`. Limite que fica, declarado: o `dbt_project.yml`. |
+| RVL3-3-05 | `src/mvp_ed1/models/sensitivity.py:359–364`; Governança §5.1 | **A busca por substring de macro também aceita uma versão antiga dentro de comentário Jinja.** Manter o `macro_sql` anterior em `{# … #}` e alterar a macro ativa de `union all` para `union` resulta em `--check=0`. Um `dbt parse` independente confirma que a definição ativa é a nova. Comparar a definição ativa, e não sua ocorrência textual no arquivo. **Preexistente** quanto à falha — em `ed08efa` macros nem eram conferidas —, agora uma lacuna da nova guarda. É **observação**, pois guardar a definição antiga inteira em comentário exige um arranjo específico, distante das macros atuais, que mantêm uma definição ativa e usam o Git para histórico; arquivos com várias macros normais e `{%-` passaram. R3-D. | `observação` | **Corrigido.** Comentário Jinja `{# … #}` é retirado do arquivo e do `macro_sql` antes da comparação: a definição antiga guardada em comentário não passa pela ativa. Teste `test_definicao_antiga_em_comentario_nao_passa_pela_macro_ativa`; contraprova com `2ab4d4e`: aceitava. |
+
+### Conferência das respostas e dos achados originais
+
+“Fechado” significa atendimento do achado técnico específico, sem aprovação da
+entrega. Cada evidência R3 abaixo tem comando e saída literal. R2-B foi
+reexecutada; o novo caso de tipo desconhecido é separado dela.
+
+| Achado | Resultado | Comando e saída que sustentam o resultado |
+|---|---|---|
+| RVL3-2-01 | **Não fechado integralmente.** Dois saltos, aspas e manutenção da entrada sinalizada funcionam; identidade, ausência do registro e outras grafias equivalentes escapam. | `registry.py`: `DOIS_SALTOS_COM_REGISTRO` e `SEGUNDA_RODADA_SINALIZADA` têm problema; `COLUNA_RENOMEADA PROBLEMAS []`; `full_check.py`: `CONSTANTE_ENTRADA_APAGADA RC 0` (R3-A/B). |
+| RVL3-2-02 | **Fechado.** Os tipos da subunião continuam presentes em mais níveis; misturas seguras permanecem `Carry`. | `union.py`: `R2_B` e `PROFUNDA` → `Computed(kind='union_coercion', shape=None, type=None)`; `MISTA_SEGURA`/`MISTA_NULL` → `Carry` (R3-C). |
+| RVL3-2-03 | **Fechado.** As seis medidas das dimensões distinguem versões; `quantity_ordered` distingue item de remessa de linha de pedido. | `texts.py`: textos/motivos próprios; `ro.sh …/oracle.sql`: `quantity_ordered 15534 13278`, dimensões com uma versão atual por entidade; `baseline.py`: `ARQUIVOS_DIFERENTES []` (R3-E). |
+| RVL3-2-04 | **Fechado.** Os seis acumulados descrevem a captura de abertura e a ausência de atualização isolada; os de cliente recuperam “pedidos realizados”. | `texts.py`: `MEDIDAS_FORA True` nos três snapshots; `oracle.sql`: `acumulado_congelado=40`, `acumulado_novo=41`, `cria_versao=f`; SQL de `customers`: `where o.is_realised` (R3-E). |
+| RVL3-2-05 | **Fechado.** O `WHERE` acrescentado é recusado; CRLF e controle de whitespace gerados pelo dbt não provocam falso alarme. | `full_check.py`: `SNAPSHOT_WHERE RC 1`; `parse_check.py`: `STALE_PARSE []`, com `RAW crlf …\r\n…` e snapshot `{%-` (R3-D). |
+| RVL3-2-06 | **Fechado.** Os dois motivos voltaram exatamente ao conteúdo anterior a `636895e`. | `texts.py`: duas linhas `MOTIVO_RESTAURADO … True` (R3-E). |
+| RVL3-2-07 | **Não fechado integralmente.** A mudança simples da macro agora é recusada e o limite YAML está documentado, mas o passe silencioso persiste; há também o escape por comentário. | `full_check.py`: `MACRO_UNION RC 1`, `YAML_SENSIBILIDADE RC 0`, `MACRO_VELHA_EM_COMENTARIO RC 0` (R3-D). |
+| RVL3-2-08 | **Fechado.** O comentário SQL distingue delta aditivo de saldo semiaditivo. | `texts.py`: `COMENTARIO_SQL 123 … quantity_delta … aditiva` e linhas 124–126 (R3-E). |
+| RVL3-2-09 | **Fechado.** A lista de campos tem serialização inequívoca para os casos levantados. | `digest.py`: `R2_COLISAO False`, `R1_MULTILINHA False`, `SO_CORPO_IGUAL True` (R3-F). |
+| RVL3-01 | **Não fechado integralmente.** O texto antigo é recusado quando a chave e a grafia reconhecida sobrevivem; permanecem R3-01/02. | `full_check.py`: `CONSTANTE_COM_REGISTRO RC 1`, mas `CONSTANTE_ENTRADA_APAGADA RC 0`; `registry.py`: grafia compacta com `PROBLEMAS []` (R3-A/B). |
+| RVL3-02 | **Não fechado integralmente.** Coerção simples e subunião tipada estão corrigidas, mas união de folhas desconhecidas ainda pode mudar valor e herdar. | `union.py`: `MODELOS_CALCULADOS … ORIGEM inherited PROBLEMAS [] []`; `oracle.sql`: `DUAS_FOLHAS real 1.6777216e+07` para entrada `16777217` (R3-C). |
+| RVL3-03 | **Fechado para os defeitos de grão identificados e o inventário revisto.** Fatos, dimensões e acumulados de snapshots recebem as restrições correspondentes. Não encontrei outra descrição de soma em grão errado no inventário de medidas examinado. | `baseline.py`: inventário `MEDIDA`, sem diferenças de arquivos; `texts.py` e `oracle.sql`: restrições e somas repetidas confirmadas (R3-E). |
+| RVL3-07 | **Não fechado integralmente quanto à garantia geral de atualidade.** Modelo, snapshot, CRLF e edição simples de macro estão cobertos; YAML e comentário de macro não. | `full_check.py` e `parse_check.py`: recusas/retornos zero discriminados em R3-D. |
+| RVL3-09 | **Fechado.** Tanto a quebra de linha entre aspas quanto o separador dentro de campo alteram o digest. | `digest.py`: `R1_MULTILINHA False` e `R2_COLISAO False`; testes direcionados: `31 passed in 2.62s` (R3-F). |
+
+### Evidências da rodada 3
+
+Os scripts mencionados estão em `/tmp/rvl3-r3-review`. Python dos comandos:
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python`. As derivações iniciais foram feitas
+com `derive()` em memória, sem `load()`/cache no checkout. Os comandos que
+exercitam `sensitivity.main()` redirecionam `ROOT`, `DBT`, `MANIFEST`, `CACHE` e
+`descriptions.INHERITED_FILE` à cópia. Não houve geração no checkout original.
+
+**R3-A — inventário, determinismo e transições de proveniência.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/baseline.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/registry.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/doc_probe.py
+```
+
+Trecho de `baseline.txt`:
+
+```text
+STALE []
+NOS 199 COLUNAS 2983
+PROBLEMAS [] []
+ARQUIVOS_DIFERENTES []
+OBSOLETOS []
+REGISTRO 87 1089 EXATO True
+DETERMINISTICO True
+```
+
+O conjunto esperado foi reconstruído das saídas com origem `inherited`,
+`convention` ou `bridge` e entrada de disco `kind='hand'`, incluindo o texto.
+Igualdade de dicionários prova ausência de entradas faltantes e excedentes
+**no estado atual**, não recuperabilidade histórica. Duas derivações produziram
+o mesmo JSON. Permanecem os três avisos conhecidos de `legacy_classifications`
+sobre `position`/`name`; não são novos nesta rodada.
+
+`registry.py` monta `raw.orders.total_amount → staging.a.v → trusted.b.v`.
+A raiz recebe “Texto revisado.”; `a` transporta e `b` passa a multiplicar,
+conservando no YAML o texto anterior. Trechos literais:
+
+```text
+DOIS_SALTOS_COM_REGISTRO PROBLEMAS ['b.v: não transporta mais (mul) e guarda o texto de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`'] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {'b': {'v': 'Valor total do pedido; reconcilia os demais campos.'}}
+SEGUNDA_RODADA_SINALIZADA PROBLEMAS ['b.v: não transporta mais (mul) e guarda o texto de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`'] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {'b': {'v': 'Valor total do pedido; reconcilia os demais campos.'}}
+COLUNA_RENOMEADA PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+MODELO_RENOMEADO PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+ENTRADA_REMOVIDA PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+REGISTRO_AUSENTE PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+GERADO_PARA_HAND_COM_CALCULO PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+HAND_PARA_GERADO PROBLEMAS [] DESTINO None None REG_B {}
+TEXTO_REVISTO PROBLEMAS [] DESTINO written 'Valor multiplicado por cem.' REG_B {}
+MOTIVO_EXPLICITO PROBLEMAS [] DESTINO written 'Valor total do pedido; reconcilia os demais campos.' REG_B {}
+```
+
+O caso de promoção representa copiar a entrada antes derivada para um arquivo
+à mão no mesmo trabalho que muda a expressão; ela não tinha registro anterior.
+Mover apenas o arquivo entre dois caminhos à mão preserva a chave e não cria
+este escape. De à mão para gerado, a expressão calculada fica sem texto, como
+esperado. Coluna/modelo renomeado **sem** mudança de expressão continua herdando
+e ganha a nova chave; o defeito exige perder o transporte na transição, ou
+perder a proveniência antes de precisar dela. Não se afirma que toda renomeação
+falhe.
+
+A comparação de aspas da rodada 2 agora funciona. Já a compactação:
+
+```text
+DOC "{{ doc('x') }}" PROBLEMAS ['b.v: não transporta mais (mul) e guarda o texto de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`'] DESTINO written "{{ doc('x') }}" REG_B {'b': {'v': '{{ doc("x") }}'}}
+DOC '{{doc("x")}}' PROBLEMAS [] DESTINO written '{{doc("x")}}' REG_B {}
+DOC '{{ doc ("x") }}' PROBLEMAS [] DESTINO written '{{ doc ("x") }}' REG_B {}
+JINJA '{{ doc("x") }}' RENDER Texto do mesmo bloco. NORMAL '{{ doc("x") }}'
+JINJA "{{ doc('x') }}" RENDER Texto do mesmo bloco. NORMAL '{{ doc("x") }}'
+JINJA '{{doc("x")}}' RENDER Texto do mesmo bloco. NORMAL '{{doc("x")}}'
+JINJA '{{ doc ("x") }}' RENDER Texto do mesmo bloco. NORMAL '{{ doc ("x") }}'
+```
+
+A mesma falha de grafia foi confirmada pelo escritor completo, na cópia:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/full_doc.py
+```
+
+A sonda troca a projeção `v.source_system` de `dim_customer` por
+`upper(v.source_system) as source_system`, atualiza também o SQL do manifest
+e compacta somente a referência no YAML para `{{doc("source_system")}}`.
+O texto do bloco continua o mesmo, embora a expressão deixe de transportar.
+A geração aceita a mudança e retira a entrada do registro:
+
+```text
+GERACAO_DOC_COMPACTO RC 0 OUT escrito: dbt/_descricoes_herdadas.json
+classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) escrito(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+CHECK_DOC_COMPACTO RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+REGISTRO_DIM_SOURCE_SYSTEM None
+```
+
+**R3-B — entrada apagada e primeiro uso sem registro, pelo escritor completo.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/full_check.py
+```
+
+Na cópia, a sonda troca `cast(quantity as integer)` por `100` tanto no SQL de
+`stg_retail__order_items` quanto em `raw_code` e `compiled_code` do manifest:
+a expressão nova efetivamente entra na derivação, sem fingir uma recompilação
+executada. O texto “Quantidade comprada do SKU.” permanece no YAML.
+
+Trechos literais de `full_check.txt` (os três avisos conhecidos foram omitidos):
+
+```text
+BASE RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+CONSTANTE_COM_REGISTRO RC 1 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+gerador: stg_retail__order_items.quantity: não transporta mais (constant) e guarda o texto de quem lê — escreva o texto do que ela calcula, ou declare `description_reason`
+CONSTANTE_ENTRADA_APAGADA RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+CONSTANTE_ARQUIVO_AUSENTE RC 1 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+desatualizado: dbt/_descricoes_herdadas.json
+PRIMEIRA_GERACAO_SEM_REGISTRO RC 0 OUT escrito: dbt/_descricoes_herdadas.json
+classificação e descrição derivadas de 2983 colunas em 199 nós; 1 arquivo(s) escrito(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+DEPOIS_DA_PRIMEIRA_GERACAO RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+```
+
+A falta do arquivo **não** faz o primeiro `--check` passar: ele acusa o JSON
+faltante. O escape é a geração aceitá-lo como vazio e recriá-lo sem a prova da
+coluna problemática, ou a remoção isolada dessa entrada. Uma remoção acidental
+em resolução de conflito tem o mesmo efeito; não depende de alterar o motor.
+
+**R3-C — união aninhada e fronteira de modelos calculados.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/union.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/history_probe.py
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r3-review/oracle.sql
+```
+
+```text
+R2_B {'x': Computed(kind='union_coercion', shape=None, type=None)}
+PROFUNDA {'x': Computed(kind='union_coercion', shape=None, type=None)}
+MISTA_SEGURA {'x': Carry(leaves=frozenset({('raw', 'a', 'x')}))}
+MISTA_REAL {'x': Computed(kind='union_coercion', shape=None, type=None)}
+MISTA_NULL {'x': Carry(leaves=frozenset({('raw', 'a', 'x')}))}
+MODELOS_CALCULADOS CARRY Carry(leaves=frozenset({('trusted', 'b', 'x'), ('trusted', 'a', 'x')})) TIPOS [None, None] TEXTO Quantidade exata de unidades. ORIGEM inherited PROBLEMAS [] []
+ED08EFA_DUAS_FOLHAS Carry(leaves=frozenset({('trusted', 'b', 'x'), ('trusted', 'a', 'x')}))
+2AB4D4E_DUAS_FOLHAS Carry(leaves=frozenset({('trusted', 'b', 'x'), ('trusted', 'a', 'x')}))
+```
+
+`R2_B` é `BIGINT ∪ (0::real ∪ 1::double precision)`. `PROFUNDA` acrescenta
+`null ∪ (-1 ∪ (0::real ∪ 1::double precision))`; `MISTA_SEGURA` usa
+`null ∪ (-1 ∪ 0.1::numeric)`; `MISTA_NULL`, `-1 ∪ null`.
+O caso com duas folhas passa por `sensitivity.derive()` e
+`descriptions.derive_texts()`, não apenas por `combine_union`: as duas raízes
+calculadas têm texto próprio igual, o destino herda, nenhum problema é emitido.
+
+Oráculo PostgreSQL, sem escrita:
+
+```text
+ transaction_read_only
+-----------------------
+ on
+(1 row)
+
+ caso |       tipo       |         valor
+------+------------------+-----------------------
+ R2_B | double precision | 9.007199254740992e+15
+ R2_B | double precision | 0
+ R2_B | double precision | 1
+(3 rows)
+
+    caso     | tipo |     valor
+-------------+------+---------------
+ DUAS_FOLHAS | real | 1.6777216e+07
+ DUAS_FOLHAS | real | 0
+(2 rows)
+```
+
+Na primeira consulta, a entrada é `9007199254740993::bigint`; o motor agora
+recusa corretamente a herança. Na segunda, são dois CTEs/subconsultas
+representando os modelos `a` (`16777217::bigint + 0`) e `b` (`0::real`):
+a promoção para `real` arredonda a primeira linha, mas o motor herda.
+A profundidade e a mistura de constantes foram corrigidas; não se deve atribuir
+a elas a falha distinta de perder informação de tipo na fronteira de modelos.
+
+**R3-D — atualidade do manifest, CRLF, `{%-` e várias macros.**
+
+`full_check.py` restaura a cópia após a sonda de proveniência e aplica as
+alterações de R2-D separadamente. Trechos de saída:
+
+```text
+SNAPSHOT_WHERE RC 1 OUT  ERR manifest atrasado: 1 modelo(s) mudaram no disco depois do último build (scd_coupon); rode `make dbt-build` antes — nenhum arquivo é tocado
+MACRO_UNION RC 1 OUT  ERR manifest atrasado: 1 modelo(s) mudaram no disco depois do último build (macro empilhado); rode `make dbt-build` antes — nenhum arquivo é tocado
+YAML_SENSIBILIDADE RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+MACRO_VELHA_EM_COMENTARIO RC 0 OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR aviso: model.mvp_ed1.legacy_classifications: origem `c` de `position` não encontrada; tratada como técnica
+```
+
+Na última sonda, a definição anterior de `empilhado` fica dentro de comentário
+Jinja, antes da definição ativa alterada. A busca por substring encontra a
+antiga no comentário. As outras macros do projeto não são alteradas.
+
+Para não depender de pressupostos sobre `raw_code`/`macro_sql`, criei um projeto
+mínimo sem conexão com banco e deixei o dbt produzir o manifest:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/prepare_parse.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/dbt parse \
+  --project-dir /tmp/rvl3-r3-review/parse \
+  --profiles-dir /tmp/rvl3-r3-review/parse --no-partial-parse
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/parse_check.py
+```
+
+```text
+STALE_PARSE []
+RAW m 'select {{ a() }} as x, {{ b() }} as y'
+RAW crlf '{% set x = 1 %}\r\nselect {{ x }} as x'
+RAW s "{{ config(target_schema='probe',unique_key='x',strategy='check',check_cols=['x']) }}\nselect 1 as x"
+MACRO_SQL a '{%- macro a() -%}1{%- endmacro -%}\n\n'
+MACRO_SQL b '{% macro b() %}2{% endmacro %}'
+MULTIMACRO_ALTERADA ['macro b']
+SNAPSHOT_ALTERADO ['s']
+```
+
+Portanto, não houve falso alarme no projeto atual (`STALE []`), no modelo CRLF,
+no snapshot com abertura/fechamento `{%- … -%}` nem no arquivo com duas macros,
+uma com controle de whitespace. Mudar só a segunda macro é detectado.
+
+Depois, `parse_macro_comment.py` guarda `b=2` em comentário e deixa `b=3`
+ativo; repetido o mesmo `dbt parse`, a leitura de `manifest['macros']` mostrou:
+
+```text
+MACRO_ATIVA_PARSE a '\n{%- macro a() -%}1{%- endmacro -%}\n\n'
+MACRO_ATIVA_PARSE b '{% macro b() %}3{% endmacro %}'
+```
+
+O comentário não é uma segunda definição ativa nem faz o parse falhar. A
+prova de retorno zero é a sonda completa com `empilhado`; esse projeto mínimo
+confirma independentemente a interpretação do dbt.
+
+**R3-E — textos, grão e documentação.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/texts.py
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r3-review/oracle.sql
+```
+
+`texts.py` imprime os textos e motivos das seis medidas de dimensão, seis de
+snapshot, `quantity_ordered`, das duas medidas repetidas da R1 e dos dois
+motivos revertidos. Exemplos literais:
+
+```text
+dim_customer.order_count TEXTO **Aditiva entre clientes, só na versão vigente** (`is_current`) — pedidos realizados do cliente, com o valor atual repetido em cada versão dele; zero para quem nunca comprou. MOTIVO o valor atual de trusted, repetido em cada versão da dimensão — o herdado diria aditiva sem a vigência (RVL3-2-03)
+scd_customer.order_count TEXTO **Não soma entre versões** — pedidos realizados do cliente na captura que abriu esta versão; fica congelado enquanto a versão vale — a coluna não está em `check_cols`, e uma mudança só dela não a atualiza nem abre versão. O valor atual está em `trusted.customers`. MOTIVO o snapshot guarda o acumulado da captura que abriu a versão, não um valor que acompanha o tempo — o herdado diria aditiva (RVL3-03, RVL3-2-04)
+CHECK_COLS scd_customer ['customer_segment_id', 'customer_status', 'city', 'state_code', 'is_deleted'] MEDIDAS_FORA True
+CHECK_COLS scd_coupon ['campaign_id', 'discount_type', 'discount_value', 'min_order_amount', 'coupon_is_active', 'is_deleted'] MEDIDAS_FORA True
+CHECK_COLS scd_support_agent ['agent_team', 'agent_is_active', 'is_deleted'] MEDIDAS_FORA True
+MOTIVO_RESTAURADO fact_shipment_item.quantity_shipped True 'diz a aditividade da medida nesta fato, que o texto herdado não diz'
+MOTIVO_RESTAURADO fact_coupon_redemption.coupon_discount_amount True 'diz a aditividade da medida nesta fato, que o texto herdado não diz'
+COMENTARIO_SQL 123     -- `quantity_delta` é **aditiva**: é delta assinado, e a soma num período é a
+COMENTARIO_SQL 124     -- variação líquida do estoque nele (RVL3-10). Semiaditivo é o saldo, que é
+COMENTARIO_SQL 125     -- fotografia — esse não se soma ao longo do tempo. `quantity_in` e
+COMENTARIO_SQL 126     -- `quantity_out` são aditivas em qualquer recorte e separam entrada de saída.
+```
+
+O SQL das três dimensões lê todas as versões e junta `trusted` pela chave
+natural com `source_system`; `is_current` é `dbt_valid_to is null`. Logo, a
+restrição agora escrita corresponde ao modo de somar os valores atuais.
+Os snapshots leem `select *` de `trusted`, mas nenhuma das seis medidas entra
+em `check_cols`. `trusted.customers` conta e soma apenas `where o.is_realised`.
+Conferi essa regra contra o ADR-0017, sem modificar o ADR nem a estratégia.
+
+Medição atual, não inferência sobre futuras versões:
+
+```text
+      modelo       | linhas | entidades | atuais
+-------------------+--------+-----------+--------
+ DIM_CUSTOMER      |   1574 |      1574 |   1574
+ DIM_COUPON        |     19 |        19 |     19
+ DIM_SUPPORT_AGENT |      8 |         8 |      8
+(3 rows)
+
+        medida        | soma  | uma_vez
+----------------------+-------+---------
+ quantity_ordered     | 15534 |   13278
+ failed_attempt_count |   879 |     437
+ reopening_count      |    63 |      14
+(3 rows)
+
+ acumulado_congelado | acumulado_novo | cria_versao
+---------------------+----------------+-------------
+                  40 |             41 | f
+(1 row)
+```
+
+A dimensão de atendente inclui o membro desconhecido. A última consulta altera
+apenas o resultado de um CTE (`redemption_count+1`) e aplica a condição de
+comparação das `check_cols`; **não executa snapshot nem altera registro**.
+
+Para procurar medidas esquecidas, `baseline.py` inventaria descrições em
+`analytics`, `snapshots` e `consumption` com termos de aditividade, soma, total,
+quantidade, contagem, pedidos, resgates e eventos. Conferi também os SQLs das
+medidas repetidas, o recorte por remessa/pedido de P13/P14 e a restrição de um
+cupom por pedido. Em `fact_coupon_redemption`, valores de pedido são somáveis
+porque `source_system, order_id` é único; a origem declara índice único por
+pedido e o YAML testa a combinação. Não tratei esse transporte de total como
+fan-out. Os acumulados das dimensões/snapshots e os três casos da tabela acima
+agora explicam suas restrições. Não foi demonstrado outro erro de grão nesse
+inventário; isso não equivale a provar toda futura mudança de cardinalidade.
+
+**Governança §5.1 v2.14:** os trechos sobre registro gerado/`--check` e medidas
+atuais versus capturadas correspondem à implementação e aos textos atuais.
+As promessas de recusa precisam ser lidas com as falhas de R3-01/02/03/05:
+ainda não são garantias gerais. O limite YAML está de fato declarado, mas
+permanece o passe silencioso de R3-04. A descrição da guarda não deve confundir
+“macro apagada não se confere” com ausência total de detecção: remover o
+arquivo ou o trecho de uma macro que está no manifest é alcançado pelo teste
+de existência/substring; o código não reconcilia o inventário inteiro do
+projeto. Não há achado separado apenas para essa imprecisão de redação.
+
+**R3-F — digest e verificações de regressão.**
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python /tmp/rvl3-r3-review/digest.py
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cacheprovider \
+  tests/test_descricao_derivada.py tests/test_classificacao_derivada.py
+PYTHONDONTWRITEBYTECODE=1 make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+```text
+R2_COLISAO False
+R1_MULTILINHA False
+SO_CORPO_IGUAL True
+...............................                                          [100%]
+31 passed in 2.62s
+```
+
+`R2_COLISAO` compara `["a\x1fb"]` com `["a", "b"]`; `R1_MULTILINHA` muda o
+nome dentro de um campo entre aspas contendo quebra de linha; o controle muda
+apenas o corpo. Os dois defeitos anteriores estão corrigidos.
+
+Trechos de `check-offline.txt`, retorno zero:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 664 citações de ADR — nada quebrado
+823 passed, 188 deselected in 179.43s (0:02:59)
+check-offline: as três etapas passaram
+```
+
+O alvo também listou os 188 testes de integração excluídos, por arquivo. Eles
+**não foram executados** nesta rodada. O resultado do autor (`PASS=907`,
+`1008 passed, 3 skipped`) não foi remedido: `make check` faria build e está fora
+da autorização desta revisão.
+
+Última linha de `secrets-history.txt`, retorno zero:
+
+```text
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Os testes existentes passam junto com as contraprovas novas; portanto, seus
+resultados verdes não encerram os escapes registrados nesta rodada. Permanecem
+sem execução alterações reais de dados, abertura de uma segunda versão SCD,
+reconstrução do armazém e atualização de comentários físicos. A revisão mediu
+os textos de código/catálogo e consultou o grão do armazém como o encontrou.
