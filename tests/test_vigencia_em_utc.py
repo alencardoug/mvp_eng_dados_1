@@ -82,7 +82,8 @@ def test_o_hoje_dos_modelos_e_a_meia_noite_de_sao_paulo() -> None:
 
 
 _LITERAL_TIMESTAMPTZ = re.compile(r"timestamptz\s+'([^']*)'", re.I)
-_COM_FUSO = re.compile(r"(Z|[+-]\d{2}(:?\d{2})?)\s*$")
+#: O fuso vem **depois de uma hora**: o `-31` de `9999-12-31` é o dia, não um offset (RVL3-8-02).
+_COM_FUSO = re.compile(r"\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*(Z|[+-]\d{1,2}(:?\d{2})?)\s*$")
 
 
 def test_todo_literal_timestamptz_diz_o_fuso() -> None:
@@ -97,3 +98,13 @@ def test_todo_literal_timestamptz_diz_o_fuso() -> None:
                     if valor.strip().lower() not in ("infinity", "-infinity") and not _COM_FUSO.search(valor):
                         sem_fuso.append(f"{caminho.relative_to(DBT)}:{numero}: {valor}")
     assert sem_fuso == []
+
+
+@pytest.mark.parametrize(("literal", "tem_fuso"), [
+    ("2024-01-01", False), ("9999-12-31", False), ("2024-01-01 00:00", False),
+    ("2024-01-01 00:00-03", True), ("9999-12-31 00:00+00", True), ("2024-01-01T12:30:00.5Z", True),
+    ('" ~ var("period_start") ~ " 00:00-03', True), ("{{ var(\"as_of_date\") }} 00:00-03", True),
+])
+def test_a_guarda_le_o_fuso_e_nao_o_dia(literal: str, tem_fuso: bool) -> None:
+    """RVL3-8-02: a contraprova da própria guarda."""
+    assert bool(_COM_FUSO.search(literal)) is tem_fuso
