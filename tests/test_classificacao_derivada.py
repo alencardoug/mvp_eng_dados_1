@@ -258,11 +258,11 @@ def test_o_espelho_de_raw_nao_sobrepoe_a_declaracao_sqlalchemy() -> None:
     manifest = {
         "sources": {
             "source.mvp_ed1.retail.customers": {
-                "schema": "raw", "identifier": "customers", "original_file_path": "models/staging/_retail__sources.yml",
+                "source_name": "retail", "name": "customers", "schema": "raw", "identifier": "customers", "original_file_path": "models/staging/_retail__sources.yml",
                 "columns": {"first_name": {"name": "first_name", "meta": {"sensitivity": "public"}}},
             },
             "source.mvp_ed1.governance.legacy_captures": {
-                "schema": "governance", "identifier": "legacy_captures", "original_file_path": "models/staging/legacy/_legacy__sources.yml",
+                "source_name": "governance", "name": "legacy_captures", "schema": "governance", "identifier": "legacy_captures", "original_file_path": "models/staging/legacy/_legacy__sources.yml",
                 "columns": {"capture_id": {"name": "capture_id", "meta": {"sensitivity": "confidential"}}},
             },
         },
@@ -279,7 +279,7 @@ def test_o_espelho_de_raw_nao_sobrepoe_a_declaracao_sqlalchemy() -> None:
     assert derivado.problems == []
     assert derivado.levels["model.mvp_ed1.x"] == {"first_name": "personal", "capture_id": "confidential"}
     plano = s.plan(manifest, derivado)
-    assert plano.patches[s.DBT / "models/staging/_retail__sources.yml"]["customers"]["first_name"] == "personal"
+    assert plano.patches[s.DBT / "models/staging/_retail__sources.yml"][("retail", "customers")]["first_name"] == "personal"
 
 
 def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatch) -> None:

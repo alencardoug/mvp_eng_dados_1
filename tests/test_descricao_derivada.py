@@ -460,6 +460,95 @@ def test_a_escrita_da_descricao_insere_substitui_e_preserva_o_resto(tmp_path) ->
         d.verify(alvo, original, pedido)
 
 
+HOMONIMAS = textwrap.dedent("""\
+    version: 2
+
+    sources:
+      - name: legacy
+        schema: raw_legacy
+        tables:
+          - name: order_items
+            columns:
+              - name: quantity
+                description: "Quantidade comprada do SKU."
+                meta:
+                  sensitivity: internal
+      - name: retail
+        schema: raw
+        tables:
+          - name: order_items
+            columns:
+              - name: quantity
+                description: "Valor monetário total do pedido em reais."
+                meta:
+                  sensitivity: public
+
+    models:
+      - name: order_items
+        columns:
+          - name: quantity
+            description: "Do modelo homônimo."
+    """)
+
+
+def _quantity(texto: str) -> dict:
+    documento = yaml.safe_load(texto)
+    saida = {(f["name"], t["name"]): t["columns"][0] for f in documento["sources"] for t in f["tables"]}
+    saida["order_items"] = documento["models"][0]["columns"][0]
+    return saida
+
+
+@pytest.mark.parametrize("ordem", ["legacy_primeiro", "retail_primeiro"])
+def test_tabela_de_fonte_homonima_e_escrita_e_conferida_no_seu_endereco(tmp_path, ordem) -> None:
+    """RVL3-10-01: `legacy.order_items` e `retail.order_items` no mesmo `.yml` — o nome sozinho escrevia
+    na primeira, já certa, e check, geração e recheck passavam com o texto errado na segunda."""
+    original = HOMONIMAS
+    if ordem == "retail_primeiro":
+        cab, resto = HOMONIMAS.split("sources:\n", 1)
+        legacy, retail = resto.split("  - name: retail\n", 1)
+        retail, modelos = retail.split("\nmodels:", 1)
+        original = cab + "sources:\n  - name: retail\n" + retail.rstrip("\n") + "\n" + legacy.rstrip("\n") + "\n\nmodels:" + modelos
+    certo = "Quantidade comprada do SKU."
+    pedido = {("retail", "order_items"): {"quantity": certo}}
+    escrito = d.patch_descriptions(original, pedido)
+    colunas = _quantity(escrito)
+    assert colunas[("retail", "order_items")]["description"] == certo
+    assert colunas[("legacy", "order_items")] == _quantity(original)[("legacy", "order_items")]      # a homônima não é tocada
+    assert colunas["order_items"]["description"] == "Do modelo homônimo."                           # nem o modelo de mesmo nome
+    assert escrito != original
+    alvo = s.DBT / "models" / "x.yml"
+    d.verify(alvo, escrito, pedido)
+    with pytest.raises(RuntimeError, match="retail.order_items"):
+        d.verify(alvo, original, pedido)          # a homônima certa não satisfaz o pedido da outra fonte
+    # A sensibilidade (`plan` → `patch_yaml`) e a marca usam o mesmo endereço.
+    sensivel = s.patch_yaml(original, {("retail", "order_items"): {"quantity": "internal"}})
+    assert _quantity(sensivel)[("retail", "order_items")]["meta"] == {"sensitivity": "internal"}
+    assert _quantity(sensivel)[("legacy", "order_items")] == _quantity(original)[("legacy", "order_items")]
+    s._verify(alvo, sensivel, {("retail", "order_items"): {"quantity": "internal"}})
+    with pytest.raises(RuntimeError, match="retail.order_items"):
+        s._verify(alvo, original, {("retail", "order_items"): {"quantity": "internal"}})
+    # O nome sozinho é o modelo do bloco de topo, não a tabela de fonte homônima.
+    assert _quantity(d.patch_descriptions(original, {"order_items": {"quantity": "Outro."}}))["order_items"]["description"] == "Outro."
+    with pytest.raises(KeyError, match="retail.ausente"):
+        d.patch_descriptions(original, {("retail", "ausente"): {"quantity": certo}})
+
+
+def test_endereco_repetido_no_arquivo_e_recusa_e_a_fonte_leva_o_par(tmp_path, monkeypatch) -> None:
+    """RVL3-10-01: duas entradas no mesmo endereço não escolhem a primeira; e a leitura dá à fonte o par (fonte, tabela)."""
+    repetido = HOMONIMAS.replace("  - name: legacy\n    schema: raw_legacy", "  - name: retail\n    schema: raw_legacy")
+    with pytest.raises(ValueError, match="aparece 2 vezes"):
+        d.patch_descriptions(repetido, {("retail", "order_items"): {"quantity": "x"}})
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "_fontes.yml").write_text(HOMONIMAS, encoding="utf-8")
+    fontes = d.disk_sources()
+    assert {k: e.address for k, e in fontes.items()} == {("raw_legacy", "order_items"): ("legacy", "order_items"),
+                                                         ("raw", "order_items"): ("retail", "order_items")}
+    textos = d.derive_texts({"nodes": {}}, s.Derivation(), disco={}, fontes=fontes)
+    assert textos.patches[tmp_path / "models" / "_fontes.yml"] == {
+        ("retail", "order_items"): {"quantity": d.source_texts()[("raw", "order_items", "quantity")]}}
+
+
 def test_arquivo_gerado_leva_a_descricao_antes_da_sensibilidade() -> None:
     texto = s.render_generated({"t": {"a": "internal", "b": "public"}}, "models", {"t": {"a": "Texto."}})
     colunas = yaml.safe_load(texto)["models"][0]["columns"]

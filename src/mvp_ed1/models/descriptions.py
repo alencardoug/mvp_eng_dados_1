@@ -129,6 +129,7 @@ class Entry:
     kind: str                                   # "hand" | "derived" (gerado por make catalog) | "generator" (make legacy-models)
     columns: dict[str, dict]
     meta: dict = field(default_factory=dict)    # o `meta` do modelo, para o domínio (`models/domains.py`)
+    address: sensitivity.Address = ""           # onde a escrita a encontra no arquivo (`sensitivity._locate`)
 
 
 def _text(coluna: dict) -> str:
@@ -183,7 +184,8 @@ def disk_sources(documentos: list[tuple[pathlib.Path, dict]] | None = None) -> d
     for caminho, documento in (_documents() if documentos is None else documentos):
         for fonte in documento.get("sources") or []:
             for t in fonte.get("tables") or []:
-                saida[sensitivity.source_identity(fonte, t)] = Entry(caminho, _kind(caminho), {c["name"]: c for c in t.get("columns") or []})
+                saida[sensitivity.source_identity(fonte, t)] = Entry(caminho, _kind(caminho), {c["name"]: c for c in t.get("columns") or []},
+                                                                     address=(fonte["name"], t["name"]))
     return saida
 
 
@@ -195,7 +197,7 @@ def disk_entries(documentos: list[tuple[pathlib.Path, dict]] | None = None) -> d
         for chave in ("models", "snapshots", "seeds"):
             for e in documento.get(chave) or []:
                 meta = {**(e.get("meta") or {}), **((e.get("config") or {}).get("meta") or {})}
-                entradas[e["name"]] = Entry(caminho, tipo, {c["name"]: c for c in e.get("columns") or []}, meta)
+                entradas[e["name"]] = Entry(caminho, tipo, {c["name"]: c for c in e.get("columns") or []}, meta, e["name"])
     return entradas
 
 
@@ -208,7 +210,7 @@ class Texts:
     texts: dict[Leaf, str] = field(default_factory=dict)
     origin: dict[Leaf, str] = field(default_factory=dict)        # declared | inherited | bridge | convention | written | generator
     undescribed: dict[Leaf, str] = field(default_factory=dict)   # coluna → por que não herdou
-    patches: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))  # .yml → entrada → coluna → texto
+    patches: dict[pathlib.Path, dict[sensitivity.Address, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))  # .yml → endereço → coluna → texto
     generated: dict[str, dict[str, str]] = field(default_factory=lambda: defaultdict(dict))                   # modelo de _derived.yml → coluna → texto
     changes: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
@@ -244,7 +246,7 @@ def derive_texts(manifest: dict, derivation: sensitivity.Derivation,
         for nome, c in entrada.columns.items():
             esperado = saida.texts.get((schema, tabela, nome))
             if schema == "raw" and esperado and _text(c) != esperado:
-                saida.patches[entrada.path].setdefault(tabela, {})[nome] = esperado
+                saida.patches[entrada.path].setdefault(entrada.address, {})[nome] = esperado     # (fonte, tabela): RVL3-10-01
             elif schema == "raw_legacy" and esperado and _text(c) != esperado:
                 saida.problems.append(f"raw_legacy.{tabela}.{nome}: o texto do gerador não é o da declaração; rode `make legacy-models`")
             elif schema not in ("raw", "raw_legacy") and _text(c):
@@ -349,21 +351,21 @@ def _scalar(texto: str) -> str:
     return json.dumps(texto, ensure_ascii=False)
 
 
-def patch_descriptions(texto: str, entradas: dict[str, dict[str, str]]) -> str:
+def patch_descriptions(texto: str, entradas: dict[sensitivity.Address, dict[str, str]]) -> str:
     """Insere ou substitui a `description` de cada coluna de cada entrada, preservando o resto."""
-    _indent, _block_end, _find_entry = sensitivity._indent, sensitivity._block_end, sensitivity._find_entry
+    _indent, _block_end, _locate, rotulo = sensitivity._indent, sensitivity._block_end, sensitivity._locate, sensitivity.address_label
     linhas = texto.split("\n")
     for entrada, colunas in entradas.items():
         for coluna, valor in colunas.items():
-            inicio = _find_entry(linhas, entrada)
+            inicio = _locate(linhas, entrada)
             if inicio is None:
-                raise KeyError(f"entrada `{entrada}` não encontrada")
+                raise KeyError(f"entrada `{rotulo(entrada)}` não encontrada")
             base = _indent(linhas[inicio])
             fim = _block_end(linhas, inicio, base)
             bloco = linhas[inicio:fim]
             idx_cols = next((i for i, l in enumerate(bloco) if l.strip() == "columns:" and _indent(l) == base + 2), None)
             if idx_cols is None:
-                raise KeyError(f"`{entrada}` sem `columns:` — a sensibilidade é escrita antes da descrição")
+                raise KeyError(f"`{rotulo(entrada)}` sem `columns:` — a sensibilidade é escrita antes da descrição")
             item = base + 4
             idx_col = next((i for i in range(idx_cols + 1, len(bloco)) if bloco[i].strip() == f"- name: {coluna}" and _indent(bloco[i]) == item), None)
             nova = " " * (item + 2) + f"description: {_scalar(valor)}"
@@ -384,14 +386,11 @@ def patch_descriptions(texto: str, entradas: dict[str, dict[str, str]]) -> str:
     return "\n".join(linhas)
 
 
-def verify(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, str]]) -> None:
-    """O arquivo escrito ainda é YAML válido e traz o texto que se pediu, coluna a coluna."""
-    documento = yaml.safe_load(conteudo)
-    entradas = {e["name"]: e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []}
-    for fonte in documento.get("sources", []):
-        entradas.update({t["name"]: t for t in fonte.get("tables", [])})
+def verify(caminho: pathlib.Path, conteudo: str, esperado: dict[sensitivity.Address, dict[str, str]]) -> None:
+    """O arquivo escrito ainda é YAML válido e traz o texto que se pediu, coluna a coluna, no endereço pedido."""
+    entradas = sensitivity.entries_by_address(yaml.safe_load(conteudo))
     for nome, colunas in esperado.items():
-        escritas = {c["name"]: _text(c) for c in entradas[nome].get("columns", [])}
+        escritas = {c["name"]: _text(c) for c in (entradas.get(nome) or {}).get("columns", [])}
         faltam = sorted(c for c, t in colunas.items() if escritas.get(c) != t.strip())
         if faltam:
-            raise RuntimeError(f"{caminho.relative_to(sensitivity.ROOT)}: `{nome}` sem o texto esperado em {faltam}")
+            raise RuntimeError(f"{caminho.relative_to(sensitivity.ROOT)}: `{sensitivity.address_label(nome)}` sem o texto esperado em {faltam}")

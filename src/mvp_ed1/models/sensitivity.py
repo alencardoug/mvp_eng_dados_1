@@ -684,7 +684,7 @@ def _is_generated(path: pathlib.Path) -> bool:
 @dataclass
 class Plan:
     """O que mudaria em cada arquivo, e o que ficou de fora."""
-    patches: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))   # yml → entrada → coluna → nível
+    patches: dict[pathlib.Path, dict[Address, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))   # yml → endereço → coluna → nível
     generated: dict[pathlib.Path, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(dict))  # _derived.yml → modelo → coluna → nível
     changes: list[str] = field(default_factory=list)          # valor que muda, para o diff ser lido
     left_to_generator: list[str] = field(default_factory=list)
@@ -777,7 +777,7 @@ def plan(manifest: dict, derivation: Derivation) -> Plan:
         declaradas = {c["name"]: (c.get("meta") or {}).get("sensitivity") for c in fonte.get("columns", {}).values()}
         alvo = {c: n for (s, t, c), n in niveis.items() if s == "raw" and t == fonte["identifier"] and declaradas.get(c) != n}
         if alvo:
-            resultado.patches[DBT / fonte["original_file_path"]][fonte["identifier"]] = alvo
+            resultado.patches[DBT / fonte["original_file_path"]][(fonte["source_name"], fonte["name"])] = alvo
     return resultado
 
 
@@ -796,27 +796,88 @@ def _block_end(linhas: list[str], inicio: int, indent: int) -> int:
     return len(linhas)
 
 
-def _find_entry(linhas: list[str], nome: str, indent: int | None = None) -> int | None:
-    for i, linha in enumerate(linhas):
-        if linha.strip() == f"- name: {nome}" and (indent is None or _indent(linha) == indent):
+# O endereço de uma entrada num `.yml`: o nome, para modelo, snapshot e seed — que vivem no
+# bloco de topo e têm nome único no projeto —, e o par (fonte, tabela) para a tabela de fonte.
+# Duas fontes podem ter tabelas homônimas em schemas diferentes no mesmo arquivo
+# (`raw.order_items`, `raw_legacy.order_items`); o nome sozinho escreveria na primeira (RVL3-10-01).
+Address = str | tuple[str, str]
+_TOPO = ("models", "snapshots", "seeds")
+
+
+def address_label(endereco: Address) -> str:
+    return ".".join(endereco) if isinstance(endereco, tuple) else endereco
+
+
+def _ativa(linha: str) -> bool:
+    texto = linha.strip()
+    return bool(texto) and not texto.startswith("#")
+
+
+def _fim_da_chave(linhas: list[str], inicio: int) -> int:
+    """Fim do valor de `chave:` em `inicio` — a lista pode vir na mesma coluna da chave (`yaml.safe_dump`)."""
+    base = _indent(linhas[inicio])
+    for i in range(inicio + 1, len(linhas)):
+        if _ativa(linhas[i]) and (_indent(linhas[i]) < base or (_indent(linhas[i]) == base and not linhas[i].strip().startswith("- "))):
             return i
-    return None
+    return len(linhas)
+
+
+def _fim_do_item(linhas: list[str], inicio: int) -> int:
+    base = _indent(linhas[inicio])
+    return next((i for i in range(inicio + 1, len(linhas)) if _ativa(linhas[i]) and _indent(linhas[i]) <= base), len(linhas))
+
+
+def _chaves(linhas: list[str], inicio: int, fim: int, indent: int, chave: str) -> list[int]:
+    return [i for i in range(inicio, fim) if _indent(linhas[i]) == indent and linhas[i].split("#", 1)[0].strip() == f"{chave}:"]
+
+
+def _itens(linhas: list[str], chave: int, nome: str) -> list[int]:
+    """Os itens `- name: <nome>` da lista que é o valor da chave na linha `chave`."""
+    fim = _fim_da_chave(linhas, chave)
+    primeiro = next((i for i in range(chave + 1, fim) if _ativa(linhas[i])), None)
+    if primeiro is None or not linhas[primeiro].strip().startswith("- "):
+        return []
+    coluna = _indent(linhas[primeiro])
+    itens = [i for i in range(chave + 1, fim) if _indent(linhas[i]) == coluna and linhas[i].strip().startswith("- ")]
+    return [i for i in itens if linhas[i].split("#", 1)[0].strip() == f"- name: {nome}"]
+
+
+def _locate(linhas: list[str], endereco: Address) -> int | None:
+    """A linha `- name:` da entrada no seu lugar da estrutura; endereço repetido é recusa, não a primeira."""
+    if isinstance(endereco, tuple):
+        fonte, tabela = endereco
+        achados = [t for s in _chaves(linhas, 0, len(linhas), 0, "sources") for f in _itens(linhas, s, fonte)
+                   for k in _chaves(linhas, f + 1, _fim_do_item(linhas, f), _indent(linhas[f]) + 2, "tables")
+                   for t in _itens(linhas, k, tabela)]
+    else:
+        achados = [e for chave in _TOPO for c in _chaves(linhas, 0, len(linhas), 0, chave) for e in _itens(linhas, c, endereco)]
+    if len(achados) > 1:
+        raise ValueError(f"entrada `{address_label(endereco)}` aparece {len(achados)} vezes no arquivo")
+    return achados[0] if achados else None
+
+
+def entries_by_address(documento: dict) -> dict[Address, dict]:
+    """O YAML carregado, por endereço: o par (fonte, tabela) não colide com a homônima de outra fonte."""
+    entradas: dict[Address, dict] = {e["name"]: e for k in _TOPO for e in documento.get(k) or []}
+    for fonte in documento.get("sources") or []:
+        entradas.update({(fonte["name"], t["name"]): t for t in fonte.get("tables") or []})
+    return entradas
 
 
 def _valor_yaml(valor) -> str:
     return "true" if valor is True else "false" if valor is False else str(valor)
 
 
-def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) -> str:
+def patch_meta(texto: str, entradas: dict[Address, dict[str, dict[str, object]]]) -> str:
     """Insere ou atualiza chaves de `meta` de cada coluna de cada entrada, preservando o resto."""
     linhas = texto.split("\n")
     for entrada, colunas in entradas.items():
         for coluna, chaves in colunas.items():
             for chave, valor in chaves.items():
                 linha_valor = f"{chave}: {_valor_yaml(valor)}"
-                inicio = _find_entry(linhas, entrada)
+                inicio = _locate(linhas, entrada)
                 if inicio is None:
-                    raise KeyError(f"entrada `{entrada}` não encontrada")
+                    raise KeyError(f"entrada `{address_label(entrada)}` não encontrada")
                 base = _indent(linhas[inicio])
                 fim = _block_end(linhas, inicio, base)
                 bloco = linhas[inicio:fim]
@@ -847,7 +908,7 @@ def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) ->
                     if em_linha is not None:
                         # `meta: {…}` não é editável linha a linha: um segundo `meta:` em bloco
                         # duplicaria a chave, e o carregador ficaria com um só (RVL3-4-01).
-                        raise ValueError(f"{entrada}.{coluna}: `meta` escrito em linha; escreva-o em bloco para o gerador editar")
+                        raise ValueError(f"{address_label(entrada)}.{coluna}: `meta` escrito em linha; escreva-o em bloco para o gerador editar")
                     idx_meta = next((i for i in range(idx_col + 1, fim_col)
                                      if bloco[i].split("#", 1)[0].strip() == "meta:" and _indent(bloco[i]) == item_indent + 2), None)
                     if idx_meta is None:
@@ -866,22 +927,22 @@ def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) ->
     return "\n".join(linhas)
 
 
-def verify_meta(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, dict[str, object]]]) -> None:
+def verify_meta(caminho: pathlib.Path, conteudo: str, esperado: dict[Address, dict[str, dict[str, object]]]) -> None:
     """O arquivo escrito, **como o YAML o carrega** e sem chave repetida, tem cada chave de `meta` pedida (RVL3-4-01)."""
     try:
         documento = read_yaml(caminho, conteudo)
     except ValueError as erro:
         raise RuntimeError(str(erro)) from None
-    entradas = {e["name"]: e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []}
+    entradas = entries_by_address(documento)
     for nome, colunas in esperado.items():
-        metas = {c["name"]: (c.get("meta") or {}) for c in entradas[nome].get("columns", [])}
+        metas = {c["name"]: (c.get("meta") or {}) for c in (entradas.get(nome) or {}).get("columns", [])}
         for coluna, chaves in colunas.items():
             faltam = {k: v for k, v in chaves.items() if metas.get(coluna, {}).get(k) != v}
             if faltam:
-                raise RuntimeError(f"{caminho.relative_to(ROOT)}: `{nome}.{coluna}` não ficou com {faltam}")
+                raise RuntimeError(f"{caminho.relative_to(ROOT)}: `{address_label(nome)}.{coluna}` não ficou com {faltam}")
 
 
-def patch_yaml(texto: str, entradas: dict[str, dict[str, str]]) -> str:
+def patch_yaml(texto: str, entradas: dict[Address, dict[str, str]]) -> str:
     """Insere ou atualiza `meta.sensitivity` de cada coluna de cada entrada, preservando o resto."""
     return patch_meta(texto, {e: {c: {"sensitivity": n} for c, n in cols.items()} for e, cols in entradas.items()})
 
@@ -939,17 +1000,14 @@ def stale_generated(plano: Plan) -> list[pathlib.Path]:
     return sorted(existentes - set(plano.generated))
 
 
-def _verify(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, str]]) -> None:
-    """O arquivo escrito ainda é YAML válido e diz o que se pediu."""
-    documento = yaml.safe_load(conteudo)
-    entradas = {e["name"]: e for e in documento.get("models", []) + documento.get("snapshots", [])}
-    for fonte in documento.get("sources", []):
-        entradas.update({t["name"]: t for t in fonte.get("tables", [])})
+def _verify(caminho: pathlib.Path, conteudo: str, esperado: dict[Address, dict[str, str]]) -> None:
+    """O arquivo escrito ainda é YAML válido e diz o que se pediu, no endereço pedido."""
+    entradas = entries_by_address(yaml.safe_load(conteudo))
     for nome, colunas in esperado.items():
-        declaradas = {c["name"]: (c.get("meta") or {}).get("sensitivity") for c in entradas[nome].get("columns", [])}
+        declaradas = {c["name"]: (c.get("meta") or {}).get("sensitivity") for c in (entradas.get(nome) or {}).get("columns", [])}
         faltam = {c: n for c, n in colunas.items() if declaradas.get(c) != n}
         if faltam:
-            raise RuntimeError(f"{caminho.relative_to(ROOT)}: `{nome}` não ficou como esperado: {faltam}")
+            raise RuntimeError(f"{caminho.relative_to(ROOT)}: `{address_label(nome)}` não ficou como esperado: {faltam}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -986,8 +1044,16 @@ def main(argv: list[str] | None = None) -> int:
         # grava não pode passar no `--check` só porque os bytes não mudaram (RVL3-4-01).
         for caminho, marcas in textos.marks.items():
             verify_meta(caminho, arquivos.get(caminho, caminho.read_text(encoding="utf-8")), marcas)
-    except (ValueError, RuntimeError) as erro:
-        print(f"recusado: {erro} — nenhum arquivo é tocado", file=sys.stderr)
+        # Todo destino pedido, conferido no endereço, mude o arquivo ou não: um patch que
+        # caísse noutra entrada já certa não muda byte nenhum, e o `--check` passaria (RVL3-10-01).
+        for caminho, texto in arquivos.items():
+            _verify(caminho, texto, plano.patches.get(caminho) or plano.generated.get(caminho) or {})
+            if caminho in textos.patches:
+                descriptions.verify(caminho, texto, textos.patches[caminho])
+            elif caminho in plano.generated:
+                descriptions.verify(caminho, texto, {m: textos.generated[m] for m in plano.generated[caminho] if m in textos.generated})
+    except (ValueError, RuntimeError, KeyError) as erro:
+        print(f"recusado: {erro.args[0] if erro.args else erro} — nenhum arquivo é tocado", file=sys.stderr)
         return 1
 
     for mudanca in plano.changes + textos.changes + dominios.changes:
@@ -1010,12 +1076,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if falhou else 0
 
     for caminho, texto in mudados.items():
-        esperado = plano.patches.get(caminho) or plano.generated.get(caminho) or {}
-        _verify(caminho, texto, esperado)
-        if caminho in textos.patches:
-            descriptions.verify(caminho, texto, textos.patches[caminho])
-        elif caminho in plano.generated:
-            descriptions.verify(caminho, texto, {m: textos.generated[m] for m in plano.generated[caminho] if m in textos.generated})
         caminho.write_text(texto, encoding="utf-8")
         print(f"escrito: {caminho.relative_to(ROOT)}")
     for caminho in obsoletos:

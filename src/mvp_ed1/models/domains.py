@@ -100,10 +100,10 @@ def derive_domains(manifest: dict, disco: dict) -> Domains:
 
 def patch_domains(texto: str, entradas: dict[str, str]) -> str:
     """Insere ou atualiza `meta.domain` no nível do modelo, preservando o resto."""
-    from mvp_ed1.models.sensitivity import _block_end, _find_entry, _indent
+    from mvp_ed1.models.sensitivity import _block_end, _indent, _locate
     linhas = texto.split("\n")
     for entrada, dominio in entradas.items():
-        inicio = _find_entry(linhas, entrada)
+        inicio = _locate(linhas, entrada)
         if inicio is None:
             raise KeyError(f"entrada `{entrada}` não encontrada")
         base = _indent(linhas[inicio])
