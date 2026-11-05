@@ -44,8 +44,10 @@ as source_system` conta como origem: é a forma de quem só lê uma delas.
 **Limite:** a guarda lê a sintaxe de cada cláusula, não o fluxo entre elas. O
 escopo ela resolve só para a exceção da fonte de origem única: o qualificador é
 procurado no `from` do próprio `select` e dos que o envolvem, nunca numa CTE
-vizinha (RVL2-3-02), e só vale se nomeia uma relação só na consulta inteira
-(RVL2-4-01); para o resto, é o que está escrito. A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
+vizinha (RVL2-3-02), e só vale se nomeia uma relação só na consulta inteira e
+nenhuma relação ficou sem nome legível (RVL2-4-01, RVL2-6-02); para o resto, é o
+que está escrito, com os nomes normalizados como o PostgreSQL (RVL2-6-01). Coluna
+qualificada por schema não entra em prova nenhuma (RVL2-6-03). A origem renomeada (`source_system as origin`) não é reconhecida e é acusada, por
 cautela — mantenha o nome. Passam sem achado: uma CTE que já perdeu
 `source_system` e depois reduz por `count(*)` sobre linhas de identificadores
 repetidos, e um `union` (sem `all`) que deduplica sem a origem. As 16 views foram
@@ -61,6 +63,7 @@ import re
 import pytest
 import sqlglot
 from sqlglot import exp
+from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 CONSUMO = RAIZ / "dbt" / "models" / "consumption"
@@ -157,13 +160,29 @@ def _ligacoes(arvore: exp.Expression, qualificador: str) -> list[exp.Expression]
     ]
 
 
+def _relacao_sem_nome(arvore: exp.Expression) -> bool:
+    """Uma relação cujo nome a guarda não lê — a função no `from` sem alias, como
+    `json_to_record(…) as (…)`, que o PostgreSQL nomeia pela função. Diante dela, a
+    contagem de ligações não é prova, e a exceção não vale para a consulta (RVL2-6-02)."""
+    return any(not a.name for a in arvore.find_all(exp.TableAlias)) or any(
+        not t.name and not t.alias for t in arvore.find_all(exp.Table)
+    )
+
+
+def _qualificacao_longa(colunas) -> bool:
+    """`trusted.orders.order_id` e `orders.order_id` têm o mesmo `.table` e podem ser
+    relações diferentes: coluna com schema ou catálogo não entra em prova (RVL2-6-03)."""
+    return any(c.args.get("db") or c.args.get("catalog") for c in colunas)
+
+
 def _origem_fixa_por_fonte(no: exp.Expression, qualificador: str) -> set[str]:
     """A origem de um lado que lê, no próprio escopo, uma fonte de origem única.
 
     Só quando o qualificador nomeia **uma relação só na consulta inteira**: um
     alias repetido — um join entre parênteses, uma subconsulta que o reaproveita —
     é escopo que a guarda não resolve, e ela não concede a exceção (RVL2-4-01)."""
-    if not qualificador or len(_ligacoes(no.root(), qualificador)) != 1:
+    raiz = no.root()
+    if not qualificador or len(_ligacoes(raiz, qualificador)) != 1 or _relacao_sem_nome(raiz):
         return set()
     relacao = _relacao_do_lado(no, qualificador)
     if isinstance(relacao, exp.Table) and relacao.db in _ORIGENS:
@@ -189,6 +208,8 @@ def _origem_correlaciona(condicao: exp.Expression, lados: set[str], no: exp.Expr
     fonte de origem única — e é a mesma nos dois. Literal num lado só deixa o
     outro livre: `a.order_id = b.order_id and b.source_system = 'retail'` junta o
     37 do legado com o 37 do varejo (RVL2-2-02)."""
+    if _qualificacao_longa(condicao.find_all(exp.Column)):
+        return False
     fixadas: dict[str, set[str]] = {}
     for termo in _conjuncoes(condicao):
         if not isinstance(termo, (exp.EQ, exp.NullSafeEQ)):
@@ -223,7 +244,9 @@ def _pertence_correlaciona(pertence: exp.In) -> bool:
         return False
     fora = list(pertence.this.expressions)
     dentro = [d.this if isinstance(d, exp.Alias) else d for d in consulta.expressions]
-    if len(fora) != len(dentro) or not all(isinstance(c, exp.Column) for c in fora + dentro):
+    if len(fora) != len(dentro) or not all(isinstance(c, exp.Column) and not c.is_star for c in fora + dentro):
+        return False  # `b.*` é `Column(Star)` no sqlglot: expansão, não coluna (RVL2-6-04)
+    if _qualificacao_longa(fora + dentro):
         return False
     proprias = set(_fontes_diretas(consulta))
     de_fora = {f.table for f in fora}
@@ -237,7 +260,9 @@ def _pertence_correlaciona(pertence: exp.In) -> bool:
 
 def violacoes(sql: str) -> list[str]:
     """Cada uso de identificador sem a origem ao lado, descrito em uma linha."""
-    arvore = sqlglot.parse_one(sql, read="postgres")
+    # Os nomes como o PostgreSQL os vê: sem aspas vira minúscula, entre aspas fica
+    # como está — `S` e `s` são o mesmo alias, `"S"` é outro (RVL2-6-01, RVL2-6-05).
+    arvore = normalize_identifiers(sqlglot.parse_one(sql, read="postgres"), dialect="postgres")
     achados: list[str] = []
 
     for contagem in arvore.find_all(exp.Count):
@@ -310,7 +335,10 @@ def violacoes(sql: str) -> list[str]:
     for pertence in arvore.find_all(exp.In):
         if pertence.args.get("query") is None:
             continue
-        nomes = _colunas(pertence.this)
+        # O identificador de qualquer dos lados chama a prova, não só o de fora (RVL2-6-06).
+        consulta = pertence.args["query"]
+        nomes = _colunas(pertence.this) | set().union(*(_colunas(d) for d in getattr(
+            consulta.this if isinstance(consulta, exp.Subquery) else consulta, "expressions", [])))
         if any(map(_e_identificador, nomes)) and not _pertence_correlaciona(pertence):
             ids = sorted(n for n in nomes if _e_identificador(n))
             achados.append(f"in (subconsulta) sem a origem: {', '.join(ids)}")
@@ -425,6 +453,22 @@ def test_view_usa_a_origem_com_o_identificador(modelo: pathlib.Path) -> None:
          " (select order_id from b) s on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
         ("select * from retail.orders s where exists (select 1 from (a x join unnest(array[1])"
          " s(order_id) on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        # RVL2-6-01/05: os nomes como o PostgreSQL os vê — sem aspas, a caixa não importa
+        ("select * from retail.orders s where exists (select 1 from (a x join b S"
+         " on x.order_id = s.order_id and x.source_system = 'retail'))", 1),
+        ("select * from a join b on a.ORDER_ID = b.ORDER_ID", 1),
+        # RVL2-6-02: função no `from` sem alias é relação que a guarda não nomeia
+        ("select * from retail.orders s where exists (select 1 from json_to_record('{}')"
+         " as (source_system text, order_id int) where json_to_record.order_id = s.order_id"
+         " and json_to_record.source_system = 'retail')", 1),
+        # RVL2-6-03: schema na coluna não entra em prova
+        ("select * from a where (a.source_system, a.order_id) in"
+         " (select orders.source_system, trusted.orders.order_id from orders)", 1),
+        # RVL2-6-04: `b.*` é expansão, não coluna
+        ("select * from a where (a.source_system, a.order_id) in (select b.source_system, b.* from b)", 1),
+        # RVL2-6-06: identificador só do lado de dentro também chama a prova
+        ("select * from a where a.tag in (select b.order_id from b)", 1),
+        ("select * from a where (a.source_system, a.tag) in (select b.source_system, b.order_id from b)", 0),
         # RVL2-4-02: origem sem qualificador dentro, ou de outra relação, não prova nada
         ("select * from a where (a.source_system, a.order_id) in (select source_system, b.order_id from b)", 1),
         ("select * from a where (a.source_system, a.order_id) in"
