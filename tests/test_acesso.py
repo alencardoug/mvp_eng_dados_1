@@ -510,7 +510,12 @@ def test_o_servidor_recusa_o_que_verifica_por_dentro(motor, leitor) -> None:
 def test_padrao_que_o_leitor_tira_de_si_volta_no_garantir(motor, leitor) -> None:
     """RVL2-3-07: o leitor tira o próprio padrão de leitura, no banco e no global, e o `garantir()` repõe.
 
-    O padrão por banco vence o global: repor só o global o deixava valendo."""
+    O padrão por banco vence o global: repor só o global o deixava valendo.
+
+    **Pré-condição:** o leitor no estado canônico, o que todo `dbt-build` deixa. O
+    `finally` repõe esse estado, não o anterior: um padrão posto à mão no leitor
+    (um `statement_timeout`, outro banco) se perde aqui — e se perderia no
+    `garantir()` seguinte de qualquer modo, que apaga o não declarado (RVL2-4-04)."""
     from mvp_ed1 import governance
 
     usuario = os.environ[LEITOR_USUARIO]
