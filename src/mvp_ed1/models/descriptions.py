@@ -146,6 +146,7 @@ def _documents() -> list[tuple[pathlib.Path, dict]]:
     # gerada sai da leitura (RVL3-6-03). Fonte repetida também é recusa (RVL3-6-02).
     vistas: dict[str, pathlib.Path] = {}
     fontes: dict[tuple[str, str], pathlib.Path] = {}
+    esquemas: dict[str, tuple[str, pathlib.Path]] = {}       # uma fonte por schema, também entre arquivos
     for caminho, documento in documentos:
         for chave in ("models", "snapshots", "seeds"):
             for e in documento.get(chave) or []:
@@ -155,10 +156,14 @@ def _documents() -> list[tuple[pathlib.Path, dict]]:
                 if anterior is None or _kind(anterior) == "derived":
                     vistas[e["name"]] = caminho
         for f in documento.get("sources") or []:
+            esquema = f.get("schema") or f.get("name")
+            dono, onde = esquemas.setdefault(esquema, (f.get("name"), caminho))
+            if dono != f.get("name"):
+                raise ValueError(f"schema `{esquema}` declarado pela fonte `{dono}` em {onde} e por `{f.get('name')}` "
+                                 f"em {caminho} — uma fonte por schema (RVL3-9-01/02)")
             for tabela in f.get("tables") or []:
-                # A identidade é a que `disk_sources` usa para reduzir — a tabela física, e não os
-                # apelidos: fonte com outro nome no mesmo schema, ou tabela com outro nome e o mesmo
-                # `identifier`, colidiriam ali (RVL3-7-01, RVL3-8-01).
+                # A identidade é a que `disk_sources` usa para reduzir; com a convenção de
+                # `sensitivity._conferir_fonte`, ela é a tabela física (RVL3-7-01, RVL3-8-01, RVL3-9-01/02).
                 chave_fonte = sensitivity.source_identity(f, tabela)
                 if chave_fonte in fontes:
                     raise ValueError(f"tabela de fonte `{chave_fonte[0]}.{chave_fonte[1]}` em {fontes[chave_fonte]} e em {caminho}")

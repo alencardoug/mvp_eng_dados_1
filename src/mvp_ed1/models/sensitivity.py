@@ -408,12 +408,40 @@ def _mapa_sem_repeticao(carregador, no, deep=False):
 _SemChaveRepetida.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapa_sem_repeticao)
 
 
-def source_identity(fonte: dict, tabela: dict) -> tuple[str, str]:
-    """A tabela física que a declaração de fonte nomeia: schema efetivo e `identifier`, ou o nome.
+_NOME_SIMPLES = re.compile(r"[a-z_][a-z0-9_]*")
 
-    É a identidade com que o dbt resolve a fonte e com que o catálogo lê o texto: o
-    nome da fonte e o nome da tabela são apelidos (RVL3-7-01, RVL3-8-01)."""
-    return (fonte.get("schema") or fonte.get("name"), tabela.get("identifier") or tabela.get("name"))
+
+def source_identity(fonte: dict, tabela: dict) -> tuple[str, str]:
+    """A tabela que a declaração de fonte nomeia: (schema efetivo, nome da tabela).
+
+    Só é a tabela física porque a convenção abaixo (`_conferir_fonte`) o garante: sem
+    `identifier`, sem `quoting`, nome em minúsculas e uma fonte por schema — o nome
+    lógico com que o catálogo escreve é o nome físico com que ele lê (RVL3-9-01/02)."""
+    return (fonte.get("schema") or fonte.get("name"), tabela.get("name"))
+
+
+def _conferir_fonte(caminho: pathlib.Path, fonte: dict) -> None:
+    """Uma tabela de fonte tem um nome só, que é o físico — o resto é recusa (RVL3-9-01/02).
+
+    O dbt permite apelidar a tabela física (`identifier`), mudar a caixa e as aspas
+    (`quoting`) e declarar duas fontes no mesmo schema. Cada uma dessas formas cria um
+    segundo nome para a mesma tabela, e o catálogo escreveria por um e leria por outro:
+    a cada rodada de revisão apareceu uma variante. O projeto não usa nenhuma; em vez
+    de resolver todas, recusa todas — falha fechada, com a regra escrita."""
+    nome = fonte.get("name") or ""
+    esquema = fonte.get("schema") or nome
+    if "quoting" in fonte:
+        raise ValueError(f"{caminho}: fonte `{nome}` com `quoting` — declare o nome físico em minúsculas, sem aspas")
+    for valor, o_que in ((nome, "nome de fonte"), (esquema, "schema de fonte")):
+        if not _NOME_SIMPLES.fullmatch(valor):
+            raise ValueError(f"{caminho}: {o_que} `{valor}` fora de `[a-z_][a-z0-9_]*`")
+    for tabela in fonte.get("tables") or []:
+        t = tabela.get("name") or ""
+        if not _NOME_SIMPLES.fullmatch(t):
+            raise ValueError(f"{caminho}: tabela de fonte `{nome}.{t}` fora de `[a-z_][a-z0-9_]*`")
+        if "quoting" in tabela or ("identifier" in tabela and tabela["identifier"] != t):
+            raise ValueError(f"{caminho}: tabela de fonte `{nome}.{t}` com `identifier`/`quoting` — "
+                             "um nome só, o físico")
 
 
 def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
@@ -427,6 +455,14 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
         raise ValueError(f"{caminho}: {erro}") from None
     entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    for fonte in documento.get("sources") or []:
+        _conferir_fonte(caminho, fonte)
+    por_esquema: dict[str, str] = {}
+    for fonte in documento.get("sources") or []:
+        esquema = fonte.get("schema") or fonte.get("name")
+        if por_esquema.setdefault(esquema, fonte.get("name")) != fonte.get("name"):
+            raise ValueError(f"{caminho}: schema `{esquema}` declarado por duas fontes, "
+                             f"`{por_esquema[esquema]}` e `{fonte.get('name')}` — uma fonte por schema")
     tabelas = [source_identity(f, t) for f in documento.get("sources") or [] for t in f.get("tables") or []]
     if repetidas := sorted({x for x in tabelas if tabelas.count(x) > 1}):
         raise ValueError(f"{caminho}: tabela(s) de fonte {repetidas} declarada(s) mais de uma vez")   # RVL3-6-02

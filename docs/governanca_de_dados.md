@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.19 |
+| Versão | 2.20 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a tabela de fonte única pela tabela física, schema efetivo e `identifier` (rodada 8 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a tabela de fonte com um nome só, o físico — sem `identifier`, sem `quoting`, minúsculas e uma fonte por schema (rodada 9 do lote 3 da v1.1.0) |
 
 ---
 
@@ -183,10 +183,13 @@ troca é impressa. O `.yml` à mão guarda também o herdado que `make catalog` 
 escrito em linha (`meta: {…}`) o escritor recusa, em vez de duplicar a chave (RVL3-4-01). E todo
 `.yml` do projeto é **lido** sem deixar uma ocorrência encobrir outra: chave repetida num mapa,
 coluna listada duas vezes numa entrada, entrada documentada em dois arquivos e a mesma tabela de
-fonte duas vezes — pela tabela física, o schema efetivo e o `identifier`, que é como ela é lida, e
-não pelos apelidos de fonte ou de tabela — são recusa,
+fonte duas vezes são recusa. E a tabela de fonte tem **um nome só, que é o físico**: sem
+`identifier` diferente do nome, sem `quoting`, nome de fonte, schema e tabela em minúsculas, e uma
+fonte por schema. O dbt permite os quatro apelidos, e cada um daria à mesma tabela um nome para
+escrever e outro para ler; o projeto não usa nenhum, e a leitura os recusa em vez de resolvê-los
+(RVL3-9-01/02) —
 não a última que vence; sem isso, uma segunda ocorrência sem a marca faria o texto velho virar raiz
-(RVL3-5-02, RVL3-6-02, RVL3-7-01, RVL3-8-01). O `config.meta` da coluna é lido junto com o `meta`, como o dbt
+(RVL3-5-02, RVL3-6-02, RVL3-7-01, RVL3-8-01, RVL3-9-01/02). O `config.meta` da coluna é lido junto com o `meta`, como o dbt
 os junta (RVL3-6-01). A exceção é a promoção documentada: o modelo com entrada à mão e ainda no
 `_derived.yml` vale pela à mão, e a gerada sai na geração seguinte (RVL3-6-03). Coluna marcada que deixou de transportar é recusada, como a que guarda, sem motivo, o
 texto de quem ela lê; escreve-se o texto do cálculo e tira-se a marca, que só sai por quem revisa

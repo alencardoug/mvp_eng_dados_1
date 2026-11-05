@@ -272,13 +272,20 @@ def test_config_meta_da_coluna_e_lido_como_meta_e_a_fonte_repetida_e_recusada(tm
     # RVL3-7-01: dois apelidos de fonte no mesmo schema são a mesma tabela para quem lê
     (tmp_path / "models" / "_b.yml").write_text(
         "version: 2\nsources:\n  - name: retail_alias\n    schema: retail\n    tables:\n      - name: t\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="tabela de fonte `retail.t`"):
+    with pytest.raises(ValueError, match="uma fonte por schema"):
         d.disk_entries()
-    with pytest.raises(ValueError, match="mais de uma vez"):
+    with pytest.raises(ValueError, match="duas fontes"):
         s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: a\n    schema: raw\n    tables:\n"
                                         "      - name: t\n  - name: b\n    schema: raw\n    tables:\n      - name: t\n")
-    # RVL3-8-01: outro nome de tabela com o mesmo `identifier` é a mesma tabela física
-    with pytest.raises(ValueError, match="mais de uma vez"):
+    # RVL3-8-01, RVL3-9-01/02: um nome só, o físico — sem `identifier`, sem `quoting`, em minúsculas
+    fonte = "version: 2\nsources:\n  - name: retail\n    schema: raw\n    tables:\n      - name: order_items\n{}"
+    for extra, motivo in (("        identifier: ORDER_ITEMS\n", "identifier"),
+                          ("        quoting: {identifier: false}\n", "identifier"),
+                          ("      - name: ORDER_ITEMS\n", "fora de")):
+        with pytest.raises(ValueError, match=motivo):
+            s.read_yaml(tmp_path / "x.yml", fonte.format(extra))
+    assert s.read_yaml(tmp_path / "x.yml", fonte.format("        identifier: order_items\n"))   # igual ao nome: vale
+    with pytest.raises(ValueError, match="identifier"):
         s.read_yaml(tmp_path / "x.yml", "version: 2\nsources:\n  - name: retail\n    schema: raw\n    tables:\n"
                                         "      - name: order_items\n      - name: order_items_alias\n"
                                         "        identifier: order_items\n")
