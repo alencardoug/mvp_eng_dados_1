@@ -1981,3 +1981,442 @@ de recuperação continuam **não medidos**.
 
 **Conclusão técnica: o lote 2 ainda não pode ser encerrado pelos ajustes
 RVL2-3-01 a RVL2-3-05.** As observações RVL2-3-06/07 não ampliam o escopo de execução.
+
+## Rodada 4 — lote 2
+
+Revisão em **05/11/2026**, no HEAD `36acc2d53d90d4b5c52d9f589f0162407498e777`,
+restrita a `git log d7df2cd..36acc2d`: `978e371`, `0e0e6cb`, `7578379` e
+`36acc2d`. Parecer técnico, sem poder de aprovação e sem implementar correções.
+**O lote 2 permanece aberto:** há três ajustes na guarda. Não encontrei essas
+formas nas 16 views atuais, nem defeito novo na reposição dos padrões pelo código
+de produção. A ressalva sobre o estado inicial do teste novo é uma observação.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL2-4-01 | `tests/test_identidade_no_consumo.py:121–138` | **RVL2-3-02 parcialmente fechado.** `_fontes_diretas` não enxerga as relações de um join entre parênteses sem alias. `_relacao_do_lado` então sobe e atribui ao `s` interno a fonte `retail.orders s` externa. `parenthesized_join_shadow` continua com `[]`, embora o `s` do join possa ser `legacy`. A docstring promete resolver o escopo do lado e esse caso contradiz a promessa. Proposta: reconhecer os qualificadores visíveis do grupo de joins, respeitando aliases que os ocultem; quando não resolver, não conceder a exceção de fonte única. Evidência C1. | `ajuste` | **Corrigido**, de modo conservador: a exceção da fonte de origem única só vale quando o qualificador nomeia **uma relação só na consulta inteira** (`_ligacoes` conta tabelas, subconsultas e CTEs). Alias repetido — o join entre parênteses de C1, ou qualquer outro reaproveitamento — é escopo que a guarda não resolve, e ela não concede a exceção. `parenthesized_join_shadow` 0 → 1; P12 continua 0 (`s` é ligado uma vez só). |
+| RVL2-4-02 | `tests/test_identidade_no_consumo.py:182–197` | **RVL2-3-03 parcialmente fechado.** A condição `not direita.table` aceita como própria toda origem não qualificada. Quando a relação interna não tem `source_system`, o PostgreSQL resolve essa coluna no lado externo: a mesma contraprova de origem externa repetida ainda passa, agora sem qualificador. Também basta que a origem venha de qualquer relação interna, mesmo que o identificador venha de outra, sem correlação entre elas. Proposta: comprovar a procedência da origem e seu vínculo ao identificador em ambos os lados, ou recusar conservadoramente o que não consegue resolver; não chamar esses casos de correlacionados. Evidência C2. | `ajuste` | **Corrigido.** `_pertence_correlaciona` aceita uma forma só: os de dentro, origem e identificadores, **todos qualificados por uma única relação** declarada no `from` da própria subconsulta. Origem sem qualificador dentro, origem de uma relação com identificador de outra, e subconsulta sem `from` acusam (0 → 1 cada). Consequência deliberada: `(source_system, order_id) in (select source_system, order_id from b)`, que a rodada 2 aceitava, agora acusa — é exatamente a forma que a guarda não consegue provar; o caso qualificado passa. |
+| RVL2-4-03 | `tests/test_identidade_no_consumo.py:186–196`; docstring | **Regressão de falso positivo.** A guarda recusa identidade completa em `a x … IN (SELECT x.source_system,x.order_id FROM b x)`: compara o nome do alias externo com os aliases internos, embora sejam escopos diferentes. Tuplas aninhadas completas e `SELECT *` com as duas colunas também passam de `[]` a uma acusação. Proposta: resolver cada referência em seu escopo; reconhecer as formas seguras ou declarar expressamente as formas não suportadas, sobretudo a expansão de `*`, sem prometer cobertura geral de `IN`. Evidência C3. | `ajuste` | **Declarado** como forma não suportada, não reconhecido: alias igual nos dois escopos, tupla aninhada e `select *` acusam, com caso de teste cada e com o motivo no docstring de `_pertence_correlaciona`; aliases distintos com alias de coluna passam. O docstring do módulo agora fixa o princípio que fecha esta série de rodadas: **a guarda aceita o que consegue provar e acusa o resto** — falso positivo custa reescrever a view na forma reconhecida, falso negativo é o pedido 37 fundido. Nenhuma das 16 views usa `in (select …)`. |
+| RVL2-4-04 | `tests/test_acesso.py:510–543` | O `finally` novo recompõe o **estado canônico**, não o estado anterior. Com `garantir()` lançando erro, a simulação preserva a configuração canônica, mas apaga um `statement_timeout=5s` preexistente. Nenhuma configuração anterior é capturada; no sucesso, `garantir()` também remove padrões em outros bancos. O warehouse observado está canônico, portanto não houve perda real nesta rodada. Proposta: explicitar essa pré-condição do teste ou preservar o inventário anterior se ele precisar ser executável sobre estado arbitrário. Evidência A. | `observação` | **Declarado** no docstring do teste como pré-condição: o leitor no estado canônico, o que todo `dbt-build` deixa; o `finally` repõe esse estado, não o anterior, e um padrão posto à mão no leitor se perderia no `garantir()` seguinte de qualquer modo, porque ele apaga o não declarado. Não passei a capturar o inventário anterior: preservar estado fora da declaração contraria o próprio `garantir()`. |
+
+### Fechamento de cada resposta da rodada 3
+
+“Fechado” é conclusão técnica sobre o achado, não aceite do Owner. Os comandos
+abaixo rodaram neste HEAD; os scripts de apoio estão em `/tmp/rvl2-round4-*`.
+
+| Achado anterior | Conclusão desta rodada | Comando e saída que a sustentam |
+|---|---|---|
+| RVL2-3-01 | **Fechado quanto ao vazamento original.** Os slots pedidos são temporários; `NullPool` fecha a conexão física antes do `finally`; a limpeza privilegiada alcança também `_b`. A falha da própria limpeza tem o limite descrito em B. | `.venv/bin/python /tmp/rvl2-round4-reader.py`, com `.env` carregado: as seis sondas de slot retornaram `42501 permission denied to use replication slots`. `.venv/bin/python /tmp/rvl2-round4-cleanup-sim.py`: `temporario erro= AssertionError  slots= [] cleanup= []`; sobra inativa `_b` removida. Sem criação real de slot. |
+| RVL2-3-02 | **Parcialmente fechado.** Fechados os três exemplos originais de origem emprestada por CTE/subconsulta vizinha; resta RVL2-4-01 na resolução introduzida para corrigi-los. | `.venv/bin/python /tmp/rvl2-round3-identity-extra.py`: `shadow_both`, `shadow_source`, `shadow_source_cte` dão uma acusação cada; `p12 => []`. `.venv/bin/python /tmp/rvl2-round4-matrix.py`: `parenthesized_join_shadow`, base e HEAD `[]`. |
+| RVL2-3-03 | **Parcialmente fechado.** Literal à direita, origem externa qualificada e posições trocadas agora acusam. A prova de procedência ainda é insuficiente; há também falsos positivos novos (RVL2-4-02/03). | Mesma matriz anterior: `in_literal_right`, `in_wrong_alias`, `in_swapped` dão uma acusação. Matriz nova: `in_unqualified_correlated` e `in_wrong_table_origin`, base e HEAD `[]`; `in_shadow_alias_valid`, base `[]`, HEAD `['in (subconsulta) sem a origem: order_id']`. PostgreSQL confirma os casos em C. |
+| RVL2-3-04 | **Fechado.** `text` e `varchar` sem comprimento são reconhecidos; não há retirada indiscriminada de cast. | `.venv/bin/python /tmp/rvl2-round3-identity-extra.py`: `cast_one => []`, `cast_literals => []`. Matriz nova: `varchar_unbounded`, base uma acusação, HEAD `[]`; `varchar_length`, uma acusação nas duas versões. |
+| RVL2-3-05 | **Fechado no recorte e na classificação declarados.** Os três textos delimitam nomes voláteis; os executores de SQL e o snapshot foram separados. Não surgiu classe nova incorretamente rotulada no exame feito. | `git diff d7df2cd 36acc2d -- tests/test_acesso.py src/mvp_ed1/governance.py docs/governanca_de_dados.md`; oráculo consultado via `ro.sh` por `.venv/bin/python /tmp/rvl2-round4-oracle.py`: `nomes_catalogo= 132 classificados= 132 fora_catalogo= 0`, diferenças vazias. Evidência D. |
+| RVL2-3-06 | **Fechado.** A projeção aninhada não busca mais o `JOIN`/`WHERE` externo; o `USING` continua sendo conferido separadamente. | `.venv/bin/python /tmp/rvl2-round3-identity-extra.py`: `using_subquery_eq => []`, sem `AttributeError`. Matriz nova: `projection_subquery_where`, base uma acusação, HEAD `[]`. Suíte de identidade/leitor: `83 passed in 0.34s`. |
+| RVL2-3-07 | **Fechado por inspeção do código e das regras do PG16**, com a ressalva de teste RVL2-4-04. Não repeti o ciclo real que persiste configuração e chama `garantir()`. O laço cobre todo padrão vinculado ao papel, por banco; depois limpa o global e repõe leitura. | `.venv/bin/python /tmp/rvl2-round4-loop.py`: comandos 2/3/4 são o laço com `%I`, `alter role consumption_reader reset all` e `alter role consumption_reader set default_transaction_read_only = on`, nessa ordem, em dublê. Inventário por `ro.sh`: só `global={default_transaction_read_only=on}`. Sonda revertida do leitor confirma que o ajuste por banco continua possível; simulação de falha confirma a recomposição canônica pelo `finally`. Evidência A. |
+
+### A — reposição dos padrões, precedência e teste de falha
+
+O laço de `_garantir_leitor` consulta `pg_db_role_setting` filtrando o OID do
+papel já criado. O join com `pg_database` seleciona os ajustes por banco; a linha
+global, cujo `setdatabase=0`, fica para o `RESET ALL` seguinte. O par papel/banco
+é único no catálogo. Excluir essas configurações durante a iteração do resultado
+não exige conexão a cada banco. Ambos os identificadores da DDL dinâmica passam
+por `format('%I')`; o nome interpolado em `'{usuario}'::regrole` vem da validação
+restritiva existente. Não encontrei interpolação nova de nome de banco no laço.
+
+`RESET ALL` remove também `search_path`, timeouts, fuso e outros padrões que
+alguém tenha colocado **nesse papel**. Isso corresponde à declaração nova de
+“nenhum outro padrão” e ao comportamento documentado na §7; não encontrei padrão
+adicional que o contrato do leitor mande preservar. Não remove atributos,
+privilégios ou configurações de outros papéis. A chamada de produção permanece
+na transação de `garantir()`, de modo que uma exceção desfaz suas alterações.
+
+Comando `.venv/bin/python /tmp/rvl2-round4-loop.py`, executando a função real com
+conexão dublê e sem enviar DDL, saída relevante literal:
+
+```text
+comando 2 : do $$
+        declare r record;
+        begin
+            for r in select d.datname from pg_db_role_setting s join pg_database d on d.oid = s.setdatabase
+                     where s.setrole = 'consumption_reader'::regrole loop
+                execute format('alter role %I in database %I reset all', 'consumption_reader', r.datname);
+            end loop;
+        end
+        $$
+comando 3 : alter role consumption_reader reset all
+comando 4 : alter role consumption_reader set default_transaction_read_only = on
+SQL real executado=0
+```
+
+O [ALTER ROLE do PG16](https://www.postgresql.org/docs/16/sql-alterrole.html)
+distingue ajustes globais do papel e ajustes por papel/banco. `ALTER ROLE ALL IN
+DATABASE` equivale ao padrão do banco: permanece fora desse laço, mas tem
+precedência **menor** que o `on` global do leitor. A ordem papel+banco, papel,
+banco e global está em
+[`process_settings` do PG16](https://github.com/postgres/postgres/blob/REL_16_STABLE/src/backend/utils/init/postinit.c#L1230).
+O inventário completo de `pg_db_role_setting` nesta rodada tinha uma única linha:
+
+```text
+        role        | database |             setconfig
+--------------------+----------+------------------------------------
+ consumption_reader | *        | {default_transaction_read_only=on}
+(1 row)
+```
+
+Já `options` da conexão e `PGOPTIONS` podem sobrepor o padrão no login. Isso não
+é outro ajuste persistente **do papel** que o laço esqueceu; é opção da sessão,
+compatível com a afirmação já documentada de que leitura é conveniência e ACL é
+a garantia. [PGOPTIONS](https://www.postgresql.org/docs/16/libpq-envars.html)
+corresponde ao parâmetro
+[`options`](https://www.postgresql.org/docs/16/libpq-connect.html#LIBPQ-CONNECT-OPTIONS).
+As opções de [`pg_hba.conf`](https://www.postgresql.org/docs/16/auth-pg-hba-conf.html)
+são de autenticação; ele não fornece um campo genérico para esses GUCs de sessão.
+Não alterei HBA, configurações do banco nem configuração global do servidor.
+
+Sonda real, com `.env` carregado sem imprimir credenciais:
+
+```bash
+.venv/bin/python /tmp/rvl2-round4-reader.py
+```
+
+Saída literal das três conexões descartáveis e da alteração **revertida**:
+
+```text
+normal ('on', 'on')
+options ('off', 'off')
+PGOPTIONS ('off', 'off')
+ajustes na transacao [(False, ['default_transaction_read_only=off']), (True, ['default_transaction_read_only=on', 'statement_timeout=1h'])]
+ROLLBACK; nenhuma configuracao persistida
+```
+
+As duas colunas das primeiras linhas são `default_transaction_read_only` e
+`transaction_read_only`. Nenhuma dessas conexões gravou configuração ou dado.
+
+**Não executei a suíte `tests/test_acesso.py` contra o banco nesta rodada.** Em
+particular, o teste novo faz `commit` como leitor e chama `garantir()`. Adotei a
+restrição explícita desta rodada — não persistir configurações do leitor e usar
+`ro.sh` para SQL de superusuário — e examinei seu caminho de falha por simulação.
+Isso não substitui nem reconfirma a medição real que o autor registrou.
+
+`.venv/bin/python /tmp/rvl2-round4-cleanup-sim.py` executou o corpo real do teste
+novo com dublês e `garantir()` lançando `RuntimeError`. Saída literal:
+
+```text
+canonico antes= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 0} depois= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 1} erro= garantir falhou
+ajuste_preexistente antes= {'global': {'default_transaction_read_only': 'on', 'statement_timeout': '5s'}, 'db': {}, 'commits': 0} depois= {'global': {'default_transaction_read_only': 'on'}, 'db': {}, 'commits': 1} erro= garantir falhou
+SQL real executado=0; commits acima sao contadores do duble
+```
+
+Portanto, se `garantir()` falha e o banco continua acessível, o `finally` remove
+os dois ajustes introduzidos pelo teste e recompõe o estado canônico observado.
+Ele não depende de a transação interna de `garantir()` ter concluído. Não é um
+restaurador de configurações arbitrárias anteriores (RVL2-4-04). Indisponibilidade
+da conexão de limpeza não foi induzida; nessa situação ele também pode falhar.
+O teste pressupõe ainda o nome usual do banco: suas duas interpolações locais de
+`banco` não escapam aspas duplas; não são o laço seguro do código de produção.
+Não criei outro banco para testar esse limite.
+
+### B — slots temporários e a falha da própria limpeza
+
+A [documentação das funções de replicação do PG16](https://www.postgresql.org/docs/16/functions-admin.html#FUNCTIONS-REPLICATION)
+confirma o argumento `temporary` e a liberação em erro. A limpeza de slots da
+sessão está também em
+[`slot.c`](https://github.com/postgres/postgres/blob/REL_16_STABLE/src/backend/replication/slot.c).
+No teste, a fixture `leitor` usa `NullPool`: sair de `with leitor.connect()` fecha
+a conexão física, não a devolve a um pool aberto. Assim, no caso que motivou
+RVL2-3-01 — criação indevidamente aceita — o slot temporário não sobrevive à
+conexão. O rollback sozinho não é a justificativa da limpeza.
+
+As seis primeiras sondas de `RECUSADAS_POR_DENTRO`, executadas pelo script do
+leitor, com rollback e fechamento em `finally`, deram:
+
+```text
+select pg_create_physical_replication_slot('__probe_do_leitor', false, true) => 42501 permission denied to use replication slots
+select pg_create_logical_replication_slot('__probe_do_leitor', 'test_decoding', true, false) => 42501 permission denied to use replication slots
+select pg_drop_replication_slot('__probe_do_leitor') => 42501 permission denied to use replication slots
+select pg_replication_slot_advance('__probe_do_leitor', '0/0') => 42501 permission denied to use replication slots
+select pg_copy_logical_replication_slot('__probe_do_leitor', '__probe_do_leitor_b', true) => 42501 permission denied to use replication slots
+select * from pg_logical_slot_get_changes('__probe_do_leitor', null, null) => 42501 permission denied to use replication slots
+```
+
+A limpeza extra tem parâmetro para o nome do slot e escapa os sublinhados do
+prefixo no `LIKE`. Ela acontece antes das asserções, inclusive se outra sonda
+falhar. **Pode falhar**, porém: superusuário não pode apagar slot ativo de outra
+sessão. O uso de um prefixo compartilhado também não isola execuções concorrentes.
+Simulação do próprio corpo do teste, no script de A:
+
+```text
+temporario erro= AssertionError  slots= [] cleanup= []
+sobra_inativa erro= AssertionError  slots= [] cleanup= ['__probe_do_leitor_b']
+sobra_ativa erro= RuntimeError 55006: replication slot is active slots= ['__probe_do_leitor_b'] cleanup= ['__probe_do_leitor_b']
+```
+
+No terceiro cenário, a falha de limpeza impede chegar a `assert aceitas == []`,
+portanto oculta a mensagem específica de criação aceita. Se já houver exceção
+em propagação, Python a conserva como contexto, embora o erro final seja o da
+limpeza. Não é caminho normal do slot temporário recém-criado por este teste,
+cuja sessão já fechou; é limite da defesa adicional sobre sobras/concorrência.
+Não criei slot real, não removi checagem de permissão e não induzi falha de rede.
+
+### C — guarda, contraprovas e as 16 views
+
+Reexecutei as matrizes preservadas da rodada anterior sobre a guarda atual:
+
+```bash
+.venv/bin/python /tmp/rvl2-round2-identity.py
+.venv/bin/python /tmp/rvl2-round3-identity-extra.py
+.venv/bin/python /tmp/rvl2-round4-matrix.py
+.venv/bin/pytest -q tests/test_identidade_no_consumo.py tests/test_leitor.py
+```
+
+A última matriz compara `d7df2cd` carregado em memória com o HEAD. A suíte deu:
+
+```text
+83 passed in 0.34s
+```
+
+As contraprovas originais `shadow_both`, `shadow_source`, `shadow_source_cte`,
+`in_literal_right`, `in_wrong_alias` e `in_swapped` agora produzem uma acusação
+cada. `cast_one`, `cast_literals`, `using_subquery_eq` e P12 dão `[]`. O caso
+`using_and_on_same` continua dando `ParseError`: a consulta mistura `USING` e
+`ON` na mesma junção e não é SQL válido; não é defeito da correção.
+
+#### C1 — escopo de join entre parênteses
+
+Entrada literal da matriz:
+
+```sql
+select * from retail.orders s
+where exists (
+  select 1 from (a x join b s
+    on x.order_id=s.order_id and x.source_system='retail')
+)
+```
+
+Saída:
+
+```text
+base []
+HEAD []
+```
+
+Inspeção direta das funções novas sobre a igualdade interna:
+
+```text
+relacao_resolvida_para_s= retail.orders AS s
+fontes_do_select_interno= {'': "(a AS x JOIN b AS s ON x.order_id = s.order_id AND x.source_system = 'retail')"}
+```
+
+O `s` interno é `b`, não `retail.orders`. Não é perda de origem entre CTEs; é
+resolução incorreta dentro da própria cláusula que a função promete resolver.
+Para confirmar a semântica sem criar objetos, o SQL de prova substituiu somente
+a fonte externa por uma linha `retail` em `VALUES`, e definiu `a` como
+`('retail',37)` e `b` como `('legacy',37)`. Por `ro.sh`, o `EXISTS` retornou:
+
+```text
+JOIN parentetizado: s interno e legacy, nao a fonte retail externa
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+```
+
+O script `/tmp/rvl2-round4-proofs.sql` contém o SQL completo, só com CTEs/VALUES.
+A substituição é apenas para executar a prova: `retail.orders` é o marcador de
+fonte produzido pelo pré-processamento da guarda, não uma tabela criada nesta
+revisão. O falso negativo já existia na base, mas persiste precisamente na
+resolução de escopo adicionada para fechar RVL2-3-02.
+
+Os demais casos novos de escopo deram o esperado dentro do limite de não analisar
+fluxo: `lateral_valid` passa; `derived_shadows`, `cte_boundary` e o segundo ramo
+de `union_branches` são acusados. `cte_chain` e `qualifier_cte_name` continuam
+acusados conservadoramente, pois uma referência a CTE não é tratada como uma
+fonte dbt direta de origem única. Nenhum desses caminhos lançou exceção.
+
+#### C2 — origem não qualificada ainda pode ser externa
+
+Este SQL é aceito pela guarda (`base []`, `HEAD []`) e roda integralmente no PG16:
+
+```sql
+with a(source_system,order_id) as (values ('retail',37)),
+     b(origin,order_id) as (values ('legacy',37))
+select * from a
+where (a.source_system,a.order_id) in (select source_system,b.order_id from b);
+```
+
+Saída de `ro.sh /tmp/rvl2-round4-proofs.sql`:
+
+```text
+IN com origem nao qualificada resolvida no escopo externo
+ source_system | order_id
+---------------+----------
+ retail        |       37
+(1 row)
+```
+
+A ausência de `b.source_system` faz a coluna não qualificada apontar para
+`a.source_system`. É a origem externa repetida, que a docstring afirma recusar.
+O caso `in_no_from`, `IN (SELECT source_system,37)`, também é aceito sem haver
+qualquer fonte própria na subconsulta.
+
+Outro caso da matriz (`in_wrong_table_origin`, `[]` nas duas versões):
+
+```sql
+select * from a
+where (a.source_system,a.order_id) in
+  (select b.source_system,c.order_id from b cross join c);
+```
+
+Com `a=('retail',37)`, `b=('retail',99)` e `c=('legacy',37)`, definidos em CTEs,
+a execução por `ro.sh` também devolveu `retail | 37` e `(1 row)`. Ter origem em
+alguma relação interna não garante a origem do identificador comparado.
+
+#### C3 — falsos positivos introduzidos pelo reconhecimento de IN
+
+As três formas abaixo têm identidade completa nos exemplos de prova:
+
+```sql
+select * from a x where (x.source_system,x.order_id) in
+  (select x.source_system,x.order_id from b x);
+
+select * from a where ((a.source_system,a.order_id),a.customer_id) in
+  (select (b.source_system,b.order_id),b.customer_id from b);
+
+select * from a where (a.source_system,a.order_id) in (select * from b);
+```
+
+Saídas literais, na ordem (`b` tem exatamente `source_system,order_id` no último):
+
+```text
+base []
+HEAD ['in (subconsulta) sem a origem: order_id']
+base []
+HEAD ['in (subconsulta) sem a origem: customer_id, order_id']
+base []
+HEAD ['in (subconsulta) sem a origem: order_id']
+```
+
+As três executaram no PostgreSQL e retornaram a linha `retail | 37` (também
+`customer_id=1` na segunda), conforme `/tmp/rvl2-round4-proofs.log`. Alias
+repetido não é alias compartilhado entre escopos; tupla aninhada não perde a
+igualdade do componente de origem. A expansão de `*` pode exigir conhecimento
+das colunas e merece limite explícito se não for suportada. A projeção com alias
+`SELECT b.source_system AS source_system,b.order_id AS order_id` já passa.
+
+A docstring acerta os limites de fluxo entre CTEs, `UNION` e origem renomeada.
+Exagera ao afirmar que o escopo da fonte única está resolvido e que `IN` exige
+origem própria na mesma posição: C1/C2 mostram exceções. Não documenta as novas
+recusas de C3. O ajuste de projeção aninhada de RVL2-3-06, por sua vez, fechou o
+exemplo e passou a ignorar também a igualdade projetada sob um `EXISTS` externo.
+
+Li novamente o SQL das **16 views**, e a execução individual de `violacoes`
+devolveu `[]` para todas. `git diff --name-only d7df2cd 36acc2d --
+dbt/models/consumption` não produziu saída: nenhuma view mudou neste intervalo.
+Não encontrei nas views o falso negativo nem os falsos positivos novos. P12
+mantém a fonte direta `retail` no anti-join e `f.source_system='retail'`; P04,
+P09 e P16 preservam os usos de identidade descritos na rodada 3. Não executei
+build, não recalculei métricas do lote 3 e não atribuí ao lote 2 alterações externas.
+
+### D — recorte do oráculo e classificação
+
+O comentário em `tests/test_acesso.py`, o de `FECHADAS_A_PUBLIC` em
+`governance.py` e a Governança §7 v2.12 agora dizem **nome volátil novo**. O
+primeiro explicita também a exclusão de tipos internos/handlers; a §7 declara
+que sobrecarga nova de nome conhecido passa e que funções estáveis podem ter
+efeito interno. `governance.py` remete ao recorte do teste. Nenhum dos três
+continua prometendo inventário universal de assinaturas ou ausência de todo efeito.
+
+A classificação por nome também explica por que nem toda sobrecarga de uma
+família precisa executar SQL: por exemplo, `ts_rewrite` possui forma que recebe
+`tsquery`. A família tem uma forma que executa o SQL fornecido; o motivo cobre
+sua abertura com os privilégios do chamador. `cursor_to_xml*` opera o cursor do
+chamador. Não identifiquei escalada nova nem classe restante que contradiga o
+motivo no catálogo observado. Isso não transforma o recorte em prova de toda
+função futura ou de toda composição possível.
+
+Com `ENG_DADOS_DIR` apontando para este checkout,
+`.venv/bin/python /tmp/rvl2-round4-oracle.py` reproduziu o predicado `_CHAMAVEIS`
+e comparou o catálogo via `ro.sh` com a declaração Python:
+
+```text
+nomes_catalogo= 132 classificados= 132 fora_catalogo= 0
+sem_classificacao= [] classificados_nao_abertos= []
+duplicados= 0 intersecao_fechadas= []
+executam SQL de quem chama = ('cursor_to_xml', 'cursor_to_xmlschema', 'query_to_xml', 'query_to_xml_and_xmlschema', 'query_to_xmlschema', 'ts_rewrite', 'ts_stat')
+efeito interno, sem dado = ('pg_export_snapshot',)
+```
+
+Consulta adicional confirmou `txid_current()` e `pg_current_xact_id()` com
+`provolatile=s` e execução permitida; as duas assinaturas de
+`pg_logical_emit_message` continuam com execução negada. Não repeti nesta rodada
+a prova de `NOTIFY` dentro das funções de SQL nem a exportação real de snapshot.
+
+### E — gates, preservação do estado e limites
+
+Comandos executados sobre `36acc2d` antes de acrescentar este parecer:
+
+```bash
+make check-offline > /tmp/rvl2-round4-check-offline.log 2>&1
+make secrets-history > /tmp/rvl2-round4-secrets-history.log 2>&1
+```
+
+Saída literal relevante do primeiro, omitidos os pontos de progresso e a lista
+de arquivos de integração desmarcados:
+
+```text
+── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 666 citações de ADR — nada quebrado
+── 2/3 pytest sem os testes de integração ──
+792 passed, 188 deselected in 144.34s (0:02:24)
+── 3/3 o que ficou de fora: os de integração, que rodam no make check ──
+check-offline: as três etapas passaram
+```
+
+Última linha literal de `make secrets-history`:
+
+```text
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+A contagem offline do autor foi reproduzida, sem skips. `tests/test_acesso.py`
+aparece com seus 16 testes entre os 188 desmarcados; não consta dos 83 testes
+direcionados executados separadamente.
+
+Todo SQL de superusuário desta rodada passou exclusivamente por:
+
+```bash
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh
+```
+
+Versão observada: `PostgreSQL 16.15`. O inventário da rodada 2 foi reexecutado
+antes e depois das sondas, e comparado:
+
+```bash
+diff -u /tmp/rvl2-round4-inventory-before.log /tmp/rvl2-round4-inventory-after.log
+```
+
+**Saída vazia, exit 0.** Mesmas ACLs e configurações inventariadas; nenhum large
+object, objeto/papel de sonda ou advisory lock. O inventário adicional terminou
+com `slots=0`, `exports=0` e só `global={default_transaction_read_only=on}` para
+o leitor. Nenhum ajuste por banco ficou persistido. Não comparei contadores
+internos, XIDs ou bytes de WAL; a preservação afirmada é do estado inventariado.
+
+Não executei `garantir()` real, `dbt-build`, `dbt-rebuild`, reset, seed, sync,
+DAG, ledger ou recuperação. Não disparei nem pausei `fluxo_batch`. Nenhuma escrita
+em `data/memoria_do_legado/`. As sondas reais do leitor terminaram em rollback;
+os commits da simulação são apenas contadores em memória. Não concedi permissão,
+não criei slot real nem alterei a configuração para testar falhas.
+
+Só `REVISAO.md` foi editado como entrega; scripts e logs de apoio ficaram em
+`/tmp/rvl2-round4-*`. Os não rastreados `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já existiam e não foram tocados. Não houve
+commit nem push. Permanecem não medidos nesta rodada o ciclo real de reposição,
+a falha real da conexão de limpeza e o descarte de um slot realmente criado
+após retirada da checagem de permissão.
+
+**Conclusão técnica: o lote 2 ainda não pode ser encerrado pelos ajustes
+RVL2-4-01 a RVL2-4-03.** Cinco achados da rodada 3 estão fechados; RVL2-3-02/03
+estão parcialmente fechados, com os exemplos originais corrigidos e os limites
+acima ainda abertos. O aceite formal continua sendo do Owner.
