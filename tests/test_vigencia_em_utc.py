@@ -81,9 +81,28 @@ def test_o_hoje_dos_modelos_e_a_meia_noite_de_sao_paulo() -> None:
         assert "\"date '\" ~ var(\"as_of_date\")" not in texto, caminho.name
 
 
-_LITERAL_TIMESTAMPTZ = re.compile(r"timestamptz\s+'([^']*)'", re.I)
+_TZ = r"(?:timestamptz|timestamp\s+with\s+time\s+zone)"
+#: Toda grafia de literal de instante, sobre o texto inteiro (o `\s` atravessa linha):
+#: prefixo de tipo, `::` e `cast(… as …)` (RVL3-9-03).
+_LITERAIS = (
+    re.compile(_TZ + r"\s+'([^']*)'", re.I),
+    re.compile(r"'([^']*)'\s*::\s*" + _TZ + r"\b", re.I),
+    re.compile(r"cast\s*\(\s*'([^']*)'\s+as\s+" + _TZ + r"\s*\)", re.I),
+)
 #: O fuso vem **depois de uma hora**: o `-31` de `9999-12-31` é o dia, não um offset (RVL3-8-02).
 _COM_FUSO = re.compile(r"\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*(Z|[+-]\d{1,2}(:?\d{2})?)\s*$")
+
+
+def literais_sem_fuso(texto: str) -> list[str]:
+    """Os literais de instante do SQL sem fuso escrito — comentários de linha e de Jinja fora."""
+    sem_comentario = re.sub(r"\{#.*?#\}", "", texto, flags=re.S)
+    sem_comentario = "\n".join(linha.split("--", 1)[0] for linha in sem_comentario.splitlines())
+    achados = []
+    for padrao in _LITERAIS:
+        for valor in padrao.findall(sem_comentario):
+            if valor.strip().lower() not in ("infinity", "-infinity") and not _COM_FUSO.search(valor):
+                achados.append(valor)
+    return achados
 
 
 def test_todo_literal_timestamptz_diz_o_fuso() -> None:
@@ -93,11 +112,23 @@ def test_todo_literal_timestamptz_diz_o_fuso() -> None:
         for caminho in sorted((DBT / pasta).rglob("*.sql")):
             if "legacy" in caminho.parts:
                 continue
-            for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
-                for valor in _LITERAL_TIMESTAMPTZ.findall(linha.split("--", 1)[0]):
-                    if valor.strip().lower() not in ("infinity", "-infinity") and not _COM_FUSO.search(valor):
-                        sem_fuso.append(f"{caminho.relative_to(DBT)}:{numero}: {valor}")
+            sem_fuso += [f"{caminho.relative_to(DBT)}: {v}" for v in literais_sem_fuso(caminho.read_text(encoding="utf-8"))]
     assert sem_fuso == []
+
+
+@pytest.mark.parametrize("sql", [
+    "select timestamptz '9999-12-31'", "select '9999-12-31'::timestamptz", "select cast('9999-12-31' as timestamptz)",
+    "select timestamp with time zone '9999-12-31'", "select timestamptz\n    '9999-12-31'",
+    "select '2024-01-01' :: timestamp with time zone",
+])
+def test_toda_grafia_de_literal_de_instante_sem_fuso_e_acusada(sql: str) -> None:
+    """RVL3-9-03: a contraprova das grafias que o leitor por linha deixava passar."""
+    assert literais_sem_fuso(sql) == ["9999-12-31"] or literais_sem_fuso(sql) == ["2024-01-01"]
+    assert literais_sem_fuso(sql.replace("9999-12-31", "9999-12-31 00:00+00").replace("2024-01-01", "2024-01-01 00:00-03")) == []
+
+
+def test_literal_em_comentario_nao_conta() -> None:
+    assert literais_sem_fuso("select 1 -- timestamptz '2024-01-01'\n{# '2024-01-01'::timestamptz #}") == []
 
 
 @pytest.mark.parametrize(("literal", "tem_fuso"), [
