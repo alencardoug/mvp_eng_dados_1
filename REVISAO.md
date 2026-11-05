@@ -4059,3 +4059,428 @@ os três achados.
   descrição errada, nenhum passe silencioso e nenhum resultado alterado sem
   medição. O fechamento técnico não substitui revisão do declarativo nem
   aceite formal do Owner.
+
+## Rodada 10 — lote 3
+
+### Conclusão
+
+**Changes required — alterações necessárias.** Um bloqueante e um ajuste
+confirmados; uma observação delimita a compatibilidade com fontes de pacotes.
+Os exemplos exatos de RVL3-9-01/02/03 foram corrigidos, mas a convenção nova
+não resolve o endereço de escrita de tabelas homônimas em schemas distintos,
+e a guarda temporal ainda deixa passar SQL usual sem fuso. **O lote 3 ainda
+não pode ser fechado.** Não demonstrei descrição errada no catálogo atual nem
+mudança de resultado de negócio nestes três commits; demonstrei passes
+silenciosos em mutações locais aceitas. Este parecer não é aceite da release
+nem revisão integral de todo o projeto.
+
+### Escopo e versão
+
+Revisão em 05/11/2026, branch `main`, HEAD
+`75cbc317d1f8a65c27105caf19c3d6e84a818326`, contra a base solicitada
+**`39c5c85f48c5c4ff63cdf84343fc6d347deae678`**, árvore da rodada 9.
+Exclusivamente `git log 39c5c85..75cbc31`: `913ae94`, `f869b5f`, `75cbc31`.
+Conferi o diff dos sete arquivos, seus leitores/escritores, testes, os
+contratos locais do dbt instalado, Governança §5.1, Qualidade §4 e os
+encerramentos encadeados, incluindo a decisão do Owner em RVL3-6-04.
+AGENTS.md, CLAUDE.md, o mapa do README e a skill local `revisao` orientaram o
+procedimento. As situações do autor foram tratadas como alegações.
+
+Não havia modificação rastreada inicial. `GEMINI.md` e
+`NAVEGANDO_GCP/parecer_migracao_gcp.md` já estavam não rastreados e ficaram
+fora do escopo, sem alteração. Só este relatório foi editado no checkout;
+sondas, caches e projetos dbt ficaram em `/tmp/rvl3-r10-review`.
+O HEAD permaneceu em `75cbc31`. Não houve escrita no warehouse, operação de
+DAG, troca de serviços ou alteração de `data/memoria_do_legado/`.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RVL3-10-01 | `src/mvp_ed1/models/descriptions.py:180–186,243–247,352–358`; `sensitivity.py:1006–1016` | **Uma fonte por schema não dá um endereço único ao escritor.** `legacy.order_items` (`raw_legacy`) e `retail.order_items` (`raw`) podem estar no mesmo YAML sem alias, quoting ou duplicidade física. O plano para `raw` conserva apenas `order_items`; o escritor escolhe a primeira homônima. Com a primeira já correta, check → geração → check retornam **0/0/0** e a descrição monetária errada em `raw.order_items.quantity` permanece. **Alta (high) → bloqueante:** descrição declarativa incorreta aceita silenciosamente numa reorganização normal das fontes existentes. Falha preexistente, fechamento incompleto da garantia de endereço de RVL3-9-02. R10-A. | `bloqueante` | **Corrigido no endereço, sem restrição nova** — `1f66294`. Reproduzi o seu caso (cópia mutada, manifest novo): check → geração → recheck **0/0/0**, `raw` com o texto monetário. Causa: o par (fonte, tabela) da leitura virava só `tabela` no patch, e `_find_entry` pegava a primeira `- name: order_items` do arquivo, em qualquer indentação; os dois verificadores reduziam a fonte ao nome. Agora a entrada tem endereço estrutural (`sensitivity._locate`): o par (fonte, tabela) dentro de `sources:` → `tables:`, e o nome só no bloco de topo (`models`/`snapshots`/`seeds`, inclusive a lista sem recuo do `yaml.safe_dump`); endereço repetido no arquivo é recusa. `Entry.address` leva o par desde `disk_sources`; `plan` endereça a fonte por (`source_name`, `name`); `patch_descriptions`, `patch_meta`/`patch_yaml`, `patch_domains`, `descriptions.verify`, `_verify` e `verify_meta` leem por `entries_by_address`. E `main` confere **todo** destino pedido no YAML carregado **nos dois modos**, antes de escrever — o patch que não muda byte não passa mais no `--check`. Homônimas continuam permitidas: nenhuma restrição declarativa nova, nada a decidir pelo Owner. Contraprova (evidências abaixo): nas duas ordens das fontes, inclusive a primeira já certa, check **RC 1** (`desatualizado: …_retail__sources.yml`), geração escreve só `raw` (`Quantidade comprada do SKU.`), recheck **RC 0**; a homônima de `raw_legacy` intacta. Testes novos: `test_tabela_de_fonte_homonima_e_escrita_e_conferida_no_seu_endereco` (duas ordens; descrição e sensibilidade; o modelo homônimo não é tocado; verificadores acusam a homônima) e `test_endereco_repetido_no_arquivo_e_recusa_e_a_fonte_leva_o_par`. Catálogo real: `--check` 0 desatualizado. Também fecha o que a passagem de RVL3-9-02 pedia e a rodada 9 só tinha fechado pela convenção. Governança §5.1 v2.21. |
+| RVL3-10-02 | `tests/test_vigencia_em_utc.py:84–104`; Qualidade §4 | **O scanner ainda confunde texto com tokens SQL.** Comentário entre o tipo e o literal, ou precisão explícita (`timestamptz(6)` no prefixo ou no `cast`), faz o teste real passar com o sentinela sem fuso. O PostgreSQL aceita as expressões e o instante muda **10.800 segundos** entre UTC e São Paulo. Também há falsos positivos em comentário de bloco e em literal com zona nomeada explícita. **Média (medium) → ajuste:** uma edição SQL comum pode escapar da proteção temporal prometida. Lacuna preexistente da guarda, parcialmente corrigida por `f869b5f`; o scanner novo não introduz a dependência de fuso. R10-B. | `ajuste` | **Corrigido** — `f156016`. Reproduzi os cinco `PASS` no teste real. `literais_sem_fuso` agora lê **por token**: tira `--`, `/* */` (aninhado, como o PostgreSQL) e `{# #}` sem tocar o que está dentro de string; lê string com `''`; e casa prefixo, `::` e `cast(… as …)` sobre tokens, com o tipo `timestamptz[(p)]` ou `timestamp[(p)] with time zone`. Fuso escrito é offset/`Z` depois da hora (RVL3-8-02) ou zona que `zoneinfo.available_timezones()` conhece (`America/Sao_Paulo`, `UTC`; `AM` e zona inventada não valem). Contraprova no arquivo real (cópia, sentinela trocado): as **11** formas sem fuso do seu parecer → `RECUSA`; com fuso, comentário e precisão → `PASSA`; seus três falsos positivos → `[]`. Oráculo PostgreSQL só leitura: `timestamp(3) with time zone` em sufixo e em prefixo com comentário deslocam 10.800 s; `… 00:00 UTC` e `… America/Sao_Paulo` não. Testes novos: nove formas de comentário/precisão (negativo e positivo), sete de não-falso-positivo, quatro de zona. Os literais atuais continuam passando. **Limite declarado** na Qualidade §4 v1.17: SQL montado por Jinja de pedaços e dollar quoting não são lidos como SQL. |
+| RVL3-10-03 | `src/mvp_ed1/models/sensitivity.py:423–445`; `descriptions.py:138–142`; Governança §5.1 | **A recusa não cobre a fonte efetiva vinda de pacote/override.** Um override local sem `identifier` passa pelo leitor; o dbt pode conservar o `identifier` diferente definido no pacote. **Baixa (low) → observação:** os pacotes atuais não fornecem fontes ao manifest; a reprodução exige acrescentar uma dependência com fontes. A convenção funciona para as declarações locais atuais, mas não pode ser apresentada como recusa universal de aliases do dbt. Preexistente no limite de inventário, sem regressão atual demonstrada. R10-C. | `observação` | **Corrigido além da nota** — `ee2919f`: em vez de só declarar o limite, o leitor recusa `overrides` (`_conferir_fonte`), e `main` confere o **manifest efetivo** — fonte de outro pacote (`foreign_sources`, `package_name` ≠ projeto raiz) para o `make catalog` nos dois modos, antes de qualquer escrita. Medido: as 79 fontes do manifest atual são do `mvp_ed1`; nenhum `.yml` usa `overrides`. Sua matriz, repetida com o código novo: `PACKAGE_OVERRIDE READER_REFUSED … com overrides` e `FOREIGN_SOURCES ['source.review_pkg.retail.order_items_alias']`; `CURRENT_PROPERTIES` e `DISABLED` seguem aceitas, sem fonte estrangeira. Teste: `test_fonte_de_outro_pacote_ou_sobreposta_e_recusada` (leitor e `main`, nos dois modos). Governança §5.1. |
+
+### Evidências e correções propostas
+
+#### R10-A — RVL3-10-01: a identidade lida se perde ao montar o patch
+
+**Análise estática.** `disk_sources` diferencia `(schema, tabela)`, e a nova
+unicidade permite corretamente a mesma tabela em dois schemas. Porém,
+`derive_texts` reduz o destino a `patches[caminho][tabela]`, e
+`patch_descriptions` chama `_find_entry` somente com o nome. A verificação
+semântica de descrição só roda para arquivos cujo texto mudou, na geração;
+no `--check`, compara-se o conteúdo renderizado com o disco. Se o patch já
+está satisfeito na primeira homônima, o arquivo não muda e a entrada alvo
+nunca é conferida. Os verificadores também reduzem fontes ao nome da tabela
+(`descriptions.verify:390–392`, `sensitivity._verify:945–947`).
+
+**Reprodução executada.** Na cópia integral do dbt, desloquei apenas a entrada
+`legacy.order_items` do seu arquivo para o início das fontes do YAML de
+`retail`; as demais tabelas ficaram onde estavam. Mantive seu schema
+`raw_legacy` e o nome `order_items`. A segunda fonte continuou `retail`,
+schema `raw`, com sua tabela `order_items`. Não usei `identifier`, `quoting`,
+nomes especiais nem duas fontes distintas no mesmo schema. Troquei somente a
+descrição de `raw.order_items.quantity` por
+`Valor monetário total do pedido em reais.`; a descrição da homônima legada
+continuou `Quantidade comprada do SKU.`.
+
+Comandos das sondas, executados com bytecode desabilitado:
+
+```sh
+.venv/bin/python /tmp/rvl3-r10-review/probes.py
+# Retomada, carregando o .env apenas para o compile da cópia:
+.venv/bin/python /tmp/rvl3-r10-review/resume.py
+```
+
+A retomada executou `dbt --quiet compile --project-dir
+/tmp/rvl3-r10-review/copy/dbt --profiles-dir
+/tmp/rvl3-r10-review/copy/dbt`, com o binário da `.venv`, e depois
+`sensitivity.main(['--check'])`, `main([])`, `main(['--check'])`, com ROOT,
+DBT, MANIFEST e CACHE apontando para a cópia. Saída literal relevante:
+
+```text
+COMPILE_RC 0
+HOMONYM_FRESH_STALE [] PROBLEMS []
+HOMONYM_FRESH ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+HOMONYM_FRESH [] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) escrito(s) ERR
+HOMONYM_FRESH ['--check'] RC 0 YAML_UNCHANGED True OUT classificação e descrição derivadas de 2983 colunas em 199 nós; 0 arquivo(s) desatualizado(s) ERR
+HOMONYM_FRESH_FINAL raw_legacy Quantidade comprada do SKU.
+HOMONYM_FRESH_FINAL raw Valor monetário total do pedido em reais.
+```
+
+O plano havia identificado corretamente a correção necessária:
+
+```text
+HOMONYM_PATCH {'quantity': 'Quantidade comprada do SKU.'} PROBLEMS []
+```
+
+Busquei a contraprova: na primeira tentativa, o dump YAML havia mudado a
+primeira descrição correta de escalar com aspas duplas para escalar simples.
+O patch então alterava esses bytes e a geração **recusava** explicitamente
+com `RuntimeError: ... order_items ... ['quantity']`, sem escrever. Na
+retomada, normalizei apenas essa primeira descrição correta para a grafia do
+próprio escritor, preservando o YAML carregado; compilei novamente. O passe
+silencioso acima ocorre quando esse patch é uma operação sem mudança de
+bytes. A falha explícita inicial não foi omitida nem contada como sucesso.
+
+**Correção recomendada.** Preservar o endereço de fonte e tabela até o plano,
+o escritor e os verificadores, e conferir todos os destinos pedidos mesmo
+quando o arquivo não muda. Se a implementação optar por recusar homônimas
+no mesmo arquivo, a restrição deve ser explícita e ter o enquadramento do
+Owner conforme CLAUDE.md §5; a regra atual de uma fonte por schema não as
+proíbe. Validar as duas ordens das fontes, inclusive primeiro texto já
+correto, nos modos check/geração/recheck: corrigir a entrada de `raw` sem
+tocar na homônima, ou recusar antes de qualquer escrita. Não corrigir o YAML
+gerado à mão. O código que perde o endereço já existia em `39c5c85`.
+
+#### R10-B — RVL3-10-02: comentários e precisão ainda escondem o literal
+
+**Reprodução executada no teste real.** `probes.py` importou o módulo do teste,
+apontou `guard.DBT` para a cópia e substituiu somente o sentinela de
+`macros/test_vigencias_sem_sobreposicao.sql`, restaurando-o ao final.
+Cada linha abaixo é a expressão substituta e o resultado de
+`test_todo_literal_timestamptz_diz_o_fuso()`:
+
+```text
+GUARD_CURRENT PASS
+GUARD_SENTINEL "timestamptz '9999-12-31'" REFUSED
+GUARD_SENTINEL "'9999-12-31'::timestamptz" REFUSED
+GUARD_SENTINEL "cast('9999-12-31' as timestamptz)" REFUSED
+GUARD_SENTINEL "timestamp with time zone '9999-12-31'" REFUSED
+GUARD_SENTINEL "timestamptz\n '9999-12-31'" REFUSED
+GUARD_SENTINEL "'9999-12-31'\n::\ntimestamp with time zone" REFUSED
+GUARD_SENTINEL "timestamptz /* limite aberto */ '9999-12-31'" PASS
+GUARD_SENTINEL "'9999-12-31' /* limite aberto */ ::timestamptz" PASS
+GUARD_SENTINEL "cast('9999-12-31' /* limite aberto */ as timestamptz)" PASS
+GUARD_SENTINEL "timestamptz(6) '9999-12-31'" PASS
+GUARD_SENTINEL "cast('9999-12-31' as timestamptz(6))" PASS
+```
+
+**Oráculo PostgreSQL somente leitura**, pelo wrapper autorizado:
+
+```sh
+ENG_DADOS_DIR=/home/doug/Projetos/mvp_eng_dados_1 \
+  /home/doug/Projetos/bi-como-codigo/evidence/20261022/ro.sh \
+  /tmp/rvl3-r10-review/oracle.sql
+```
+
+Dentro de `BEGIN READ ONLY`, executei `SET LOCAL TIME ZONE` para cada fuso e
+`extract(epoch from ...)` para, nesta ordem: prefixo com comentário,
+`cast` com precisão, prefixo com precisão e o sentinela correto com `+00`.
+Terminei com `ROLLBACK`. Saída:
+
+```text
+UTC|253402214400.000000|253402214400.000000|253402214400.000000|253402214400.000000
+America/Sao_Paulo|253402225200.000000|253402225200.000000|253402225200.000000|253402214400.000000
+NAMED_ZONE|t
+```
+
+`NAMED_ZONE` é a igualdade entre
+`timestamptz '2024-01-01 00:00 America/Sao_Paulo'` e
+`timestamptz '2024-01-01 03:00+00'`. Apesar do fuso explícito, o scanner devolve
+`['2024-01-01 00:00 America/Sao_Paulo']`. Para
+`/* timestamptz '2024-01-01' */ select 1`, devolve `['2024-01-01']`;
+para uma string SQL contendo o exemplo textual
+`select 'timestamptz ''2024-01-01'''`, devolve `['']`.
+Estes são falsos positivos, não alterações de negócio observadas.
+
+**Correção recomendada.** Distinguir comentários, strings de texto e tokens
+ativos; comentários entre tokens devem funcionar como separadores, sem
+ocultar a expressão. Cobrir precisão do tipo e fuso nomeado válido, além de
+preservar as seis formas já corrigidas e os fragmentos Jinja atuais. Validar
+com o teste que varre os arquivos, não só com `_COM_FUSO`: negativos sem
+fuso, positivos com offset/zona nomeada, comentários e strings contendo
+exemplos. A escolha de biblioteca nova, se necessária, cabe ao Owner; este
+parecer não prescreve ferramenta. A dependência temporal desses literais
+sem fuso já existia antes do intervalo; não se mediu regressão em dados reais.
+
+#### R10-C — RVL3-10-03: limite da recusa na fronteira de pacotes
+
+**Reprodução executada**, sem banco, em projeto mínimo sob `/tmp`:
+
+```sh
+.venv/bin/python /tmp/rvl3-r10-review/source_matrix.py
+```
+
+O script rodou `dbt --quiet --no-partial-parse ls --resource-type source
+--output json`, com project/profiles apontando para esse projeto e um pacote
+local de teste, sem download. A fonte do pacote declarou
+`name: order_items_alias`, `identifier: order_items`. O override local tinha
+`name: retail`, `schema: raw`, `overrides: review_pkg` e a tabela
+`name: order_items_alias`, **sem** `identifier` ou `quoting`. Saída:
+
+```text
+CURRENT_PROPERTIES READER_ACCEPTED
+CURRENT_PROPERTIES DBT_LS_RC 0
+CURRENT_PROPERTIES ACTIVE [('review_root', 'retail', 'order_items', 'raw', 'order_items')] DISABLED []
+DISABLED READER_ACCEPTED
+DISABLED DBT_LS_RC 0
+DISABLED ACTIVE [] DISABLED ['source.review_root.retail.order_items']
+PACKAGE_OVERRIDE READER_ACCEPTED
+PACKAGE_OVERRIDE DBT_LS_RC 0
+PACKAGE_OVERRIDE ACTIVE [('review_pkg', 'retail', 'order_items_alias', 'raw', 'order_items')] DISABLED []
+```
+
+As tuplas são `(package_name, source_name, name, schema, identifier)`.
+O contrato instalado em `dbt/parser/sources.py:71–89,155–163` confirma que
+o dbt aplica patches antes de formar a fonte, usa `table.identifier` e retira
+fontes desabilitadas do mapa ativo. O leitor do catálogo só varre os caminhos
+locais fixos e não interpreta `overrides`. A primeira tentativa do projeto
+mínimo usou versão `"1"`, rejeitada pelo schema do dbt; a saída acima é da
+retomada com `"1.0.0"`. Esse erro de preparo não é defeito do projeto.
+
+**Encaminhamento recomendado.** Declarar esse limite no dono documental e,
+antes de admitir fontes de pacote, recusar o recurso não suportado ou
+validar a identidade efetiva e o inventário do manifest. Validar com o caso
+acima. Não é necessário adicionar pacote nem arquitetura para esta release.
+Não foi reproduzido ciclo completo com descrição errada nessa variante;
+não a conto como novo bloqueante de produção. Ela exige mudança de
+dependência, diferente da reorganização local de R10-A.
+
+`database`, `loader` e `meta` usados nas fontes atuais foram aceitos pelo
+leitor e pelo projeto mínimo; não são novos nomes lógicos de tabela. O dbt
+instalado resolve `database` separadamente e `identifier` a partir da tabela
+(`unparsed.py:675–714`, `sources.py:155–163`). Não se exercitou outro database
+real. `enabled: false` remove a fonte do manifest ativo, mas não contorna a
+validação de nome/identifier no YAML local. Não encontrei necessidade atual
+recusada pela nova convenção: o inventário deu **3 declarações, 79 tabelas**
+(`retail/raw`: 37; `legacy/raw_legacy`: 40; `governance/governance`: 2), sem
+alias/quoting, todas no pacote raiz. Isso não certifica compatibilidade com
+todo recurso futuro de dbt.
+
+### Reavaliação dos achados anteriores
+
+Estados técnicos, preservando os IDs e sem substituir o aceite do Owner.
+Comandos e saídas são os das sondas acima e de `followup.py` abaixo.
+
+| Achado anterior | Estado nesta rodada | Comando e saída |
+|---|---|---|
+| RVL3-9-01 | **Resolvido nos exemplos e na convenção local atual.** Quoting, caixa e alias por identifier são recusados antes do patch; pacotes ficam delimitados em R10-03. | `probes.py`: `SOURCE_QUOTING`, `TABLE_QUOTING`, `TABLE_IDENTIFIER`, `SOURCE_CASE`, `SCHEMA_CASE`, `TABLE_CASE` → `REFUSED`; `CROSS_FILE` check/geração → RC 1, `YAML_UNCHANGED True`. |
+| RVL3-9-02 | **Parcialmente resolvido.** O alias exato é recusado; a garantia de endereço correto continua aberta com homônimas físicas distintas, R10-01. | `probes.py`: `R9_02_ALIAS REFUSED`; `resume.py`: manifest novo, `HOMONYM_FRESH` **0/0/0**, texto errado preservado. |
+| RVL3-9-03 | **Parcialmente resolvido.** As seis grafias do caso anterior são recusadas; comentários e precisão escapam, R10-02. | `probes.py`: seis `REFUSED`, cinco novos `PASS`; `ro.sh oracle.sql`: diferença de 10.800 s nos três primeiros valores. |
+| RVL3-8-01 e RVL3-7-01 | **Resolvidos quanto às duplicidades físicas locais que os originaram.** A garantia geral do catálogo ainda depende de R10-01; pacotes não estão cobertos universalmente. | `followup.py`: `DUP_PHYSICAL` e `DUP_PHYSICAL_CROSS_FILE` → `REFUSED`; `probes.py`: duas fontes diferentes por schema e alias/quoting → `REFUSED`. |
+| RVL3-6-02 e RVL3-5-02 | **Parcialmente resolvidos na garantia geral de nenhuma declaração ignorada.** As duplicidades originais continuam recusadas; R10-01 ainda ignora o destino de um patch. | `followup.py`: `DUP_KEY REFUSED ... chave meta repetida`, `DUP_COLUMN REFUSED ... ['c'] mais de uma vez`; `resume.py`: **0/0/0**. |
+| RVL3-8-02 | **Resolvido quanto ao dia confundido com offset**, sem alteração de `_COM_FUSO` neste intervalo. A extração ainda tem R10-02. | `probes.py`: sentinela simples sem fuso recusado; `make check-offline`: `854 passed`, incluindo os oito casos de `_COM_FUSO`. |
+| RVL3-6-04 | **Mantido o encerramento técnico das expressões de negócio corrigidas; proteção preventiva parcialmente resolvida.** Não reabro a decisão do Owner nem as medições R7/R8. R10-02 limita a guarda. | `git diff 39c5c85..75cbc31 -- dbt` vazio; guarda atual `PASS`; `ro.sh oracle.sql` confirma o escape sintético. Não remedi clientes/classificações. |
+
+Comando adicional: `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python
+/tmp/rvl3-r10-review/followup.py`. Também confirmou `SIMPLE_VALID ACCEPTED`
+para schema implícito e `identifier` igual ao nome. No estado base,
+`probes.py` deu `BASE_STALE [] PROBLEMS []` e `BASE ['--check'] RC 0`, sem
+alterar YAML. Os encerramentos anteriores de marca, promoção, união/coerções,
+escritor UTC e manifest atrasado não têm implementação nova pertinente no
+diff; a suíte offline passou. Não repeti sua investigação integral.
+Continuam declarados os limites de inventário novo/apagado e
+`dbt_project.yml` de RVL3-07/RVL3-2-07. Nenhum ADR aceito foi reescrito.
+
+### Verificações executadas e não executadas
+
+Executados pelo revisor, ambos com **RC 0**:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-p no:cacheprovider' make check-offline
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+```
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+854 passed, 188 deselected in 147.53s (0:02:27)
+check-offline: as três etapas passaram
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Sondas Python concluídas com RC 0; recusas esperadas e a primeira falha
+explícita do caso homônimo estão discriminadas acima. Um compile completo
+na cópia e os três `dbt ls` válidos do projeto mínimo retornaram 0. O wrapper
+SQL retornou 0. Depois de salvar o parecer, `make docs-check`,
+`git diff --check` e a preservação byte a byte do conteúdo anterior foram
+conferidos. Logs e scripts estão no diretório temporário; os dados necessários
+ao parecer foram transcritos aqui.
+
+**Não executados:** `make check`, catálogo/regeneração no checkout, build,
+run, snapshot, reset, carga, sincronização, DAG, ledger, recuperação ou
+mudança de serviços. Os 188 testes de integração ficaram fora pelo alvo
+offline. `dbt PASS=907`, `1039 passed`, `3 skipped` e derivados em dia no
+`make check` de `75cbc31` são **informados pelo autor**, não medição desta
+revisão. O intervalo não altera SQL, snapshots, macros, parâmetros de negócio
+ou YAMLs dbt. O check base não pediu atualização. **Não foi identificada
+mudança de resultado de negócio nestes commits; não refiz os builds nem as
+medições R7/R8.** Os instantes sintéticos do oráculo não são resultados de
+clientes ou fatos atuais.
+
+### Limitações e questões abertas
+
+Para o projeto atual ou sua próxima mudança ordinária, permanecem R10-01
+(reagrupar fontes homônimas já existentes) e R10-02 (comentar ou explicitar a
+precisão de um literal). Não são necessárias construções adversariais para
+reproduzi-los. O limite de pacote/override em R10-03 depende de ampliar as
+fontes das dependências e não foi exercitado sobre o warehouse.
+
+**Resíduos puramente adversariais / não exaustivos, separados dos achados:**
+não se pretendeu provar equivalência para SQL montado por Jinja arbitrário,
+texto de SQL distribuído entre macros/variáveis ou toda sintaxe de literal do
+PostgreSQL. Também não se fez inventário exaustivo de identificadores
+patológicos ou de todos os recursos de pacotes dbt. Estes são limites de
+investigação, não defeitos adicionais confirmados nem passes certificados.
+Não há pergunta ao Owner que impeça avaliar os dois defeitos demonstrados.
+A escolha de nova restrição declarativa ou de ferramenta para corrigi-los
+continua sujeita a CLAUDE.md §5.
+
+### Passagem ao Claude Code
+
+- [ ] **RVL3-10-01:** manter o destino completo até escrita/verificação, ou
+  encaminhar restrição explícita ao Owner; contraprovar homônimas em dois
+  schemas, nas duas ordens e com patch sem mudança de bytes. Nenhuma descrição
+  errada pode sobreviver com sucesso de check/geração/recheck.
+- [ ] **RVL3-10-02:** cobrir comentários entre tokens, precisão, comentários de
+  bloco e zona nomeada sem perder as formas atuais. Demonstrar falha do teste
+  real com literal sem fuso e aceitação das formas corretas; nenhum passe
+  silencioso da guarda.
+- [ ] **RVL3-10-03:** declarar o limite de fontes de pacote/override no dono
+  documental e condicionar seu uso à recusa ou validação da identidade efetiva.
+- [ ] Reexecutar checks pertinentes, preencher situações e medir/declarar
+  qualquer mudança de negócio. O encerramento técnico não substitui a revisão
+  do declarativo nem o aceite formal do Owner.
+
+### Resposta do autor à rodada 10 — evidências
+
+Commits: `1f66294` (RVL3-10-01), `ee2919f` (RVL3-10-03), `f156016` (RVL3-10-02).
+Scripts e cópias no scratchpad da sessão do autor; as saídas abaixo são literais.
+
+**RVL3-10-01 — contraprova de ponta a ponta.** A cópia mutada do revisor
+(`legacy.order_items` no YAML de `retail`, manifest recompilado), com
+`sensitivity.main` do checkout. Antes da correção, em `75cbc31`:
+
+```text
+ANTES [('raw_legacy', 'Quantidade comprada do SKU.'), ('raw', 'Valor monetário total do pedido em reais.')]
+['--check'] RC 0 YAML_INALTERADO True | ['… 0 arquivo(s) desatualizado(s)'] | []
+[] RC 0 YAML_INALTERADO True | ['… 0 arquivo(s) escrito(s)'] | []
+['--check'] RC 0 YAML_INALTERADO True | ['… 0 arquivo(s) desatualizado(s)'] | []
+DEPOIS [('raw_legacy', 'Quantidade comprada do SKU.'), ('raw', 'Valor monetário total do pedido em reais.')]
+```
+
+Depois, `legacy` primeiro (a homônima já certa):
+
+```text
+ANTES [('raw_legacy', 'Quantidade comprada do SKU.'), ('raw', 'Valor monetário total do pedido em reais.')]
+['--check'] RC 1 YAML_INALTERADO True | ['… 1 arquivo(s) desatualizado(s)'] | ['desatualizado: dbt/models/staging/_retail__sources.yml']
+[] RC 0 YAML_INALTERADO False | ['… 1 arquivo(s) escrito(s)'] | []
+['--check'] RC 0 YAML_INALTERADO True | ['… 0 arquivo(s) desatualizado(s)'] | []
+DEPOIS [('raw_legacy', 'Quantidade comprada do SKU.'), ('raw', 'Quantidade comprada do SKU.')]
+```
+
+E `retail` primeiro:
+
+```text
+ANTES [('raw', 'Valor monetário total do pedido em reais.'), ('raw_legacy', 'Quantidade comprada do SKU.')]
+['--check'] RC 1 YAML_INALTERADO True | ['… 1 arquivo(s) desatualizado(s)'] | ['desatualizado: dbt/models/staging/_retail__sources.yml']
+[] RC 0 YAML_INALTERADO False | ['… 1 arquivo(s) escrito(s)'] | []
+['--check'] RC 0 YAML_INALTERADO True | ['… 0 arquivo(s) desatualizado(s)'] | []
+DEPOIS [('raw', 'Quantidade comprada do SKU.'), ('raw_legacy', 'Quantidade comprada do SKU.')]
+```
+
+No checkout real, só leitura:
+`python -m mvp_ed1.models.sensitivity --check` → `… 0 arquivo(s) desatualizado(s)`, RC 0.
+
+**RVL3-10-02 — o teste real com o sentinela trocado** (cópia do `dbt/`):
+
+```text
+ATUAL PASSA
+SENTINELA "timestamptz '9999-12-31'" RECUSA
+SENTINELA "'9999-12-31'::timestamptz" RECUSA
+SENTINELA "cast('9999-12-31' as timestamptz)" RECUSA
+SENTINELA "timestamp with time zone '9999-12-31'" RECUSA
+SENTINELA "timestamptz\n '9999-12-31'" RECUSA
+SENTINELA "'9999-12-31'\n::\ntimestamp with time zone" RECUSA
+SENTINELA "timestamptz /* limite aberto */ '9999-12-31'" RECUSA
+SENTINELA "'9999-12-31' /* limite aberto */ ::timestamptz" RECUSA
+SENTINELA "cast('9999-12-31' /* limite aberto */ as timestamptz)" RECUSA
+SENTINELA "timestamptz(6) '9999-12-31'" RECUSA
+SENTINELA "cast('9999-12-31' as timestamptz(6))" RECUSA
+SENTINELA "timestamptz /* limite aberto */ '9999-12-31 00:00+00'" PASSA
+SENTINELA "timestamptz(6) '9999-12-31 00:00 UTC'" PASSA
+OUTRO "/* timestamptz '2024-01-01' */ select 1" []
+OUTRO "select 'timestamptz ''2024-01-01'''" []
+OUTRO "select timestamptz '2024-01-01 00:00 America/Sao_Paulo'" []
+```
+
+Oráculo pelo `ro.sh`, dentro de `BEGIN READ ONLY … ROLLBACK`, `extract(epoch …)` de:
+`'9999-12-31'::timestamp(3) with time zone`, `TIMESTAMP ( 3 ) WITH /* x */ TIME ZONE '9999-12-31'`,
+`timestamptz(6) '9999-12-31 00:00 UTC'` e `timestamptz '2024-01-01 00:00 America/Sao_Paulo'`:
+
+```text
+UTC|253402214400.000000|253402214400.000000|253402214400.000000|1704078000.000000
+America/Sao_Paulo|253402225200.000000|253402225200.000000|253402214400.000000|1704078000.000000
+```
+
+As duas primeiras (sem fuso) mudam 10.800 s, e a guarda as recusa; as duas
+últimas (com fuso) não mudam, e a guarda as aceita.
+
+**RVL3-10-03 — a sua matriz de pacotes com o código novo:**
+
+```text
+CURRENT_PROPERTIES READER_ACCEPTED
+CURRENT_PROPERTIES FOREIGN_SOURCES []
+DISABLED READER_ACCEPTED
+DISABLED FOREIGN_SOURCES []
+PACKAGE_OVERRIDE READER_REFUSED …/models/sources.yml: fonte `retail` com `overrides` — fonte de pacote não é catalogada
+PACKAGE_OVERRIDE ACTIVE [('review_pkg', 'retail', 'order_items_alias', 'raw', 'order_items')] DISABLED []
+PACKAGE_OVERRIDE FOREIGN_SOURCES ['source.review_pkg.retail.order_items_alias']
+```
+
+Manifest atual: 79 fontes, todas `package_name: mvp_ed1`; nenhum `.yml` com `overrides`.
+
+**Verificações do autor.** `make check-offline` gateou cada commit na árvore
+exata dele (o resto guardado no stash): `1f66294` 857 passed; `ee2919f` 858
+passed; `f156016` 878 passed, segredos e docs-check limpos. `make check` em
+`f156016`: dbt `PASS=907 WARN=0 ERROR=0`, `1063 passed, 3 skipped`,
+`0 arquivo(s) desatualizado(s)`, `check: as quatro etapas passaram`.
+`git diff 75cbc31..f156016 -- dbt` vazio: nenhum SQL, macro, snapshot ou
+YAML do dbt mudou, e **nenhum resultado de negócio muda**.
+
+**Não verificado pelo autor.** Fontes de pacote de verdade sobre o warehouse
+(a recusa foi exercitada no projeto mínimo e por teste); SQL de literal
+montado por Jinja a partir de pedaços e dollar quoting, declarados como
+limite; inventário exaustivo da sintaxe de literal do PostgreSQL.
