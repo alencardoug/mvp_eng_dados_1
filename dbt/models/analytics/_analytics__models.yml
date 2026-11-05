@@ -1356,8 +1356,8 @@ models:
       - name: quantity_delta
         meta:
           sensitivity: internal
-          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
-        description: '**Semiaditiva** — soma por armazém e SKU, nunca ao longo do tempo.'
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz; aditiva, porque é delta assinado (RVL3-10)"
+        description: '**Aditiva** — variação assinada do saldo: positiva na entrada, negativa na saída; a soma num período é a variação líquida do estoque nele.'
         data_tests: [not_null]
       - name: cogs_amount
         meta:
@@ -1600,7 +1600,7 @@ models:
       - name: quantity_shipped
         meta:
           sensitivity: internal
-          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz; aditiva, porque é delta assinado (RVL3-10)"
         description: '**Aditiva** — unidades que viajaram nesta caixa.'
         data_tests: [not_null]
       - name: shipment_status
@@ -2254,7 +2254,7 @@ models:
       - name: coupon_discount_amount
         meta:
           sensitivity: confidential
-          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz"
+          description_reason: "diz a aditividade da medida nesta fato, que o texto herdado não diz; aditiva, porque é delta assinado (RVL3-10)"
         description: '**Aditiva** — desconto efetivamente concedido.'
         data_tests: [not_null]
       - name: source_system
