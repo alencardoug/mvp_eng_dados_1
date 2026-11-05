@@ -344,7 +344,7 @@ def _declaracoes_no_disco() -> tuple[dict[str, dict[str, dict]], dict[tuple[str,
     fontes: dict[tuple[str, str], dict[str, dict]] = {}
     for pasta in ("models", "snapshots", "seeds"):
         for caminho in sorted((DBT / pasta).rglob("*.yml")):
-            documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+            documento = read_yaml(caminho)
             for chave in ("models", "snapshots", "seeds"):
                 for entrada in documento.get(chave) or []:
                     nos[entrada["name"]] = {c["name"]: (c.get("meta") or {}) for c in entrada.get("columns") or []}
@@ -387,6 +387,41 @@ def _declaracao_atrasada(manifest: dict) -> list[str]:
         if {c: m.get("sensitivity") for c, m in manifesto.items()} != {c: m.get("sensitivity") for c, m in disco.items()}:
             atrasadas.append(f"declaração da fonte {fonte['source_name']}.{fonte['name']}")
     return atrasadas
+
+
+class _SemChaveRepetida(getattr(yaml, "CSafeLoader", yaml.SafeLoader)):
+    """O carregador que recusa chave repetida: o `safe_load` ficaria com a última, calado (RVL3-4-01, RVL3-5-02)."""
+
+
+def _mapa_sem_repeticao(carregador, no, deep=False):
+    vistas = set()
+    for chave_no, _ in no.value:
+        chave = carregador.construct_object(chave_no, deep=deep)
+        if chave in vistas:
+            raise ValueError(f"chave `{chave}` repetida (linha {chave_no.start_mark.line + 1})")
+        vistas.add(chave)
+    return yaml.constructor.SafeConstructor.construct_mapping(carregador, no, deep=deep)
+
+
+_SemChaveRepetida.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapa_sem_repeticao)
+
+
+def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
+    """Um `.yml` do projeto, lido **sem perder ocorrência** (RVL3-5-02): chave repetida num
+    mapa e coluna repetida numa entrada são erro, não a última que vence — uma marca de
+    herdado encoberta por uma segunda ocorrência sem ela faria o texto velho virar raiz."""
+    texto = caminho.read_text(encoding="utf-8") if conteudo is None else conteudo
+    try:
+        documento = yaml.load(texto, Loader=_SemChaveRepetida) or {}
+    except ValueError as erro:
+        raise ValueError(f"{caminho}: {erro}") from None
+    entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
+    entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
+    for entrada in entradas:
+        nomes = [c.get("name") for c in entrada.get("columns") or []]
+        if repetidas := sorted({n for n in nomes if nomes.count(n) > 1}):
+            raise ValueError(f"{caminho}: `{entrada.get('name')}` lista a(s) coluna(s) {repetidas} mais de uma vez")
+    return documento
 
 
 def _linhas(texto: str) -> str:
@@ -601,7 +636,7 @@ def manual_entries() -> dict[str, tuple[pathlib.Path, dict[str, dict]]]:
     for caminho in sorted(list((DBT / "models").rglob("*.yml")) + list((DBT / "snapshots").rglob("*.yml"))):
         if _is_generated(caminho):
             continue
-        documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        documento = read_yaml(caminho)
         for entrada in (documento.get("models") or []) + (documento.get("snapshots") or []):
             colunas = {c["name"]: (c.get("meta") or {}) for c in entrada.get("columns") or []}
             entradas[entrada["name"]] = (caminho, colunas)
@@ -620,7 +655,7 @@ def generator_entries() -> dict[str, pathlib.Path]:
     for caminho in sorted(list((DBT / "models").rglob("*.yml")) + list((DBT / "snapshots").rglob("*.yml"))):
         if caminho.name in GENERATED_FILES or not _is_generated(caminho):
             continue
-        documento = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        documento = read_yaml(caminho)
         for entrada in (documento.get("models") or []) + (documento.get("snapshots") or []):
             entradas[entrada["name"]] = caminho
     return entradas
@@ -764,29 +799,12 @@ def patch_meta(texto: str, entradas: dict[str, dict[str, dict[str, object]]]) ->
     return "\n".join(linhas)
 
 
-class _SemChaveRepetida(yaml.SafeLoader):
-    """O carregador que recusa chave repetida: o `safe_load` ficaria com a última, calado."""
-
-
-def _mapa_sem_repeticao(carregador, no, deep=False):
-    vistas = set()
-    for chave_no, _ in no.value:
-        chave = carregador.construct_object(chave_no, deep=deep)
-        if chave in vistas:
-            raise ValueError(f"chave `{chave}` repetida (linha {chave_no.start_mark.line + 1})")
-        vistas.add(chave)
-    return yaml.SafeLoader.construct_mapping(carregador, no, deep=deep)
-
-
-_SemChaveRepetida.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapa_sem_repeticao)
-
-
 def verify_meta(caminho: pathlib.Path, conteudo: str, esperado: dict[str, dict[str, dict[str, object]]]) -> None:
     """O arquivo escrito, **como o YAML o carrega** e sem chave repetida, tem cada chave de `meta` pedida (RVL3-4-01)."""
     try:
-        documento = yaml.load(conteudo, Loader=_SemChaveRepetida) or {}
+        documento = read_yaml(caminho, conteudo)
     except ValueError as erro:
-        raise RuntimeError(f"{caminho.relative_to(ROOT)}: {erro}") from None
+        raise RuntimeError(str(erro)) from None
     entradas = {e["name"]: e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []}
     for nome, colunas in esperado.items():
         metas = {c["name"]: (c.get("meta") or {}) for c in entradas[nome].get("columns", [])}
@@ -891,18 +909,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"derivação incompleta ({len(derivacao.problems)} problema(s)): nenhum arquivo é tocado; "
               "rode `make dbt-build` (ou `dbt compile`) antes", file=sys.stderr)
         return 1
-    plano = plan(manifest, derivacao)
-    disco = descriptions.disk_entries()
-    textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
-    dominios = domains.derive_domains(manifest, disco)
     try:
+        plano = plan(manifest, derivacao)
+        disco = descriptions.disk_entries()
+        textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
+        dominios = domains.derive_domains(manifest, disco)
         arquivos = render_files(plano, textos, dominios)
         # A marca conferida no YAML carregado, nos dois modos: um escritor que não a
         # grava não pode passar no `--check` só porque os bytes não mudaram (RVL3-4-01).
         for caminho, marcas in textos.marks.items():
             verify_meta(caminho, arquivos.get(caminho, caminho.read_text(encoding="utf-8")), marcas)
     except (ValueError, RuntimeError) as erro:
-        print(f"escrita recusada: {erro} — nenhum arquivo é tocado", file=sys.stderr)
+        print(f"recusado: {erro} — nenhum arquivo é tocado", file=sys.stderr)
         return 1
 
     for mudanca in plano.changes + textos.changes + dominios.changes:

@@ -30,6 +30,7 @@ importa aqui: a pergunta é só se o valor da saída é o valor de uma entrada.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -181,8 +182,10 @@ _ORDEM = {
 
 
 def canonical_type(tipo: str) -> str:
-    base = " ".join(tipo.upper().split("(")[0].split())
-    return _SINONIMOS.get(base, base)
+    # Tira só os parâmetros — `varchar(8)[]` continua array, não vira texto (RVL3-5-03).
+    sufixo = "[]" * tipo.count("[]")
+    base = " ".join(re.sub(r"\([^)]*\)", "", tipo.upper()).replace("[]", "").split())
+    return _SINONIMOS.get(base, base) + sufixo
 
 
 def _conversao_preserva(de: str, para: str) -> bool:

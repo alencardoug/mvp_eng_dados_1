@@ -230,6 +230,25 @@ def test_o_escritor_nao_perde_a_marca_em_meta_com_comentario_nem_aceita_meta_em_
         s.verify_meta(s.ROOT / "x.yml", duplicado, {"m": {"a": {d.MARK: True}}})
 
 
+def test_a_leitura_nao_deixa_uma_segunda_ocorrencia_encobrir_a_marca(tmp_path, monkeypatch) -> None:
+    """RVL3-5-02: coluna listada duas vezes, chave `meta` repetida, entrada em dois arquivos — tudo é erro de leitura."""
+    base = "version: 2\nmodels:\n  - name: m\n    columns:\n"
+    coluna_dupla = base + ("      - name: a\n        meta:\n          description_inherited: true\n"
+                           "      - name: a\n        meta:\n          sensitivity: internal\n")
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        s.read_yaml(tmp_path / "x.yml", coluna_dupla)
+    meta_duplo = base + ("      - name: a\n        meta:\n          description_inherited: true\n"
+                         "        meta:\n          sensitivity: internal\n")
+    with pytest.raises(ValueError, match="repetida"):
+        s.read_yaml(tmp_path / "x.yml", meta_duplo)
+    monkeypatch.setattr(s, "DBT", tmp_path)
+    (tmp_path / "models").mkdir()
+    for nome in ("_a.yml", "_b.yml"):
+        (tmp_path / "models" / nome).write_text(base + "      - name: a\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="documentado em"):
+        d.disk_entries()
+
+
 def test_toda_grafia_do_mesmo_doc_e_a_mesma_referencia() -> None:
     """RVL3-3-02: espaço, aspas e controle de espaço do Jinja não revisam o texto."""
     formas = ['{{ doc("x") }}', "{{doc('x')}}", '{{ doc ("x") }}', '{{- doc( "x" ) -}}']
@@ -284,6 +303,10 @@ def test_uniao_nao_transporta_quando_a_resolucao_de_tipo_pode_mudar_o_valor() ->
               ' from "wh"."staging"."a"')
     assert [tr.materialized_type(k[c]) for c in ("s", "b", "i", "n", "aa", "tt")] == [
         "TEXT", "BOOLEAN", "INTEGER", "NUMERIC", None, "TEXT"]
+    # RVL3-5-03: o parâmetro sai, o array fica — `varchar(8)[]` não é texto escalar
+    assert tr.canonical_type("VARCHAR(8)[]") == "VARCHAR[]"
+    va = saida("select cast(arr as varchar(8)[]) || cast(arr as varchar(8)[]) as v from \"wh\".\"staging\".\"a\"")
+    assert tr.materialized_type(va["v"]) is None
     # RVL3-2-02: a subunião de constantes guarda os tipos que viu
     assert coluna(base + "(select 0::real as id union all select 1::double precision as id)") == tr.Computed("union_coercion")
     assert isinstance(coluna(base + "(select -1 as id union all select null as id)"), tr.Carry)

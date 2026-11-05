@@ -135,14 +135,20 @@ def _text(coluna: dict) -> str:
     return (coluna.get("description") or "").strip()
 
 
-_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)   # o de C, quando a libyaml existe: ~10× mais rápido
-
-
 def _documents() -> list[tuple[pathlib.Path, dict]]:
     """Cada `.yml` do projeto dbt, lido uma vez."""
     raiz = sensitivity.DBT                     # na chamada: os testes apontam o projeto para outro diretório
     caminhos = sorted(list((raiz / "models").rglob("*.yml")) + list((raiz / "snapshots").rglob("*.yml")) + list((raiz / "seeds").rglob("*.yml")))
-    return [(c, yaml.load(c.read_text(encoding="utf-8"), Loader=_LOADER) or {}) for c in caminhos]
+    documentos = [(c, sensitivity.read_yaml(c)) for c in caminhos]
+    # Uma entrada em dois arquivos: o dbt recusaria, e aqui a segunda encobriria a primeira (RVL3-5-02).
+    vistas: dict[str, pathlib.Path] = {}
+    for caminho, documento in documentos:
+        for chave in ("models", "snapshots", "seeds"):
+            for e in documento.get(chave) or []:
+                if e["name"] in vistas:
+                    raise ValueError(f"`{e['name']}` documentado em {vistas[e['name']]} e em {caminho}")
+                vistas[e["name"]] = caminho
+    return documentos
 
 
 def _kind(caminho: pathlib.Path) -> str:
