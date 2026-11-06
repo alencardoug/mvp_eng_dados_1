@@ -12,9 +12,9 @@
 |---|---|
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` está na revisão final — a etapa 1.9 do plano do `bi-como-codigo` — e o seu aceite vem depois dela ([plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
-| Verificações adiadas | 1 (V1, da revisão do lote 3 da v1.1.0, registrada em 05/11/2026) |
+| Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
 | Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP). A D65 e a D67 foram fechadas pela v1.1.0 (§2) |
-| Última revisão | 05/11/2026 — a V1, verificações adiadas da revisão do lote 3 da v1.1.0 |
+| Última revisão | 05/11/2026 — a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 |
 
 ---
 
@@ -147,34 +147,58 @@ os filhos na limpeza. O bruto real não tem chave assim; até a decisão, o test
 pai pela forma canônica — contraprova feita em 17/09 com um cupom apontando `0x1` para a campanha
 `1`. Unificar é mudança de tratamento (versão do catálogo, oráculo, auditorias) e pede ADR.
 
-### V1 — verificações adiadas da revisão do lote 3 da v1.1.0 (registrada em 05/11/2026)
+### V1 — verificações adiadas da revisão da v1.1.0, lotes 1 a 3 (registrada em 05/11/2026)
 
-**Pergunta:** quando voltar às verificações que a revisão do lote 3 deixou de fora? Nenhuma é
-bloqueante: a rodada 12 fechou sem achado, e o lote foi encerrado em `4cf41ff` com os limites
-declarados. Não é decisão de modelagem: é marcar o momento de medir.
+**Pergunta:** quando voltar às verificações que a revisão da v1.1.0 deixou de fora? Nenhuma é
+bloqueante: os três lotes fecharam sem achado aberto — o 1 em `28044c7`, o 2 em `20ea4f3` e o 3 em
+`4cf41ff`. Os limites **aceitos** já estão nos donos documentais e não se repetem aqui; esta lista
+é do que **não foi exercitado**, para medir depois. Não é decisão de modelagem: é marcar o momento.
 
-O que fica por verificar, cada item com o seu dono documental:
+**Nos três lotes.** O Codex rodou o `check-offline`, o histórico de segredos e sondas em cópia, nunca
+o `make check` completo nem os testes de integração; o número completo de cada lote é do autor
+(`PASS=907` e 1079 testes no fim do lote 3, em `7e12874`).
 
-1. **Uma rodada do `make check` completo feita pelo revisor.** Nas rodadas 11 e 12 o Codex rodou só
-   o `check-offline` e as sondas em cópia; o número completo (`PASS=907`, 1079 testes, em
-   `7e12874`) é do autor.
-2. **Escritor do catálogo em YAML que não é em bloco.** Coluna em fluxo (`- {name: x, …}`) e
-   `-   name:` dão saída recusada, medida; o escritor não as edita
-   ([Governança §5.1](governanca_de_dados.md)). Verificar de novo, ou ampliar o escritor, se alguma
-   edição introduzir essas formas.
-3. **Formas de literal de instante que a guarda não lê.** Jinja montado em partes, dollar quoting,
-   `E'…'` e `cast(('…') as …)` ([Qualidade §4](qualidade_de_dados.md)); e uma string do próprio
-   Jinja que contenha `}}` ou `%}`. A semântica de `E'…'` e de `cast(('…'))` não foi conferida no
-   PostgreSQL.
-4. **Fonte de pacote de verdade.** A recusa (`foreign_sources`, `overrides`) foi exercitada por
-   injeção no manifest e em projeto mínimo, sem pacote real com fontes nem manifest adulterado.
-5. **As premissas da compilação recente.** Macro nova ou apagada e o `dbt_project.yml` não entram na
-   conferência de manifest atrasado (RVL3-2-07, [Governança §5.1](governanca_de_dados.md)); quem as
-   cumpre é o *build* que o `make check` faz antes.
+**Lote 1 — o livro retido, a recuperação H7, o portão H6 e o oráculo T3.** Os limites aceitos estão
+na [Origem Legada §4.3](origem_legada.md): um chamador de captura vivo por vez, a colisão de
+`hashtext` e o SCD fora do T3. Ficaram sem exercitar:
 
-*Recomendação:* voltar a elas na abertura da Etapa 13 (GCP) ou antes da próxima alteração que toque
-`src/mvp_ed1/models/` ou `tests/test_vigencia_em_utc.py`, o que vier primeiro. A Etapa 13 reescreve
-o catálogo e as guardas para o BigQuery, e é onde as premissas 3 a 5 mudam.
+1. a concorrência real de dois chamadores de captura, que é o limite declarado;
+2. a retomada depois da parada por ambiguidade de janela (RVL1-2-02). Não há comando que associe o
+   *job* à tentativa, e a saída é o caminho de volta pelo pacote ou uma resolução sua; nenhuma
+   das duas foi ensaiada;
+3. testes de integração mutantes do livro e da recuperação.
+
+**Lote 2 — identidade no consumo, ADR-0049, `lineage --json` e o login de leitura.** Os limites
+aceitos estão na [Governança §7](governanca_de_dados.md): o alcance de "não interfere" e o recorte do
+oráculo do leitor. Ficaram sem exercitar:
+
+4. a guarda de identidade é **sintática**: "as 16 views dão `[]`" quer dizer a guarda aplicada ao SQL
+   de cada modelo, não as views executadas no armazém nem as métricas recalculadas, e não há prova
+   exaustiva das construções SQL;
+5. um inventário do estado do armazém antes e depois das sondas do login de leitura;
+6. a obrigação do consumidor do `lineage --json` — `generated` não é quebra (RVL2-06) — vai para a
+   Parte II do `bi-como-codigo`; entra no PLAN dele junto do aceite da v1.1.0.
+
+**Lote 3 — catálogo: descrição herdada, `domain`/`owner`, D66/D67.** Os limites aceitos estão na
+[Governança §5.1](governanca_de_dados.md) (o escritor só em bloco) e na
+[Qualidade §4](qualidade_de_dados.md) (as formas que a guarda do fuso não lê). Ficaram sem exercitar:
+
+7. um `.yml` à mão que não seja em bloco — coluna em fluxo (`- {name: x, …}`) ou `-   name:`. Hoje a
+   saída é recusada, o que foi medido; o escritor não as edita;
+8. as formas de literal de instante que a guarda não lê — Jinja montado em partes, dollar quoting,
+   `E'…'`, `cast(('…') as …)` e uma string do próprio Jinja com `}}` ou `%}`. A semântica de
+   `E'…'` e de `cast(('…'))` não foi conferida no PostgreSQL;
+9. uma fonte de pacote de verdade. A recusa (`foreign_sources`, `overrides`) foi exercitada por
+   injeção no manifest e em projeto mínimo, sem pacote real com fontes e sem manifest adulterado;
+10. as premissas da compilação recente: macro nova ou apagada e o `dbt_project.yml` não entram na
+    conferência de manifest atrasado (RVL3-2-07); quem as cumpre é o *build* que o `make check` faz
+    antes.
+
+*Recomendação:* voltar a cada grupo antes da próxima alteração que toque o código dele —
+`src/mvp_ed1/recovery/` e o livro (lote 1), a guarda de identidade e o login de leitura (lote 2),
+`src/mvp_ed1/models/` e `tests/test_vigencia_em_utc.py` (lote 3) —, e a todos na abertura da
+Etapa 13 (GCP), que reescreve recuperação, acesso, catálogo e guardas para o BigQuery; o item 6
+sai daqui quando entrar no PLAN do `bi-como-codigo`.
 
 *Efeito de não decidir:* nenhum no projeto como está. Uma edição futura em uma das formas acima é
 recusada ou fica fora da guarda, e a lista diz onde olhar.
