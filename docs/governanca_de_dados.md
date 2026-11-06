@@ -13,7 +13,7 @@
 | Versão | 2.22 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita; o domínio é escrito e conferido no `meta` efetivo (rodada 11 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita; o domínio é escrito e conferido no `meta` efetivo; o limite do escritor em bloco (rodadas 11 e 12 do lote 3 da v1.1.0) |
 
 ---
 
@@ -195,7 +195,10 @@ certo noutra entrada não muda byte nenhum, e só a conferência por endereço o
 da entrada, a coluna é achada pelo nome **como o YAML o lê** — com comentário, aspas ou espaço a mais —
 e com o recuo da lista dela; e todo conteúdo final é lido estrito antes de qualquer escrita, nos dois
 modos, mesmo sem marca a escrever: uma coluna que o escritor duplicasse sairia com 0 e só seria
-recusada na rodada seguinte (RVL3-11-01). Fonte
+recusada na rodada seguinte (RVL3-11-01). O escritor edita YAML **em bloco**: coluna em fluxo
+(`- {name: x, …}`) ou com espaço depois do traço (`-   name:`) dá uma saída que a leitura estrita
+recusa, sem escrever nada — o projeto não usa essas formas, e quem as introduzir normaliza o layout
+ou amplia o escritor antes de gerar (limite declarado no fechamento do lote 3). Fonte
 de **pacote** — a vinda de uma dependência, ou a local com `overrides` — também é recusa: a
 identidade dela é a do pacote, que o leitor não lê; o manifest efetivo é conferido, e a fonte de
 outro pacote para o `make catalog` (RVL3-10-03) —
