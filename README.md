@@ -18,7 +18,7 @@ Faker → PostgreSQL → Airbyte → dbt → datamart → consumption     (batch
 
 | | |
 |---|---|
-| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026. A fase GCP está planejada e não começou |
+| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP está planejada e não começou |
 | **Stack** | PostgreSQL · Airbyte (em Kubernetes local) · dbt · Airflow · Debezium sobre Kafka Connect · Redpanda · Apache Beam · Terraform · Docker · Python com SQLAlchemy e Alembic |
 | **Escopo** | 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
 | **Qualidade** | `make check` com 905 nós do dbt (700 testes de dados) e 637 testes Python; reconciliação em toda fronteira entre camadas; 4.161 de 4.161 colunas classificadas por sensibilidade |
@@ -54,7 +54,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.9 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`); a `v1.1.0` à espera da revisão final e do aceite |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.10 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`); a `v1.1.0` aceita em 05/11/2026 |
 | [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
 | [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.9 — inventário e diagrama **gerados**; invariante 14 na v1.1.0 |
 | [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
@@ -134,9 +134,9 @@ do alerta do *streaming* (D62), o medidor do *streaming* que encerra antes de o 
 (D63), a chave Fernet do Airflow gerada inválida (D64) e itens vendidos antes do lançamento do produto
 no dado sintético (D65). Nada no código foi alterado.
 
-**A versão de manutenção `v1.1.0` tem os critérios medidos e espera a revisão final e o aceite**
+**A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0`**
 ([Plano](docs/plano_de_desenvolvimento.md#versão-de-manutenção-v110)). O
-[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/PLAN.md#5-part-i--maintenance-release-v110-of-eng_dados)
+[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/895b886/PLAN.md#5-part-i--maintenance-release-v110-of-eng_dados)
 a executa neste repositório: as views contam por identificador com a origem, o gerador ganhou a
 árvore de categorias, a faixa de preço por folha e o lançamento antes da venda (a D65), a P09 lê o
 valor capturado (a D67), as colunas do `analytics` e do `consumption` têm todas descrição, e a
@@ -145,3 +145,6 @@ memória do legado passou a ser registrada num livro retido
 regeneração aplicou o gerador às duas origens mantendo a memória do armazém, com `make check` verde,
 e o ponto de recuperação passou a ser o da v1.1.0
 ([Capacidade §2.13](docs/capacidade_e_recuperacao.md#213-a-regeneração-da-v110-medida--04112026)).
+A versão inteira foi revisada por outro agente em três lotes por risco — 22 rodadas, 96 achados, todos
+tratados —, e o `make check` do último código (`7e12874`) deu verde com `PASS=907` e 1.079 testes Python; o que a revisão
+não exercitou ficou registrado para depois, na V1 das [Pendências](docs/pendencias.md).

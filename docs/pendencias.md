@@ -10,11 +10,11 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` está na revisão final — a etapa 1.9 do plano do `bi-como-codigo` — e o seu aceite vem depois dela ([plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
+| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
 | Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP). A D65 e a D67 foram fechadas pela v1.1.0 (§2) |
-| Última revisão | 05/11/2026 — a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 |
+| Última revisão | 05/11/2026 — o aceite da `v1.1.0` e a V1, verificações adiadas da revisão dela |
 
 ---
 
@@ -175,30 +175,29 @@ oráculo do leitor. Ficaram sem exercitar:
 4. a guarda de identidade é **sintática**: "as 16 views dão `[]`" quer dizer a guarda aplicada ao SQL
    de cada modelo, não as views executadas no armazém nem as métricas recalculadas, e não há prova
    exaustiva das construções SQL;
-5. um inventário do estado do armazém antes e depois das sondas do login de leitura;
-6. a obrigação do consumidor do `lineage --json` — `generated` não é quebra (RVL2-06) — vai para a
-   Parte II do `bi-como-codigo`; entra no PLAN dele junto do aceite da v1.1.0.
+5. um inventário do estado do armazém antes e depois das sondas do login de leitura. A obrigação do
+   consumidor do `lineage --json` — `generated` não é quebra (RVL2-06) — está no contrato do
+   [plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/895b886/PLAN.md#35-the-contract-with-eng_dados).
 
 **Lote 3 — catálogo: descrição herdada, `domain`/`owner`, D66/D67.** Os limites aceitos estão na
 [Governança §5.1](governanca_de_dados.md) (o escritor só em bloco) e na
 [Qualidade §4](qualidade_de_dados.md) (as formas que a guarda do fuso não lê). Ficaram sem exercitar:
 
-7. um `.yml` à mão que não seja em bloco — coluna em fluxo (`- {name: x, …}`) ou `-   name:`. Hoje a
+6. um `.yml` à mão que não seja em bloco — coluna em fluxo (`- {name: x, …}`) ou `-   name:`. Hoje a
    saída é recusada, o que foi medido; o escritor não as edita;
-8. as formas de literal de instante que a guarda não lê — Jinja montado em partes, dollar quoting,
+7. as formas de literal de instante que a guarda não lê — Jinja montado em partes, dollar quoting,
    `E'…'`, `cast(('…') as …)` e uma string do próprio Jinja com `}}` ou `%}`. A semântica de
    `E'…'` e de `cast(('…'))` não foi conferida no PostgreSQL;
-9. uma fonte de pacote de verdade. A recusa (`foreign_sources`, `overrides`) foi exercitada por
+8. uma fonte de pacote de verdade. A recusa (`foreign_sources`, `overrides`) foi exercitada por
    injeção no manifest e em projeto mínimo, sem pacote real com fontes e sem manifest adulterado;
-10. as premissas da compilação recente: macro nova ou apagada e o `dbt_project.yml` não entram na
-    conferência de manifest atrasado (RVL3-2-07); quem as cumpre é o *build* que o `make check` faz
-    antes.
+9. as premissas da compilação recente: macro nova ou apagada e o `dbt_project.yml` não entram na
+   conferência de manifest atrasado (RVL3-2-07); quem as cumpre é o *build* que o `make check` faz
+   antes.
 
 *Recomendação:* voltar a cada grupo antes da próxima alteração que toque o código dele —
 `src/mvp_ed1/recovery/` e o livro (lote 1), a guarda de identidade e o login de leitura (lote 2),
 `src/mvp_ed1/models/` e `tests/test_vigencia_em_utc.py` (lote 3) —, e a todos na abertura da
-Etapa 13 (GCP), que reescreve recuperação, acesso, catálogo e guardas para o BigQuery; o item 6
-sai daqui quando entrar no PLAN do `bi-como-codigo`.
+Etapa 13 (GCP), que reescreve recuperação, acesso, catálogo e guardas para o BigQuery.
 
 *Efeito de não decidir:* nenhum no projeto como está. Uma edição futura em uma das formas acima é
 recusada ou fica fora da guarda, e a lista diz onde olhar.
@@ -252,6 +251,17 @@ fábrica nunca chegou a valer. O plano transitório e o dossiê da revisão fina
 no *commit* de fechamento e estão no histórico em `46d8243` (`PLANO_etapa_12.md` e `REVISAO.md`); o
 diário do B5 está em `data/medicoes/diario_b5.md`, fora do Git.
 
+**A versão de manutenção `v1.1.0` foi aceita em 05/11/2026**, e o *commit* do aceite leva a *tag*
+`v1.1.0`. Os critérios foram medidos entre 23/10 e 04/11/2026
+([plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A revisão de outro agente (Codex)
+cobriu primeiro os documentos da etapa 1.9 e depois a versão inteira, em três lotes por risco: o
+livro retido e a recuperação em três rodadas, a identidade no consumo e o login de leitura em sete,
+o catálogo em doze — 96 achados, todos tratados, e a última rodada de cada lote sem achado aberto.
+As decisões suas tomadas no caminho são as N57 a N63 do
+[plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/895b886/PLAN.md#12-the-decisions),
+e o que a revisão não exercitou é a V1 (§1). Os dossiês saíram do repositório no fechamento de
+cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
+
 ---
 
 ## 2. Decisões já fechadas
@@ -260,7 +270,7 @@ diário do B5 está em `data/medicoes/diario_b5.md`, fora do Git.
 
 - **D65 — o gerador passa a respeitar o lançamento antes da venda, com a invariante 14.** Decidida
   em 22/10/2026 como a N6 do
-  [plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/3c9ab4e/PLAN.md#12-the-decisions)
+  [plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/895b886/PLAN.md#12-the-decisions)
   — corrigir o dado sintético agora, antes de tudo —, que é a opção (b), com o lançamento sorteado
   entre o início do período e a primeira venda do produto (N39). Implementada na etapa 1.5 da
   v1.1.0 — a [invariante 14](modelo_de_dados.md#4-invariantes-de-negócio) e o
