@@ -549,6 +549,74 @@ def test_endereco_repetido_no_arquivo_e_recusa_e_a_fonte_leva_o_par(tmp_path, mo
         ("retail", "order_items"): {"quantity": d.source_texts()[("raw", "order_items", "quantity")]}}
 
 
+@pytest.mark.parametrize("grafia", [
+    "- name: quantity # unidades compradas",
+    '- name: "quantity"',
+    "- name: 'quantity'  # entre aspas",
+    "- name:   quantity",
+])
+def test_a_coluna_e_reconhecida_pelo_nome_que_o_yaml_le(grafia) -> None:
+    """RVL3-11-01: `- name: quantity # …` é a mesma coluna; comparar a linha acrescentava uma segunda `quantity`,
+    sem os metadados, e a geração saía com 0 — a leitura estrita só a recusava na rodada seguinte."""
+    original = HOMONIMAS.replace("          - name: quantity\n            description: \"Valor monetário",
+                                 f"          {grafia}\n            description: \"Valor monetário")
+    assert original != HOMONIMAS
+    alvo = s.DBT / "models" / "x.yml"
+    certo = "Quantidade comprada do SKU."
+    for escrito, pedido, conferir in (
+        (d.patch_descriptions(original, {("retail", "order_items"): {"quantity": certo}}),
+         {("retail", "order_items"): {"quantity": certo}}, d.verify),
+        (s.patch_yaml(original, {("retail", "order_items"): {"quantity": "internal"}}),
+         {("retail", "order_items"): {"quantity": "internal"}}, s._verify),
+    ):
+        documento = s.read_yaml(alvo, escrito)                    # uma ocorrência só — a leitura estrita aceita
+        colunas = s.entries_by_address(documento)[("retail", "order_items")]["columns"]
+        assert [c["name"] for c in colunas] == ["quantity"]
+        conferir(alvo, escrito, pedido)
+    assert _quantity(d.patch_descriptions(original, {("retail", "order_items"): {"quantity": certo}}))[
+        ("retail", "order_items")]["meta"] == {"sensitivity": "public"}        # os metadados ficam com a coluna
+
+
+def test_a_coluna_nova_entra_na_lista_de_colunas_com_o_recuo_dela() -> None:
+    """A coluna nova entra no fim de `columns:`, não no fim da entrada, e com o recuo da lista — sem recuo também."""
+    original = textwrap.dedent("""\
+        version: 2
+        models:
+        - name: m
+          columns:
+          - name: a
+            meta:
+              sensitivity: internal
+          # comentário solto no fim da lista
+
+          data_tests:
+            - dbt_utils.expression_is_true:
+                expression: "a > 0"
+        """)
+    escrito = d.patch_descriptions(s.patch_yaml(original, {"m": {"b": "public"}}), {"m": {"b": "Nova.", "a": "Velha."}})
+    entrada = s.read_yaml(s.DBT / "models" / "x.yml", escrito)["models"][0]
+    assert [(c["name"], c.get("description"), c["meta"]) for c in entrada["columns"]] == [
+        ("a", "Velha.", {"sensitivity": "internal"}), ("b", "Nova.", {"sensitivity": "public"})]
+    assert entrada["data_tests"] == [{"dbt_utils.expression_is_true": {"expression": "a > 0"}}]
+    assert "# comentário solto no fim da lista" in escrito
+
+
+def test_coluna_repetida_no_arquivo_e_recusa_do_escritor_e_dos_verificadores() -> None:
+    """RVL3-11-01: os verificadores liam com `safe_load` e reduziam as duas ocorrências à última, caladas."""
+    repetida = HOMONIMAS.replace('            description: "Valor monetário total do pedido em reais."\n',
+                                 '            description: "Valor monetário total do pedido em reais."\n'
+                                 '          - name: quantity # repetida\n')
+    alvo = s.DBT / "models" / "x.yml"
+    with pytest.raises(ValueError, match="2 vezes"):
+        d.patch_descriptions(repetida, {("retail", "order_items"): {"quantity": "x"}})
+    with pytest.raises(ValueError, match="2 vezes"):
+        s.patch_yaml(repetida, {("retail", "order_items"): {"quantity": "internal"}})
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        d.verify(alvo, repetida, {("retail", "order_items"): {"quantity": "Valor monetário total do pedido em reais."}})
+    with pytest.raises(ValueError, match="mais de uma vez"):
+        s._verify(alvo, repetida, {("legacy", "order_items"): {"quantity": "internal"}})
+
+
 def test_arquivo_gerado_leva_a_descricao_antes_da_sensibilidade() -> None:
     texto = s.render_generated({"t": {"a": "internal", "b": "public"}}, "models", {"t": {"a": "Texto."}})
     colunas = yaml.safe_load(texto)["models"][0]["columns"]

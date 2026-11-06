@@ -310,6 +310,33 @@ def test_fonte_de_outro_pacote_ou_sobreposta_e_recusada(tmp_path, monkeypatch, c
         assert "fonte de outro pacote" in capsys.readouterr().err
 
 
+def test_conteudo_final_com_coluna_repetida_e_recusado_antes_de_escrever(tmp_path, monkeypatch, capsys) -> None:
+    """RVL3-11-01: um escritor que duplica a coluna não sai com 0 — todo conteúdo final é lido estrito,
+    mesmo sem marca a escrever, e nenhum destino é tocado, nos dois modos."""
+    dbt = tmp_path / "dbt"
+    (dbt / "models").mkdir(parents=True)
+    (dbt / "target").mkdir()
+    monkeypatch.setattr(s, "ROOT", tmp_path)
+    monkeypatch.setattr(s, "DBT", dbt)
+    monkeypatch.setattr(s, "MANIFEST", dbt / "target" / "manifest.json")
+    monkeypatch.setattr(s, "CACHE", tmp_path / "derivation.pickle")
+    no = {"unique_id": "model.mvp_ed1.a", "resource_type": "model", "name": "a", "schema": "trusted", "database": "wh",
+          "original_file_path": "models/a.sql", "depends_on": {"nodes": []}, "columns": {}, "compiled_code": "select 1 as x",
+          "raw_code": "select 1 as x\n"}
+    (dbt / "models" / "a.sql").write_text("select 1 as x\n", encoding="utf-8")
+    s.MANIFEST.write_text(json.dumps({"metadata": {"project_name": "mvp_ed1"}, "sources": {},
+                                      "nodes": {"model.mvp_ed1.a": no}}), encoding="utf-8")
+    yml = dbt / "models" / "_a.yml"
+    original = "version: 2\nmodels:\n  - name: a\n    columns:\n      - name: x\n        meta:\n          sensitivity: internal\n"
+    yml.write_text(original, encoding="utf-8")
+    duplicado = original + "      - name: x\n        description: \"Outra.\"\n"
+    monkeypatch.setattr(s, "render_files", lambda *_: {yml: duplicado})
+    for argv in ([], ["--check"]):
+        assert s.main(argv) == 1
+        assert yml.read_text(encoding="utf-8") == original
+        assert "mais de uma vez" in capsys.readouterr().err
+
+
 def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatch) -> None:
     """RVL3-07: o `.sql` mudou depois do último build — a derivação leria o compilado antigo, calada."""
     monkeypatch.setattr(s, "DBT", tmp_path)

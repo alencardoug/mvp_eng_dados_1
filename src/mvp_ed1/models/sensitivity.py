@@ -461,9 +461,9 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
     texto = caminho.read_text(encoding="utf-8") if conteudo is None else conteudo
     try:
         documento = yaml.load(texto, Loader=_SemChaveRepetida) or {}
-    except ValueError as erro:
+    except (ValueError, yaml.YAMLError) as erro:
         raise ValueError(f"{caminho}: {erro}") from None
-    entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
+    entradas =[e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
     for fonte in documento.get("sources") or []:
         _conferir_fonte(caminho, fonte)
@@ -841,15 +841,63 @@ def _chaves(linhas: list[str], inicio: int, fim: int, indent: int, chave: str) -
     return [i for i in range(inicio, fim) if _indent(linhas[i]) == indent and linhas[i].split("#", 1)[0].strip() == f"{chave}:"]
 
 
-def _itens(linhas: list[str], chave: int, nome: str) -> list[int]:
-    """Os itens `- name: <nome>` da lista que é o valor da chave na linha `chave`."""
+_ITEM_COM_NOME = re.compile(r"-\s+name\s*:")
+_nomes_lidos: dict[str, object] = {}
+
+
+def _nome_do_item(linha: str) -> object:
+    """O nome de um item `- name: <nome>`, **como o YAML o lê** — com comentário, aspas ou espaço a
+    mais (RVL3-11-01); `None` se a linha não é um item que só abre com o nome."""
+    texto = linha.strip()
+    if not _ITEM_COM_NOME.match(texto):
+        return None
+    if texto not in _nomes_lidos:
+        try:
+            valor = yaml.safe_load(texto[1:])
+        except yaml.YAMLError:
+            valor = None
+        _nomes_lidos[texto] = valor["name"] if isinstance(valor, dict) and list(valor) == ["name"] else None
+    return _nomes_lidos[texto]
+
+
+def _recuo_dos_itens(linhas: list[str], chave: int) -> int | None:
+    """A coluna dos itens da lista que é o valor da chave na linha `chave`; `None` se o valor não é lista."""
     fim = _fim_da_chave(linhas, chave)
     primeiro = next((i for i in range(chave + 1, fim) if _ativa(linhas[i])), None)
     if primeiro is None or not linhas[primeiro].strip().startswith("- "):
+        return None
+    return _indent(linhas[primeiro])
+
+
+def _itens(linhas: list[str], chave: int, nome: str) -> list[int]:
+    """Os itens `- name: <nome>` da lista que é o valor da chave na linha `chave`."""
+    coluna = _recuo_dos_itens(linhas, chave)
+    if coluna is None:
         return []
-    coluna = _indent(linhas[primeiro])
+    fim = _fim_da_chave(linhas, chave)
     itens = [i for i in range(chave + 1, fim) if _indent(linhas[i]) == coluna and linhas[i].strip().startswith("- ")]
-    return [i for i in itens if linhas[i].split("#", 1)[0].strip() == f"- name: {nome}"]
+    return [i for i in itens if _nome_do_item(linhas[i]) == nome]
+
+
+def _coluna(bloco: list[str], idx_cols: int, coluna: str, rotulo: str) -> tuple[int | None, int, int]:
+    """O item da coluna sob `columns:` — pela estrutura, com qualquer recuo da lista —, a coluna dos itens
+    e onde um item novo entra (o fim da lista, antes de linhas vazias ou comentários soltos).
+
+    Comparar a linha com `- name: <coluna>` não reconhecia `- name: quantity # …`, e o
+    escritor acrescentava uma segunda `quantity` (RVL3-11-01); a coluna repetida é recusa."""
+    achados = _itens(bloco, idx_cols, coluna)
+    if len(achados) > 1:
+        raise ValueError(f"`{rotulo}` lista a coluna `{coluna}` {len(achados)} vezes")
+    recuo = _recuo_dos_itens(bloco, idx_cols)
+    recuo = _indent(bloco[idx_cols]) + 2 if recuo is None else recuo
+    fim = _fim_da_chave(bloco, idx_cols)
+    while fim > idx_cols + 1 and not _ativa(bloco[fim - 1]):
+        fim -= 1
+    return (achados[0] if achados else None), recuo, fim
+
+
+def _chave_columns(bloco: list[str], base: int) -> int | None:
+    return next(iter(_chaves(bloco, 0, len(bloco), base + 2, "columns")), None)
 
 
 def _locate(linhas: list[str], endereco: Address) -> int | None:
@@ -892,19 +940,14 @@ def patch_meta(texto: str, entradas: dict[Address, dict[str, dict[str, object]]]
                 fim = _block_end(linhas, inicio, base)
                 bloco = linhas[inicio:fim]
                 # `columns:` do bloco, criado se não existir
-                idx_cols = next((i for i, l in enumerate(bloco) if l.strip() == "columns:" and _indent(l) == base + 2), None)
+                idx_cols = _chave_columns(bloco, base)
                 if idx_cols is None:
                     while bloco and not bloco[-1].strip():
                         bloco.pop()
                     bloco.append(" " * (base + 2) + "columns:")
                     idx_cols = len(bloco) - 1
-                item_indent = base + 4
-                idx_col = next((i for i in range(idx_cols + 1, len(bloco)) if bloco[i].strip() == f"- name: {coluna}" and _indent(bloco[i]) == item_indent), None)
+                idx_col, item_indent, fim_cols = _coluna(bloco, idx_cols, coluna, address_label(entrada))
                 if idx_col is None:
-                    # fim do bloco de colunas: última linha não vazia
-                    fim_cols = len(bloco)
-                    while fim_cols > idx_cols + 1 and not bloco[fim_cols - 1].strip():
-                        fim_cols -= 1
                     bloco[fim_cols:fim_cols] = [
                         " " * item_indent + f"- name: {coluna}",
                         " " * (item_indent + 2) + "meta:",
@@ -1011,8 +1054,8 @@ def stale_generated(plano: Plan) -> list[pathlib.Path]:
 
 
 def _verify(caminho: pathlib.Path, conteudo: str, esperado: dict[Address, dict[str, str]]) -> None:
-    """O arquivo escrito ainda é YAML válido e diz o que se pediu, no endereço pedido."""
-    entradas = entries_by_address(yaml.safe_load(conteudo))
+    """O arquivo escrito, lido sem perder ocorrência (`read_yaml`), diz o que se pediu, no endereço pedido."""
+    entradas = entries_by_address(read_yaml(caminho, conteudo))
     for nome, colunas in esperado.items():
         declaradas = {c["name"]: (c.get("meta") or {}).get("sensitivity") for c in (entradas.get(nome) or {}).get("columns", [])}
         faltam = {c: n for c, n in colunas.items() if declaradas.get(c) != n}
@@ -1053,6 +1096,10 @@ def main(argv: list[str] | None = None) -> int:
         textos = descriptions.derive_texts(manifest, derivacao, disco=disco)
         dominios = domains.derive_domains(manifest, disco)
         arquivos = render_files(plano, textos, dominios)
+        # Todo conteúdo final, lido estrito antes de qualquer escrita: uma ocorrência que o
+        # escritor duplicou não pode sair com 0 para ser recusada só na rodada seguinte (RVL3-11-01).
+        for caminho, texto in arquivos.items():
+            read_yaml(caminho, texto)
         # A marca conferida no YAML carregado, nos dois modos: um escritor que não a
         # grava não pode passar no `--check` só porque os bytes não mudaram (RVL3-4-01).
         for caminho, marcas in textos.marks.items():

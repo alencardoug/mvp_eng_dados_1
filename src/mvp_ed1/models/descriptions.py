@@ -54,8 +54,6 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-import yaml
-
 from mvp_ed1.legacy import schema as legacy_schema
 from mvp_ed1.models import Base, sensitivity
 from mvp_ed1.models.transport import Carry, Computed, Transport
@@ -363,16 +361,13 @@ def patch_descriptions(texto: str, entradas: dict[sensitivity.Address, dict[str,
             base = _indent(linhas[inicio])
             fim = _block_end(linhas, inicio, base)
             bloco = linhas[inicio:fim]
-            idx_cols = next((i for i, l in enumerate(bloco) if l.strip() == "columns:" and _indent(l) == base + 2), None)
+            idx_cols = sensitivity._chave_columns(bloco, base)
             if idx_cols is None:
                 raise KeyError(f"`{rotulo(entrada)}` sem `columns:` — a sensibilidade é escrita antes da descrição")
-            item = base + 4
-            idx_col = next((i for i in range(idx_cols + 1, len(bloco)) if bloco[i].strip() == f"- name: {coluna}" and _indent(bloco[i]) == item), None)
+            # O item pela estrutura, como o YAML o lê: com comentário no nome ele é o mesmo (RVL3-11-01).
+            idx_col, item, fim_cols = sensitivity._coluna(bloco, idx_cols, coluna, rotulo(entrada))
             nova = " " * (item + 2) + f"description: {_scalar(valor)}"
             if idx_col is None:
-                fim_cols = len(bloco)
-                while fim_cols > idx_cols + 1 and not bloco[fim_cols - 1].strip():
-                    fim_cols -= 1
                 bloco[fim_cols:fim_cols] = [" " * item + f"- name: {coluna}", nova]
             else:
                 fim_col = _block_end(bloco, idx_col, item)
@@ -387,8 +382,9 @@ def patch_descriptions(texto: str, entradas: dict[sensitivity.Address, dict[str,
 
 
 def verify(caminho: pathlib.Path, conteudo: str, esperado: dict[sensitivity.Address, dict[str, str]]) -> None:
-    """O arquivo escrito ainda é YAML válido e traz o texto que se pediu, coluna a coluna, no endereço pedido."""
-    entradas = sensitivity.entries_by_address(yaml.safe_load(conteudo))
+    """O arquivo escrito, lido sem perder ocorrência (`read_yaml`), traz o texto que se pediu, coluna a
+    coluna, no endereço pedido — reduzir a um dicionário escondia a coluna repetida (RVL3-11-01)."""
+    entradas = sensitivity.entries_by_address(sensitivity.read_yaml(caminho, conteudo))
     for nome, colunas in esperado.items():
         escritas = {c["name"]: _text(c) for c in (entradas.get(nome) or {}).get("columns", [])}
         faltam = sorted(c for c, t in colunas.items() if escritas.get(c) != t.strip())
