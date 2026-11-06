@@ -699,3 +699,50 @@ def test_a_escrita_do_dominio_insere_atualiza_e_preserva() -> None:
     assert dm.patch_domains(escrito, {"a": "vendas", "b": "clientes", "c": "estoque"}) == escrito
     gerado = yaml.safe_load(s.render_generated({"t": {"a": "internal"}}, "models", None, {"t": "vendas"}))
     assert gerado["models"][0]["meta"] == {"domain": "vendas"}
+
+
+def test_o_dominio_e_escrito_e_conferido_no_meta_que_a_entrada_declara() -> None:
+    """RVL3-11-02: com o domínio em `config.meta`, o escritor punha `meta.domain` no topo — o valor efetivo
+    ficava o velho, o dbt recusava o par, e o recheck passava porque nada conferia o domínio."""
+    from mvp_ed1.models import domains as dm
+    original = textwrap.dedent("""\
+        version: 2
+        models:
+          - name: a
+            config:
+              materialized: table
+              meta:  # o domínio fica aqui
+                domain: marketing
+                retention: rebuildable
+            columns:
+              - name: x
+          - name: b
+            config:
+              materialized: view
+          - name: c
+            config:
+              meta:
+                retention: rebuildable
+        """)
+    alvo = s.DBT / "models" / "x.yml"
+    pedido = {"a": "vendas", "b": "clientes", "c": "estoque"}
+    escrito = dm.patch_domains(original, pedido)
+    modelos = {m["name"]: m for m in s.read_yaml(alvo, escrito)["models"]}       # o par não foi criado
+    assert "meta" not in modelos["a"] and modelos["a"]["config"]["meta"] == {"domain": "vendas", "retention": "rebuildable"}
+    assert modelos["b"]["meta"] == {"domain": "clientes"} and modelos["b"]["config"] == {"materialized": "view"}
+    assert "meta" not in modelos["c"] and modelos["c"]["config"]["meta"] == {"domain": "estoque", "retention": "rebuildable"}
+    assert "# o domínio fica aqui" in escrito
+    assert dm.patch_domains(escrito, pedido) == escrito
+    dm.verify(alvo, escrito, pedido)
+    with pytest.raises(RuntimeError, match="`a` ficou com o domínio `marketing`, não `vendas`"):
+        dm.verify(alvo, original, pedido)           # zero bytes de diferença não bastam: o valor efetivo é conferido
+
+    par = original.replace("    columns:\n      - name: x", "    meta:\n      domain: vendas\n    columns:\n      - name: x")
+    with pytest.raises(ValueError, match="`meta` e `config.meta`"):
+        dm.patch_domains(par, {"a": "vendas"})
+    with pytest.raises(ValueError, match="`meta` e `config.meta`"):
+        s.read_yaml(alvo, par)
+    for em_linha in ("  - name: a\n    config: {meta: {domain: marketing}}\n",
+                     "  - name: a\n    config:\n      meta: {domain: marketing}\n"):
+        with pytest.raises(ValueError, match="escrito em linha"):
+            dm.patch_domains("version: 2\nmodels:\n" + em_linha, {"a": "vendas"})

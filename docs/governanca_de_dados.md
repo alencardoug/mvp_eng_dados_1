@@ -13,7 +13,7 @@
 | Versão | 2.22 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita (rodada 11 do lote 3 da v1.1.0) |
+| Última revisão | 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita; o domínio é escrito e conferido no `meta` efetivo (rodada 11 do lote 3 da v1.1.0) |
 
 ---
 
@@ -227,7 +227,9 @@ nos modelos SQLAlchemy, e `make catalog` (`models/domains.py`) o escreve no `.ym
 conduzida é a do nome do modelo, e a lista `CONDUCTS` diz qual é onde o nome não diz. O que não conduz
 tabela nenhuma — dimensões, fatos, views de consumo, seeds — tem o `domain` escrito à mão. Os objetos
 gerados por `make legacy-models` declaram o deles no gerador. Domínio à mão num objeto que conduz uma
-tabela vale só com `meta.domain_reason`. Os valores são os nove domínios dos modelos SQLAlchemy, mais
+tabela vale só com `meta.domain_reason`. O domínio é escrito no `meta` que a entrada já declara —
+`config.meta`, quando é ele, já que o dbt recusa os dois juntos e a leitura recusa o par — e conferido
+no valor que o dbt lê, nos dois modos do `make catalog`, mude o arquivo ou não (RVL3-11-02). Os valores são os nove domínios dos modelos SQLAlchemy, mais
 `transversal`, para o que serve a todos e não conduz tabela de domínio nenhum — o calendário e a
 geografia —, e o `legado` dos objetos do gerador. O texto de uma medida diz a aditividade, o que ela
 mede e o grão ou o filtro ("Aditiva — receita líquida dos itens de pedidos realizados, por mês, canal

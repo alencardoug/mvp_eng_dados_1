@@ -463,7 +463,12 @@ def read_yaml(caminho: pathlib.Path, conteudo: str | None = None) -> dict:
         documento = yaml.load(texto, Loader=_SemChaveRepetida) or {}
     except (ValueError, yaml.YAMLError) as erro:
         raise ValueError(f"{caminho}: {erro}") from None
-    entradas =[e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
+    for entrada in (e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []):
+        if "meta" in entrada and "meta" in (entrada.get("config") or {}):
+            # O dbt recusa o par no nível da entrada; o leitor juntaria os dois, e um
+            # escritor que o criasse passaria calado até o próximo parse (RVL3-11-02).
+            raise ValueError(f"{caminho}: `{entrada.get('name')}` tem `meta` e `config.meta` — o dbt aceita um só")
+    entradas = [e for k in ("models", "snapshots", "seeds") for e in documento.get(k) or []]
     entradas += [t for f in documento.get("sources") or [] for t in f.get("tables") or []]
     for fonte in documento.get("sources") or []:
         _conferir_fonte(caminho, fonte)
@@ -1112,6 +1117,11 @@ def main(argv: list[str] | None = None) -> int:
                 descriptions.verify(caminho, texto, textos.patches[caminho])
             elif caminho in plano.generated:
                 descriptions.verify(caminho, texto, {m: textos.generated[m] for m in plano.generated[caminho] if m in textos.generated})
+            # O domínio pedido, no valor que o dbt lê — também quando a escrita não muda byte (RVL3-11-02).
+            if caminho in dominios.patches:
+                domains.verify(caminho, texto, dominios.patches[caminho])
+            elif caminho in plano.generated:
+                domains.verify(caminho, texto, {m: dominios.generated[m] for m in plano.generated[caminho] if m in dominios.generated})
     except (ValueError, RuntimeError, KeyError) as erro:
         print(f"recusado: {erro.args[0] if erro.args else erro} — nenhum arquivo é tocado", file=sys.stderr)
         return 1

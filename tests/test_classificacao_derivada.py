@@ -337,6 +337,45 @@ def test_conteudo_final_com_coluna_repetida_e_recusado_antes_de_escrever(tmp_pat
         assert "mais de uma vez" in capsys.readouterr().err
 
 
+def test_dominio_em_config_meta_e_corrigido_e_conferido_nos_dois_modos(tmp_path, monkeypatch, capsys) -> None:
+    """RVL3-11-02: o domínio pedido é conferido no valor que o dbt lê; um escritor que não o corrige não passa
+    no `--check` só porque a segunda rodada não muda byte."""
+    from mvp_ed1.models import domains as dm
+    dbt = tmp_path / "dbt"
+    (dbt / "models").mkdir(parents=True)
+    (dbt / "target").mkdir()
+    monkeypatch.setattr(s, "ROOT", tmp_path)
+    monkeypatch.setattr(s, "DBT", dbt)
+    monkeypatch.setattr(s, "MANIFEST", dbt / "target" / "manifest.json")
+    monkeypatch.setattr(s, "CACHE", tmp_path / "derivation.pickle")
+    no = {"unique_id": "model.mvp_ed1.orders", "resource_type": "model", "name": "orders", "schema": "trusted", "database": "wh",
+          "original_file_path": "models/orders.sql", "depends_on": {"nodes": []}, "columns": {}, "compiled_code": "select 1 as x",
+          "raw_code": "select 1 as x\n"}
+    (dbt / "models" / "orders.sql").write_text("select 1 as x\n", encoding="utf-8")
+    s.MANIFEST.write_text(json.dumps({"metadata": {"project_name": "mvp_ed1"}, "sources": {},
+                                      "nodes": {"model.mvp_ed1.orders": no}}), encoding="utf-8")
+    yml = dbt / "models" / "_orders.yml"
+    original = ("version: 2\nmodels:\n  - name: orders\n    config:\n      meta:\n        domain: marketing\n"
+                "    columns:\n      - name: x\n        meta:\n          sensitivity: internal\n")
+    yml.write_text(original, encoding="utf-8")
+
+    def efetivo() -> dict:
+        entrada = s.read_yaml(yml)["models"][0]
+        return {"topo": entrada.get("meta"), "config": entrada["config"].get("meta")}
+
+    escritor = dm.patch_domains
+    monkeypatch.setattr(dm, "patch_domains", lambda texto, entradas: texto)      # o escritor que não corrige
+    for argv in ([], ["--check"]):
+        assert s.main(argv) == 1, argv
+        assert yml.read_text(encoding="utf-8") == original
+        assert "ficou com o domínio `marketing`, não `vendas`" in capsys.readouterr().err
+    monkeypatch.setattr(dm, "patch_domains", escritor)
+    assert s.main(["--check"]) == 1                                              # desatualizado
+    assert s.main([]) == 0
+    assert efetivo() == {"topo": None, "config": {"domain": "vendas"}}
+    assert s.main(["--check"]) == 0
+
+
 def test_manifest_com_sql_mais_velho_que_o_disco_e_recusado(tmp_path, monkeypatch) -> None:
     """RVL3-07: o `.sql` mudou depois do último build — a derivação leria o compilado antigo, calada."""
     monkeypatch.setattr(s, "DBT", tmp_path)

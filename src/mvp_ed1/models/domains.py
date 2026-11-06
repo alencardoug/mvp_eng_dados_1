@@ -99,8 +99,11 @@ def derive_domains(manifest: dict, disco: dict) -> Domains:
 
 
 def patch_domains(texto: str, entradas: dict[str, str]) -> str:
-    """Insere ou atualiza `meta.domain` no nível do modelo, preservando o resto."""
-    from mvp_ed1.models.sensitivity import _block_end, _indent, _locate
+    """Insere ou atualiza `domain` no `meta` que a entrada declara — `config.meta`, se for ele —, preservando o resto.
+
+    O leitor junta `meta` e `config.meta`, com precedência do segundo; escrever sempre no
+    `meta` de topo deixava o valor efetivo intacto e criava o par que o dbt recusa (RVL3-11-02)."""
+    from mvp_ed1.models.sensitivity import _block_end, _chaves, _indent, _locate
     linhas = texto.split("\n")
     for entrada, dominio in entradas.items():
         inicio = _locate(linhas, entrada)
@@ -108,14 +111,41 @@ def patch_domains(texto: str, entradas: dict[str, str]) -> str:
             raise KeyError(f"entrada `{entrada}` não encontrada")
         base = _indent(linhas[inicio])
         fim = _block_end(linhas, inicio, base)
-        idx_meta = next((i for i in range(inicio + 1, fim) if linhas[i].strip() == "meta:" and _indent(linhas[i]) == base + 2), None)
+        for chave in ("meta", "config"):
+            if any(_indent(linhas[i]) == base + 2 and linhas[i].strip().startswith(f"{chave}:")
+                   and linhas[i].split("#", 1)[0].strip() != f"{chave}:" for i in range(inicio + 1, fim)):
+                raise ValueError(f"`{entrada}`: `{chave}` escrito em linha; escreva-o em bloco para o gerador editar")
+        topo = next(iter(_chaves(linhas, inicio + 1, fim, base + 2, "meta")), None)
+        config = next(iter(_chaves(linhas, inicio + 1, fim, base + 2, "config")), None)
+        de_config = None
+        if config is not None:
+            fim_config = _block_end(linhas, config, base + 2)
+            if any(_indent(linhas[i]) == base + 4 and linhas[i].strip().startswith("meta:")
+                   and linhas[i].split("#", 1)[0].strip() != "meta:" for i in range(config + 1, fim_config)):
+                raise ValueError(f"`{entrada}`: `config.meta` escrito em linha; escreva-o em bloco para o gerador editar")
+            de_config = next(iter(_chaves(linhas, config + 1, fim_config, base + 4, "meta")), None)
+        if topo is not None and de_config is not None:
+            raise ValueError(f"`{entrada}` tem `meta` e `config.meta` — o dbt aceita um só")
+        idx_meta, nivel = (de_config, base + 4) if de_config is not None else (topo, base + 2)
         if idx_meta is None:
             linhas[inicio + 1:inicio + 1] = [" " * (base + 2) + "meta:", " " * (base + 4) + f"domain: {dominio}"]
             continue
-        fim_meta = _block_end(linhas, idx_meta, base + 2)
-        idx_dom = next((i for i in range(idx_meta + 1, fim_meta) if linhas[i].strip().startswith("domain:") and _indent(linhas[i]) == base + 4), None)
+        fim_meta = _block_end(linhas, idx_meta, nivel)
+        idx_dom = next((i for i in range(idx_meta + 1, fim_meta) if linhas[i].strip().startswith("domain:") and _indent(linhas[i]) == nivel + 2), None)
         if idx_dom is None:
-            linhas.insert(idx_meta + 1, " " * (base + 4) + f"domain: {dominio}")
+            linhas.insert(idx_meta + 1, " " * (nivel + 2) + f"domain: {dominio}")
         else:
-            linhas[idx_dom] = " " * (base + 4) + f"domain: {dominio}"
+            linhas[idx_dom] = " " * (nivel + 2) + f"domain: {dominio}"
     return "\n".join(linhas)
+
+
+def verify(caminho: pathlib.Path, conteudo: str, esperado: dict[str, str]) -> None:
+    """O arquivo final, lido estrito, dá a cada entrada o domínio pedido **como o dbt o junta** — `config.meta`
+    sobre `meta` —, mude o arquivo ou não: reescrever o mesmo valor no lugar errado não muda byte (RVL3-11-02)."""
+    from mvp_ed1.models import sensitivity
+    entradas = sensitivity.entries_by_address(sensitivity.read_yaml(caminho, conteudo))
+    for nome, dominio in esperado.items():
+        e = entradas.get(nome) or {}
+        efetivo = {**(e.get("meta") or {}), **((e.get("config") or {}).get("meta") or {})}.get("domain")
+        if efetivo != dominio:
+            raise RuntimeError(f"{caminho.relative_to(sensitivity.ROOT)}: `{nome}` ficou com o domínio `{efetivo}`, não `{dominio}`")
