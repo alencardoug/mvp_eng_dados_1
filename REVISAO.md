@@ -4836,3 +4836,261 @@ espaco_traco | RECUSA while parsing a block collection
 **Não verificado pelo autor.** `dbt ls` sobre `config.meta` em snapshot e seed (a recusa do par
 foi estendida a eles por analogia com o modelo). Literal de instante cujo `}}` fica
 dentro de uma string do próprio Jinja (`{{ "}}" }}`).
+
+## Rodada 12 — lote 3
+
+### Conclusão
+
+**No blockers found within the reviewed scope.** As correções de RVL3-11-01,
+RVL3-11-02 e RVL3-11-03 foram confirmadas. Não encontrei novo defeito que importe
+para os arquivos atuais ou para sua próxima alteração ordinária dentro das
+formas suportadas. **O lote 3 pode ser fechado tecnicamente**, mantendo os
+limites abaixo. O aceite da entrega e o encerramento formal continuam com o
+Owner, conforme `CLAUDE.md` §5 e §7; isto não declara correto o projeto inteiro.
+
+### Escopo e versão
+
+Revisão independente de `22f0ecb..61f263c`, na branch `main`, HEAD
+`61f263ced8b5d196306a7efa2cab1e72d79eed0d`: `d3cb4ea`, `e541545`, `7e12874` e
+`61f263c`. O HEAD permaneceu nesse estado durante as verificações. Examinados
+os nove arquivos do diff, os chamadores e contratos de leitura, derivação,
+escrita e verificação, Governança §5.1 v2.22, Qualidade §4 v1.18 e as situações
+anteriores pertinentes, inclusive a decisão “São Paulo, explícito” de RVL3-6-04.
+A resposta do autor foi tratada como alegação a conferir.
+
+Não havia alteração rastreada local no início. Os arquivos não rastreados
+`GEMINI.md` e `NAVEGANDO_GCP/parecer_migracao_gcp.md` ficaram fora do escopo e foram
+preservados. A única alteração desta revisão no checkout é este acréscimo ao
+`REVISAO.md`; as rodadas anteriores permanecem intactas. Aplicadas as instruções
+locais e a regra de evidência da skill `.claude/skills/revisao/SKILL.md`, sem
+executar o fluxo de implementação ou remover o relatório.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| — | Intervalo revisado | Nenhum novo achado confirmado. | — | |
+
+Não há novo ID RVL3-12 a atribuir, nem correção obrigatória nesta rodada.
+As restrições de sintaxe e as verificações não executadas estão separadas dos
+achados, abaixo.
+
+### Evidências da reavaliação
+
+As sondas estão em `/tmp/r12-review`; comandos Python abaixo usam
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python`. Elas só escrevem em `/tmp` ou
+trabalham em memória. Os scripts de catálogo, endereço e domínio da rodada 11
+foram relidos e reutilizados com o diretório de trabalho trocado. Os demais
+exercitam os contratos desta rodada. Os trechos são saídas executadas pelo
+revisor; avisos repetidos da derivação foram omitidos.
+
+**Coluna e leitura final — RVL3-11-01.** Em
+`sensitivity.py:853–905`, o nome do item passa pela leitura YAML, e a lista
+fornece o recuo e o ponto de inserção. Os dois escritores compartilham essa
+localização. `descriptions.py:384–396` e `sensitivity.py:1071–1126` usam a leitura
+estrita na conferência, inclusive sem marca ou alteração de bytes. Na cópia do
+catálogo real, `catalog_probe.py` produziu:
+
+```text
+BASE_STALE [] BASE_PROBLEMS []
+BASE_CHECK RC 0 … 0 arquivo(s) desatualizado(s)
+COMMENT_INPUT_STRICT True
+COMMENT_CHECK RC 1 … 1 arquivo(s) desatualizado(s)
+CHECK_UNCHANGED True
+COMMENT_GENERATE RC 0 … 1 arquivo(s) escrito(s)
+QUANTITY_AFTER [('quantity', 'Quantidade comprada do SKU.', {'sensitivity': 'internal'})]
+OUTPUT_STRICT PASS
+COMMENT_RECHECK RC 0 … 0 arquivo(s) desatualizado(s)
+```
+
+Os testes de comentário, aspas, espaços após `:`, lista sem recuo e inserção
+antes de `data_tests` passaram no offline. Para buscar um escape sem marca,
+`final_read_probe.py` injetou três saídas inválidas em `render_files`, com
+`Texts.marks` vazio, sobre um projeto mínimo válido:
+
+```text
+FINAL_READ duplicate_column ['--check'] RC 1 UNCHANGED True
+FINAL_READ duplicate_column [] RC 1 UNCHANGED True
+FINAL_READ syntax ['--check'] RC 1 UNCHANGED True
+FINAL_READ syntax [] RC 1 UNCHANGED True
+FINAL_READ entry_meta_pair ['--check'] RC 1 UNCHANGED True
+FINAL_READ entry_meta_pair [] RC 1 UNCHANGED True
+```
+
+As recusas foram, respectivamente, coluna `x` repetida, `while parsing a flow
+node` e presença conjunta de `meta` e `config.meta`. Nenhum arquivo de destino
+foi alterado. Isso confirma a barreira antes da escrita, sem alegar que
+`read_yaml` valida todo o schema do dbt.
+
+**Domínio efetivo — RVL3-11-02.** `domains.py:101–151` escreve no `meta`
+existente e confere o valor efetivo; `sensitivity.py:1119–1126` cobre também o
+gerado. `domain_valid_probe.py` seguido de `domain_run.py`, na cópia real:
+
+```text
+VALID_INPUT_ONLY_CONFIG {'domain': 'marketing'}
+STALE [] PROBLEMS []
+DOMAIN_REQUEST {'orders': 'vendas'}
+DOMAIN_VALID ['--check'] RC 1 UNCHANGED True
+DOMAIN_VALID [] RC 0 UNCHANGED False
+DOMAIN_VALID ['--check'] RC 0 UNCHANGED True
+EFFECTIVE_DISK_AFTER {'domain': 'vendas'}
+```
+
+`layout_probe.py` conferiu ausência de metadados, `meta` de topo, `config.meta`,
+`config` sem `meta` e `config.meta` sem domínio, nos três blocos de entrada.
+Conferiu também que a exceção com `domain_reason` em `config.meta` chega à
+leitura e não é substituída pela derivação:
+
+```text
+DOMAIN_LAYOUTS 15 PASS
+DOMAIN_REASON 3 PASS
+CURRENT_YAML_DOCUMENTS 18 ENTRIES 199 INLINE_META_CONFIG [] ENTRY_PAIRS []
+```
+
+O inventário percorreu os documentos carregados do projeto e procurou os mapas
+em linha `meta: {…}`/`config: {…}`; não apareceu uso atual atingido pelas novas
+recusas. O teste de domínio sem correção de bytes passou nos dois modos no
+offline. Na sonda adicional, um renderizador de `_derived.yml` que escreve
+`marketing` em vez de `vendas` foi recusado nos dois modos, sem criar a saída:
+
+```text
+GENERATED_DOMAIN ['--check'] RC 1 NO_OUTPUT True
+GENERATED_DOMAIN [] RC 1 NO_OUTPUT True
+```
+
+A mensagem foi `` `orders` ficou com o domínio `marketing`, não `vendas` ``.
+Para conferir a compatibilidade que o autor não tinha medido para snapshot e
+seed, `dbt_layout_probe.py` executou `dbt ls --no-partial-parse --output json
+--output-keys name resource_type config` em um projeto mínimo em `/tmp`, com
+modelo, snapshot SQL e seed CSV. Não houve conexão ao warehouse:
+
+```text
+DBT_LAYOUT_LS_RC 0
+DBT_EFFECTIVE model orders {'domain': 'vendas'}
+DBT_EFFECTIVE seed states {'domain': 'vendas'}
+DBT_EFFECTIVE snapshot scd_customer {'domain': 'vendas'}
+DBT_PAIR models RC 2
+DBT_PAIR snapshots RC 2
+DBT_PAIR seeds RC 2
+```
+
+Cada RC 2 foi conferido no log: `Parsing Error`, `found meta dictionary in
+'config' dictionary and as top-level key`. Portanto a recusa estrita do par
+corresponde ao dbt instalado (`dbt=1.12.3`, adaptador postgres `1.11.0`) para os
+três recursos; não foi inferida apenas por analogia.
+
+**Jinja e instantes — RVL3-11-03.** Em
+`tests/test_vigencia_em_utc.py:106–159`, a opacidade se limita ao interior da
+string SQL. O literal montado fora dela em `{% set %}` continua visível.
+`jinja_probe.py` comparou o scanner de `22f0ecb` com o atual e retirou
+individualmente o offset de cada literal atual, nas duas grafias de aspas:
+
+```text
+JINJA_WITH_OFFSET_BASE ['{{ var('] CURRENT []
+JINJA_NO_OFFSET_CURRENT ['{{…}} 00:00']
+INSTANT_MUTATIONS original CAUGHT 14 OF 14
+INSTANT_MUTATIONS single_quotes CAUGHT 14 OF 14
+```
+
+`sql_probe.py` deu `CURRENT_GUARD 0`, acusou comentário aninhado entre tipo e
+literal e `cast` com precisão, e não acusou exemplo dentro de string. Os testes
+novos e os anteriores do scanner passaram no offline. Não foi encontrado falso
+negativo introduzido pela opacidade nos 14 instantes ou nas formas SQL atuais.
+
+### Estado dos achados anteriores
+
+“Resolvido” delimita o defeito e os cenários examinados; os IDs são preservados.
+Os comandos das sondas usam o prefixo Python informado acima.
+
+| Achado anterior | Estado nesta rodada | Comando e saída/evidência |
+|---|---|---|
+| RVL3-11-01 | **Resolvido.** Localização corrigida e leitura estrita antes da escrita. | `catalog_probe.py`: **1/0/0**, uma `quantity` correta, `OUTPUT_STRICT PASS`; `final_read_probe.py`: seis recusas RC 1 com destino intacto; testes dos dois escritores e verificadores no offline. |
+| RVL3-11-02 | **Resolvido.** Escrita e conferência no domínio efetivo, inclusive gerado. | `domain_run.py`: **1/0/0**, `EFFECTIVE_DISK_AFTER {'domain': 'vendas'}`; `layout_probe.py`: **15 PASS**, exceções **3 PASS**; `dbt_layout_probe.py`: RC 0 com domínio correto nos três recursos e RC 2 para cada par; sonda do gerado RC 1/1. |
+| RVL3-11-03 | **Resolvido.** Aspas simples Jinja não geram o falso positivo original. | `jinja_probe.py`: base `['{{ var(']`, atual `[]`; sem offset `['{{…}} 00:00']`; **14/14** mutações acusadas em cada grafia. |
+| RVL3-10-01 | **Resolvido**, incluindo a parte que a rodada 11 deixou aberta sobre ocorrências. | `address_probe.py`: `ADDRESS_MATRIX 6 PASS`; `HOMONYM legacy_first RC [1, 0, 0]` e `retail_first RC [1, 0, 0]`, só a fonte `retail` corrigida; `noop_probe.py`: escritor de descrição sem efeito → RC 1 nos dois modos, `UNCHANGED True`. A leitura final fecha R11-01. |
+| RVL3-6-02 e RVL3-5-02 | **Resolvidos nos casos originais e na garantia de saída que permanecia parcial.** | `noop_probe.py`: `DUP_KEY REFUSED`, `DUP_COLUMN REFUSED`; `final_read_probe.py`: coluna repetida produz RC 1/1 antes da escrita. Não se afirma validação universal do schema dbt. |
+| RVL3-10-02, RVL3-9-03 e RVL3-8-02 | **Mantidos resolvidos** para as formas suportadas e os instantes atuais. | `sql_probe.py`: comentário aninhado e precisão acusam `['9999-12-31']`; `jinja_probe.py`: **14/14** em ambas as grafias; casos de offset, dia e zona nomeada no offline. |
+| RVL3-10-03, RVL3-9-01/02, RVL3-8-01 e RVL3-7-01 | **Mantidos resolvidos** nos contratos atuais de identidade, endereço e pacote. | `catalog_probe.py`: `SOURCES 79 FOREIGN []`; `noop_probe.py`: `SOURCE_ALIAS REFUSED`, `SOURCE_OVERRIDE REFUSED`, fonte estrangeira injetada → RC 1/1 com destino intacto; matriz de homônimas acima. |
+| RVL3-6-04 | **Mantido o encerramento técnico** das expressões e das medições de negócio registradas; a guarda continua cobrindo os 14 instantes atuais. | `git diff --numstat 22f0ecb..61f263c -- dbt`: saída vazia; mutações **14/14**. A decisão “São Paulo, explícito” e os números de clientes/janelas anteriores não foram substituídos por nova medição. |
+
+### Verificações executadas e não executadas
+
+Executado pelo revisor:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 PYTEST_ADDOPTS='-o cache_dir=/tmp/r12_pytest_cache' make check-offline
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 115 documentos, 1100 links de arquivo, 189 âncoras, 665 citações de ADR — nada quebrado
+894 passed, 188 deselected in 169.89s (0:02:49)
+check-offline: as três etapas passaram
+
+PYTHONDONTWRITEBYTECODE=1 make secrets-history
+revisão do histórico: nada não tratado (12 achado(s), todos registrados; 0 blob(s) pulado(s))
+```
+
+Ambos retornaram **RC 0**. O offline incluiu os testes novos e os contratos
+anteriores de descrição herdada, marca, união, leitura estrita e manifest
+atrasado; os 188 testes de integração foram excluídos. As sondas de corrupção
+acima verificam falhas significativas, não apenas igualdade com o escritor.
+Uma primeira execução de catálogo e endereço compartilhou a mesma cópia em
+paralelo e contaminou seu estado; esses resultados foram descartados. O
+catálogo foi recriado, e as sondas de catálogo e endereço foram repetidas sem
+sobreposição. As saídas citadas de catálogo, endereço, domínio e recusa
+pertencem às execuções isoladas.
+
+Após salvar o parecer, `git diff --check` e
+`python -m mvp_ed1.docs_check` passaram (RC 0). A comparação binária com o
+conteúdo de `61f263c:REVISAO.md` confirmou a preservação integral do texto
+anterior; `git diff --name-only` listou somente `REVISAO.md`.
+
+**Não executados pelo revisor:** `make check`, build, snapshot, execução de
+modelos, consultas ao warehouse ou operações de serviços/DAG. Não houve medição
+nova de resultado de negócio. O diff de `dbt/` é vazio e as mudanças de produção
+se limitam ao catálogo; isso não é uma comparação de dados antes/depois.
+
+**Informado pelo autor, não reexecutado nesta revisão:** `make check` em
+`7e12874` deu dbt `PASS=907 WARN=0 ERROR=0`, `1079 passed, 3 skipped` e derivados
+atualizados. `61f263c` acrescenta somente o relatório. Essa informação é
+coerente com o diff, mas não foi convertida em medição independente do revisor.
+
+### Limitações e questões abertas
+
+Não resta achado confirmado que exija correção para fechar este lote. Não há
+ambiguidade de baseline nem nova decisão arquitetural ou de tratamento de dados
+encaminhada ao Owner nesta rodada.
+
+**Compatibilidade delimitada, sem sucesso silencioso:** o escritor continua
+restrito à edição de YAML em bloco. `layout_probe.py` confirmou os resíduos
+relatados pelo autor: coluna em fluxo (`- {name: x, …}`) e espaço extra depois
+do traço (`-   name:`) geram saída recusada pela leitura estrita. Não são formas
+presentes nos arquivos atuais. Elas não devem ser tratadas como suportadas por
+se aceitar aspas/espaços no nome: se uma próxima edição as introduzir, será
+necessário normalizar o layout ou ampliar o escritor antes de gerar. Não há
+prova de suporte a toda sintaxe YAML válida; há proteção contra publicar essas
+saídas inválidas. `meta`/`config` em linha também têm recusa deliberada.
+
+**Limites declarados do scanner:** SQL montado por Jinja em partes, dollar
+quoting, `E'…'` e `cast(('…') as …)` permanecem fora da cobertura, como diz
+Qualidade §4. A sonda confirmou `[]` para as duas últimas formas sem fuso;
+nenhuma é a forma dos 14 instantes atuais. A inclusão futura de uma dessas
+formas de instante pede ampliação da guarda ou validação explícita da edição.
+
+**Residuais puramente adversariais, separados dos achados:** `_jinja` usa o
+primeiro delimitador de fecho, sem analisar uma string Jinja que contenha o
+próprio `}}`/`%}`. Não foi feita prova exaustiva dessa gramática ou de templates
+construídos para enganar o scanner. Também não se simulou manifest adulterado
+para falsificar a identidade de pacote. Esses limites não foram apresentados
+como defeitos demonstrados nos arquivos do projeto. As premissas já declaradas
+de compilação recente, macro nova/apagada e `dbt_project.yml` continuam valendo.
+
+### Passagem para Claude Code
+
+- [x] RVL3-11-01 e RVL3-10-01: coluna correta, metadados preservados, endereço
+  completo e recusa da saída inválida antes da escrita confirmados.
+- [x] RVL3-11-02: domínio efetivo corrigido e conferido, sem criar o par recusado
+  pelo dbt; exceção justificada preservada.
+- [x] RVL3-11-03: falso positivo corrigido e ausência de offset detectada em
+  cada um dos 14 instantes, nas duas grafias.
+- [ ] Registrar o encerramento técnico desta rodada e submeter o fechamento
+  formal ao Owner, preservando os limites e a distinção entre checks do revisor
+  e evidências do autor. Não há patch corretivo exigido nesta passagem.
