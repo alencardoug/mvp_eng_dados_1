@@ -12,8 +12,8 @@
 |---|---|
 | Ferramentas | `dbt` (testes nativos) + `dbt-expectations` + `pytest` para o código Python |
 | Decisão | [ADR-0003](adr/0003-stack-airbyte-dbt-airflow.md) |
-| Versão | 1.17 |
-| Última revisão | 05/11/2026 — §4, a guarda dos literais de instante lida token a token, com comentário entre eles, precisão do tipo e zona nomeada (rodada 10 do lote 3 da v1.1.0) |
+| Versão | 1.18 |
+| Última revisão | 05/11/2026 — §4, a guarda dos literais de instante trata a expressão Jinja dentro do literal como opaca e declara as grafias que não lê (rodada 11 do lote 3 da v1.1.0) |
 
 ---
 
@@ -128,9 +128,13 @@ passar por ausência do caso.
   com comentário entre os tokens. A leitura é token a token, e o comentário (`--`, `/* */`, `{# #}`) separa
   tokens e não esconde a expressão, e o exemplo escrito em comentário ou dentro de uma string não é
   literal. Fuso escrito é offset ou `Z` depois da hora, ou zona que o catálogo IANA conhece
-  (`America/Sao_Paulo`, `UTC`) (RVL3-9-03, RVL3-10-02). **Limite declarado:** SQL montado por Jinja
+  (`America/Sao_Paulo`, `UTC`) (RVL3-9-03, RVL3-10-02). A expressão Jinja dentro do literal é opaca:
+  a aspa do argumento (`'{{ var('as_of_date') }} 00:00-03'`) não fecha a string, e o literal sem
+  offset continua acusado; fora da string, a expressão é lida como texto, e o literal que um
+  `{% set %}` monta é visto nela (RVL3-11-03). **Limite declarado:** SQL montado por Jinja
   a partir de pedaços — o tipo numa variável, o literal noutra — não é lido como SQL; o dollar
-  quoting (`$$…$$`) também não; revisão do lote 3 da v1.1.0, RVL3-3-03, RVL3-5-01, RVL3-6-04, RVL3-7-02/03);
+  quoting (`$$…$$`), a string com prefixo (`E'…'`) e o literal entre parênteses dentro do `cast`
+  (`cast(('…') as timestamptz)`) também não — nenhuma delas aparece hoje num literal de instante; revisão do lote 3 da v1.1.0, RVL3-3-03, RVL3-5-01, RVL3-6-04, RVL3-7-02/03);
 - teste de **grão** por fato: a chave declarada é única, o que prova que o grão é o que se afirma
   ([ADR-0018](adr/0018-fatos-e-views-a-partir-de-perguntas-de-negocio.md));
 - verificação de **contrato** nas views de consumo: `contract: enforced` quebra o *build* quando

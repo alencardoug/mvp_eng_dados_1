@@ -98,9 +98,26 @@ _TOKEN = re.compile(r"""
 """, re.X)
 
 
+#: O que uma expressão Jinja dentro de uma string SQL vira para a guarda: opaca, sem aspas — o valor
+#: dela só se conhece renderizado.
+JINJA = "{{…}}"
+
+
+def _jinja(texto: str, i: int) -> int | None:
+    """Se em `i` abre `{{` ou `{%`, o índice depois do fecho; as aspas de dentro são do Jinja, não do SQL (RVL3-11-03)."""
+    for abre, fecha in (("{{", "}}"), ("{%", "%}")):
+        if texto.startswith(abre, i):
+            j = texto.find(fecha, i + 2)
+            return len(texto) if j < 0 else j + 2
+    return None
+
+
 def _sem_comentarios(texto: str) -> str:
     """O texto com comentários trocados por espaço: `--` até o fim da linha, `/* */` aninhado (como o
-    PostgreSQL lê) e `{# #}` do Jinja. A string SQL é copiada inteira — `--` dentro dela não é comentário."""
+    PostgreSQL lê) e `{# #}` do Jinja. A string SQL é copiada inteira — `--` dentro dela não é comentário —,
+    e a expressão Jinja **dentro dela** vira `JINJA`: em `'{{ var('x') }} 00:00-03'` a aspa de `'x'` não
+    fecha a string SQL (RVL3-11-03). Fora da string a expressão continua lida como texto: o literal que
+    um `{% set %}` monta (`"timestamptz '" ~ var("as_of_date") ~ " 00:00-03'"`) é lido nela."""
     saida, i, n = [], 0, len(texto)
     while i < n:
         if texto.startswith("{#", i):
@@ -122,10 +139,20 @@ def _sem_comentarios(texto: str) -> str:
                     i += 1
             saida.append(" ")
         elif texto[i] == "'":
-            m = re.compile(r"'(?:[^']|'')*'").match(texto, i)
-            j = m.end() if m else n
-            saida.append(texto[i:j])
-            i = j
+            partes, i = ["'"], i + 1
+            while i < n:
+                if (j := _jinja(texto, i)) is not None:
+                    partes.append(JINJA)
+                    i = j
+                elif texto.startswith("''", i):
+                    partes.append("''")
+                    i += 2
+                else:
+                    partes.append(texto[i])
+                    i += 1
+                    if partes[-1] == "'":
+                        break
+            saida.append("".join(partes))
         else:
             saida.append(texto[i])
             i += 1
@@ -253,3 +280,30 @@ def test_comentario_string_e_zona_nomeada_nao_sao_falso_positivo(sql: str) -> No
     """RVL3-10-02: o exemplo em comentário ou dentro de string não é literal; zona IANA é fuso escrito.
     `timestamp` sem fuso não é instante — não é o que esta guarda vigia."""
     assert literais_sem_fuso(sql) == []
+
+
+@pytest.mark.parametrize("aspas", ['"', "'"])
+@pytest.mark.parametrize("forma", ["timestamptz '{x}'", "'{x}'::timestamptz", "cast('{x}' as timestamptz)"])
+def test_a_aspa_do_jinja_dentro_do_literal_nao_fecha_a_string(aspas: str, forma: str) -> None:
+    """RVL3-11-03: `'{{ var('as_of_date') }} 00:00-03'` renderiza o mesmo SQL que a grafia com aspas duplas;
+    a aspa simples do argumento não fecha a string SQL — com offset passa, sem offset é acusado."""
+    jinja = "{{ var(" + aspas + "as_of_date" + aspas + ") }}"
+    assert literais_sem_fuso("select " + forma.format(x=jinja + " 00:00-03")) == []
+    assert literais_sem_fuso("select " + forma.format(x=jinja + " 00:00")) == [JINJA + " 00:00"]
+    assert literais_sem_fuso("select " + forma.format(x=jinja)) == [JINJA]
+
+
+def test_a_guarda_acusa_cada_literal_atual_sem_o_offset_nas_duas_aspas() -> None:
+    """RVL3-11-03: a contraprova sobre os arquivos reais — trocar as aspas do `var` não muda nada, e tirar o
+    offset de qualquer literal é acusado, inclusive o que um `{% set %}` monta fora de `{{ }}`."""
+    arquivos = {c: c.read_text(encoding="utf-8") for pasta in ("models", "tests", "macros", "snapshots")
+                for c in sorted((DBT / pasta).rglob("*.sql")) if "legacy" not in c.parts}
+    simples = {c: re.sub(r"""(\{\{\s*var\()"([a-z_]+)"(\)\s*\}\})""", r"\1'\2'\3", t) for c, t in arquivos.items()}
+    assert simples != arquivos and all(literais_sem_fuso(t) == [] for t in simples.values())
+    for versao in (arquivos, simples):
+        offsets = [(c, m.start()) for c, t in versao.items() for m in re.finditer(r" 00:00[-+]0[03]", t)]
+        assert len(offsets) == 14
+        for caminho, inicio in offsets:
+            texto = versao[caminho]
+            sem = texto[:inicio] + " 00:00" + texto[inicio + len(" 00:00-03"):]
+            assert len(literais_sem_fuso(sem)) == 1, f"{caminho.relative_to(DBT)}@{inicio}"
