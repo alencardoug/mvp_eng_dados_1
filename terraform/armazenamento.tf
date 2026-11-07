@@ -72,6 +72,11 @@ locals {
   topics = {
     eventos = "mvp.oltp.inventory_movements"
     alertas = "mvp.alerts.inventory_low_stock"
+    # O *heartbeat* do conector (G2.3): sem ele o slot segura WAL quando a tabela para. O nome
+    # padrão `__debezium-heartbeat.mvp` começa com `_`, que o Pub/Sub recusa; o gerador do
+    # Debezium Server (`mvp_ed1.streaming.debezium_server`) fixa o prefixo `mvp-heartbeat`.
+    # Sem assinatura: ninguém o lê, e mensagem sem assinatura o Pub/Sub não guarda.
+    heartbeat = "mvp-heartbeat.mvp"
   }
 }
 
@@ -112,7 +117,7 @@ resource "google_pubsub_subscription" "this" {
 # lê e publica os alertas. Se o *sink* do Debezium precisar ler o tópico (`topics.get`)
 # para publicar, a prova da terça (G2.3) diz, e o papel cresce aqui — não antes.
 resource "google_pubsub_topic_iam_member" "publica" {
-  for_each = var.enable_cheap ? toset(["eventos", "alertas"]) : toset([])
+  for_each = var.enable_cheap ? toset(["eventos", "alertas", "heartbeat"]) : toset([])
 
   topic  = google_pubsub_topic.this[each.key].name
   role   = "roles/pubsub.publisher"
