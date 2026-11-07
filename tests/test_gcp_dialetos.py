@@ -108,3 +108,31 @@ def test_chave_canonica_no_bigquery_devolve_o_que_o_postgresql_devolve(tipo):
     divergencias = [(f[:40], no_bigquery.get(i), remocao.canonizar(f, tipo))
                     for i, f in enumerate(formas) if no_bigquery.get(i) != remocao.canonizar(f, tipo)]
     assert not divergencias, divergencias
+
+
+# ── A medição da D43 (`mvp_ed1.gcp.identidades`) ─────────────────────────────
+
+
+def test_identidades_conta_recusa_dos_dois_lados_como_o_mesmo_resultado():
+    from mvp_ed1.gcp.identidades import comparar
+
+    lista = [("bigint", "8"), ("bigint", "08"), ("bigint", "0x8"), ("bigint", "9" * 99)]
+    pg = [{"identidade": "8", "chave": "8"}, {"identidade": "8", "chave": "8"},
+          {"identidade": "0x8", "chave": "8"}, {"identidade": "ERRO: a", "chave": None}]
+    bq = [{"identidade": "8", "chave": "8"}, {"identidade": "8", "chave": "8"},
+          {"identidade": "0x8", "chave": "8"}, {"identidade": "ERRO: b", "chave": None}]
+    r = comparar(lista, pg, bq)
+    assert r["paridade"]["identidade"]["divergentes"] == 0
+    assert r["paridade"]["identidade"]["recusadas_nos_dois"] == 1
+    bigint = r["entre_nocoes"]["bigint"]
+    # '8'×'0x8' e '08'×'0x8': a chave junta, a identidade separa; o par com recusa fica fora.
+    assert len(bigint["chave_sim_identidade_nao"]) == 2 and bigint["identidade_sim_chave_nao"] == []
+    assert bigint["pares"] == 3 and bigint["texto_nao_chave_sim"] == 3
+
+
+def test_identidades_acusa_quando_so_um_armazem_recusa():
+    from mvp_ed1.gcp.identidades import comparar
+
+    r = comparar([("bigint", " 8 ")], [{"identidade": "ERRO: x", "chave": "8"}],
+                 [{"identidade": " 8 ", "chave": "8"}])
+    assert r["paridade"]["identidade"]["divergentes"] == 1 and r["paridade"]["chave"]["divergentes"] == 0

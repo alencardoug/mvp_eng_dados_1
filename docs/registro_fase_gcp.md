@@ -436,7 +436,30 @@ analista **consultar** `consumption` e o auditor ler `governance`.
 
 **Um *commit* que o portão não viu.** O `make check-offline` passou com o `cloud_sql.tf` ainda fora
 do Git, e a revisão de segredos lê **só arquivos rastreados**: depois do *commit* `4a0b221`, ela
-acusou `secret_id = "mvp-ed1-…-db-password"` — uma atribuição literal a chave com `secret`. Não é
+acusou o campo `secret_id` do segredo, escrito com o nome entre aspas — atribuição literal a uma
+chave com `secret`. Não é
 credencial (é o nome do segredo, e o valor nasce no `apply`), mas a regra é a certa e a correção foi
 na declaração: o nome sai de um `local` montado por expressão. Lição para o resto da etapa: **`git
 add` antes do portão**, não depois.
+
+## 13. A D43 medida (07/11/2026, manhã)
+
+O plano manda medir a guarda de identidade nas **três** noções de "mesma chave" antes de declarar
+paridade (§2.3). `python -m mvp_ed1.gcp.identidades` renderiza as macros reais na metade de cada alvo
+e roda, uma forma por consulta, as 115 formas que provam a canonização — um erro numa forma vira o
+resultado dela, não derruba as outras. Duas rodadas (~5 min cada, ~460 consultas no BigQuery):
+
+- **a primeira** contou como divergente a forma que os dois armazéns recusam (131.073 noves: o
+  `numeric` do PostgreSQL e o `BIGNUMERIC` do BigQuery estouram, com mensagens diferentes). Recusa dos
+  dois lados é o mesmo resultado; o comparador passou a dizer isso, com teste;
+- **a segunda** [medido]: `chave_canonica` **115 de 115**; `identidade_canonica` **114 de 115**, e a
+  que sobra é real — `' 8 '` **aborta a consulta no PostgreSQL** (o `\s` dele aceita espaço
+  Unicode, o `numeric` não) e passa intacta no BigQuery. Defeito latente do caminho **local**, que o
+  dado de hoje não exercita: virou a
+  [D77](pendencias.md#d77--a-identidade_canonica-local-aborta-a-consulta-diante-de-espaço-unicode-em-volta-do-número),
+  para o Owner.
+
+Entre as noções: a identidade nunca junta o que a chave separa, e separa 241 dos 264 pares que a chave
+junta. Os números e a tabela ficaram na própria D43
+([Pendências](pendencias.md#d43--a-guarda-de-identidade-como-função-no-armazém-adiada-em-16092026)),
+que continua do Owner. Evidência: `data/medicoes/etapa_13/d43/medicao_02.{txt,json}`.
