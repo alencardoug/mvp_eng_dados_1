@@ -15,8 +15,9 @@
 ## 0. O prazo manda
 
 A Etapa 13 foi **autorizada pelo Owner em 06/11/2026**. A conta GCP está em **Free Trial, não
-convertida**, e o prazo da avaliação termina em **sete dias** — tudo tem de ser **ativado e
-desativado** antes disso. Falhar no desmonte é falhar no projeto (palavras do Owner).
+convertida**. A consola dizia em 06/11/2026: **R$ 1.740,37 de crédito e 9 dias restantes** — o fim
+real é por volta de 15/11. O Owner fixou **sete dias** de prazo, preventivamente: tudo **ativado e
+desativado** até 13/11. Falhar no desmonte é falhar no projeto (palavras do Owner).
 
 Daí as três regras que se sobrepõem a qualquer outra coisa neste plano:
 
@@ -36,7 +37,7 @@ O que a Free Trial muda **[medido, 06/11/2026]**:
 | Cota `CPUS_ALL_REGIONS` = **32**; `IN_USE_ADDRESSES` = 8 por região | `gcloud compute project-info describe` no projeto `analisador-de-risco` (o projeto novo herda a da conta — a conferir no G0) | GKE + Dataflow + Debezium cabem com folga; o Composer 3 roda no projeto da Google |
 | Fim da avaliação: recursos **parados**, 30 dias de carência, depois **apagados** | idem | é rede de segurança contra cobrança, **não** é o desmonte — o critério da etapa exige o nosso |
 | O crédito não paga a API do Gemini | idem | o Gemini usado como verificador não consome o crédito |
-| Nove projetos dividem a mesma conta de faturamento | `gcloud billing accounts list`, `gcloud projects list` | o crédito restante é da conta, não do projeto — **conferir no G0** |
+| Nove projetos dividem a mesma conta de faturamento; **R$ 1.740,37** de crédito em 06/11 | `gcloud billing accounts list`, `gcloud projects list`; a consola, lida pelo Owner | o crédito é da conta, não do projeto; a janela [estimada] usa uma fração dele — a folga é de tempo, não de dinheiro |
 
 ---
 
@@ -209,7 +210,7 @@ Cada bloco diz o que entrega, como se prova e o que fica para depois. Os nomes d
 ### G0 — fundação (sábado, 07/11)
 
 Projeto dedicado, ligação à conta de faturamento, **orçamento com alertas em US$ 25, 50 e 75** no
-projeto e conferência do **crédito restante da conta** (passo do Owner na consola), APIs ativadas,
+projeto, APIs ativadas,
 `gcloud auth application-default login` (passo do Owner), esqueleto de `terraform/` (módulos
 `fundacao`, `rede`, `iam`, `bigquery`, `storage`, `cloud_sql`, `pubsub`, `gke`, `airbyte`,
 `composer`, `streaming`, `governanca`), alvos `make gcp-*` com *preflight* que recusa sem o projeto
@@ -305,7 +306,8 @@ dela; *tag* `v2.0.0` (D47) no aceite.
 A estimativa de US$ 20–30/dia é a da
 [conversa de custos](CONVERSAS_COM_CHAT/ARQUITETURA_E_CUSTOS_GCP.md) §7, de 15/09, **não
 conferida** contra a tabela de preço atual (Q5). A janela cara de ~34 h fica em ~US$ 30–45 mais o
-barato, dentro do crédito **se o crédito restante da conta passar de US$ 100** — conferido no G0.
+barato — uma fração dos R$ 1.740,37 de crédito da conta. **O recurso escasso é o tempo, não o
+crédito.**
 
 ### 6.2 O rito de cada `apply`
 
@@ -348,8 +350,7 @@ O que não se medir fica escrito como **não medido**, com o motivo.
 
 ## 8. Premissas e o não verificado
 
-- O prazo exato da Free Trial (dia **e hora**) — o Owner confere na consola no G0.
-- O crédito restante da conta, dividido com oito outros projetos.
+- A hora exata do fim da Free Trial (por volta de 15/11; o prazo do plano, 13/11, não depende dela).
 - A cota do projeto novo (lida no G0; não pode ser aumentada).
 - Envelope do Debezium Server em Pub/Sub igual ao do Kafka Connect (D69a) — testado no G2.
 - Airbyte com Workload Identity (D72), Airbyte em Autopilot (D73), `dbt-bigquery` com `dbt-core
@@ -363,7 +364,10 @@ O que não se medir fica escrito como **não medido**, com o motivo.
 Questionário em `CONVERSAS_COM_CHAT/gemini/` (fora do mapa de docs). A rodada 1 (06/11) bateu
 na cota da chave da API do Gemini (429 em toda busca); os fatos críticos — Datastream, Free Trial,
 Composer e Airflow, Debezium Server, *policy tags*, destino BigQuery do Airbyte, retenção travada —
-foram lidos pelo Claude Code nas páginas oficiais citadas acima. As perguntas restantes:
+foram lidos pelo Claude Code nas páginas oficiais citadas acima. A chave é a única forma de
+autenticação que o Gemini CLI aceita nesta conta (o *login* Google foi recusado pela ferramenta), no
+nível gratuito: uma nova tentativa por dia, com uma pergunta por chamada; sem a cota, a conferência
+fica com o Claude Code e com o Codex (rede ligada na revisão). As perguntas restantes:
 
 | # | Pergunta | Estado |
 |---|---|---|
