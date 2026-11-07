@@ -64,9 +64,14 @@ def decodificar(bruto: bytes | str) -> dict[str, Any]:
     """
     envelope = json.loads(bruto)
 
-    # Envelope achatado por SMT, ou já sem envelope: aceito, desde que traga a
-    # chave do evento. É o formato que o `unwrap` produziria, e não custa nada
-    # tolerá-lo — o que não se tolera é operação errada.
+    # Envelope achatado pelo `unwrap` da fase GCP (D78): a operação e a posição no
+    # WAL vêm como campos `__op` e `__lsn`, e um DELETE reescrito traz `__deleted`.
+    # A recusa é a mesma do envelope inteiro — a operação, não o formato, decide.
+    if "op" not in envelope and "__op" in envelope:
+        return _achatado(envelope)
+
+    # Já sem envelope e sem operação: aceito, desde que traga a chave do evento.
+    # Não custa tolerá-lo — o que não se tolera é operação errada.
     if "op" not in envelope and "movement_id" in envelope:
         return _tipar(envelope, operacao="c", lsn=None)
 
@@ -86,6 +91,22 @@ def decodificar(bruto: bytes | str) -> dict[str, Any]:
         raise ContratoViolado(f"envelope com op={operacao!r} e `after` vazio")
 
     return _tipar(linha, operacao=operacao, lsn=(envelope.get("source") or {}).get("lsn"))
+
+
+def _achatado(envelope: dict[str, Any]) -> dict[str, Any]:
+    operacao = envelope["__op"]
+    linha = {campo: valor for campo, valor in envelope.items() if not campo.startswith("__")}
+    if operacao in OPERACOES_PROIBIDAS or str(envelope.get("__deleted", "false")).lower() == "true":
+        nome = OPERACOES_PROIBIDAS.get(operacao, "DELETE")
+        raise ContratoViolado(
+            f"{nome} capturado em oltp.inventory_movements (movement_id={linha.get('movement_id')}). "
+            "O livro de eventos só aceita inserção: correção é evento compensatório novo. "
+            "Isto é defeito na origem, não evento de negócio."
+        )
+    if operacao not in OPERACOES_ACEITAS:
+        raise ContratoViolado(f"operação desconhecida no envelope achatado: {operacao!r}")
+    lsn = envelope.get("__lsn")
+    return _tipar(linha, operacao=operacao, lsn=None if lsn is None else int(lsn))
 
 
 def _tipar(linha: dict[str, Any], *, operacao: str, lsn: int | None) -> dict[str, Any]:

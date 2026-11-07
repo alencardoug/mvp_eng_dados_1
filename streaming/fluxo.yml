@@ -114,3 +114,25 @@ produtor:
   # a tabela permanece íntegra e quem repete é o caminho, que é onde a
   # duplicata acontece de verdade.
   fracao_de_duplicatas_no_transporte: 0.05
+
+# ── Fase GCP (Etapa 13, G2.3; ADR-0051, D75, D78) ───────────────────────────
+# O mesmo fluxo, com o transporte e o destino da nuvem: o Debezium Server publica no
+# tópico do Pub/Sub de mesmo nome do Kafka local, e o Beam lê pela assinatura `beam`
+# (`terraform/armazenamento.tf`). Janela, atraso, limiar e destino são os de cima.
+nuvem:
+  assinatura_de_eventos: mvp.oltp.inventory_movements.beam
+  topico_de_alertas: mvp.alerts.inventory_low_stock
+
+  # O tempo de evento chega como atributo da mensagem (D78): o `HeaderFrom` do
+  # Debezium Server copia `occurred_at` para cabeçalho, e o *sink* o passa a atributo.
+  atributo_de_tempo: occurred_at
+
+  # A escrita é serializada por fragmento de `movement_id` (D75): o mesmo movimento
+  # cai sempre no mesmo fragmento, e um fragmento escreve um lote por vez — duas
+  # decisões de inserir a mesma chave nunca correm juntas. Mais fragmentos, mais
+  # lotes em paralelo no BigQuery; HIPÓTESE a calibrar na janela (P5).
+  fragmentos_de_escrita: 4
+
+  # Quanto um lote espera para encher antes de ser escrito mesmo incompleto.
+  # Sem teto, um fragmento com pouco tráfego seguraria eventos indefinidamente.
+  espera_maxima_do_lote_segundos: 5

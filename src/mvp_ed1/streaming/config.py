@@ -66,12 +66,25 @@ class Produtor:
 
 
 @dataclass(frozen=True)
+class Nuvem:
+    """O transporte e a escrita da fase GCP (Etapa 13, G2.3): Pub/Sub e BigQuery."""
+
+    assinatura_de_eventos: str
+    topico_de_alertas: str
+    atributo_de_tempo: str
+    fragmentos_de_escrita: int
+    espera_maxima_do_lote_segundos: float
+
+
+@dataclass(frozen=True)
 class Fluxo:
     transporte: Transporte
     processamento: Processamento
     limiar_de_unidades: int
     destino: Destino
     produtor: Produtor
+    #: Ausente numa declaração sem a seção `nuvem` — a fase local não precisa dela.
+    nuvem: Nuvem | None = None
 
 
 def _faixa(valor: Any, campo: str) -> tuple[Any, Any]:
@@ -121,6 +134,19 @@ def carregar(arquivo: Path = ARQUIVO) -> Fluxo:
             "nenhum evento atrasado reabriria janela alguma"
         )
 
+    nuvem = None
+    if "nuvem" in bruto:
+        n = bruto["nuvem"]
+        nuvem = Nuvem(
+            assinatura_de_eventos=n["assinatura_de_eventos"],
+            topico_de_alertas=n["topico_de_alertas"],
+            atributo_de_tempo=n["atributo_de_tempo"],
+            fragmentos_de_escrita=int(n["fragmentos_de_escrita"]),
+            espera_maxima_do_lote_segundos=float(n["espera_maxima_do_lote_segundos"]),
+        )
+        if nuvem.fragmentos_de_escrita < 1:
+            raise DeclaracaoInvalida("nuvem.fragmentos_de_escrita: precisa ser ao menos 1")
+
     limiar = int(bruto["alerta"]["limiar_de_unidades"])
     if limiar < 0:
         raise DeclaracaoInvalida("alerta.limiar_de_unidades: não pode ser negativo")
@@ -158,4 +184,5 @@ def carregar(arquivo: Path = ARQUIVO) -> Fluxo:
                 "produtor.fracao_de_duplicatas_no_transporte",
             ),
         ),
+        nuvem=nuvem,
     )

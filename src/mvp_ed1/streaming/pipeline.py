@@ -150,9 +150,11 @@ class AcumularSaldoEAlertar(beam.DoFn):
 
     SALDO = userstate.ReadModifyWriteStateSpec("saldo", VarIntCoder())
 
-    def __init__(self, limiar: int, destino):
+    def __init__(self, limiar: int, destino, semear=None):
         self._limiar = limiar
         self._destino = destino
+        #: Na nuvem, a semente lê o BigQuery (`nuvem.Semear`); sem ela, o armazém local.
+        self._semear = semear
         self._semente: dict[tuple[int, int], int] = {}
         self.alertas = beam.metrics.Metrics.counter("streaming", "alertas_emitidos")
         self.correcoes = beam.metrics.Metrics.counter("streaming", "janelas_corrigidas")
@@ -174,6 +176,12 @@ class AcumularSaldoEAlertar(beam.DoFn):
         estado entre execuções, e o Dataflow persiste. Semear do destino faz o
         mesmo código dar o mesmo resultado nos dois, que é o ponto do **P4**.
         """
+        if self._semear is not None:
+            self._inicio, linhas = self._semear()
+            self._semente = {(w, v): int(s) for w, v, s in linhas}
+            LOG.info("saldo semeado a partir de %s pares já duráveis", len(self._semente))
+            return
+
         import sqlalchemy as sa
 
         from mvp_ed1.streaming.sink import engine
@@ -245,13 +253,32 @@ class AcumularSaldoEAlertar(beam.DoFn):
         }
 
 
-def construir(p: beam.Pipeline, fluxo: Fluxo) -> dict[str, beam.PCollection]:
-    """Monta o grafo e devolve as coleções nomeadas, para teste e diagnóstico."""
-    proc = fluxo.processamento
+def construir(p: beam.Pipeline, fluxo: Fluxo, *, nuvem: bool = False) -> dict[str, beam.PCollection]:
+    """Monta o grafo e devolve as coleções nomeadas, para teste e diagnóstico.
 
-    eventos = p | "LerDoTransporte" >> LerDoTransporte(
-        fluxo.transporte, proc.folga_do_watermark_segundos
-    )
+    `nuvem` troca três peças e só elas (Etapa 13, G2.3): a leitura vem do Pub/Sub,
+    a escrita vai ao BigQuery pela regra da D75 e o alerta sai no Pub/Sub; a semente
+    do saldo lê o BigQuery. Deduplicação, janela, gatilho e saldo são os mesmos.
+    """
+    proc = fluxo.processamento
+    if nuvem:
+        import os
+
+        from mvp_ed1.streaming import nuvem as gcp
+
+        if fluxo.nuvem is None:
+            raise ValueError("fluxo.yml sem a seção `nuvem`: a fase GCP não tem o que ler")
+        eventos = p | "LerDoTransporte" >> gcp.LerDoPubSub(fluxo.nuvem, os.environ["GCP_PROJECT_ID"])
+        gravar = gcp.GravarNaNuvem(fluxo)
+        semear = gcp.Semear(fluxo.destino)
+        publicar = beam.ParDo(gcp.PublicarAlerta(fluxo.nuvem))
+    else:
+        eventos = p | "LerDoTransporte" >> LerDoTransporte(
+            fluxo.transporte, proc.folga_do_watermark_segundos
+        )
+        gravar = beam.ParDo(GravarEventos(fluxo.destino, fluxo.transporte))
+        semear = None
+        publicar = beam.ParDo(PublicarAlerta(fluxo.transporte))
 
     # Deduplicação no consumidor, pela `idempotency_key`, dentro da janela
     # declarada (Streaming §3.2). É otimização, não a garantia: o que garante é
@@ -270,7 +297,7 @@ def construir(p: beam.Pipeline, fluxo: Fluxo) -> dict[str, beam.PCollection]:
     )
 
     # ── Ramo 1: deltas imutáveis (ADR-0019) ─────────────────────────────────
-    novos = unicos | "GravarDeltas" >> beam.ParDo(GravarEventos(fluxo.destino, fluxo.transporte))
+    novos = unicos | "GravarDeltas" >> gravar
 
     # ── Ramo 2: saldo por tempo de evento e alerta (Streaming §3 e §5) ──────
     alertas = (
@@ -301,8 +328,8 @@ def construir(p: beam.Pipeline, fluxo: Fluxo) -> dict[str, beam.PCollection]:
             trigger=trigger.Repeatedly(trigger.AfterCount(1)),
             accumulation_mode=trigger.AccumulationMode.DISCARDING,
         )
-        | "AcumularSaldo" >> beam.ParDo(AcumularSaldoEAlertar(fluxo.limiar_de_unidades, fluxo.destino))
-        | "PublicarAlerta" >> beam.ParDo(PublicarAlerta(fluxo.transporte))
+        | "AcumularSaldo" >> beam.ParDo(AcumularSaldoEAlertar(fluxo.limiar_de_unidades, fluxo.destino, semear))
+        | "PublicarAlerta" >> publicar
     )
 
     return {"eventos": eventos, "unicos": unicos, "novos": novos, "alertas": alertas}
@@ -328,7 +355,7 @@ def opcoes(extras: list[str] | None = None) -> PipelineOptions:
     return op
 
 
-def executar(fluxo: Fluxo, extras: list[str] | None = None) -> None:
+def executar(fluxo: Fluxo, extras: list[str] | None = None, *, nuvem: bool = False) -> None:
     """Sobe o pipeline e o mantém consumindo até ser interrompido."""
     LOG.info(
         "pipeline: janela=%ss atraso_tolerado=%ss folga=%ss limiar=%s destino=%s",
@@ -339,4 +366,4 @@ def executar(fluxo: Fluxo, extras: list[str] | None = None) -> None:
         fluxo.destino.qualificado,
     )
     with beam.Pipeline(options=opcoes(extras)) as p:
-        construir(p, fluxo)
+        construir(p, fluxo, nuvem=nuvem)
