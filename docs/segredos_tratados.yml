@@ -101,3 +101,21 @@ tratados:
       reescreveu a referência com chaves e o arquivo atual deixou de ser
       acusado; o blob antigo permanece, e `make secrets-history` saía com erro
       desde então (medido em 22/10/2026, §5.6 do plano do `bi-como-codigo`).
+  - commit: 4a0b2215fdc4d6d205b389d2f1fd46f16eb1b9a2
+    caminho: terraform/cloud_sql.tf
+    chave: secret_id
+    tratamento: nenhum — nome de recurso, não valor
+    motivo: >-
+      Falso positivo. O campo é o identificador do segredo do Secret Manager que
+      guarda a senha de uma origem do Cloud SQL, montado com o nome da origem; a
+      senha mesma nasce no `apply` (`random_password`) e só existe no estado
+      local, fora do Git. 05df480 (07/11/2026) passou a montar o nome num `local`
+      e o arquivo atual deixou de ser acusado; o blob antigo permanece.
+  - commit: 898a8bc6c651000c265671ab5c7585298f0a5269
+    caminho: docs/registro_fase_gcp.md
+    chave: secret_id
+    tratamento: nenhum — citação do falso positivo acima, não valor
+    motivo: >-
+      O registro da fase GCP citou, entre crases, a linha acusada em
+      terraform/cloud_sql.tf ao contar o episódio. 00c19ec (07/11/2026) reescreveu
+      a frase sem o literal; o blob antigo permanece.
