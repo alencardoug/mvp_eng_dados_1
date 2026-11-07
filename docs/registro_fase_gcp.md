@@ -612,3 +612,58 @@ achatar o envelope (`ExtractNewRecordState`, `add.fields=op,lsn`, *deletes* rees
 `envelope.py` continue recusando `u/d` pelo `__op`) e copiar `occurred_at` para cabeçalho pelo
 `HeaderFrom`; Debezium Server **`3.7.1.Final`** por *digest*. Fica no mapa de paridade: local
 `connect:3.6.2` com o envelope inteiro, GCP `server:3.7.1` achatado — o mesmo contrato do evento.
+
+## 19. G2.3, o lado do Beam: Pub/Sub, a escrita da D75 e o Debezium Server gerado (07/11/2026, tarde)
+
+O grafo da fase local é o mesmo; `pipeline.construir(..., nuvem=True)` troca três peças e só elas
+(`src/mvp_ed1/streaming/nuvem.py`): a **leitura** pela assinatura `beam`, com o tempo de evento no
+atributo `occurred_at` (D78); a **escrita** dos deltas no BigQuery; e o **alerta** no tópico do
+Pub/Sub. A semente do saldo lê o BigQuery. O `envelope.py` aceita o envelope achatado e continua
+recusando `u`/`d` — agora pelo `__op`, e um DELETE reescrito pelo `__deleted`.
+
+**A D75, o mecanismo escolhido** (registrado aqui e no código; a garantia estava fixada, o meio não):
+
+| Cláusula do contrato | Como se cumpre |
+|---|---|
+| (i) duas decisões de inserir a mesma chave não vencem as duas | cada evento vai a um fragmento fixo pelo `crc32` do `movement_id` (o `hash` do Python muda por interpretador); `GroupIntoBatches` é passo com estado por chave, e o Beam processa uma chave de cada vez — um escritor por fragmento |
+| saber o que entrou sem `returning` | o lote é um `MERGE` só (inserir onde não casa), com o mesmo `_stream_extracted_at` em todas as linhas; o que entrou são as chaves do lote com esse instante, e tem de bater com as linhas afetadas pelo *job* — senão a escrita para |
+| (ii) reexecução não alerta duas vezes | o lote reexecutado acha as linhas da primeira vez e não as devolve; erro do *job* (nada gravado) repete o mesmo `MERGE` até 3 vezes |
+| (iii) resposta perdida | a DML passa pelo `armazem.BigQuery.dml` do G2.1: o *job* é achado pelo id, não reenviado |
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A22 | `_stream_partition` e `_stream_offset` **nulos** na nuvem | o Pub/Sub não tem partição nem posição; inventar um número seria procedência falsa | gravar o `message_id` numa coluna nova (catálogo e dicionário na mesma entrega) |
+| A23 | `fragmentos_de_escrita: 4`, lote de 500, espera de 5 s | HIPÓTESE (P5): o volume `dev` cabe; calibrar na janela | `streaming/fluxo.yml`, seção `nuvem` |
+| A24 | O Debezium Server **gerado** da declaração do conector local (`mvp_ed1.streaming.debezium_server` → `streaming/debezium_server/application.properties`, conferido por teste) | duas declarações do mesmo conector divergiriam | — |
+| A25 | Tópico `mvp-heartbeat.mvp`, sem assinatura | o padrão `__debezium-heartbeat.mvp` começa com `_`, que o Pub/Sub recusa; sem *heartbeat* o slot segura WAL | — |
+
+**Prova** [medido]: `tests/test_caminho_quente_nuvem.py` — unidade (envelope achatado, fragmento
+estável, regra do lote com BigQuery simulado, grafo da nuvem montado, `application.properties` em
+dia, tópico de *heartbeat* no Terraform) e, com `GCP_TESTES=1`, no BigQuery de verdade: lote com
+duplicata grava uma vez e devolve só o que entrou; o mesmo lote de novo não devolve nada; `NUMERIC`
+e microssegundos exatos do envelope ao destino; a mesma chave nova em dois lotes seguidos fica uma
+vez; dois fragmentos em paralelo devolvem cada um o seu; a semente vê só o que veio antes (11
+testes, 43 s).
+
+**De ponta a ponta, antes do GKE** [medido] (`python -m mvp_ed1.gcp.prova_quente`,
+`data/medicoes/etapa_13/g23/prova_quente.json`): o grafo da nuvem no executor local, contra o
+Pub/Sub e o BigQuery de verdade, em tópicos, assinaturas e *dataset* **temporários** (a assinatura
+`beam` do Terraform não foi tocada), apagados no fim. Um saldo de partida de 30 gravado antes de o
+*pipeline* subir; publicados, no formato da D78, três movimentos ao vivo, uma duplicata no transporte
+e um movimento oito minutos atrasado. Resultado: **cinco linhas no destino, a duplicata barrada, saldo
+durável 23 e exatamente um alerta, abertura de 29 para 23** — o atrasado entrou primeiro no saldo e a
+janela dos três ao vivo cruzou o limiar.
+
+**O que a prova cobrou: a D62.** A primeira rodada gravou certo e **não alertou**. Com escutas em cada
+estágio, a semente veio com 23 — os três movimentos que a própria execução já tinha gravado: o
+`setup` do acumulador só roda quando chega o primeiro painel, e o corte da semente era o instante
+dele. É a D62, pendente desde 04/10/2026 e aceita só na fase local; aqui ela derrubava o critério
+"alerta observado". O Owner a decidiu na hora — opção (a), o corte no instante em que o *pipeline* é
+construído ([Pendências §2](pendencias.md#d62--a-semente-do-saldo-do-alerta-corta-no-instante-em-que-o-pipeline-é-construído-decidida-em-07112026)) —,
+e a segunda rodada alertou. A correção vale nas duas fases; **a prova local da D62** (o caminho quente
+local, `make stream-*`) **fica pendente** até rodar na máquina.
+
+**O executor local não é o Dataflow** em uma coisa que importa aqui: ele segura o *watermark* do
+Pub/Sub no relógio de parede (`transform_evaluator.py`, "TODO: correct value for watermark hold"), e
+por isso os painéis da rodada com escutas saíram como atrasados. Com 20 minutos de atraso tolerado, isso não perde evento; a
+semântica do *watermark* pelo atributo é do Dataflow e se confere na janela.
