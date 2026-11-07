@@ -896,3 +896,27 @@ reversão.
 
 **O G5 fica, assim, com uma pendência só:** a captura de tela da cadeia de linhagem na consola, que
 espera o Cloud SQL de pé na janela (§23).
+
+## 26. A D62 provada no caminho quente local (07/11/2026, noite)
+
+A pendência do §19: a correção da D62 — a semente do saldo do alerta corta no instante em que o
+*pipeline* é construído — rodando no caminho quente **local** (Debezium → Redpanda → Beam no
+executor local), pelos alvos guardados: `stream-up` (que pausou o Airflow pela troca),
+`stream-run`, `stream-produce LIMITE=2200`, `stream-wait ATE_SEQ=18125`; depois, `stream-pause`.
+
+**O caso foi exercitado** [medido, `data/medicoes/etapa_13/d62_local/`]: o *pipeline* foi construído
+às 20:58:16 UTC e retomou do *offset* 5560; os **2.200** eventos ao vivo foram gravados no destino entre
+20:59:15,65 e 20:59:19,50, e a semente rodou às **20:59:19,905** ("saldo semeado a partir de 2923 pares
+já duráveis") — todos depois de gravados, que é a condição em que o corte antigo, no instante da
+semente, os contaria duas vezes.
+
+**O oráculo** (`oraculo_d62.py`, guardado com a evidência): para cada alerta emitido depois da
+construção, o saldo antes da janela contra a soma de `quantity_delta` da origem com `occurred_at`
+anterior ao início da janela, e o saldo depois contra a soma anterior ao fim dela. Três leituras do
+tópico de alerta, para o ramo de alerta drenar (a D63): 10 alertas às 20:59:39, **181** às 21:02:53 e
+**181** às 21:06:18 — estável. **181 de 181 certos** (59 aberturas, 122 normalizações, 10 correções de
+evento atrasado). Os 181 caem em pares com evento gravado antes da semente, e em **179** deles o
+corte antigo teria deslocado o saldo (a soma desses eventos no par não é zero).
+
+A D62 fica provada nas duas fases: na nuvem pelo alerta da prova quente (§19), aqui pelo saldo de
+cada alerta contra o livro.
