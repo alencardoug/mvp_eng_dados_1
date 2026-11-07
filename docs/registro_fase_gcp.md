@@ -667,3 +667,25 @@ local, `make stream-*`) **fica pendente** até rodar na máquina.
 Pub/Sub no relógio de parede (`transform_evaluator.py`, "TODO: correct value for watermark hold"), e
 por isso os painéis da rodada com escutas saíram como atrasados. Com 20 minutos de atraso tolerado, isso não perde evento; a
 semântica do *watermark* pelo atributo é do Dataflow e se confere na janela.
+
+## 20. O tópico de *heartbeat* aplicado e o acesso ao Cloud SQL (07/11/2026, tarde)
+
+**Plano 07** [medido]: `07_heartbeat`, 2 / 0 / 0 — o tópico `mvp-heartbeat.mvp` (A25) e a permissão
+do `streamer` de publicar nele —, aprovado pelo Owner e aplicado.
+
+**A lacuna:** o Cloud SQL do degrau 06 nascia só com IP privado (A16), e desta máquina não se
+chegava a ele — nem o gerador que povoa as origens, nem as provas do G2.1 contra o Cloud SQL real.
+Opções postas ao Owner: IPv4 público só pelo Auth Proxy; uma VM bastião com túnel IAP (componente
+novo, ADR e mais um passo no desmonte); ou rodar tudo de dentro do GKE (o G2.1 real e a carga das
+origens escorregariam para terça).
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A16, revista pelo Owner | Cloud SQL com IP privado **e** IPv4 público **sem nenhuma rede autorizada**: só o Cloud SQL Auth Proxy entra, por TLS e IAM | GKE e Composer seguem pelo IP privado; esta máquina entra pelo proxy, sem VM nova; o IPv4 custa ~US$ 0,005/h | `ipv4_enabled = false` no `cloud_sql.tf` |
+| A26 | Proxy `v2.26.3` (22/10/2026) em `.tools/`, baixado por `make tools` e conferido pela soma SHA-256 das notas da versão; `make gcp-sql-proxy` o abre em `127.0.0.1:15432` | o mesmo regime do Terraform e do `abctl`; a `v2.27.0` tem nove dias | trocar a versão e a soma no `Makefile` |
+
+O plano do degrau 06 foi refeito com a mudança (`06_cloud_sql_revisao.txt`, só texto, como pede a
+A17): **11 / 0 / 0** — a instância, os dois bancos, as duas senhas, os dois usuários e os dois
+segredos com suas versões; os 36 que o somavam aos 47 da §12 já são do degrau barato aplicado.
+Para segunda, antes do primeiro *snapshot*: o atributo `REPLICATION` do usuário da origem que o
+Debezium Server usa.
