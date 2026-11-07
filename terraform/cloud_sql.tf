@@ -45,8 +45,12 @@ resource "google_sql_database_instance" "origens" {
       point_in_time_recovery_enabled = false
     }
 
+    # IP privado para quem está na VPC (GKE, Composer) e IPv4 público **sem rede autorizada
+    # nenhuma**: por ele só entra o Cloud SQL Auth Proxy, com TLS e IAM (`make gcp-sql-proxy`).
+    # É o acesso desta máquina para povoar as origens e provar o G2.1 (decidido pelo Owner em
+    # 07/11/2026, revendo a A16 — Registro §20).
     ip_configuration {
-      ipv4_enabled    = false
+      ipv4_enabled    = true
       private_network = google_compute_network.this[0].id
       ssl_mode        = "ENCRYPTED_ONLY"
     }
@@ -120,4 +124,9 @@ resource "google_secret_manager_secret_version" "origem" {
 
   secret      = google_secret_manager_secret.origem[each.key].id
   secret_data = random_password.origem[each.key].result
+}
+
+output "cloud_sql_conexao" {
+  description = "O nome de conexão da instância (`projeto:região:instância`), o que o Auth Proxy recebe."
+  value       = var.enable_cloud_sql ? google_sql_database_instance.origens[0].connection_name : null
 }

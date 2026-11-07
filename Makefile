@@ -31,6 +31,10 @@ ABCTL_VERSION := v0.30.4
 # zero em 25/09/2026; trocar é decisão, não efeito de data (RVF12-10).
 AIRBYTE_CHART_VERSION := 2.3.0
 TERRAFORM_VERSION := 1.16.1
+# O acesso desta máquina ao Cloud SQL da Etapa 13 (IP público sem rede autorizada: só o
+# proxy entra, por TLS e IAM). A soma é a das notas da versão, conferida no download.
+CLOUD_SQL_PROXY_VERSION := v2.26.3
+CLOUD_SQL_PROXY_SHA256 := 5533a05cdbf12f8a0cb46db34c775847a496e181d47f863284d3d02b0fad49fa
 ABCTL := DO_NOT_TRACK=1 .tools/abctl
 TERRAFORM := .tools/terraform -chdir=airbyte
 
@@ -145,8 +149,8 @@ endef
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
-        gcp-preflight gcp-plan gcp-apply gcp-dbt-build gcp-oraculos gcp-carga-dev \
-        require-env require-venv require-abctl require-terraform
+        gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev \
+        require-env require-venv require-abctl require-terraform require-cloud-sql-proxy
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis:"
@@ -335,7 +339,7 @@ source-oracle: require-env require-venv ## T2: as duas origens, em sessão somen
 size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
 	@$(GERADOR) size-report
 
-tools: ## Baixa abctl e Terraform fixados para .tools/ (fora do Git)
+tools: ## Baixa abctl, Terraform e o Cloud SQL Auth Proxy fixados para .tools/ (fora do Git)
 	@mkdir -p .tools
 	@test -x .tools/abctl || { \
 		echo "baixando abctl $(ABCTL_VERSION)"; \
@@ -346,13 +350,23 @@ tools: ## Baixa abctl e Terraform fixados para .tools/ (fora do Git)
 		echo "baixando Terraform $(TERRAFORM_VERSION)"; \
 		curl -sSL "https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/terraform_$(TERRAFORM_VERSION)_linux_amd64.zip" -o /tmp/tf.zip; \
 		unzip -oq /tmp/tf.zip -d .tools && rm -f /tmp/tf.zip; }
-	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1
+	@test -x .tools/cloud-sql-proxy || { \
+		echo "baixando Cloud SQL Auth Proxy $(CLOUD_SQL_PROXY_VERSION)"; \
+		curl -sSL "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/$(CLOUD_SQL_PROXY_VERSION)/cloud-sql-proxy.linux.amd64" \
+			-o .tools/cloud-sql-proxy.baixado \
+		&& echo "$(CLOUD_SQL_PROXY_SHA256)  .tools/cloud-sql-proxy.baixado" | sha256sum -c --quiet \
+		&& mv .tools/cloud-sql-proxy.baixado .tools/cloud-sql-proxy && chmod +x .tools/cloud-sql-proxy \
+		|| { rm -f .tools/cloud-sql-proxy.baixado; echo "ERRO: o proxy baixado não confere com a soma fixada"; exit 1; }; }
+	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1; .tools/cloud-sql-proxy --version
 
 require-abctl:
 	@test -x .tools/abctl || { echo "ERRO: abctl ausente. Rode 'make tools'."; exit 1; }
 
 require-terraform:
 	@test -x .tools/terraform || { echo "ERRO: Terraform ausente. Rode 'make tools'."; exit 1; }
+
+require-cloud-sql-proxy:
+	@test -x .tools/cloud-sql-proxy || { echo "ERRO: Cloud SQL Auth Proxy ausente. Rode 'make tools'."; exit 1; }
 
 preflight: ## Diz se cabe subir um subconjunto; ALVO=airbyte|airflow|streaming|trabalho
 	@docker/preflight.sh $(ALVO)
@@ -900,6 +914,8 @@ pgcli-warehouse: require-env ## Abre o pgcli, somente leitura, no armazém
 # não há alvo que planeje e aplique de uma vez.
 GCP_TF := .tools/terraform -chdir=terraform
 GCP_PLANOS := data/medicoes/etapa_13/planos
+# A porta local do proxy do Cloud SQL: fora das portas dos bancos locais do `.env`.
+GCP_SQL_PORTA ?= 15432
 
 gcp-preflight: require-env require-venv require-terraform ## Recusa se .env, terraform.tfvars e ADC não apontam o mesmo projeto GCP
 	@set -a; . ./.env; set +a; \
@@ -923,6 +939,11 @@ gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=05_red
 	@cp terraform/terraform.tfstate $(GCP_PLANOS)/tfstate_$(NOME).bak
 	@$(GCP_TF) apply -no-color ../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME)_apply.txt 2>&1; \
 		rc=$$?; tail -3 $(GCP_PLANOS)/$(NOME)_apply.txt; exit $$rc
+
+gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.0.0.1:15432 (GCP_SQL_PORTA=) pelo Auth Proxy; primeiro plano, Ctrl-C fecha
+	@# Sem rede autorizada no Cloud SQL: só o proxy entra, com a ADC do Owner (cloudsql.client).
+	@conexao=$$($(GCP_TF) output -raw cloud_sql_conexao) || { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
+		.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao"
 
 gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e logs separados do local
 	@cd dbt && set -a && . ../.env && set +a && ../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
