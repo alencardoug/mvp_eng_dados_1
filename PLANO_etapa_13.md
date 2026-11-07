@@ -239,6 +239,47 @@ perdido, reenvio sem remedir) verdes; na terça, contra Cloud SQL e BigQuery rea
 captura, recuperação de tentativa interrompida, segunda captura, nenhum POST indevido, memória
 anterior intacta.
 
+**G2.1 — o contrato de *backend*, operação a operação** (proposta de 07/11/2026; **aguarda o Owner**).
+
+Escrito antes de mexer em `captura.py`, `capture_recovery.py` e nas leituras do `ledger`, porque o
+que muda é **onde** cada garantia mora, e isso se revisa melhor em tabela do que em *diff*. Feito
+até aqui: o livro no Cloud Storage e o DDL do `governance`
+([Registro §14 e §15](docs/registro_fase_gcp.md#14-g21-primeira-peça-o-livro-retido-no-cloud-storage-07112026-manhã)).
+
+**A forma.** Dois papéis, que hoje são um `Engine` só: o **armazém** (o certificado e o bruto) e o
+**coordenador** (os *locks*). Local, os dois são o mesmo PostgreSQL, e o código não muda de
+comportamento. GCP, o armazém é o BigQuery (cliente `google-cloud-bigquery`, já dependência do
+projeto pelo `dbt-bigquery`; **sem** `sqlalchemy-bigquery`, que seria dependência nova) e o
+coordenador é o Cloud SQL das origens. Cada função recebe os dois explicitamente.
+
+| Operação (`captura.py`) | Local (PostgreSQL) | GCP | A garantia, e onde ela mora no GCP |
+|---|---|---|---|
+| `bloqueio_da_tentativa` | `pg_advisory_lock` de sessão, conexão descartada no fim | o **mesmo**, no Cloud SQL | chamador vivo = lock tomado; o Cloud SQL é PostgreSQL |
+| `iniciar` | `pg_advisory_xact_lock` de abertura + barreira + `insert` das 40 linhas, **uma transação** | lock de abertura **de sessão** no Cloud SQL; barreira lendo BigQuery e livro; 40 linhas numa tabela de passagem + `MERGE` pela chave `(tentativa, tabela)`, `insert` só quando não casa; **job confirmado** (`DONE`, sem erro, 40 linhas afetadas) **antes** de soltar o lock | a próxima abertura só começa depois de o `MERGE` estar visível (DML do BigQuery é consistente ao terminar o *job*); o `MERGE` torna a reexecução idempotente se a resposta do *job* se perder (recupera-se pelo `job_id`, não reenviando) |
+| `conferir_antes_do_disparo` | `count(*)` pendentes sem job | o mesmo `select` no BigQuery | lido com o lock da tentativa tomado no Cloud SQL |
+| `registrar_job` | `update … where (job_id is null and pending) or job_id = :j`, `rowcount = 40` | o mesmo `update` no BigQuery, `num_dml_affected_rows = 40` | o filtro do `update` é a guarda, nos dois; conflito de DML concorrente no BigQuery é erro do *job*, tratado como "não gravou" e relido |
+| `medir_origem` | `hash_no_banco(legado)` | o mesmo, no Cloud SQL | inalterado: o *hash* é Python sobre linhas lidas |
+| `medir_recebido` | `hash_no_banco(armazém, filtro sync_id)` + gerações + intrusas | as mesmas três leituras no BigQuery, com `JSON_VALUE(_airbyte_meta, '$.sync_id')` | o *hash* continua Python; **a provar**: que o Airbyte entrega as colunas `text` do legado como `STRING` sem mudar o texto (o vazio virando nulo já é normalizado) |
+| `_publicar` | 40 `update … and status = 'pending'` numa transação | uma transação multi-instrução (`BEGIN … COMMIT`) com os 40 `update`, ou um `MERGE` da passagem | a guarda `pending` no próprio `update`: quem publicou primeiro vence, o segundo grava zero e lê o gravado |
+| `_abandonar` | `update … pending and job_id is null and started_at <= :limite`, `rowcount = 40` | o mesmo `update` | condição revalidada no `update`, nos dois |
+| `_gravado`, `_pendentes`, `certificadas` | `select` | o mesmo `select` | — |
+
+**O que fica de fora do contrato, e por quê.** `governance.garantir` em `iniciar`: no GCP o DDL é
+`garantir_bigquery`, chamado na preparação do ambiente (época inicial), não a cada captura — cada
+chamada custaria um *job* de consulta a mais.
+
+**O que precisa de prova antes da janela** (a do plano, com o contrato acima): os casos do
+ADR-0044/0050 com o BigQuery simulado — resposta parcial, retorno perdido, reenvio sem remedir — e,
+na terça, contra Cloud SQL e BigQuery reais. Um caso novo que o contrato pede: **dois `iniciar`
+concorrentes**, para mostrar que o lock de sessão no Cloud SQL serializa a abertura como o
+`xact_lock` serializava.
+
+**Pendente de decisão do Owner:** nenhuma escolha de ferramenta nova (o cliente é o que já existe).
+A mudança de `xact_lock` para lock de sessão na abertura é forçada pelo meio — a transação do
+PostgreSQL não envolve o *job* do BigQuery — e mantém a garantia escrita no `iniciar` ("nenhuma
+segunda abertura cabe entre a primeira e o registro dela"), desde que o lock só saia depois de o
+`MERGE` confirmar.
+
 **G2.2 — catálogo** (RV13-1-07). `models/sensitivity.py` com dialeto e tipos lidos do alvo, não
 fixos em `postgres`; leitura do *manifest* BigQuery. **Prova:** compilar os dois alvos e comparar o
 conjunto de folhas e a classificação de **todas** as colunas — diferença zero, ou cada diferença
