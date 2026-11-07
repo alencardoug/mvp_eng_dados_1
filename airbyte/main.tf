@@ -97,14 +97,14 @@ resource "airbyte_source" "origem" {
     replication_method = { method = "Standard" }
 
     # Sem TLS e sem túnel porque origem e destino estão na mesma máquina, atrás
-    # do Docker. Na nuvem isto vira conexão privada — Etapa 13, mapa de paridade.
-    ssl_mode      = { mode = "disable" }
+    # do Docker. Na nuvem, conexão privada ao Cloud SQL, que só aceita cifrada.
+    ssl_mode      = { mode = var.armazem == "bigquery" ? "require" : "disable" }
     tunnel_method = { tunnel_method = "NO_TUNNEL" }
   })
 }
 
 resource "airbyte_destination" "camada" {
-  for_each = local.streams.origens
+  for_each = { for origem, spec in local.streams.origens : origem => spec if var.armazem == "postgres" }
 
   name          = "warehouse_db_${each.value.destino}"
   workspace_id  = var.airbyte_workspace_id
@@ -144,12 +144,37 @@ resource "airbyte_destination" "camada" {
   })
 }
 
+# ── O destino da fase GCP (D72) ──────────────────────────────────────────────
+# Um *dataset* por camada, como o schema local. *Batched Standard Inserts* e **sem**
+# `credentials_json`: o conector usa as credenciais padrão, que no GKE são as da conta de papel
+# `mvp-ingestor` pelo Workload Identity (`terraform/gke.tf`). O outro método do conector, por
+# GCS, exige chave HMAC — a chave que o ADR-0025 não deixa existir.
+#
+# `drop_cascade` não existe aqui: no BigQuery não há view dependente que impeça trocar a tabela,
+# e o que distingue `raw` de `raw_legacy` — descartável ou retido — é o modo de sincronização do
+# `streams.yml` (`full_refresh_append` no legado), que vale igual nos dois armazéns.
+resource "airbyte_destination" "bigquery" {
+  for_each = { for origem, spec in local.streams.origens : origem => spec if var.armazem == "bigquery" }
+
+  name          = "bigquery_${each.value.destino}"
+  workspace_id  = var.airbyte_workspace_id
+  definition_id = var.bigquery_destination_definition_id
+
+  configuration = jsonencode({
+    project_id          = var.gcp_project_id
+    dataset_location    = var.gcp_bq_location
+    dataset_id          = each.value.destino
+    loading_method      = { method = "Standard" }
+    disable_type_dedupe = false
+  })
+}
+
 resource "airbyte_connection" "ingestao" {
   for_each = local.streams.origens
 
   name           = "${each.value.schema}_para_${each.value.destino}"
   source_id      = airbyte_source.origem[each.key].source_id
-  destination_id = airbyte_destination.camada[each.key].destination_id
+  destination_id = var.armazem == "bigquery" ? airbyte_destination.bigquery[each.key].destination_id : airbyte_destination.camada[each.key].destination_id
 
   # O destino manda no nome do schema: sem isto o Airbyte recria `oltp` dentro
   # do armazém e a camada `raw` do ADR-0008 deixa de existir onde foi declarada.

@@ -96,3 +96,38 @@ variable "postgres_destination_definition_id" {
   type        = string
   default     = "25c5221d-dce2-4163-ade9-739ef790f503"
 }
+
+# ── Fase GCP (Etapa 13, G3; D72) ─────────────────────────────────────────────
+# A mesma declaração, com o armazém trocado: `bigquery` cria o destino BigQuery no lugar do
+# PostgreSQL local, e as origens passam a exigir SSL (o Cloud SQL só aceita conexão cifrada).
+# O estado da nuvem vive num *workspace* próprio do Terraform (`gcp`), nunca no local.
+variable "armazem" {
+  description = "postgres (fase local) ou bigquery (fase GCP)."
+  type        = string
+  default     = "postgres"
+
+  validation {
+    condition     = contains(["postgres", "bigquery"], var.armazem)
+    error_message = "armazem: postgres ou bigquery."
+  }
+}
+
+variable "gcp_project_id" {
+  description = "O projeto do BigQuery na fase GCP."
+  type        = string
+  default     = ""
+}
+
+variable "gcp_bq_location" {
+  description = "A região dos datasets na fase GCP."
+  type        = string
+  default     = ""
+}
+
+# Conferido no registro oficial de conectores (oss_registry.json, destination-bigquery 3.1.0)
+# em 07/11/2026 — a mesma regra dos dois acima: fixado, não descoberto pela API.
+variable "bigquery_destination_definition_id" {
+  description = "definition_id do conector de destino BigQuery."
+  type        = string
+  default     = "22f6c74f-5699-40ff-833c-4a879ea40133"
+}
