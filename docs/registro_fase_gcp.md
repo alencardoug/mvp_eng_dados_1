@@ -739,3 +739,37 @@ Deployment. O do Airbyte, com os valores do projeto: `AIRBYTE_URL`, `STORAGE_TYP
 `JOB_KUBE_SERVICEACCOUNT=airbyte-admin` e a anotação `iam.gke.io/gcp-service-account` na conta. Um
 cuidado que o *template* mostrou: a `airbyte-admin` nasce como *hook* `pre-install`, e uma anotação
 mudada depois **não** chega a ela por `upgrade` — tem de estar certa no primeiro `apply`.
+
+## 22. G4: as *policy tags* (07/11/2026, noite)
+
+**Decidido pelo Owner** (D79, [Pendências §2](pendencias.md#d79--as-policy-tags-quais-níveis-quem-cria-quem-lê-quando-o-fluxo-roda-decidida-em-07112026)):
+só `confidential` e `personal` com controle ligado; o Terraform cria taxonomia, *tags* e leitura;
+os cinco papéis e o Owner leem, `mvp-prova-sem-leitura` prova a negação; o fluxo só roda na janela.
+
+**Fatos conferidos** [medido, fontes oficiais, 07/11/2026]:
+
+| Fato | Fonte | Efeito |
+|---|---|---|
+| As *tags* do dbt só valem com `persist_docs` de coluna ligado | [dbt — BigQuery configs](https://docs.getdbt.com/reference/resource-configs/bigquery-configs) | já ligado no projeto (G1.4) |
+| O `update_columns` do dbt-bigquery grava `policyTags` de **toda** coluna documentada — vazio sem `policy_tags` | `dbt/adapters/bigquery/impl.py`, `_update_column_dict` | a *tag* é derivada na macro que o projeto já sobrepõe (`descricao_no_bigquery.sql`), sem escrever `policy_tags` em 4.161 colunas |
+| A *view* — autorizada ou não — carrega o controle das colunas que lê | [column-level-security-intro](https://docs.cloud.google.com/bigquery/docs/column-level-security-intro), "Query views" | o `analyst` precisa da leitura fina para as views de `consumption`; *view* não leva *tag* |
+| Vincular *tag* pede `datacatalog.taxonomies.get` e `bigquery.tables.setCategory`; o segundo está no Data Owner, **não** no Data Editor | [column-level-security](https://docs.cloud.google.com/bigquery/docs/column-level-security), "Set policy tags on columns" | papel próprio `mvpVincularPolicyTags` nos *datasets* do `transformer` e do fluxo; `mvpLerTaxonomia` no projeto |
+| As sete permissões dos dois papéis existem e aceitam papel próprio | `permissions:queryTestablePermissions` no projeto | o `apply` não para em permissão inexistente |
+
+**O que foi escrito:**
+
+- `terraform/politicas.tf` — taxonomia (`FINE_GRAINED_ACCESS_CONTROL`), as duas *tags*, a leitura
+  fina de cada uma para os cinco papéis e o Owner, a conta da prova, a federação de identidade do
+  GitHub (condição: este repositório e a `main`) e a conta do fluxo, que vincula *tag* e não lê dado.
+- `dbt/macros/descricao_no_bigquery.sql` — a *tag* de cada coluna de **tabela** derivada de
+  `meta.sensitivity` pelo mapa `MVP_POLICY_TAGS` (a saída `policy_tags`, que o `make gcp-dbt-build`
+  passa); sem o mapa, nada é marcado.
+- `src/mvp_ed1/gcp/politicas.py` — `convergir` (só as fontes: `raw`, `raw_legacy`, `governance`) e
+  `inventario` (tudo, sem escrever; falha com qualquer divergência ou coluna sem classificação).
+  Na classificação de hoje: 226 tabelas (147 do dbt, 79 fontes) e 355 colunas a marcar.
+- `.github/workflows/policy-tags.yml` — o fluxo do ADR-0025, com as *actions* fixadas por *commit*.
+- `src/mvp_ed1/gcp/prova_tags.py` — a negação: `count(*)` e a soma de `net_revenue_amount`
+  (`confidential`) numa view de `consumption`, pelas duas contas, e os registros de auditoria.
+
+**Plano** [medido]: `09_politicas` — **36 / 0 / 0**, sem custo (taxonomia, IAM e federação não
+cobram). Aguarda o Owner.
