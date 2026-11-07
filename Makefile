@@ -35,6 +35,10 @@ TERRAFORM_VERSION := 1.16.1
 # proxy entra, por TLS e IAM). A soma é a das notas da versão, conferida no download.
 CLOUD_SQL_PROXY_VERSION := v2.26.3
 CLOUD_SQL_PROXY_SHA256 := 5533a05cdbf12f8a0cb46db34c775847a496e181d47f863284d3d02b0fad49fa
+# O Helm da linha 3, a do provider do Terraform (hashicorp/helm 3.3): renderiza o chart local do
+# Debezium Server antes do `apply` e desinstala os releases no desmonte (§6.5 passos 3–4).
+HELM_VERSION := v3.22.1
+HELM_SHA256 := 896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea
 ABCTL := DO_NOT_TRACK=1 .tools/abctl
 TERRAFORM := .tools/terraform -chdir=airbyte
 
@@ -339,7 +343,7 @@ source-oracle: require-env require-venv ## T2: as duas origens, em sessão somen
 size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
 	@$(GERADOR) size-report
 
-tools: ## Baixa abctl, Terraform e o Cloud SQL Auth Proxy fixados para .tools/ (fora do Git)
+tools: ## Baixa abctl, Terraform, o Cloud SQL Auth Proxy e o Helm fixados para .tools/ (fora do Git)
 	@mkdir -p .tools
 	@test -x .tools/abctl || { \
 		echo "baixando abctl $(ABCTL_VERSION)"; \
@@ -357,7 +361,13 @@ tools: ## Baixa abctl, Terraform e o Cloud SQL Auth Proxy fixados para .tools/ (
 		&& echo "$(CLOUD_SQL_PROXY_SHA256)  .tools/cloud-sql-proxy.baixado" | sha256sum -c --quiet \
 		&& mv .tools/cloud-sql-proxy.baixado .tools/cloud-sql-proxy && chmod +x .tools/cloud-sql-proxy \
 		|| { rm -f .tools/cloud-sql-proxy.baixado; echo "ERRO: o proxy baixado não confere com a soma fixada"; exit 1; }; }
-	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1; .tools/cloud-sql-proxy --version
+	@test -x .tools/helm || { \
+		echo "baixando Helm $(HELM_VERSION)"; \
+		curl -sSL "https://get.helm.sh/helm-$(HELM_VERSION)-linux-amd64.tar.gz" -o .tools/helm.tar.gz \
+		&& echo "$(HELM_SHA256)  .tools/helm.tar.gz" | sha256sum -c --quiet \
+		&& tar -xzf .tools/helm.tar.gz -C .tools --strip-components=1 linux-amd64/helm && rm -f .tools/helm.tar.gz \
+		|| { rm -f .tools/helm.tar.gz; echo "ERRO: o Helm baixado não confere com a soma fixada"; exit 1; }; }
+	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1; .tools/cloud-sql-proxy --version; .tools/helm version --short
 
 require-abctl:
 	@test -x .tools/abctl || { echo "ERRO: abctl ausente. Rode 'make tools'."; exit 1; }
