@@ -456,7 +456,7 @@ resultado dela, não derruba as outras. Duas rodadas (~5 min cada, ~460 consulta
   que sobra é real — `' 8 '` **aborta a consulta no PostgreSQL** (o `\s` dele aceita espaço
   Unicode, o `numeric` não) e passa intacta no BigQuery. Defeito latente do caminho **local**, que o
   dado de hoje não exercita: virou a
-  [D77](pendencias.md#d77--a-identidade_canonica-local-aborta-a-consulta-diante-de-espaço-unicode-em-volta-do-número),
+  [D77](pendencias.md#d77--a-identidade_canonica-local-só-aceita-os-brancos-que-o-numeric-aceita-decidida-em-07112026),
   para o Owner.
 
 Entre as noções: a identidade nunca junta o que a chave separa, e separa 241 dos 264 pares que a chave
@@ -534,3 +534,8 @@ separação do ADR de acesso, agora provada com *job*, não só com metadado.
 **O livro no Cloud Storage real** [medido]: `GCP_TESTES=1 pytest tests/test_livro_gcs.py
 tests/test_governanca_bigquery.py` — 11 passaram, no *bucket* `mvp-ed1-gcp-livro` (prefixo
 `testes/<uuid>`). Os objetos de teste ficam sob a retenção sem trava da D70 e saem no desmonte.
+
+**A D77 (a), implementada** [medido]: a classe `[ \t\n\v\f\r]` na metade PostgreSQL da
+`identidade_canonica`; a paridade da identidade foi a **115 de 115** (`python -m
+mvp_ed1.gcp.identidades`), e o caso do espaço Unicode entrou no teste do vínculo
+([Pendências §2](pendencias.md#d77--a-identidade_canonica-local-só-aceita-os-brancos-que-o-numeric-aceita-decidida-em-07112026)).

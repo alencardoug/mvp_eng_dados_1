@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 6 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**; D77, levantada pela medição da D43). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, e a D76 no G1 dela (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida e D77 levantada, no G1 da Etapa 13 |
+| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, e a D76 e a D77 no G1 dela (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13 |
 
 ---
 
@@ -117,28 +117,6 @@ remessas entregues (8%) no dado da v1.0.0. No da v1.1.0 ficam de fora **16** rem
 entregues, todas com os itens rejeitados em cascata (`parent_rejected`), cada uma explicada pela
 reconciliação da P13 (04/11/2026, na regeneração); o total de remessas entregues não foi recontado.
 
-### D77 — a `identidade_canonica` local aborta a consulta diante de espaço Unicode em volta do número
-
-**Pergunta:** a classe de espaço da `default__identidade_canonica` passa a ser a que o `numeric` do
-PostgreSQL aceita (`[ \t\n\v\f\r]`), como já é na metade BigQuery, ou fica como está?
-
-**Medido em 07/11/2026** (Etapa 13, medição da D43): `'\u20038\u2003'` (o 8 entre espaços *em*)
-casa o `\s` da expressão regular do PostgreSQL — que inclui espaço Unicode — e o `::numeric` que vem
-depois o recusa (`invalid input syntax for type numeric`): a **consulta inteira aborta**. O
-BigQuery devolve a forma intacta, como texto. Conferido direto no armazém: `E'\u20038\u2003' ~
-'^\s*-?[0-9]+\s*$'` é verdadeiro; com `\u00a0` (espaço não separável) é falso. A macro roda em
-`explicado_pela_quarentena` e em `legacy_order_totals_divergence`; o bruto atual não tem essa forma, e
-o *build* passa.
-
-*Opções:* **(a)** a classe escrita, `[ \t\n\v\f\r]` — recomendada: a guarda aceita exatamente o
-que o `cast` aceita (a regra da `chave_canonica`, ADR-0045), a forma passa como texto nos dois
-alvos e a divergência some; é mudança de tratamento num caso que o dado de hoje não tem; **(b)**
-deixar, com o aborto como comportamento conhecido; **(c)** resolver junto da D43, se ela unificar
-as noções na `chave_canonica`.
-
-*Efeito de não decidir:* nenhum no dado de hoje; um payload rejeitado com espaço Unicode em volta da
-chave derruba o *build* — alto, não em silêncio.
-
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
 **Pergunta:** a macro `chave_canonica` deve continuar reproduzindo a gramática do `cast` de inteiro
@@ -176,7 +154,7 @@ renderizadas na metade de cada alvo, uma forma por consulta, sobre as 115 formas
 | Noção | Paridade PostgreSQL × BigQuery | Divergência com a `chave_canonica` (PostgreSQL) |
 |---|---|---|
 | texto | igual por construção | separa **todos** os 264 pares que a chave junta (227 `bigint`, 8 `integer`, 8 `smallint`, 21 `uuid`) |
-| `identidade_canonica` | 114 de 115 (1 recusada pelos dois; **1 divergente**, a D77) | separa 241 desses 264 pares — `'8'`×`'+8'`, `'8'`×`'0x8'`, `'8'`×`'0b1000'`, UUID em outra caixa —; **nunca** junta o que a chave separa |
+| `identidade_canonica` | 114 de 115 (1 recusada pelos dois; **1 divergente**, a D77); **115 de 115** depois dela | separa 241 desses 264 pares — `'8'`×`'+8'`, `'8'`×`'0x8'`, `'8'`×`'0b1000'`, UUID em outra caixa —; **nunca** junta o que a chave separa |
 | `chave_canonica` | **115 de 115** | — |
 
 A `chave_canonica` é paritária nas formas medidas. As três
@@ -302,6 +280,21 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D77 — a `identidade_canonica` local só aceita os brancos que o `numeric` aceita (decidida em 07/11/2026)
+
+**Decisão:** a classe de espaço da `default__identidade_canonica` passa a ser `[ \t\n\v\f\r]`,
+a mesma da metade BigQuery e da `chave_canonica` (ADR-0045) — opção (a), a recomendada. Antes, o `\s`
+da expressão regular do PostgreSQL casava espaço Unicode (`'\u20038\u2003'`, o 8 entre espaços
+*em*), o `::numeric` seguinte o recusava e a **consulta inteira abortava**; o BigQuery devolvia a
+forma intacta. Levantada pela medição da D43, no G1 da Etapa 13. Agora a forma passa como texto nos
+dois alvos.
+
+**Medido em 07/11/2026:** paridade da `identidade_canonica` em **115 de 115** formas
+(`python -m mvp_ed1.gcp.identidades`; era 114); as contagens de pares contra a `chave_canonica` não
+mudaram. O caso entrou em `test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai`. O bruto atual
+não tem essa forma — se tivesse, o *build* já abortaria —, e por isso nenhuma linha de
+`explicado_pela_quarentena` nem de `legacy_order_totals_divergence` muda.
 
 ### D76 — o membro desconhecido do agente é contratado à meia-noite de São Paulo (decidida em 07/11/2026)
 
