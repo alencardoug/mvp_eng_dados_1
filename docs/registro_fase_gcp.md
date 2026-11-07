@@ -689,3 +689,46 @@ A17): **11 / 0 / 0** — a instância, os dois bancos, as duas senhas, os dois u
 segredos com suas versões; os 36 que o somavam aos 47 da §12 já são do degrau barato aplicado.
 Para segunda, antes do primeiro *snapshot*: o atributo `REPLICATION` do usuário da origem que o
 Debezium Server usa.
+
+## 21. G3 em planos: o GKE, os *releases* do Helm e o destino BigQuery do Airbyte (07/11/2026, tarde)
+
+O degrau médio escrito e planejado, **sem `apply`** (terça, no rito). Três peças:
+
+- **`terraform/gke.tf`** — *cluster* Standard zonal, *pool* de 2 × `e2-standard-4` (D73), nós
+  privados com saída pelo Cloud NAT (as imagens vêm do quay.io e do Docker Hub), Workload Identity
+  ligando `airbyte/airbyte-admin` a `mvp-ingestor` e `debezium/debezium-server` a `mvp-streamer`,
+  e uma conta própria dos nós só com log e métrica (a padrão do Compute Engine é Editor).
+- **`terraform/aplicacoes_gke.tf`** — o Airbyte pelo chart `2.3.0` (o mesmo do
+  `AIRBYTE_CHART_VERSION`) e o Debezium Server por um chart local (`terraform/charts/debezium-server`),
+  que monta o `application.properties` **gerado** (§19) num ConfigMap, os *offsets* num PVC e a
+  senha da origem num Secret.
+- **`airbyte/`** — a mesma declaração da ingestão, com `armazem = "bigquery"`: destino BigQuery por
+  *Batched Standard Inserts*, sem `credentials_json` (D72), e as origens com SSL exigido.
+
+**Fatos conferidos antes de escrever** [medido, fontes oficiais, 07/11/2026]:
+
+| Fato | Fonte | Efeito |
+|---|---|---|
+| O chart `airbyte` `2.3.0` está em `https://airbytehq.github.io/charts` (o repositório do `abctl` v0.30.4) | `index.yaml` do repositório; *digest* `24be848e…` | `helm_release` com a versão fixada |
+| Os *pods* de *job* rodam com `JOB_KUBE_SERVICEACCOUNT` = `global.serviceAccountName` (`airbyte-admin`), e a conta aceita anotações | `templates/config/_jobs.tpl`, `values.yaml` do chart | uma anotação `iam.gke.io/gcp-service-account` dá aos conectores a identidade do `mvp-ingestor` |
+| O destino BigQuery usa as credenciais padrão quando `credentials_json` fica vazio; o método por GCS exige HMAC | `oss_registry.json`, `destination-bigquery` 3.1.0 | a D72 cabe sem chave; a prova é da terça (P3) |
+| Com `global.auth.enabled`, o *bootloader* gera as credenciais no Secret `airbyte-auth-secrets` — é o que o `abctl` liga | `internal/helm/airbyte_values.go` do `abctl` v0.30.4; `_auth.tpl` do chart | sem segredo a criar à mão; o `mvp_ed1.airbyte` autentica como no local |
+| O Debezium Server roda como `jboss` (uid 185), com `/debezium/config` e `/debezium/data` e saúde em `:8080/q/health` | `server/3.7/Dockerfile` das imagens oficiais; página do Debezium Server | `fsGroup: 185`; sondas em `/q/health/ready` e `/live` (subcaminhos do SmallRye, **a conferir de pé**) |
+| Imagem `quay.io/debezium/server:3.7.1.Final` | API do quay.io: `sha256:8e103635…` | fixada por *digest* no chart |
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A27 | Os *releases* atrás de um interruptor próprio, `enable_gke_apps`, num `apply` depois do do *cluster* | o provider do Helm se conecta ao *cluster* para planejar; nascendo no mesmo `apply`, o endereço não existe na hora do plano | — |
+| A28 | Debezium Server por **chart local**, e não por *manifests* soltos nem pelo Operator | o plano diz "por `helm_release`"; o Operator seria componente novo | — |
+| A29 | Armazenamento do Airbyte no GKE pelo **MinIO** do chart, não o `local` do `abctl` | o `local` monta um disco compartilhado por *pods* de nós diferentes, que dois nós não dão | `global.storage.type` em `terraform/helm/airbyte_gke.yaml` |
+| A30 | Plano de controle com *endpoint* público, autenticado pelo IAM | é por ele que o Helm e o `kubectl` desta máquina chegam; restringir a um IP dinâmico quebraria no meio da janela | `master_authorized_networks_config` |
+| A31 | Estado da configuração do Airbyte na nuvem num *workspace* `gcp` da raiz `airbyte/` | a mesma declaração, estados separados: nada do local é tocado | — |
+
+**Planos** [medido]: `08_gke` (só o *cluster*, `enable_gke=true`) — **11 / 0 / 0**, guardado só como
+texto (A17). O dos *releases* só se faz com o *cluster* de pé.
+
+**A conferir** (não medido): o plano da raiz `airbyte/` contra o Airbyte local mostrando nada a
+mudar — os endereços do estado são os mesmos, mas a prova pede a API local de pé, e ela está pausada;
+os *templates* do chart local renderizados (`helm template`; o Helm não está instalado nesta
+máquina — é a primeira coisa do `apply` de terça); o alvo do Makefile que aplica a raiz `airbyte/` no
+*workspace* `gcp` por `kubectl port-forward`, que nasce com o *cluster*.
