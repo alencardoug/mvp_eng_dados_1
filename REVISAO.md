@@ -788,3 +788,88 @@ declarar M6 incompleto e desmontar. Não há pergunta que impeça o autor de cor
   mecanismo proposto de mecanismo provado.
 - [ ] **RV13-2-05:** levar ao dimensionamento de G0 a topologia/quantidade total do pool e a soma
   contra as cotas reais, sem presumir dois nós totais pela quantidade por zona.
+
+## Rodada 3 — plano da Etapa 13
+
+### Conclusão
+
+**No blockers found within the reviewed scope.** RV13-2-01…05 estão resolvidos no plano.
+Não identifiquei regressão material introduzida por `5c2f4ec` nem reabertura de RV13-1-*.
+**A revisão do plano pode ser encerrada e a implementação (G0) pode começar**, com a autorização
+do Owner já registrada. Isso não constitui validação da implementação nem aceite de M6.
+
+O plano preserva M6 incompleto, sem aceite nem `v2.0.0`, se faltar qualquer critério; mantém
+o corte independente de faturamento quinta 12/11 às 12:00, exclusão do projeto às 15:00 e limite
+duro às 18:00 (America/Sao_Paulo). As alterações não introduzem credencial longeva nem afastam
+as regras invioláveis.
+
+### Escopo e versão
+
+Revisão exclusivamente de regressões em `20703a7..5c2f4ec`: um commit,
+`5c2f4ecea573585f3e4668b9eb906d8f986e1815`, HEAD observado em `main`, árvore inicialmente limpa.
+Objeto: plano revisão 3, duas linhas alteradas da Arquitetura §5 e respostas do autor na
+*Situação* de RV13-2-01…05. Rodadas anteriores preservadas. Escopo inteiro, D68 e D69–D74/
+ADR-0051 foram tratados como decisões vigentes, sem reabertura.
+
+### Achados e evidências
+
+Nenhum achado novo; portanto, nenhum ID RV13-3-* atribuído.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+
+### Situação independente de RV13-2-01…05
+
+“Resolvido no plano” significa correção documental suficiente para esta revisão; as provas
+planejadas ainda precisam ser executadas.
+
+| ID | Resultado | Evidência na revisão 3 |
+|---|---|---|
+| RV13-2-01 | Resolvido no plano | §2.3, L135–148: exclusão por chave, conflito/reexecução sem alerta duplo e recuperação pelo ID do job. G2.3, L253–259: dois lotes concorrentes com chave nova, duplicata no lote, retorno perdido e conferência de unicidade física/saldo/alertas; sem prova, o caminho quente não passa P3. O mecanismo continua por escolher e provar. |
+| RV13-2-02 | Resolvido no plano | §6.2 P1 impede iniciar o bloco bloqueado; P4 restringe abertura parcial a falha funcional, com dependências satisfeitas e M6 incompleto. Estimativa não aprovada ou plan não revisado impedem criar recursos do degrau. §6.3 mantém aprovação do Owner e aplicação do arquivo salvo. |
+| RV13-2-03 | Resolvido no plano | §1 define janela total terça 08:00 → quinta 12:00. G6/G7 e §6.1 separam provas até quarta 21:00, exportação até 21:30, remoção de Composer/Dataflow até 22:00 e restante quinta 07:00 (§6.5 passos 3–10). §6.4 limita a tentativa manual de quarta a 1 h antes da consola e preserva a emergência de quinta. Duração/custo são registrados por serviço. |
+| RV13-2-04 | Resolvido no plano | Arquitetura §5, L189/193, elimina a imposição de streaming inserts, remete a ADR-0019/0051/D75 e distingue retenção travada em produção de retenção sem trava na janela (D70), com trava não medida. §7.1 usa esse mapa corrigido. Nenhum ADR aceito foi alterado neste commit. |
+| RV13-2-05 | Resolvido no plano | D73, L121–125, fixa GKE zonal em us-central1-a; §8, L453–454, fixa dois nós e2-standard-4 no total (8 vCPU), autoescala desligada e conferência contra a cota real no G0. É dimensionamento estimado, não capacidade medida. |
+
+### Verificações executadas
+
+- Somente leituras de Git/documentos e conferências estáticas: log, HEAD, status, diff integral
+  do intervalo, plano revisão 3, rodadas anteriores/Situação e requisitos pertinentes de
+  CLAUDE.md, README, Etapa 13, Pendências §2, Arquitetura §5 e ADR-0051.
+- Percorridos separadamente: falha funcional P2/P3, dependência não satisfeita, estimativa não
+  aprovada, plan não revisado; sequência provas → exportação → remoção → emergência; garantia
+  D75 → prova concorrente → P3; paridade D70/D75 e dimensionamento zonal.
+- Nenhum teste, comando operacional, serviço, banco ou `.env` acessado. Nenhuma consulta de rede;
+  os fatos documentais necessários já estavam citados nas rodadas anteriores. Única escrita:
+  acréscimo desta seção em `REVISAO.md`.
+
+Saídas das conferências estáticas (sem execução do plano):
+
+```text
+$ git log --oneline 20703a7..5c2f4ec
+5c2f4ec docs: responde à rodada 2 e passa a revisão 3 do plano da Etapa 13
+$ git diff --check 20703a7..5c2f4ec
+(sem saída)
+$ git diff --check
+(sem saída)
+$ git status --short
+ M REVISAO.md
+Conteudo anterior preservado: True
+Acrescimo limitado a rodada 3: True
+Cabecalho da tabela presente: True
+Secoes de rodada 3: 1
+Arquivos modificados: REVISAO.md
+```
+
+### Limites remanescentes
+
+§8 agora explicita a limitação de linhagem por coluna dos eventos OpenLineage customizados,
+antes tratada como não confirmada; a consequência continua sendo linha pendente e M6 incompleto
+se não houver caminho suportado. Também registra suporte documental ao ensaio local do Composer,
+mantendo instalação/importação/pacotes por provar e R11 aplicável. Não são novos achados.
+Os demais limites já declarados não foram materialmente alterados nem revalidados nesta rodada.
+
+### Passagem por ID
+
+Nenhum ID pendente desta rodada. RV13-2-01…05 podem ser encerrados quanto à revisão do plano;
+as provas e os pré-requisitos correspondentes permanecem no roteiro de execução.
