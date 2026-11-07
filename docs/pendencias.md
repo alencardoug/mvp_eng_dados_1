@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, e a D76 e a D77 no G1 dela (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13 |
+| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, e a D78 no G2.3 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D78 no G2.3 |
 
 ---
 
@@ -280,6 +280,15 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D78 — o tempo de evento do caminho quente chega ao Pub/Sub como atributo (decidida em 07/11/2026)
+
+**Decisão:** envelope achatado no Debezium Server (`ExtractNewRecordState` com `op` e `lsn` como
+campos, *deletes* reescritos) e `occurred_at` copiado para cabeçalho pelo `HeaderFrom`, que o *sink*
+Pub/Sub passa a atributo; o Beam lê o tempo de evento por `timestamp_attribute`. Debezium Server
+`3.7.1.Final` por *digest*. Opção recomendada; as outras eram manter o envelope e perder o tempo de
+evento (o atraso que corrige a janela ficaria sem prova no GCP) ou três SMTs que perdiam o `lsn`.
+Fontes e o que se conferiu: [Registro §18](registro_fase_gcp.md#18-g23-aberto-o-tempo-de-evento-no-pubsub-07112026-tarde).
 
 ### D77 — a `identidade_canonica` local só aceita os brancos que o `numeric` aceita (decidida em 07/11/2026)
 

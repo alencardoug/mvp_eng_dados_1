@@ -584,3 +584,31 @@ minutos dentro do lock de abertura. A região agora vai em toda consulta e em to
 conclusão); juntar numa leitura por tabela é otimização, não correção. A época inicial no projeto
 novo (`make ledger-baseline` com `LEGACY_WAREHOUSE=bigquery`) e a prova contra o Cloud SQL real ficam
 para segunda, com o degrau 06.
+
+## 18. G2.3 aberto: o tempo de evento no Pub/Sub (07/11/2026, tarde)
+
+O leitor do Kafka local controla o *watermark* pelo `occurred_at` de cada evento
+(`transport.py`, com a folga declarada). No Pub/Sub, quem dá o tempo de evento ao Dataflow é um
+**atributo** da mensagem (`timestamp_attribute`); sem ele o tempo é o da publicação, e um evento do
+*snapshot* de 2024, ou um movimento de ontem que chegou hoje, ficaria atrás do *watermark* e seria
+descartado como atraso — o contrário do "evento atrasado corrige a janela" do Streaming §3.
+
+**O que se conferiu** [medido, fontes oficiais]:
+
+- A página do Debezium Server lista 21 propriedades `debezium.sink.pubsub.*`, nenhuma sobre
+  atributos ([debezium-server](https://debezium.io/documentation/reference/stable/operations/debezium-server.html)).
+  O Gemini, lendo a mesma página por `url_context`, citou **3** delas — e por isso a página foi lida
+  direto também (`data/medicoes/etapa_13/revisao/gemini_debezium_pubsub_headers.txt`).
+- O código do *sink* copia os **cabeçalhos** do registro para atributos
+  (`pubsubMessage.putAllAttributes(resolveHeaders(…))`, desde a DBZ-6017, 2023); o ajuste que usa o
+  cabeçalho cru quando os *schemas* de cabeçalho estão desligados (dbz#2783, 20/10/2026) entrou no
+  **3.7.1.Final, publicado em 06/11/2026**.
+- O `HeaderFrom` do Kafka Connect **não** aceita campo aninhado: o KIP-821 chegou ao `ExtractField` e
+  a outros, não a ele (fonte do `HeaderFrom.java` em `trunk`, `4.1` e `3.9`). Com o envelope intacto,
+  `after.occurred_at` não vira cabeçalho.
+
+**A decisão do Owner** (D78, [Pendências §2](pendencias.md#d78--o-tempo-de-evento-do-caminho-quente-chega-ao-pubsub-como-atributo-decidida-em-07112026)):
+achatar o envelope (`ExtractNewRecordState`, `add.fields=op,lsn`, *deletes* reescritos para que o
+`envelope.py` continue recusando `u/d` pelo `__op`) e copiar `occurred_at` para cabeçalho pelo
+`HeaderFrom`; Debezium Server **`3.7.1.Final`** por *digest*. Fica no mapa de paridade: local
+`connect:3.6.2` com o envelope inteiro, GCP `server:3.7.1` achatado — o mesmo contrato do evento.

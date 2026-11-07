@@ -125,6 +125,12 @@ recuperação da captura (`capture_recovery.recover`) e o livro retido.
   `AIRBYTE_CHART_VERSION`.
 - **D74 — projeto dedicado, estado local do Terraform, desmonte em três camadas com relógio de
   emergência** (§6.4).
+- **D78 — o tempo de evento chega ao Pub/Sub como atributo** (decidida em 07/11/2026, à tarde, no
+  G2.3): no Debezium Server, `ExtractNewRecordState` (`add.fields=op,lsn`,
+  `delete.tombstone.handling.mode=rewrite`) e `HeaderFrom` copiando `occurred_at` para cabeçalho,
+  que o *sink* passa a atributo; o Beam lê com `timestamp_attribute`. **Debezium Server
+  `3.7.1.Final`** fixado por *digest* — a primeira versão com o atributo cru (dbz#2783). Motivo e
+  fontes no [Registro §18](docs/registro_fase_gcp.md#18-g23-aberto-o-tempo-de-evento-no-pubsub-07112026-tarde).
 
 ### 2.3 Ainda abertas, para decidir no bloco indicado
 
@@ -287,8 +293,8 @@ explicada; é ela que alimenta as *tags* do G4.
 
 **G2.3 — caminho quente** (RV13-1-05, D69, D75, ADR-0051). Debezium Server com `sink.type=pubsub`,
 o mesmo conector de `streaming/connectors/inventory_movements.yml` (`decimal.handling.mode:
-string`, *slot* e *publication* homônimos), `schemas.enable=false` fixado para o envelope chegar com
-`op/after/source` no topo (`envelope.py:60`), *offsets* num disco persistente do GKE (apagado no
+string`, *slot* e *publication* homônimos), `schemas.enable=false`, e o envelope **achatado** com
+`op` e `lsn` como campos e `occurred_at` como atributo (D78; `envelope.py` recusa `u/d` pelo `__op`), *offsets* num disco persistente do GKE (apagado no
 desmonte), autenticação pela identidade do *pod*. No Beam: fonte `ReadFromPubSub` com *ack*
 nativo; **semeadura** do saldo lendo o BigQuery (`pipeline.py:160`); **alerta** publicado no
 Pub/Sub, não no Kafka (`transport.py:261`); *sink* BigQuery com a idempotência da D75. **Prova antes
