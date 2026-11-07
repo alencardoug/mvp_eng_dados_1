@@ -71,3 +71,9 @@ variable "owner_member" {
   type        = string
   default     = ""
 }
+
+variable "ledger_retention_seconds" {
+  description = "D70: retenção sem trava do bucket do livro. No desmonte (§6.5 passo 6), 0 tira a política antes do `destroy`."
+  type        = number
+  default     = 604800
+}
