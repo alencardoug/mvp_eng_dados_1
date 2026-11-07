@@ -330,12 +330,20 @@ def sources_yml() -> str:
         )
         for t in schema.tabelas()
     )
+    # O veredito e a chave do certificado como teste da fonte: no PostgreSQL o `check` e a chave
+    # primária já os impõem, e no BigQuery nenhum dos dois é imposto (`governance.MIGRACOES_BIGQUERY`).
+    # A regra fica uma só, e roda nos dois alvos.
+    from mvp_ed1.legacy.captura import ABANDONED, COMPLETE, INCOMPLETE, INCONSISTENT, PENDING, UNSTABLE
+
+    vereditos = ", ".join((PENDING, COMPLETE, UNSTABLE, INCOMPLETE, INCONSISTENT, ABANDONED))
     certificado = "\n".join(
         f"          - name: {nome}\n"
         f"            description: >\n"
         f"              {descricao}\n"
         f"            meta:\n"
         f"              sensitivity: internal"
+        + (f"\n            data_tests:\n              - accepted_values:\n                  values: [{vereditos}]"
+           if nome == "status" else "")
         for nome, descricao in COLUNAS_DO_CERTIFICADO
     )
     return f"""# Gerado por `make legacy-models`. Não edite: a lista sai dos modelos.
@@ -397,6 +405,10 @@ sources:
         meta:
           domain: legado
           owner: data_custodian
+        data_tests:
+          - dbt_utils.unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [capture_attempt_id, source_table]
         columns:
 {certificado}
       - name: _versions

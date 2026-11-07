@@ -2600,6 +2600,10 @@ sources:
         meta:
           domain: legado
           owner: data_custodian
+        data_tests:
+          - dbt_utils.unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [capture_attempt_id, source_table]
         columns:
           - name: capture_attempt_id
             description: >
@@ -2666,6 +2670,9 @@ sources:
               Veredito por tabela: `pending`, `complete`, `unstable`, `incomplete`, `inconsistent` ou `abandoned`.
             meta:
               sensitivity: internal
+            data_tests:
+              - accepted_values:
+                  values: [pending, complete, unstable, incomplete, inconsistent, abandoned]
           - name: started_at
             description: >
               Instante da fase 1 (medição "antes").

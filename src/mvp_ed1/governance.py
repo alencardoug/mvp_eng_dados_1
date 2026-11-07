@@ -297,6 +297,83 @@ def _fechar_a_public(conexao) -> None:
     ))
 
 
+#: As mesmas migrações no BigQuery (Etapa 13, G2.1), **com os mesmos nomes**: `_versions` diz,
+#: nos dois armazéns, quais delas valem. O que o BigQuery não tem, e para onde foi:
+#:
+#: - `check (status in …)` → o teste `accepted_values` da fonte (`_legacy__sources.yml`), que roda
+#:   nos dois alvos — a regra continua uma só;
+#: - `primary key` → declarada `not enforced` (o BigQuery a usa para otimizar, não a impõe); a
+#:   unicidade vira o teste de combinação única da fonte, e a escrita do certificado é `MERGE` pela
+#:   chave (PLANO_etapa_13 G2.1);
+#: - o índice `(snapshot_id, status)` → *clustering* pelas mesmas colunas;
+#: - `comment on` → `options(description = …)`.
+#:
+#: A paridade das colunas (nome, tipo equivalente, nulidade) é conferida por
+#: `tests/test_governanca_bigquery.py`, não por leitura.
+MIGRACOES_BIGQUERY: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "0001_legacy_captures",
+        (
+            """
+            create table if not exists `{projeto}.{dataset}.legacy_captures` (
+                capture_attempt_id   string    not null,
+                source_table         string    not null,
+                connection_name      string    not null,
+                job_id               int64,
+                snapshot_id          int64,
+                source_rows_before   int64     not null,
+                source_hash_before   string    not null,
+                source_rows_after    int64,
+                source_hash_after    string,
+                received_rows        int64,
+                received_hash        string,
+                sync_id_matches      bool,
+                status               string    not null,
+                started_at           timestamp not null,
+                completed_at         timestamp,
+                primary key (capture_attempt_id, source_table) not enforced
+            )
+            cluster by snapshot_id, status
+            options (description = 'Certificado por stream de cada captura do legado (ADR-0044): origem antes e depois do job, bruto recebido, vínculo com o job. Lido pelo fluxo só para elegibilidade.')
+            """,
+        ),
+    ),
+    (
+        "0002_snapshot_id_e_o_job",
+        (
+            "update `{projeto}.{dataset}.legacy_captures` set snapshot_id = job_id where job_id is not null",
+            "alter table `{projeto}.{dataset}.legacy_captures` alter column snapshot_id set options "
+            "(description = 'Identidade da captura = job de sincronização (_airbyte_meta.sync_id); desde 15/09/2026, não a geração, que é por stream.')",
+        ),
+    ),
+)
+
+
+def garantir_bigquery(cliente, projeto: str, dataset: str = SCHEMA) -> list[str]:
+    """`garantir()` no BigQuery: as migrações que faltam, registradas em `_versions`.
+
+    O *dataset* nasce no Terraform (`bigquery.tf`), e os papéis são contas de serviço com IAM
+    (`papeis.tf`): aqui só há tabela. Sem transação que envolva DDL no BigQuery, cada migração
+    é idempotente por si e só entra em `_versions` depois de todos os comandos dela — uma
+    migração interrompida roda de novo inteira na próxima chamada."""
+    versoes_ = f"`{projeto}.{dataset}._versions`"
+    cliente.query(f"create table if not exists {versoes_} "
+                  "(nome string not null, aplicada_em timestamp default current_timestamp() not null)").result()
+    feitas = {linha[0] for linha in cliente.query(f"select nome from {versoes_}").result()}
+    aplicadas: list[str] = []
+    for nome, comandos in MIGRACOES_BIGQUERY:
+        if nome in feitas:
+            continue
+        for comando in comandos:
+            cliente.query(comando.format(projeto=projeto, dataset=dataset)).result()
+        from google.cloud import bigquery
+
+        cliente.query(f"insert into {versoes_} (nome) values (@n)", job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("n", "STRING", nome)])).result()
+        aplicadas.append(nome)
+    return aplicadas
+
+
 def garantir_papeis(engine: Engine) -> None:
     """Só os papéis, sem as migrações — o que a restauração pede antes do `pg_restore` do armazém.
 
