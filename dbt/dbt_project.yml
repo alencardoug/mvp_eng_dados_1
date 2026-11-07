@@ -81,7 +81,10 @@ models:
       columns: true
     # Estatística fresca antes do próximo modelo ler a tabela: sem isto duas
     # fatos de 7 mil linhas levavam 11 e 4 min no build (macro e pendências §5).
-    +post-hook: "{{ analisar_apos_materializar() }}"
+    +post-hook:
+      - "{{ analisar_apos_materializar() }}"
+      # `domain`, `owner` e `retention` como *labels* no BigQuery (G5, D80); vazio no local.
+      - "{{ rotulos_no_bigquery() }}"
     # Retenção por camada (Governança §8), declarada onde a camada é declarada.
     # `rebuildable`: reconstruível do que está antes dela, nunca fonte de
     # verdade — descartável a qualquer momento. `permanent`: evidência ou
@@ -200,6 +203,7 @@ snapshots:
     +persist_docs:
       relation: true
       columns: true
+    +post-hook: "{{ rotulos_no_bigquery() }}"
     # Histórico SCD (ADR-0017): o que foi capturado num instante não se
     # reconstrói depois. Permanente. Mantido só pelo dbt, lido por ninguém
     # fora do pipeline (Governança §7).
@@ -218,6 +222,7 @@ seeds:
     +persist_docs:
       relation: true
       columns: true
+    +post-hook: "{{ rotulos_no_bigquery() }}"
     # Versionadas no Git: reconstruíveis de qualquer commit. Vivem em
     # `trusted` e seguem o acesso da camada.
     +meta:
