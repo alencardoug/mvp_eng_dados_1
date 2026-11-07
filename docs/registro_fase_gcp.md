@@ -463,3 +463,29 @@ Entre as noções: a identidade nunca junta o que a chave separa, e separa 241 d
 junta. Os números e a tabela ficaram na própria D43
 ([Pendências](pendencias.md#d43--a-guarda-de-identidade-como-função-no-armazém-adiada-em-16092026)),
 que continua do Owner. Evidência: `data/medicoes/etapa_13/d43/medicao_02.{txt,json}`.
+
+## 14. G2.1, primeira peça: o livro retido no Cloud Storage (07/11/2026, manhã)
+
+O livro (ADR-0050) era um diretório, e o "nunca substituído" era o `os.link`. Na nuvem,
+`LEGACY_LEDGER_DIR=gs://<bucket>/<prefixo>`: `ledger.root()` devolve um `Lugar` do Cloud Storage
+(`mvp_ed1.recovery.livro_gcs`), que imita do `pathlib` só o que os chamadores usam (`/`, `.name`,
+`.parent`, `str()`), e as seis funções que tocam o meio despacham pelo tipo da raiz. Nenhum chamador
+mudou — CLI, DAG, recuperação e oráculo da memória continuam passando a época adiante.
+
+Três diferenças do meio, cada uma com o motivo no módulo: sem temporário nem `fsync` (o objeto aparece
+inteiro ou não aparece); a época nasce com a linha de base, não vazia (o prefixo só existe com
+objeto — e a época sem linha de base continua não contando); e **a prova de escrita não escreve**:
+o `ingestor` tem `objectCreator`, que não apaga, e a retenção (D70) também não deixaria — um objeto
+de prova ficaria para sempre. A prova é `testIamPermissions(storage.objects.create)`.
+
+**Prova** [medido]: `tests/test_livro_gcs.py`, com um *bucket* em memória que responde `412` à
+escrita condicionada repetida e `404` à leitura do que não existe — 6 testes, entre eles o mesmo
+roteiro (abrir, publicar fora de ordem, recusar a repetição e os nomes inválidos, ler) rodado no
+disco e no *bucket*, com o mesmo resultado. Os 174 testes do livro e dos chamadores, verdes. A prova
+contra o Cloud Storage real está escrita (`GCP_TESTES=1`) e **espera o *bucket***: ele nasce no plano
+05, que aguarda o Owner.
+
+**O que falta do G2.1** (PLANO_etapa_13 G2.1): a leitura do bruto e do certificado no BigQuery
+(`captura.py`, `capture_recovery.py`, as medidas do `ledger`); a escrita do certificado em *staging*
++ `MERGE`; os *locks* no Cloud SQL, separados do *insert*; o DDL da governança; a guarda de
+identidade do `airbyte.py`; a época inicial no projeto novo.
