@@ -374,6 +374,17 @@ def garantir_bigquery(cliente, projeto: str, dataset: str = SCHEMA) -> list[str]
     return aplicadas
 
 
+def versoes_bigquery(armazem) -> list[str]:
+    """`versoes()` no BigQuery: as migrações registradas em `_versions`, na mesma ordem."""
+    from google.api_core import exceptions as gexc
+
+    try:
+        return [linha["nome"] for linha in armazem.linhas(
+            f"select nome from {armazem.tabela(SCHEMA + '._versions')} order by aplicada_em, nome")]
+    except gexc.NotFound:  # dataset sem as migrações ainda
+        return []
+
+
 def garantir_papeis(engine: Engine) -> None:
     """Só os papéis, sem as migrações — o que a restauração pede antes do `pg_restore` do armazém.
 

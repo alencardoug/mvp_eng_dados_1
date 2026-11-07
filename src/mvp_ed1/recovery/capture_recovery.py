@@ -42,6 +42,8 @@ from typing import Any
 
 from sqlalchemy import Connection, Engine, text
 
+from mvp_ed1.legacy.armazem import BigQuery
+
 from mvp_ed1.recovery import leitura, ledger
 
 #: O tempo-limite de cada leitura da barreira: uma leitura parada levanta,
@@ -168,8 +170,14 @@ class Warehouse:
     sync_ids: set[str]
 
 
-def read_warehouse(conexao: Connection) -> Warehouse:
-    """Sob o tempo-limite de leitura (RR-41); `conexao` precisa estar numa transação."""
+def read_warehouse(conexao: Connection | BigQuery) -> Warehouse:
+    """Sob o tempo-limite de leitura (RR-41); `conexao` precisa estar numa transação.
+
+    No BigQuery, `conexao` é o armazém: tudo é lido no mesmo instante
+    (`for system_time as of`), e o tempo-limite é o de cada *job*.
+    """
+    if isinstance(conexao, BigQuery):
+        return _read_bigquery(conexao.no_instante())
     conexao.execute(text(f"set local statement_timeout = {int(STATEMENT_TIMEOUT_MS)}"))
     linhas = list(leitura._linhas(conexao, f"select * from {ledger.CERTIFICATE}"))
     inicio: dict[str, dt.datetime] = {}
@@ -184,6 +192,29 @@ def read_warehouse(conexao: Connection) -> Warehouse:
             ))
         }
     return Warehouse(_by_attempt(ledger.canonical_rows(linhas)), inicio, sync_ids)
+
+
+def _read_bigquery(armazem: BigQuery) -> Warehouse:
+    limite = STATEMENT_TIMEOUT_MS / 1000
+    linhas = armazem.linhas(f"select * from {armazem.tabela(ledger.CERTIFICATE)}", tempo_limite=limite)
+    inicio: dict[str, dt.datetime] = {}
+    for linha in linhas:
+        atual = inicio.get(linha["capture_attempt_id"])
+        inicio[linha["capture_attempt_id"]] = linha["started_at"] if atual is None else min(atual, linha["started_at"])
+    sync_ids: set[str] = set()
+    for tabela in armazem.tabelas_do_schema(ledger.RAW):
+        sync_ids |= {linha["s"] for linha in armazem.linhas(
+            f"select distinct coalesce({armazem.sync_id()}, 'null') as s from {armazem.do_bruto(ledger.RAW, tabela)}",
+            tempo_limite=limite,
+        )}
+    return Warehouse(_by_attempt(ledger.canonical_rows(linhas)), inicio, sync_ids)
+
+
+def _ler_armazem(armazem: Engine | BigQuery) -> Warehouse:
+    if isinstance(armazem, BigQuery):
+        return read_warehouse(armazem)
+    with armazem.begin() as conexao:
+        return read_warehouse(conexao)
 
 
 # ── (3) A barreira ───────────────────────────────────────────────────────────
@@ -223,7 +254,7 @@ def barrier(estado: Held, armazem: Warehouse, listagem: Listing) -> list[str]:
 def opening_barrier(listar: Callable[[], Listing], environ: Mapping[str, str] | None = None) -> Callable[[Connection], list[str]]:
     """A barreira que `iniciar` roda dentro do lock de abertura, contra a época corrente (RR-37)."""
 
-    def rodar(conexao: Connection) -> list[str]:
+    def rodar(conexao: Connection | BigQuery) -> list[str]:
         epoca = ledger.writable_epoch(environ)
         return barrier(held(ledger.records(epoca)), read_warehouse(conexao), listar())
 
@@ -328,8 +359,7 @@ def recover(
     associados: dict[str, int | None] = {}
     listagem: Listing | None = None
     with contextlib.ExitStack() as locks:
-        with armazem.begin() as conexao:
-            visto = read_warehouse(conexao)
+        visto = _ler_armazem(armazem)
         for tentativa, job, inicio in captura._pendentes(armazem):                 # (1)
             try:
                 locks.enter_context(captura.bloqueio_da_tentativa(armazem, tentativa, esperar=False))
@@ -396,8 +426,7 @@ def recover(
         raise RecoveryStopped(paradas)
 
     estado = held(ledger.records(epoca))                                           # (3)
-    with armazem.begin() as conexao:
-        visto = read_warehouse(conexao)
+    visto = _ler_armazem(armazem)
     try:
         listagem = listar()
     except Exception as erro:  # noqa: BLE001 — a barreira precisa da listagem

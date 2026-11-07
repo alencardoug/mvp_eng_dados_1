@@ -11,6 +11,7 @@ escrita descreveriam dois estados diferentes como se fossem um.
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 from collections.abc import Iterator
 from typing import Any
@@ -18,6 +19,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
+from mvp_ed1.legacy import armazem as dialeto
 from mvp_ed1.recovery import oraculos, rebase
 
 #: A chave das fatias da quarentena. `source_system` entra porque a mesma
@@ -69,12 +71,22 @@ FATIA = 5000
 
 
 def _somente_leitura(engine: Engine):
+    """Uma leitura de um estado só: `REPEATABLE READ` no PostgreSQL; no BigQuery, um instante."""
+    from mvp_ed1.legacy.armazem import BigQuery
+
+    if isinstance(engine, BigQuery):
+        return contextlib.nullcontext(engine.no_instante())
     conexao = engine.connect().execution_options(isolation_level="REPEATABLE READ")
     conexao.execute(sa.text("set transaction read only"))
     return conexao
 
 
 def _linhas(conexao, sql: str, parametros: dict | None = None) -> Iterator[dict[str, Any]]:
+    from mvp_ed1.legacy.armazem import BigQuery
+
+    if isinstance(conexao, BigQuery):
+        yield from conexao.linhas(sql, parametros)
+        return
     # As opções vão na **instrução**, não na conexão: `Connection.execution_options`
     # altera a conexão em definitivo, e um `update` executado depois na mesma
     # transação saía embrulhado em `DECLARE … CURSOR FOR update` — medido em
@@ -87,6 +99,10 @@ def _linhas(conexao, sql: str, parametros: dict | None = None) -> Iterator[dict[
 
 
 def tabelas_do_schema(conexao, schema: str) -> list[str]:
+    from mvp_ed1.legacy.armazem import BigQuery
+
+    if isinstance(conexao, BigQuery):
+        return conexao.tabelas_do_schema(schema)
     return [
         nome
         for (nome,) in conexao.execute(
@@ -163,7 +179,7 @@ def oraculo_da_quarentena(engine: Engine) -> dict[str, dict[str, Any]]:
     total não volta igual — nem deve.
     """
     with _somente_leitura(engine) as conexao:
-        linhas = _linhas(conexao, f"select * from {TABELA_DA_QUARENTENA}")
+        linhas = _linhas(conexao, f"select * from {dialeto.nome(conexao, TABELA_DA_QUARENTENA)}")
         return oraculos.por_chave(linhas, CHAVE_DA_QUARENTENA)
 
 
@@ -184,11 +200,11 @@ def classificacao_corrente(engine: Engine) -> dict[str, Any] | None:
         tratadas = sorted(
             oraculos.nome_da_fatia(linha, CHAVE_DA_QUARENTENA)
             for linha in _linhas(
-                conexao, f"select distinct {', '.join(CHAVE_DA_QUARENTENA)} from {TABELA_DA_CLASSIFICACAO}"
+                conexao, f"select distinct {', '.join(CHAVE_DA_QUARENTENA)} from {dialeto.nome(conexao, TABELA_DA_CLASSIFICACAO)}"
             )
         )
         rejeitadas = oraculos.por_chave(
-            _linhas(conexao, f"select * from {TABELA_DA_CLASSIFICACAO} where classification = 'rejected'"),
+            _linhas(conexao, f"select * from {dialeto.nome(conexao, TABELA_DA_CLASSIFICACAO)} where classification = 'rejected'"),
             CHAVE_DA_QUARENTENA,
         )
     return {"tratadas": tratadas, "rejeitadas": rejeitadas}
@@ -240,7 +256,7 @@ def chaves_e_geracoes(conexao, tabela: str, apenas_retidas: bool = False) -> Ite
     for linha in _linhas(
         conexao,
         f'select _airbyte_raw_id as chave, _airbyte_generation_id as geracao '
-        f'from {SCHEMA_DO_BRUTO}."{tabela}"{filtro}',
+        f'from {dialeto.bruto(conexao, SCHEMA_DO_BRUTO, tabela)}{filtro}',
     ):
         yield linha["chave"], (None if linha["geracao"] is None else int(linha["geracao"]))
 
@@ -270,7 +286,7 @@ def oraculo_das_exclusoes(engine: Engine) -> dict[str, Any] | None:
             return None
         linhas = [
             {c: v for c, v in linha.items() if c not in COLUNAS_VOLATEIS_DAS_EXCLUSOES}
-            for linha in _linhas(conexao, f"select * from {TABELA_DAS_EXCLUSOES}")
+            for linha in _linhas(conexao, f"select * from {dialeto.nome(conexao, TABELA_DAS_EXCLUSOES)}")
         ]
         return {"linhas": len(linhas), "digest": oraculos.digest(linhas)}
 
@@ -395,7 +411,10 @@ def geracoes_da_tabela(engine: Engine, tabela: str) -> list[int | None]:
 
 def versoes_do_armazem(engine: Engine) -> list[str]:
     from mvp_ed1 import governance
+    from mvp_ed1.legacy.armazem import BigQuery
 
+    if isinstance(engine, BigQuery):
+        return governance.versoes_bigquery(engine)
     return governance.versoes(engine)
 
 

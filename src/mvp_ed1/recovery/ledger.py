@@ -61,6 +61,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
+from mvp_ed1.legacy import armazem as dialeto
 from mvp_ed1.recovery import leitura, livro_gcs, oraculos
 from mvp_ed1.recovery.livro_gcs import Lugar
 
@@ -249,7 +250,8 @@ def measure_capture(conexao, job_id: int) -> dict[str, dict[str, Any]]:
     """Por tabela do bruto, o que carrega o `sync_id` do *job*: contagem, *digest* e gerações."""
     return {
         tabela: _measure(list(leitura._linhas(
-            conexao, f"select * from {RAW}.\"{tabela}\" where _airbyte_meta->>'sync_id' = :j", {"j": str(job_id)}
+            conexao, f"select * from {dialeto.bruto(conexao, RAW, tabela)} where {dialeto.sync_id(conexao)} = :j",
+            {"j": str(job_id)}
         )))
         for tabela in _raw_tables(conexao)
     }
@@ -260,7 +262,7 @@ def measure_captures(conexao) -> dict[str, dict[str, dict[str, Any]]]:
     por_captura: dict[str, dict[str, list[dict[str, Any]]]] = {}
     tabelas = _raw_tables(conexao)
     for tabela in tabelas:
-        for linha in leitura._linhas(conexao, f'select * from {RAW}."{tabela}"'):
+        for linha in leitura._linhas(conexao, f"select * from {dialeto.bruto(conexao, RAW, tabela)}"):
             sync_id = (linha["_airbyte_meta"] or {}).get("sync_id")
             chave = "null" if sync_id is None else str(sync_id)
             por_captura.setdefault(chave, {}).setdefault(tabela, []).append(linha)
@@ -273,7 +275,7 @@ def measure_captures(conexao) -> dict[str, dict[str, dict[str, Any]]]:
 def certificate_rows(conexao, attempt_id: str | None = None) -> dict[str, Any]:
     """As linhas do certificado — de uma tentativa, ou todas —, por inteiro, com o *digest*."""
     filtro, parametros = ("where capture_attempt_id = :a", {"a": attempt_id}) if attempt_id else ("", {})
-    linhas = list(leitura._linhas(conexao, f"select * from {CERTIFICATE} {filtro}", parametros))
+    linhas = list(leitura._linhas(conexao, f"select * from {dialeto.nome(conexao, CERTIFICATE)} {filtro}", parametros))
     return {"rows": canonical_rows(linhas), "count": len(linhas), "digest": oraculos.digest(linhas)}
 
 
@@ -305,7 +307,8 @@ def attempt_record(engine: Engine, attempt_id: str, *, caller: Mapping[str, Any]
         if not certificado["count"]:
             raise LedgerError(f"tentativa {attempt_id} não existe em {CERTIFICATE}")
         jobs = {linha.get("job_id") for linha in leitura._linhas(
-            conexao, f"select distinct job_id from {CERTIFICATE} where capture_attempt_id = :a", {"a": attempt_id}
+            conexao, f"select distinct job_id from {dialeto.nome(conexao, CERTIFICATE)} where capture_attempt_id = :a",
+            {"a": attempt_id}
         )}
         if len(jobs) != 1:
             raise LedgerError(f"tentativa {attempt_id} com mais de um job no certificado: {sorted(jobs, key=str)}")
@@ -347,11 +350,11 @@ def treatment_record(engine: Engine, *, caller: Mapping[str, Any],
             raise LedgerError(f"{leitura.TABELA_DA_CLASSIFICACAO} não existe: não há tratamento a registrar")
         tratamentos = sorted(
             oraculos.nome_da_fatia(linha, chave)
-            for linha in leitura._linhas(conexao, f"select distinct {', '.join(chave)} from {leitura.TABELA_DA_CLASSIFICACAO}")
+            for linha in leitura._linhas(conexao, f"select distinct {', '.join(chave)} from {dialeto.nome(conexao, leitura.TABELA_DA_CLASSIFICACAO)}")
         )
         por_fatia: dict[str, dict[str, list[dict[str, Any]]]] = {}
         for linha in leitura._linhas(
-            conexao, f"select * from {leitura.TABELA_DA_CLASSIFICACAO} where classification = 'rejected'"
+            conexao, f"select * from {dialeto.nome(conexao, leitura.TABELA_DA_CLASSIFICACAO)} where classification = 'rejected'"
         ):
             por_fatia.setdefault(oraculos.nome_da_fatia(linha, chave), {}).setdefault(
                 linha["source_table"], []).append(linha)
@@ -375,7 +378,7 @@ def deletion_rows(engine: Engine) -> list[dict[str, Any]] | None:
         if tabela not in leitura.tabelas_do_schema(conexao, esquema):
             return None
         return [{c: v for c, v in linha.items() if c not in leitura.COLUNAS_VOLATEIS_DAS_EXCLUSOES}
-                for linha in leitura._linhas(conexao, f"select * from {leitura.TABELA_DAS_EXCLUSOES}")]
+                for linha in leitura._linhas(conexao, f"select * from {dialeto.nome(conexao, leitura.TABELA_DAS_EXCLUSOES)}")]
 
 
 def deletion_keys(engine: Engine) -> list[list[str]] | None:
@@ -560,12 +563,15 @@ def main(argv: list[str] | None = None) -> int:
     from sqlalchemy import create_engine
 
     from mvp_ed1 import airbyte
-    from mvp_ed1.db import WAREHOUSE, database_url
+    from mvp_ed1.db import LEGACY, database_url
+
+    # O armazém que o `.env` declara (`LEGACY_WAREHOUSE`): no GCP, a época inicial lê o BigQuery.
+    legado = create_engine(database_url(LEGACY))
 
     if args.command == "treatment":
         if not args.name:
             parser.error("treatment pede --name")
-        armazem = create_engine(database_url(WAREHOUSE))
+        armazem = dialeto.do_ambiente(legado)
         try:
             publicado = publish(writable_epoch(), args.name, treatment_record(armazem, caller={"kind": "operator"}))
         finally:
@@ -575,7 +581,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "attempt":
         if not args.attempt or not args.name:
             parser.error("attempt pede --attempt e --name")
-        armazem = create_engine(database_url(WAREHOUSE))
+        armazem = dialeto.do_ambiente(legado)
         try:
             publicado = operator_record(armazem, args.attempt, args.name)
         finally:
@@ -592,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     jobs = legacy_jobs(listagem, airbyte.conexao(CONEXAO_LEGADA, jwt))
-    armazem = create_engine(database_url(WAREHOUSE))
+    armazem = dialeto.do_ambiente(legado)
     try:
         linha_de_base = baseline_record(armazem, jobs)
     finally:

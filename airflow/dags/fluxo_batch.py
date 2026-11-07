@@ -96,13 +96,15 @@ def fluxo_batch():
         if tentativa is not None:
             from sqlalchemy import create_engine
 
-            from mvp_ed1.db import WAREHOUSE, database_url
+            from mvp_ed1.db import LEGACY, database_url
+            from mvp_ed1.legacy import armazem as armazens
             from mvp_ed1.legacy import captura
 
             # O lock da tentativa antes de tudo, esperando, e até o job estar
             # associado (H7, RR-39): enquanto ele está tomado, a recuperação de
             # outro chamador não abandona esta tentativa, por mais velha que seja.
-            armazem = create_engine(database_url(WAREHOUSE))
+            # O armazém é o do `.env` (`LEGACY_WAREHOUSE`); no GCP, o lock mora no Cloud SQL.
+            armazem = armazens.do_ambiente(create_engine(database_url(LEGACY)))
             bloqueio = captura.bloqueio_da_tentativa(armazem, tentativa)
         with bloqueio:
             jwt = airbyte.token()
@@ -138,7 +140,8 @@ def fluxo_batch():
         from sqlalchemy import create_engine
 
         from mvp_ed1 import airbyte
-        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.db import LEGACY, database_url
+        from mvp_ed1.legacy import armazem as armazens
         from mvp_ed1.recovery import capture_recovery
 
         if not os.environ.get("AIRBYTE_CLIENT_ID"):
@@ -148,9 +151,10 @@ def fluxo_batch():
             )
         jwt = airbyte.token()
         conexao_legada = airbyte.conexao("legacy_para_raw_legacy", jwt)
+        legado = create_engine(database_url(LEGACY))
         return capture_recovery.recover(
-            create_engine(database_url(LEGACY)),
-            create_engine(database_url(WAREHOUSE)),
+            legado,
+            armazens.do_ambiente(legado),
             job_state=airbyte.estado_do_job(jwt),
             listar=lambda: capture_recovery.airbyte_listing(jwt, conexao_legada),
             caller={"kind": "dag", "task_id": "retomar_capturas_do_legado"},
@@ -175,7 +179,8 @@ def fluxo_batch():
         from sqlalchemy import create_engine
 
         from mvp_ed1 import airbyte
-        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.db import LEGACY, database_url
+        from mvp_ed1.legacy import armazem as armazens
         from mvp_ed1.legacy import captura
         from mvp_ed1.recovery import capture_recovery, ledger
 
@@ -184,11 +189,12 @@ def fluxo_batch():
         ledger.writable_epoch()
         jwt = airbyte.token()
         conexao_legada = airbyte.conexao("legacy_para_raw_legacy", jwt)
-        armazem = create_engine(database_url(WAREHOUSE))
+        legado = create_engine(database_url(LEGACY))
+        armazem = armazens.do_ambiente(legado)
         tentativa = uuid.uuid4().hex
         with captura.bloqueio_da_tentativa(armazem, tentativa):
             return captura.iniciar(
-                create_engine(database_url(LEGACY)),
+                legado,
                 armazem,
                 "legacy_para_raw_legacy",
                 tentativa=tentativa,
@@ -217,12 +223,12 @@ def fluxo_batch():
         """
         from sqlalchemy import create_engine
 
-        from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+        from mvp_ed1.db import LEGACY, database_url
+        from mvp_ed1.legacy import armazem as armazens
         from mvp_ed1.legacy import captura
 
-        certificado = captura.concluir(
-            create_engine(database_url(LEGACY)), create_engine(database_url(WAREHOUSE)), tentativa
-        )
+        legado = create_engine(database_url(LEGACY))
+        certificado = captura.concluir(legado, armazens.do_ambiente(legado), tentativa)
         if certificado["status"] != "complete" or certificado["snapshot_id"] is None:
             raise RuntimeError(
                 f"captura do job {sincronizacao.get('job')} não é elegível: "
@@ -258,7 +264,8 @@ def fluxo_batch():
         from sqlalchemy import create_engine
 
         from mvp_ed1 import airbyte
-        from mvp_ed1.db import WAREHOUSE, database_url
+        from mvp_ed1.db import LEGACY, database_url
+        from mvp_ed1.legacy import armazem as armazens
         from mvp_ed1.recovery import ledger
 
         contexto = get_current_context()
@@ -266,7 +273,7 @@ def fluxo_batch():
         tentativa = ti.xcom_pull(task_ids="iniciar_captura_do_legado")
         observador = airbyte.estado_do_job(airbyte.token()) if os.environ.get("AIRBYTE_CLIENT_ID") else None
         publicado, registro = ledger.gate(
-            create_engine(database_url(WAREHOUSE)),
+            armazens.do_ambiente(create_engine(database_url(LEGACY))),
             tentativa,
             caller={"kind": "dag", "dag_id": ti.dag_id, "task_id": ti.task_id},
             run_id=contexto["run_id"],

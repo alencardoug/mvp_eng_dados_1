@@ -118,16 +118,20 @@ def guardar_identidade(conexao_nome: str, jwt: str) -> None:
     """
     from sqlalchemy import create_engine
 
-    from mvp_ed1.db import WAREHOUSE, database_url
+    from mvp_ed1.db import LEGACY, database_url
+    from mvp_ed1.legacy import armazem as armazens
     from mvp_ed1.legacy import identidade
 
     if conexao_nome != identidade.CONEXAO_LEGADA:
         return
-    armazem = create_engine(database_url(WAREHOUSE))
+    # O armazém é o que o `.env` declara (`LEGACY_WAREHOUSE`): no GCP, a guarda lê o BigQuery.
+    legado = create_engine(database_url(LEGACY))
+    armazem = armazens.do_ambiente(legado)
     try:
         identidade.exigir(armazem, lambda: jobs(jwt))
     finally:
         armazem.dispose()
+        legado.dispose()
 
 
 def disparar(conexao_nome: str, connection_id: str, jwt: str, tipo: str = "sync") -> dict:
@@ -218,13 +222,14 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
 
     from sqlalchemy import create_engine
 
-    from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+    from mvp_ed1.db import LEGACY, database_url
+    from mvp_ed1.legacy import armazem as armazens
     from mvp_ed1.legacy import captura
     from mvp_ed1.recovery import capture_recovery, ledger
 
     ledger.writable_epoch()
     legado = create_engine(database_url(LEGACY))
-    armazem = create_engine(database_url(WAREHOUSE))
+    armazem = armazens.do_ambiente(legado)
     chamador = {"kind": "cli", "pid": os.getpid()}
 
     def listar() -> capture_recovery.Listing:
