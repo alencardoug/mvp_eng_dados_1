@@ -831,3 +831,42 @@ SQL de pé.
 `domain=vendas`. As descrições já iam pelo `persist_docs` (G1.4). Os *labels* das demais relações
 entram no próximo `gcp-dbt-build`.
 
+
+## 24. G2.4: a DAG no layout do Composer (07/11/2026, noite)
+
+**O que a imagem traz** [medido, lista de pacotes de `composer-3-airflow-3.2.2-build.9` em
+[versions-packages](https://docs.cloud.google.com/composer/docs/versions-packages), lida em 07/11]:
+Python 3.11.8; **`dbt-core 1.13.0b1`** — um *beta* — e `dbt-bigquery 1.12.1`; `google-api-core
+2.42.0`, **dentro** da faixa do problema conhecido das [*release notes*](https://docs.cloud.google.com/composer/docs/release-notes)
+de 30/10/2026 (2.28.0 a 2.43.0 com Python 3.11; a correção indicada é `>=2.43.1`); SQLAlchemy
+2.0.54, psycopg 3.3.6, PyYAML 6.0.3, `google-cloud-storage` 3.1.1, `google-cloud-bigquery` 3.46.1 —
+estes dentro das faixas do `pyproject`. Os pacotes do ambiente são, por isso, só três, em
+`airflow/requirements-composer.txt`: `dbt-core==1.12.3`, `dbt-bigquery==1.12.2` (as do P2) e
+`google-api-core==2.44.0` (a do `uv.lock`). Antes de qualquer imagem, `uv pip compile` das três **com
+os outros 445 pacotes da imagem fixos** (o Airflow pela versão do PyPI, sem o `+composer`) resolveu
+sem trocar nenhum: nada da imagem exige o `dbt-core` 1.13 [medido, `g2_4/pacotes_da_imagem_build9.txt`
+e `g2_4/resolucao_com_a_imagem.txt`].
+
+| # | Escolha de implementação | Por quê | Onde |
+|---|---|---|---|
+| A32 | `MVP_PROJECT_DIR` lido pelo `bash` na hora da tarefa, sem valor padrão | sem a variável a tarefa diz qual falta, e a DAG continua importável; um padrão esconderia o erro de configuração no Composer | `fluxo_batch.py` (`DBT`); `docker-compose.airflow.yml` |
+| A33 | *Target* e *logs* do dbt num `mktemp -d` **por tarefa**, apagado no fim; `dbt/` montado somente leitura também no local | a pasta `data/` do Composer é um sistema de arquivos sobre o GCS; o log da tarefa guarda a saída do dbt. Custo aceito: *parse* inteiro a cada tarefa, e o `catalog.json` da tarefa `dbt_docs` some com ela (o `make docs-serve` gera o seu) | idem |
+| A34 | O layout é uma declaração (`mvp_ed1.gcp.composer.LAYOUT`): a DAG e o pacote em `dags/`, com um `.airflowignore` que tira o pacote da varredura; o dbt com os pacotes instalados e o glossário em `data/` | é o mesmo que a prova monta e que a janela copia para o *bucket*; o glossário fica ao lado do dbt porque os `docs-paths` o leem por `../docs/` | `src/mvp_ed1/gcp/composer.py` |
+| A35 | A prova roda na **imagem do Composer**, pelo *digest*, como o usuário `airflow` dela, e não numa `apache/airflow` com as mesmas versões | a lista de pacotes que importa é a da imagem; a ferramenta `composer-dev` subiria o ambiente inteiro (R11) para provar o mesmo | `make gcp-composer-prova` |
+
+**A prova** [medido, `data/medicoes/etapa_13/g2_4/prova_composer.json`; `make gcp-composer-prova`]:
+na imagem `…airflow-worker-scheduler-3-2-2@sha256:96e0cc94…` (11 GB; a primeira descarga caiu por
+*connection reset* e a segunda completou), com o layout montado somente leitura em
+`/home/airflow/gcs` e os três pacotes instalados por cima: `pip check` sem conflito; o pacote
+importado de `dags/mvp_ed1`; o `DagBag` do Airflow 3.2.2+composer leu **só** `dags/fluxo_batch.py`, sem
+erro, com as **15** tarefas, em 2,0 s; e o comando **da própria tarefa** `dbt_staging`, renderizado
+com o `legacy_snapshot_id` 67 (a captura certificada mais recente no BigQuery), rodou contra o
+BigQuery: **PASS=455, ERROR=0**, 292 s, nenhum temporário deixado e nada escrito em `data/`. (Duas
+rodadas, iguais; a segunda depois de a ADC passar a entrar pelo caminho padrão do gcloud no
+contêiner, em vez de uma variável que a revisão de segredos acusava.)
+**No Airflow local**, recriado pelo `make airflow-up`: `MVP_PROJECT_DIR` presente, `dbt/` recusando
+escrita, nenhum erro de importação, e o prefixo `DBT` da DAG rodando `dbt parse` com código 0.
+
+**Fica para o Composer de verdade:** *Connections* e *Variables* pelo *backend* do Secret Manager e
+a rede até o Cloud SQL e a API do Airbyte — os dois nascem com o Terraform do Composer, que ainda
+não existe —, e o *smoke test* da janela (§G2.4 do plano).
