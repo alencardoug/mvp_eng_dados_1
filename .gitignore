@@ -63,6 +63,9 @@ terraform.tfstate*
 terraform.tfvars
 *.tfplan
 dbt/.user.yml
+# O alvo `gcp` compila para outro diretório, para não misturar com o artefato local que o
+# catálogo e a linhagem leem (Etapa 13).
+dbt/target_gcp/
 
 # Estado de execução do produtor de streaming (Etapa 7) — não é código.
 .stream/

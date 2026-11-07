@@ -8,7 +8,9 @@ sources:
       entrega (Etapa 8) e de relacionamento (Etapa 9). Cada tabela entra na
       etapa que a consome — ingerir tabela que nenhum modelo lê é volume sem
       consumidor.
-    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    # O banco do alvo, não um nome fixo: no PostgreSQL é o warehouse_db; no BigQuery
+    # (alvo `gcp`, Etapa 13) é o projeto. Os schemas são os mesmos nas duas fases.
+    database: "{{ target.database }}"
     schema: raw
     loader: airbyte
     # Governança §8: os lotes em `raw` são os necessários à reconciliação, e é

@@ -18,3 +18,18 @@ mvp_ed1:
       threads: 4
       keepalives_idle: 0
       connect_timeout: 10
+
+    # Etapa 13 (PLANO_etapa_13 G1): o mesmo projeto no BigQuery. Credencial pela
+    # ADC — a do Owner na máquina, a da conta de serviço do ambiente no Composer —,
+    # nunca por arquivo de chave (ADR-0025). Os nove schemas viram nove datasets
+    # com o mesmo nome (generate_schema_name).
+    gcp:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: analytics
+      location: "{{ env_var('GCP_BQ_LOCATION', 'us-central1') }}"
+      threads: 4
+      job_execution_timeout_seconds: 600
+      job_retries: 1
+      priority: interactive

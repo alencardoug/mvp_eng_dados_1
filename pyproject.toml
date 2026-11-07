@@ -24,9 +24,11 @@ dependencies = [
     "Faker>=30,<38",          # ADR-0005 — valores sintáticos do gerador
     "PyYAML>=6.0,<7.0",       # Etapa 4 — o artefato declarativo do gerador é YAML
     "dbt-core>=1.9,<2.0",     # ADR-0003 — transformação, testes, documentação e linhagem
-    "dbt-postgres>=1.9,<2.0", # adaptador da fase local; o BigQuery entra na Etapa 13
+    "dbt-postgres>=1.9,<2.0", # adaptador da fase local
+    "dbt-bigquery>=1.12,<2.0", # Etapa 13 — o mesmo projeto dbt no alvo `gcp` (PLANO_etapa_13 G1)
     "sqlglot>=30,<31",        # Etapa 11 — linhagem por coluna do SQL compilado, para derivar a classificação
-    "apache-beam>=2.60,<3.0",
+    "apache-beam[gcp]>=2.60,<3.0", # `gcp`: ReadFromPubSub, BigQuery e Dataflow (ADR-0051)
+    "google-cloud-storage>=2.18,<4.0", # Etapa 13 — o livro retido no Cloud Storage (D70)
     "confluent-kafka>=2.6,<3.0",
 ]
 
