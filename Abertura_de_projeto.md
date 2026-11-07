@@ -4,8 +4,8 @@
 |---|---|
 | **Projeto** | MVP — Engenharia e Governança de Dados de Referência (`mvp_eng_dados_1`) |
 | **Repositório** | `github.com/alencardoug/mvp_eng_dados_1` (pasta local: `mvp_ed1`) |
-| **Versão** | 1.2 — **aprovada** |
-| **Data** | 04/09/2026 |
+| **Versão** | 1.3 — **aprovada** |
+| **Data** | 06/11/2026 |
 | **Owner principal** | Douglas Alencar |
 | **Natureza** | MVP técnico de engenharia de dados, evolutivo, público |
 | **Documentação** | Mapa completo dos artefatos no [README](README.md) |
@@ -84,7 +84,7 @@ usa federação de identidade, sem credencial longeva no repositório.
 
 O Owner é responsável por escopo, decisões e aprovação · todos os dados são sintéticos · a fase
 local precede e condiciona a fase GCP · o ambiente local usa contêineres e custa próximo de zero ·
-o volume local é reduzido de propósito, e o trabalho com alto volume pertence à fase GCP ·
+o volume local é reduzido de propósito; a fase GCP também roda no fator `dev`, e o trabalho com alto volume fica para depois do M6 (D68, 06/11/2026) ·
 o Claude Code atua como ferramenta de desenvolvimento assistido, sem poder de aprovação e com
 revisão obrigatória do Owner · o repositório é público.
 
@@ -124,6 +124,10 @@ por avaliação de valor, custo, risco e aderência a este Termo.
 *autorizar o início e a execução da fase local (pré-GCP) do projeto, conforme escopo, princípios,
 premissas, restrições e critérios estabelecidos neste Termo.*
 
+**Fase GCP: autorizada em 06/11/2026 por Douglas Alencar.** Decisão tomada: *autorizar a Etapa 13 —
+replicação no GCP com Terraform (M6) —, com todos os seus critérios, dentro do prazo da avaliação
+gratuita da conta GCP.* O plano da execução está no [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md#etapa-13--replicação-no-gcp-com-terraform--m6).
+
 A aprovação fecha o marco **M0**. As pendências remanescentes do Owner seguem reunidas em
 [Pendências](docs/pendencias.md).
 
@@ -132,3 +136,4 @@ A aprovação fecha o marco **M0**. As pendências remanescentes do Owner seguem
 | 1.0 | 01/09/2026 | Redação inicial |
 | 1.1 | 01/09/2026 | Detalhamento redistribuído para artefatos específicos; inclusão do objetivo de aprendizado, da origem legada e do fluxo de streaming no escopo |
 | 1.2 | 04/09/2026 | Orçamento de 4 GB substituído por critério de cobertura (alto volume passa à fase GCP); exceção de CI/CD para *policy tags*; princípio **P10** incorporado às restrições; objetivo de aprendizado retirado do Termo — o estudo do resultado é atividade posterior à entrega, não parte dela |
+| 1.3 | 06/11/2026 | Autorização da fase GCP (§11); o alto volume deixa de pertencer à fase GCP e sai do M6 (§7, D68) |

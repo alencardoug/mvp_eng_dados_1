@@ -10,11 +10,11 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — não começou: o pré-requisito é a sua autorização explícita |
+| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP). A D65 e a D67 foram fechadas pela v1.1.0 (§2) |
-| Última revisão | 05/11/2026 — o aceite da `v1.1.0` e a V1, verificações adiadas da revisão dela |
+| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP), mais D69 a D74, da abertura da Etapa 13, com as alternativas no plano transitório até a sua decisão. A D65 e a D67 foram fechadas pela v1.1.0, e a D68 na abertura da Etapa 13 (§2) |
+| Última revisão | 06/11/2026 — a autorização da Etapa 13 e a D68 |
 
 ---
 
@@ -265,6 +265,16 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D68 — a fase GCP roda no fator `dev` (decidida em 06/11/2026)
+
+**Decisão:** a Etapa 13 roda no mesmo fator `dev` da fase local, e o trabalho com alto volume sai do
+M6 e fica para depois dele, com a operação continuada. Nenhum critério de conclusão da Etapa 13 nem
+do [Termo](../Abertura_de_projeto.md) §6 exige volume; a premissa estava no Termo §7, emendado na
+versão 1.3, e nas consequências do [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) e
+do [ADR-0016](adr/0016-materializacao-por-camada.md), que ganharam nota datada. O motivo é o prazo da
+avaliação gratuita da conta GCP: carga maior no Cloud SQL, sincronizações e *build* mais longos são
+tempo e crédito que a janela não tem. O fator `cloud` do gerador continua sem número (P5).
 
 ### D65 e D67 — decididas em 22/10 e 03/11/2026, fechadas pela v1.1.0
 

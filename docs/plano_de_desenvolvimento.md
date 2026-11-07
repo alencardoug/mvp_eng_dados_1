@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.10 |
-| Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, não iniciada: o pré-requisito é a autorização explícita do Owner. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos). A [versão de manutenção `v1.1.0`](#versão-de-manutenção-v110) foi aceita em 05/11/2026, com a *tag* `v1.1.0` |
-| Última revisão | 05/11/2026 — a `v1.1.0` revisada em três lotes e aceita |
+| Versão | 3.11 |
+| Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, **autorizada pelo Owner em 06/11/2026**, em planejamento no plano transitório `PLANO_etapa_13.md`, com prazo no fim da avaliação gratuita da conta GCP. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos). A [versão de manutenção `v1.1.0`](#versão-de-manutenção-v110) foi aceita em 05/11/2026, com a *tag* `v1.1.0` |
+| Última revisão | 06/11/2026 — a autorização da Etapa 13 e a D68 (a fase GCP roda no fator `dev`) |
 
 ---
 
@@ -27,7 +27,7 @@
 - **O fator de escala `dev` é o padrão em todas as etapas.** O ambiente local é dimensionado por
   cobertura, não por volume ([ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md)): o que
   cada etapa precisa provar é que toda tabela, todo valor de enumeração e todo tipo de falha foram
-  exercitados. O volume alto pertence à fase GCP.
+  exercitados. O volume alto pertencia à fase GCP; desde a D68 (06/11/2026), fica para depois do M6.
 - **Das Etapas 5 a 10, o trabalho avança em cortes verticais.** Cada corte atravessa todas as
   camadas: gerar, ingerir, transformar, testar, catalogar e consultar. Nenhum corte termina
   entregando uma camada isolada — é assim que o princípio **P1** deixa de ser retórica.
@@ -345,9 +345,9 @@ em três lotes e **aceita pelo Owner em 05/11/2026**.*
 | | |
 |---|---|
 | **Objetivo** | Levar o fluxo para a nuvem preservando o desenho conceitual. |
-| **Pré-requisito** | M5 e autorização explícita do Owner |
+| **Pré-requisito** | M5 e autorização explícita do Owner ✓ (06/11/2026) |
 | **Entregas** | **E12** |
-| **Decisões** | **D11**, **D22** ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)), **Q1** ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) — aceitas em 04/09/2026 · **D36** ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — a concorrência entre *batch* e *streaming* é medida aqui, não na fase local |
+| **Decisões** | **D11**, **D22** ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)), **Q1** ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) — aceitas em 04/09/2026 · **D36** ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — a concorrência entre *batch* e *streaming* é medida aqui, não na fase local · **D68** ([Pendências §2](pendencias.md#d68--a-fase-gcp-roda-no-fator-dev-decidida-em-06112026)) — a fase GCP roda no fator `dev`, e o alto volume sai do M6 |
 | **Artefatos** | `terraform/` provisionando Cloud SQL, BigQuery, IAM, contas de serviço, redes, Datastream, Pub/Sub, Dataflow e *policy tags* · dbt adaptado de dialeto · publicação dos metadados no Dataplex · estimativa de custo por serviço |
 | **Critérios de conclusão** | Todo item do [mapa de paridade](arquitetura.md#5-mapa-de-paridade-local--gcp) com equivalente provisionado · `terraform plan` revisado antes de cada `apply` · particionamento, *clustering*, retenção e políticas definidos antes do provisionamento · *policy tag* aplicada a cada coluna sensível pelo fluxo automatizado do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md), com acesso negado comprovado e sem credencial longeva · Composer e Airbyte criados e **destruídos** na mesma janela, com custo estimado e real registrados · *batch* e *streaming* de pé ao mesmo tempo, com tamanho, tempo e custo registrados e `caminhos_de_ingestao_reconciliam` passando ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) · paridade funcional com a fase local demonstrada |
 | **Riscos tratados** | **R3**, **R9** |

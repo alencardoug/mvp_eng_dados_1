@@ -7,6 +7,10 @@
 | Decisor | Owner principal |
 | Decisão pendente resolvida | D26 |
 
+> **Nota — 06/11/2026.** A D68 ([Pendências §2](../pendencias.md#d68--a-fase-gcp-roda-no-fator-dev-decidida-em-06112026))
+> tirou o alto volume da Etapa 13: a fase GCP roda no fator `dev`, e o fator `cloud` segue sem número.
+> Os problemas que "passam a ser descobertos na fase GCP" (Consequências) ficam para depois do M6.
+
 ## Contexto
 
 O orçamento de **4 GB** veio da proposta original do projeto e atravessou o Termo de Abertura, o

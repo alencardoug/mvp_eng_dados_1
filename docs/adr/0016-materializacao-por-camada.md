@@ -7,6 +7,10 @@
 | Decisor | Owner principal |
 | Decisão pendente resolvida | D23 |
 
+> **Nota — 06/11/2026.** A revisão "sob volume" prometida nas Consequências não acontece na Etapa 13:
+> pela D68 ([Pendências §2](../pendencias.md#d68--a-fase-gcp-roda-no-fator-dev-decidida-em-06112026)),
+> a fase GCP roda no fator `dev`. A materialização continua decidida sem pressão de volume.
+
 ## Contexto
 
 A materialização decide, para cada modelo dbt, se o resultado é recalculado a cada leitura, gravado
