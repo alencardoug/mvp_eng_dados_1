@@ -25,6 +25,10 @@ própria época, sincronizado, e só então ganha o nome final por `link`, que
 falha se o nome já existe; o temporário sai, e o diretório é sincronizado. Um
 registro publicado é inteiro ou não existe, e nunca é trocado por outro.
 
+**Na fase GCP (Etapa 13, G2.1)** a raiz é `gs://<bucket>/<prefixo>`, e o "nunca substituído" é a
+escrita condicionada do Cloud Storage em vez do `link` — o meio e o porquê de cada diferença estão
+em `livro_gcs`. As funções abaixo despacham pelo tipo da raiz; o contrato é o mesmo.
+
 **O que se mede, sempre em sessão somente leitura:**
 
 * de uma captura, por tabela do bruto e pelo `sync_id` do *job*: contagem,
@@ -57,7 +61,8 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
-from mvp_ed1.recovery import leitura, oraculos
+from mvp_ed1.recovery import leitura, livro_gcs, oraculos
+from mvp_ed1.recovery.livro_gcs import Lugar
 
 #: A variável do `.env` que nomeia a raiz do livro (H6).
 ENV = "LEGACY_LEDGER_DIR"
@@ -76,39 +81,54 @@ class LedgerError(Exception):
 
 @dataclass(frozen=True)
 class Published:
-    path: pathlib.Path
+    path: pathlib.Path | Lugar
     sha256: str
 
 
 # ── A raiz e as épocas ───────────────────────────────────────────────────────
-def root(environ: Mapping[str, str] | None = None) -> pathlib.Path:
-    """A raiz do livro, de `LEGACY_LEDGER_DIR`. Ausente, vazia ou sem diretório, falha."""
+def root(environ: Mapping[str, str] | None = None) -> pathlib.Path | Lugar:
+    """A raiz do livro, de `LEGACY_LEDGER_DIR`. Ausente, vazia, sem diretório ou sem *bucket*, falha."""
     valor = (os.environ if environ is None else environ).get(ENV, "").strip()
     if not valor:
         raise LedgerError(f"{ENV} ausente ou vazia: sem livro, nenhuma captura é registrada")
+    if valor.startswith(livro_gcs.PREFIXO):
+        try:
+            lugar = Lugar.de(valor)
+        except livro_gcs.LivroGcsError as erro:
+            raise LedgerError(f"{ENV}={valor}: {erro}") from None
+        if not livro_gcs.existe_raiz(lugar):
+            raise LedgerError(f"{ENV}={valor}: o bucket não existe ou não é legível")
+        return lugar
     caminho = pathlib.Path(valor)
     if not caminho.is_dir():
         raise LedgerError(f"{ENV}={valor} não é um diretório")
     return caminho
 
 
-def epochs(raiz: pathlib.Path) -> list[pathlib.Path]:
+def epochs(raiz: pathlib.Path | Lugar) -> list[pathlib.Path | Lugar]:
     """Os subdiretórios de época, pelo número, os mais antigos primeiro."""
+    candidatos = livro_gcs.subprefixos(raiz) if isinstance(raiz, Lugar) else (p for p in raiz.iterdir() if p.is_dir())
     return sorted(
-        (p for p in raiz.iterdir() if p.is_dir() and EPOCH.match(p.name)),
+        (p for p in candidatos if EPOCH.match(p.name)),
         key=lambda p: int(EPOCH.match(p.name).group(1)),  # type: ignore[union-attr]
     )
 
 
-def _valid_baseline(epoca: pathlib.Path) -> bool:
+def _valid_baseline(epoca: pathlib.Path | Lugar) -> bool:
     try:
-        conteudo = json.loads((epoca / BASELINE).read_text(encoding="utf-8"))
+        if isinstance(epoca, Lugar):
+            dados = livro_gcs.ler(epoca / BASELINE)
+            if dados is None:
+                return False
+            conteudo = json.loads(dados.decode("utf-8"))
+        else:
+            conteudo = json.loads((epoca / BASELINE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
     return isinstance(conteudo, dict) and conteudo.get("kind") == "baseline" and conteudo.get("format") == FORMAT
 
 
-def current_epoch(raiz: pathlib.Path) -> pathlib.Path:
+def current_epoch(raiz: pathlib.Path | Lugar) -> pathlib.Path | Lugar:
     """A época mais nova com linha de base válida. Sem nenhuma, falha (H8)."""
     for epoca in reversed(epochs(raiz)):
         if _valid_baseline(epoca):
@@ -116,7 +136,7 @@ def current_epoch(raiz: pathlib.Path) -> pathlib.Path:
     raise LedgerError(f"{raiz}: nenhuma época com linha de base válida — abra uma (T4 da A8)")
 
 
-def open_epoch(raiz: pathlib.Path, baseline: Mapping[str, Any], *, agora: dt.datetime | None = None) -> Published:
+def open_epoch(raiz: pathlib.Path | Lugar, baseline: Mapping[str, Any], *, agora: dt.datetime | None = None) -> Published:
     """Abre a época seguinte com a sua linha de base. Uma época que não chegou a ter a sua é pulada."""
     if baseline.get("kind") != "baseline" or baseline.get("format") != FORMAT:
         raise LedgerError("só uma linha de base abre época")
@@ -124,8 +144,10 @@ def open_epoch(raiz: pathlib.Path, baseline: Mapping[str, Any], *, agora: dt.dat
     numero = 1 + (int(EPOCH.match(existentes[-1].name).group(1)) if existentes else 0)  # type: ignore[union-attr]
     carimbo = (agora or dt.datetime.now(dt.timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     epoca = raiz / f"epoch_{numero:04d}_{carimbo}"
-    epoca.mkdir()
-    _sync_dir(raiz)
+    if not isinstance(epoca, Lugar):
+        # No Cloud Storage o prefixo nasce com o primeiro objeto, a própria linha de base.
+        epoca.mkdir()
+        _sync_dir(raiz)
     return publish(epoca, BASELINE, baseline)
 
 
@@ -142,7 +164,7 @@ def encode(conteudo: Mapping[str, Any]) -> bytes:
     return (json.dumps(conteudo, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode("utf-8")
 
 
-def publish(epoca: pathlib.Path, nome: str, conteudo: Mapping[str, Any]) -> Published:
+def publish(epoca: pathlib.Path | Lugar, nome: str, conteudo: Mapping[str, Any]) -> Published:
     """Temporário, `fsync`, `link` para o nome final — que falha se ele existe —, `fsync` do diretório."""
     if "/" in nome or nome.startswith("."):
         raise LedgerError(f"nome de registro inválido: {nome!r}")
@@ -151,6 +173,13 @@ def publish(epoca: pathlib.Path, nome: str, conteudo: Mapping[str, Any]) -> Publ
         # registro fora da leitura do H7 e do T3 (RVL1-07).
         raise LedgerError(f"nome de registro sem .json, que a leitura do livro ignoraria: {nome!r}")
     dados = encode(conteudo)
+    if isinstance(epoca, Lugar):
+        final = epoca / nome
+        try:
+            livro_gcs.criar(final, dados)
+        except FileExistsError:
+            raise LedgerError(f"{final} já existe: um registro nunca é substituído") from None
+        return Published(final, hashlib.sha256(dados).hexdigest())
     temporario = epoca / f".{nome}.{uuid.uuid4().hex}.tmp"
     final = epoca / nome
     try:
@@ -168,8 +197,14 @@ def publish(epoca: pathlib.Path, nome: str, conteudo: Mapping[str, Any]) -> Publ
     return Published(final, hashlib.sha256(dados).hexdigest())
 
 
-def probe_writable(epoca: pathlib.Path) -> None:
-    """Prova a escrita com um temporário que sai em seguida (H7, passo 0). Falha com `OSError`."""
+def probe_writable(epoca: pathlib.Path | Lugar) -> None:
+    """Prova a escrita com um temporário que sai em seguida (H7, passo 0). Falha com `OSError`.
+
+    No Cloud Storage, pela permissão, sem objeto de prova: ver `livro_gcs`."""
+    if isinstance(epoca, Lugar):
+        if not livro_gcs.pode_criar(epoca):
+            raise PermissionError(f"{epoca}: a credencial corrente não cria objetos no bucket")
+        return
     teste = epoca / f".probe.{uuid.uuid4().hex}.tmp"
     try:
         with open(teste, "xb") as arquivo:
@@ -180,8 +215,11 @@ def probe_writable(epoca: pathlib.Path) -> None:
         teste.unlink(missing_ok=True)
 
 
-def records(epoca: pathlib.Path) -> list[dict[str, Any]]:
+def records(epoca: pathlib.Path | Lugar) -> list[dict[str, Any]]:
     """Os registros publicados da época, lidos pelo conteúdo — o nome não diz nada (T4)."""
+    if isinstance(epoca, Lugar):
+        return [json.loads(dados.decode("utf-8")) for nome, dados in livro_gcs.objetos(epoca)
+                if nome.endswith(".json") and not nome.startswith(".")]
     return [
         json.loads(p.read_text(encoding="utf-8"))
         for p in sorted(epoca.iterdir())
@@ -404,7 +442,7 @@ class GateRefused(LedgerError):
     """O portão não registra: tentativa repetida, ou uma tentativa que ainda não tem o que registrar."""
 
 
-def writable_epoch(environ: Mapping[str, str] | None = None) -> pathlib.Path:
+def writable_epoch(environ: Mapping[str, str] | None = None) -> pathlib.Path | Lugar:
     """A época corrente, provada gravável — o que os dois chamadores conferem antes de abrir tentativa.
 
     Sem ela, uma captura terminaria sem registro possível e pararia a barreira
