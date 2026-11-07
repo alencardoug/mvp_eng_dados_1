@@ -262,7 +262,8 @@ def _macro():
             raise RuntimeError(mensagem)
 
     fonte = pathlib.Path("dbt/macros/chave_canonica.sql").read_text(encoding="utf-8")
-    return jinja2.Environment().from_string(fonte, globals={"exceptions": _Excecoes()}).module.chave_canonica
+    # A metade PostgreSQL (`default__`): a de cima despacha por `adapter`, que o Jinja puro não tem.
+    return jinja2.Environment().from_string(fonte, globals={"exceptions": _Excecoes()}).module.default__chave_canonica
 
 
 def _macro_renderizada(tipo: str) -> str:

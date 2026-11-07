@@ -441,52 +441,42 @@ unit_tests:
       source_table: brands
       business_key: '1'
       n: 1
-      payloads: '[{"id": "1"}]'
     - snapshot_id: 2
       source_table: brands
       business_key: '1'
       n: 1
-      payloads: '[{"id": "1"}]'
     - snapshot_id: 1
       source_table: brands
       business_key: '2'
       n: 1
-      payloads: '[{"id": "2"}]'
     - snapshot_id: 2
       source_table: brands
       business_key: '3'
       n: 1
-      payloads: '[{"id": "3"}]'
     - snapshot_id: 1
       source_table: brands
       business_key: '7'
       n: 2
-      payloads: '[{"id": "7"}]'
     - snapshot_id: 2
       source_table: brands
       business_key: '7'
       n: 1
-      payloads: '[{"id": "7"}]'
     - snapshot_id: 1
       source_table: brands
       business_key: null
       n: 1
-      payloads: '[{"id": "None"}]'
     - snapshot_id: 2
       source_table: brands
       business_key: null
       n: 2
-      payloads: '[{"id": "None"}]'
     - snapshot_id: 1
       source_table: warehouses
       business_key: '8'
       n: 1
-      payloads: '[{"id": "8"}]'
     - snapshot_id: 2
       source_table: warehouses
       business_key: '8'
       n: 1
-      payloads: '[{"id": "8"}]'
   - input: ref('legacy_selected_capture')
     rows:
     - snapshot_id: 2
@@ -787,17 +777,14 @@ unit_tests:
       source_table: brands
       business_key: '1'
       n: 1
-      payloads: '[{"id": "1"}]'
     - snapshot_id: 2
       source_table: brands
       business_key: '1'
       n: 1
-      payloads: '[{"id": "1"}]'
     - snapshot_id: 3
       source_table: brands
       business_key: '2'
       n: 1
-      payloads: '[{"id": "2"}]'
   - input: ref('legacy_selected_capture')
     rows:
     - snapshot_id: 3
@@ -1188,7 +1175,6 @@ unit_tests:
       source_table: brands
       business_key: '1'
       n: 1
-      payloads: '[{"id": "1"}]'
   - input: ref('legacy_selected_capture')
     rows:
     - snapshot_id: 1
@@ -1327,61 +1313,51 @@ unit_tests:
       source_table: brands
       business_key: A
       n: 1
-      payloads: '[{"id": "A"}]'
     - &id002
       snapshot_id: 2
       source_table: brands
       business_key: A
       n: 1
-      payloads: '[{"id": "A"}]'
     - &id003
       snapshot_id: 1
       source_table: brands
       business_key: B
       n: 1
-      payloads: '[{"id": "B"}]'
     - &id004
       snapshot_id: 1
       source_table: brands
       business_key: C
       n: 1
-      payloads: '[{"id": "C"}]'
     - &id005
       snapshot_id: 3
       source_table: brands
       business_key: C
       n: 1
-      payloads: '[{"id": "C"}]'
     - &id006
       snapshot_id: 1
       source_table: brands
       business_key: D
       n: 1
-      payloads: '[{"id": "D"}]'
     - &id007
       snapshot_id: 3
       source_table: brands
       business_key: D
       n: 1
-      payloads: '[{"id": "D"}]'
     - &id008
       snapshot_id: 1
       source_table: brands
       business_key: E
       n: 1
-      payloads: '[{"id": "E"}]'
     - &id009
       snapshot_id: 2
       source_table: brands
       business_key: E
       n: 1
-      payloads: '[{"id": "E"}]'
     - &id010
       snapshot_id: 3
       source_table: brands
       business_key: E
       n: 1
-      payloads: '[{"id": "E"}]'
   - input: ref('legacy_selected_capture')
     rows:
     - snapshot_id: 3
@@ -1780,22 +1756,18 @@ unit_tests:
       source_table: brands
       business_key: E
       n: 1
-      payloads: '[{"id": "E"}]'
     - snapshot_id: 5
       source_table: brands
       business_key: E
       n: 1
-      payloads: '[{"id": "E"}]'
     - snapshot_id: 4
       source_table: brands
       business_key: C
       n: 1
-      payloads: '[{"id": "C"}]'
     - snapshot_id: 5
       source_table: brands
       business_key: C
       n: 1
-      payloads: '[{"id": "C"}]'
   - input: ref('legacy_selected_capture')
     rows:
     - snapshot_id: 5

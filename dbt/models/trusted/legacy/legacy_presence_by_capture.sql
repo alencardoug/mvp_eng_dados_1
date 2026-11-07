@@ -44,7 +44,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -87,7 +87,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -136,7 +136,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -181,7 +181,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -224,7 +224,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -267,7 +267,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -312,7 +312,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -355,7 +355,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -406,7 +406,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -455,7 +455,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -504,7 +504,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -557,7 +557,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -608,7 +608,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -657,7 +657,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -706,7 +706,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -755,7 +755,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -802,7 +802,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -863,7 +863,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -908,7 +908,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -955,7 +955,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1000,7 +1000,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1051,7 +1051,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1096,7 +1096,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1141,7 +1141,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."movement_id"', 'uuid') }} AS business_key,
+  {{ chave_canonica('r.`movement_id`', 'uuid') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1200,7 +1200,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1259,7 +1259,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1304,7 +1304,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1349,7 +1349,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1390,7 +1390,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1433,7 +1433,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1482,7 +1482,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1523,7 +1523,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1576,7 +1576,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1631,7 +1631,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1684,7 +1684,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1725,7 +1725,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1770,7 +1770,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1811,7 +1811,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1868,7 +1868,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(
@@ -1915,7 +1915,7 @@ SELECT
   CAST((
     JSON_EXTRACT_SCALAR(r._airbyte_meta, '$.sync_id')
   ) AS INT64) AS snapshot_id,
-  {{ chave_canonica('r."id"', 'bigint') }} AS business_key,
+  {{ chave_canonica('r.`id`', 'bigint') }} AS business_key,
   COUNT(*) AS n,
   TO_JSON(
     ARRAY_AGG(

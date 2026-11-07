@@ -26,7 +26,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__brands') }} AS r
 UNION ALL
 SELECT
@@ -61,7 +63,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "objective", "valid_from", "valid_to", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "objective", "valid_from", "valid_to", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__campaigns') }} AS r
 UNION ALL
 SELECT
@@ -92,7 +96,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "service_level", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "service_level", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__carriers') }} AS r
 UNION ALL
 SELECT
@@ -121,7 +127,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__customer_segments') }} AS r
 UNION ALL
 SELECT
@@ -150,7 +158,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "method_type", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "method_type", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__payment_methods') }} AS r
 UNION ALL
 SELECT
@@ -181,7 +191,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "parent_id", "key": "id", "table": "product_categories"}], "required": ["id", "code", "name", "depth", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "parent_id", "key": "id", "table": "product_categories"}], "required": ["id", "code", "name", "depth", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__product_categories') }} AS r
 UNION ALL
 SELECT
@@ -210,7 +222,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "channel_type", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "channel_type", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__sales_channels') }} AS r
 UNION ALL
 SELECT
@@ -247,7 +261,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "supplier_code", "legal_name", "document", "country", "payment_terms_days", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["document"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["supplier_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "supplier_code", "legal_name", "document", "country", "payment_terms_days", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["document"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["supplier_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__suppliers') }} AS r
 UNION ALL
 SELECT
@@ -282,7 +298,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "agent_code", "first_name", "last_name", "email", "team", "hired_at", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["agent_code"], "conditions": []}, {"columns": ["email"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "agent_code", "first_name", "last_name", "email", "team", "hired_at", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["agent_code"], "conditions": []}, {"columns": ["email"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__support_agents') }} AS r
 UNION ALL
 SELECT
@@ -317,7 +335,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [], "required": ["id", "code", "name", "city", "state", "country", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [], "required": ["id", "code", "name", "city", "state", "country", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__warehouses') }} AS r
 UNION ALL
 SELECT
@@ -356,7 +376,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "campaign_id", "key": "id", "table": "campaigns"}], "required": ["id", "code", "campaign_id", "discount_type", "discount_value", "valid_from", "valid_to", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "campaign_id", "key": "id", "table": "campaigns"}], "required": ["id", "code", "campaign_id", "discount_type", "discount_value", "valid_from", "valid_to", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__coupons') }} AS r
 UNION ALL
 SELECT
@@ -393,7 +415,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "segment_id", "key": "id", "table": "customer_segments"}], "required": ["id", "customer_code", "first_name", "last_name", "document", "status", "registered_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["customer_code"], "conditions": []}, {"columns": ["document"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "segment_id", "key": "id", "table": "customer_segments"}], "required": ["id", "customer_code", "first_name", "last_name", "document", "status", "registered_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["customer_code"], "conditions": []}, {"columns": ["document"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__customers') }} AS r
 UNION ALL
 SELECT
@@ -428,7 +452,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "sales_channel_id", "key": "id", "table": "sales_channels"}], "required": ["id", "code", "name", "currency", "valid_from", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "sales_channel_id", "key": "id", "table": "sales_channels"}], "required": ["id", "code", "name", "currency", "valid_from", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__price_lists') }} AS r
 UNION ALL
 SELECT
@@ -463,7 +489,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "category_id", "key": "id", "table": "product_categories"}, {"column": "brand_id", "key": "id", "table": "brands"}], "required": ["id", "product_code", "category_id", "name", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["product_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "category_id", "key": "id", "table": "product_categories"}, {"column": "brand_id", "key": "id", "table": "brands"}], "required": ["id", "product_code", "category_id", "name", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["product_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__products') }} AS r
 UNION ALL
 SELECT
@@ -498,7 +526,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "supplier_id", "key": "id", "table": "suppliers"}], "required": ["id", "po_number", "supplier_id", "status", "ordered_at", "currency", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["po_number"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "supplier_id", "key": "id", "table": "suppliers"}], "required": ["id", "po_number", "supplier_id", "status", "ordered_at", "currency", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["po_number"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__purchase_orders') }} AS r
 UNION ALL
 SELECT
@@ -531,7 +561,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "sales_channel_id", "key": "id", "table": "sales_channels"}], "required": ["id", "cart_code", "sales_channel_id", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["cart_code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "sales_channel_id", "key": "id", "table": "sales_channels"}], "required": ["id", "cart_code", "sales_channel_id", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["cart_code"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__carts') }} AS r
 UNION ALL
 SELECT
@@ -578,7 +610,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "address_type", "street", "city", "state", "postal_code", "country", "is_primary", "valid_from", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["customer_id", "address_type"], "conditions": [{"column": "is_primary", "kind": "is_true"}, {"column": "deleted_at", "kind": "is_null"}]}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "address_type", "street", "city", "state", "postal_code", "country", "is_primary", "valid_from", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["customer_id", "address_type"], "conditions": [{"column": "is_primary", "kind": "is_true"}, {"column": "deleted_at", "kind": "is_null"}]}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__customer_addresses') }} AS r
 UNION ALL
 SELECT
@@ -609,7 +643,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "contact_type", "contact_value", "is_primary", "is_verified", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["customer_id", "contact_type"], "conditions": [{"column": "is_primary", "kind": "is_true"}, {"column": "deleted_at", "kind": "is_null"}]}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "contact_type", "contact_value", "is_primary", "is_verified", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["customer_id", "contact_type"], "conditions": [{"column": "is_primary", "kind": "is_true"}, {"column": "deleted_at", "kind": "is_null"}]}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__customer_contacts') }} AS r
 UNION ALL
 SELECT
@@ -642,7 +678,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "language", "currency", "marketing_opt_in", "newsletter_opt_in", "created_at", "updated_at"], "unique_keys": [{"columns": ["customer_id"], "conditions": []}, {"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}], "required": ["id", "customer_id", "language", "currency", "marketing_opt_in", "newsletter_opt_in", "created_at", "updated_at"], "unique_keys": [{"columns": ["customer_id"], "conditions": []}, {"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__customer_preferences') }} AS r
 UNION ALL
 SELECT
@@ -673,7 +711,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "purchase_order_id", "key": "id", "table": "purchase_orders"}, {"column": "warehouse_id", "key": "id", "table": "warehouses"}], "required": ["id", "receipt_number", "purchase_order_id", "warehouse_id", "received_at", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["receipt_number"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "purchase_order_id", "key": "id", "table": "purchase_orders"}, {"column": "warehouse_id", "key": "id", "table": "warehouses"}], "required": ["id", "receipt_number", "purchase_order_id", "warehouse_id", "received_at", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["receipt_number"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__goods_receipts') }} AS r
 UNION ALL
 SELECT
@@ -710,7 +750,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "product_id", "key": "id", "table": "products"}], "required": ["id", "product_id", "sku", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["barcode"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["sku"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "product_id", "key": "id", "table": "products"}], "required": ["id", "product_id", "sku", "is_active", "created_at", "updated_at"], "unique_keys": [{"columns": ["barcode"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["sku"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__product_variants') }} AS r
 UNION ALL
 SELECT
@@ -741,7 +783,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "cart_id", "key": "id", "table": "carts"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "cart_id", "product_variant_id", "quantity", "unit_price", "added_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "cart_id", "key": "id", "table": "carts"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "cart_id", "product_variant_id", "quantity", "unit_price", "added_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__cart_items') }} AS r
 UNION ALL
 SELECT
@@ -772,7 +816,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "warehouse_id", "product_variant_id", "quantity_on_hand", "quantity_reserved", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["warehouse_id", "product_variant_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "warehouse_id", "product_variant_id", "quantity_on_hand", "quantity_reserved", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["warehouse_id", "product_variant_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__inventory_balances') }} AS r
 UNION ALL
 SELECT
@@ -817,7 +863,9 @@ SELECT
     r.`metadata`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["movement_id", "idempotency_key", "warehouse_id", "product_variant_id", "movement_type", "quantity_delta", "source_type", "source_id", "aggregate_version", "occurred_at", "recorded_at", "schema_version"], "unique_keys": [{"columns": ["idempotency_key"], "conditions": []}, {"columns": ["movement_id"], "conditions": []}, {"columns": ["warehouse_id", "product_variant_id", "aggregate_version"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["movement_id", "idempotency_key", "warehouse_id", "product_variant_id", "movement_type", "quantity_delta", "source_type", "source_id", "aggregate_version", "occurred_at", "recorded_at", "schema_version"], "unique_keys": [{"columns": ["idempotency_key"], "conditions": []}, {"columns": ["movement_id"], "conditions": []}, {"columns": ["warehouse_id", "product_variant_id", "aggregate_version"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__inventory_movements') }} AS r
 UNION ALL
 SELECT
@@ -862,7 +910,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "sales_channel_id", "key": "id", "table": "sales_channels"}, {"column": "cart_id", "key": "id", "table": "carts"}], "required": ["id", "order_number", "customer_id", "sales_channel_id", "status", "placed_at", "currency", "subtotal_amount", "discount_amount", "shipping_amount", "tax_amount", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["cart_id"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["order_number"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "sales_channel_id", "key": "id", "table": "sales_channels"}, {"column": "cart_id", "key": "id", "table": "carts"}], "required": ["id", "order_number", "customer_id", "sales_channel_id", "status", "placed_at", "currency", "subtotal_amount", "discount_amount", "shipping_amount", "tax_amount", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["cart_id"], "conditions": []}, {"columns": ["id"], "conditions": []}, {"columns": ["order_number"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__orders') }} AS r
 UNION ALL
 SELECT
@@ -893,7 +943,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "price_list_id", "key": "id", "table": "price_lists"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "price_list_id", "product_variant_id", "unit_price", "valid_from", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["price_list_id", "product_variant_id", "valid_from"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "price_list_id", "key": "id", "table": "price_lists"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "price_list_id", "product_variant_id", "unit_price", "valid_from", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["price_list_id", "product_variant_id", "valid_from"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__product_prices') }} AS r
 UNION ALL
 SELECT
@@ -924,7 +976,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "purchase_order_id", "key": "id", "table": "purchase_orders"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "purchase_order_id", "product_variant_id", "quantity_ordered", "unit_cost", "total_cost", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["purchase_order_id", "product_variant_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "purchase_order_id", "key": "id", "table": "purchase_orders"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "purchase_order_id", "product_variant_id", "quantity_ordered", "unit_cost", "total_cost", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["purchase_order_id", "product_variant_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__purchase_order_items') }} AS r
 UNION ALL
 SELECT
@@ -951,7 +1005,9 @@ SELECT
     r.`created_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "coupon_id", "key": "id", "table": "coupons"}, {"column": "customer_id", "key": "id", "table": "customers"}, {"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "coupon_id", "customer_id", "order_id", "discount_amount", "redeemed_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["order_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "coupon_id", "key": "id", "table": "coupons"}, {"column": "customer_id", "key": "id", "table": "customers"}, {"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "coupon_id", "customer_id", "order_id", "discount_amount", "redeemed_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["order_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__coupon_redemptions') }} AS r
 UNION ALL
 SELECT
@@ -980,7 +1036,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "goods_receipt_id", "key": "id", "table": "goods_receipts"}, {"column": "purchase_order_item_id", "key": "id", "table": "purchase_order_items"}], "required": ["id", "goods_receipt_id", "purchase_order_item_id", "quantity_received", "unit_cost", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["goods_receipt_id", "purchase_order_item_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "goods_receipt_id", "key": "id", "table": "goods_receipts"}, {"column": "purchase_order_item_id", "key": "id", "table": "purchase_order_items"}], "required": ["id", "goods_receipt_id", "purchase_order_item_id", "quantity_received", "unit_cost", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["goods_receipt_id", "purchase_order_item_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__goods_receipt_items') }} AS r
 UNION ALL
 SELECT
@@ -1015,7 +1073,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "order_id", "product_variant_id", "quantity", "unit_price", "discount_amount", "tax_amount", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["order_id", "product_variant_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}], "required": ["id", "order_id", "product_variant_id", "quantity", "unit_price", "discount_amount", "tax_amount", "total_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["order_id", "product_variant_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__order_items') }} AS r
 UNION ALL
 SELECT
@@ -1042,7 +1102,9 @@ SELECT
     r.`created_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "order_id", "to_status", "changed_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "order_id", "to_status", "changed_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__order_status_history') }} AS r
 UNION ALL
 SELECT
@@ -1081,7 +1143,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "payment_method_id", "key": "id", "table": "payment_methods"}], "required": ["id", "payment_code", "order_id", "payment_method_id", "status", "amount", "currency", "installments", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["payment_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "payment_method_id", "key": "id", "table": "payment_methods"}], "required": ["id", "payment_code", "order_id", "payment_method_id", "status", "amount", "currency", "installments", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["payment_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__payments') }} AS r
 UNION ALL
 SELECT
@@ -1122,7 +1186,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "carrier_id", "key": "id", "table": "carriers"}, {"column": "warehouse_id", "key": "id", "table": "warehouses"}], "required": ["id", "shipment_code", "order_id", "carrier_id", "warehouse_id", "status", "freight_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["shipment_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "order_id", "key": "id", "table": "orders"}, {"column": "carrier_id", "key": "id", "table": "carriers"}, {"column": "warehouse_id", "key": "id", "table": "warehouses"}], "required": ["id", "shipment_code", "order_id", "carrier_id", "warehouse_id", "status", "freight_amount", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["shipment_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__shipments') }} AS r
 UNION ALL
 SELECT
@@ -1161,7 +1227,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}, {"column": "cart_id", "key": "id", "table": "carts"}, {"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "reservation_code", "warehouse_id", "product_variant_id", "quantity", "status", "expires_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["reservation_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "warehouse_id", "key": "id", "table": "warehouses"}, {"column": "product_variant_id", "key": "id", "table": "product_variants"}, {"column": "cart_id", "key": "id", "table": "carts"}, {"column": "order_id", "key": "id", "table": "orders"}], "required": ["id", "reservation_code", "warehouse_id", "product_variant_id", "quantity", "status", "expires_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["reservation_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__stock_reservations') }} AS r
 UNION ALL
 SELECT
@@ -1188,7 +1256,9 @@ SELECT
     r.`created_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "shipment_id", "key": "id", "table": "shipments"}], "required": ["id", "shipment_id", "event_type", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "shipment_id", "key": "id", "table": "shipments"}], "required": ["id", "shipment_id", "event_type", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__delivery_events') }} AS r
 UNION ALL
 SELECT
@@ -1219,7 +1289,9 @@ SELECT
     r.`created_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "payment_id", "key": "id", "table": "payments"}], "required": ["id", "transaction_code", "payment_id", "transaction_type", "result", "amount", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["transaction_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "payment_id", "key": "id", "table": "payments"}], "required": ["id", "transaction_code", "payment_id", "transaction_type", "result", "amount", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["transaction_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__payment_transactions') }} AS r
 UNION ALL
 SELECT
@@ -1246,7 +1318,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "shipment_id", "key": "id", "table": "shipments"}, {"column": "order_item_id", "key": "id", "table": "order_items"}], "required": ["id", "shipment_id", "order_item_id", "quantity", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["shipment_id", "order_item_id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "shipment_id", "key": "id", "table": "shipments"}, {"column": "order_item_id", "key": "id", "table": "order_items"}], "required": ["id", "shipment_id", "order_item_id", "quantity", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["shipment_id", "order_item_id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__shipment_items') }} AS r
 UNION ALL
 SELECT
@@ -1289,7 +1363,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "order_id", "key": "id", "table": "orders"}, {"column": "shipment_id", "key": "id", "table": "shipments"}, {"column": "assigned_agent_id", "key": "id", "table": "support_agents"}], "required": ["id", "ticket_number", "customer_id", "category", "priority", "status", "subject", "opened_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["ticket_number"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "customer_id", "key": "id", "table": "customers"}, {"column": "order_id", "key": "id", "table": "orders"}, {"column": "shipment_id", "key": "id", "table": "shipments"}, {"column": "assigned_agent_id", "key": "id", "table": "support_agents"}], "required": ["id", "ticket_number", "customer_id", "category", "priority", "status", "subject", "opened_at", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["ticket_number"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__support_tickets') }} AS r
 UNION ALL
 SELECT
@@ -1322,7 +1398,9 @@ SELECT
     r.`deleted_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "payment_transaction_id", "key": "id", "table": "payment_transactions"}], "required": ["id", "refund_code", "payment_transaction_id", "amount", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["refund_code"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "payment_transaction_id", "key": "id", "table": "payment_transactions"}], "required": ["id", "refund_code", "payment_transaction_id", "amount", "status", "created_at", "updated_at"], "unique_keys": [{"columns": ["id"], "conditions": []}, {"columns": ["refund_code"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__refunds') }} AS r
 UNION ALL
 SELECT
@@ -1349,7 +1427,9 @@ SELECT
     r.`created_at`
   ) AS cleaned_payload,
   r.achados AS value_findings,
-  CAST('{"references": [{"column": "ticket_id", "key": "id", "table": "support_tickets"}, {"column": "agent_id", "key": "id", "table": "support_agents"}], "required": ["id", "ticket_id", "event_type", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}' AS JSONB) AS record_contract
+  PARSE_JSON(
+    '{"references": [{"column": "ticket_id", "key": "id", "table": "support_tickets"}, {"column": "agent_id", "key": "id", "table": "support_agents"}], "required": ["id", "ticket_id", "event_type", "occurred_at", "created_at"], "unique_keys": [{"columns": ["id"], "conditions": []}]}'
+  ) AS record_contract
 FROM {{ ref('stg_legacy__ticket_events') }} AS r
 {% else %}select 'brands'::text as source_table,
     r.source_system, r.snapshot_id, r.snapshot_at, r.legacy_row_id,

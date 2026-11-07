@@ -131,6 +131,37 @@ def classification_sql(
     ).replace("__PARAMETROS__", guarda_de_parametros(parametros))
 
 
+def classification_sql_bigquery(
+    catalog: Catalogo,
+    relation: str = "{{ ref('legacy_records') }}",
+    fingerprint: str = "__pendente__",
+) -> str:
+    """O corpo BigQuery da classificação: a mesma regra, escrita à mão (Etapa 13, G1.1).
+
+    O `sqlglot` traduz os 40 modelos de limpeza, mas não a classificação: `jsonb_each_text`,
+    `lateral`, `pg_input_is_valid` e o recursivo com `union` não têm tradução mecânica. A
+    regra é a de `classification.sql`; a equivalência é provada pelo oráculo semântico.
+
+    Os literais seguem o BigQuery, que não aceita `''` como aspa escapada: `json.dumps`
+    dá uma string entre aspas duplas com os escapes que o GoogleSQL lê igual.
+    A impressão digital é a do texto PostgreSQL (D34): não muda com este corpo.
+    """
+    def literal(value: str) -> str:
+        return json.dumps(value, ensure_ascii=False)
+
+    rules = ",\n".join(
+        f"({literal(f.codigo)}, {literal('correct' if f.converte else 'reject')}, "
+        f"{literal(f.conversao if f.converte else f.rejeicao)})"
+        for f in catalog.falhas.values()
+    )
+    template = Path(__file__).with_name("classification_bigquery.sql").read_text(encoding="utf-8")
+    return template.replace("__RECORDS__", relation).replace("__RULES__", rules).replace(
+        "__VERSION__", str(catalog.versao)
+    ).replace("__TOLERANCE__", str(catalog.falhas["TOTAL_MISMATCH"].tolerance)).replace(
+        "__FINGERPRINT__", literal(fingerprint)
+    )
+
+
 def generate(
     catalog: Catalogo,
     root: Path = ROOT,
@@ -144,9 +175,12 @@ def generate(
         ),
     }
     outputs.update(metadata_files(root))
+    classificacao = root / "trusted/legacy/legacy_classifications.sql"
     for path, content in outputs.items():
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.suffix == ".sql":
+        if path == classificacao:
+            content = dois_dialetos(content, classification_sql_bigquery(catalog, fingerprint=fingerprint))
+        elif path.suffix == ".sql":
             content = dois_dialetos(content)
         path.write_text(content, encoding="utf-8")
     return list(outputs)
@@ -288,8 +322,9 @@ def unit_tests_remocao() -> list[dict]:
         return linhas
 
     def presenca(snapshot, tabela, chave, n=1):
-        return {"snapshot_id": snapshot, "source_table": tabela, "business_key": chave, "n": n,
-                "payloads": '[{"id": "%s"}]' % chave}
+        # Sem `payloads`: nenhum caso confere o payload, e o BigQuery não converte o texto
+        # do fixture em JSON (`Invalid cast from STRING to JSON`, Etapa 13).
+        return {"snapshot_id": snapshot, "source_table": tabela, "business_key": chave, "n": n}
 
     transicoes_dado = [
         presenca(1, "brands", "1"), presenca(2, "brands", "1"),            # mantida

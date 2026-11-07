@@ -461,6 +461,59 @@ with registros as (
 """
 
 
+def teste_vinculo_por_representacao_bigquery() -> str:
+    """A mesma sentinela no BigQuery (Etapa 13, G1), escrita à mão pelo gerador.
+
+    O `exists` com `chave_canonica` dos dois lados é uma subconsulta correlacionada que
+    referencia outra tabela, e o BigQuery não a descorrelaciona — nem com as chaves
+    calculadas antes num CTE, porque ele o reinsere na subconsulta (medido em 07/11/2026).
+    Aqui as chaves — textual e canônica — são calculadas uma vez por linha, e o `exists` e
+    o `not exists` viram junções. A pergunta é a mesma: o filho que não acha o pai pelo
+    texto e acha pela forma canônica.
+    """
+    pares = sorted({(pai, chave_pai, tipo) for _, _, pai, chave_pai, tipo in referencias()})
+    pais = "\n    union all\n".join(
+        f"""    select '{pai}' as parent_table, json_value(p.cleaned_payload['{chave_pai}']) as chave_texto,
+        {{{{ chave_canonica("json_value(p.cleaned_payload['{chave_pai}'])", '{tipo}') }}}} as chave_canonica
+    from registros p
+    where p.source_table = '{pai}'"""
+        for pai, chave_pai, tipo in pares
+    )
+    filhos = "\n    union all\n".join(
+        f"""    select '{filha}' as source_table, f.legacy_row_id, '{coluna}' as column_name,
+        '{pai}' as parent_table, json_value(f.cleaned_payload['{coluna}']) as parent_value,
+        {{{{ chave_canonica("json_value(f.cleaned_payload['{coluna}'])", '{tipo}') }}}} as chave_canonica
+    from registros f
+    where f.source_table = '{filha}' and json_value(f.cleaned_payload['{coluna}']) is not null"""
+        for filha, coluna, pai, chave_pai, tipo in referencias()
+    )
+    return f"""with registros as (
+
+    select source_table, legacy_row_id, cleaned_payload
+    from {{{{ ref('legacy_records') }}}}
+
+),
+
+pais as (
+{pais}
+),
+
+filhos as (
+{filhos}
+)
+
+-- `not exists` como anti-junção e `exists` como junção com `distinct`: um filho, uma linha,
+-- quantos pais canônicos houver.
+select distinct f.source_table, f.legacy_row_id, f.column_name, f.parent_table, f.parent_value
+from filhos f
+left join pais texto
+    on texto.parent_table = f.parent_table and texto.chave_texto = f.parent_value
+join pais canonica
+    on canonica.parent_table = f.parent_table and canonica.chave_canonica = f.chave_canonica
+where texto.parent_table is null
+"""
+
+
 def gerar(destino: pathlib.Path = DESTINO, testes: pathlib.Path = TESTES) -> list[pathlib.Path]:
     destino.mkdir(parents=True, exist_ok=True)
     testes.mkdir(parents=True, exist_ok=True)
@@ -471,6 +524,8 @@ def gerar(destino: pathlib.Path = DESTINO, testes: pathlib.Path = TESTES) -> lis
         testes / "legado_presenca_fisica_reconcilia.sql": teste_presenca_fisica(),
         testes / "legado_vinculo_nao_diverge_por_representacao.sql": teste_vinculo_por_representacao(),
     }
+    vinculo = testes / "legado_vinculo_nao_diverge_por_representacao.sql"
     for caminho, conteudo in saidas.items():
-        caminho.write_text(dois_dialetos(conteudo), encoding="utf-8")
+        corpo_bigquery = teste_vinculo_por_representacao_bigquery() if caminho == vinculo else None
+        caminho.write_text(dois_dialetos(conteudo, corpo_bigquery), encoding="utf-8")
     return list(saidas)

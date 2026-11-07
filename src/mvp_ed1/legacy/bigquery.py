@@ -117,7 +117,50 @@ def _traduz_no(no: exp.Expression) -> exp.Expression:
             return exp.Anonymous(this="TIMESTAMP", expressions=[
                 exp.Cast(this=alvo.this, to=exp.DataType.build("DATETIME")), no.args["zone"]])
         raise ValueError("at time zone sobre instante com fuso: forma não prevista")
+    # `declaradas (tabela) as (values …)`: o `sqlglot` lê como `select * from (values …)` e
+    # traduz o VALUES para UNNEST de STRUCT, mas os nomes da lista do CTE não chegam aos
+    # campos (saem `_c0`). Com os nomes no alias do próprio VALUES, chegam.
+    if isinstance(no, exp.CTE) and no.args["alias"].columns and isinstance(no.this, exp.Select):
+        origem = no.this.args.get("from_")
+        valores = origem.this if origem is not None else None
+        if isinstance(valores, exp.Values) and not (valores.alias_column_names or []):
+            novo = no.copy()
+            alias = novo.args["alias"]
+            novo.this.args["from_"].this.set("alias", exp.TableAlias(
+                this=exp.to_identifier("v"), columns=[c.copy() for c in alias.columns]))
+            novo.set("alias", exp.TableAlias(this=alias.this.copy()))
+            return novo
+    # `select … where …` sem FROM: o PostgreSQL aceita, o BigQuery não. Uma linha só, como lá.
+    if isinstance(no, exp.Select) and no.args.get("from_") is None and no.args.get("where") is not None:
+        novo = no.copy()
+        novo.set("from_", exp.From(this=exp.select("1").subquery("sem_from")))
+        return novo
+    # `'{…}'::jsonb`: o contrato por registro é um literal JSON. O BigQuery não tem JSONB, e
+    # CAST(string AS JSON) não existe — o literal vira PARSE_JSON.
+    if isinstance(no, exp.Cast) and no.to.this in (exp.DataType.Type.JSONB, exp.DataType.Type.JSON):
+        if not (isinstance(no.this, exp.Literal) and no.this.is_string):
+            raise ValueError("cast para jsonb de expressão não literal: forma não prevista")
+        return exp.Anonymous(this="PARSE_JSON", expressions=[no.this])
     return no
+
+
+#: Macros cujo primeiro argumento é uma expressão SQL escrita pelo gerador — `r."id"`,
+#: `p.cleaned_payload->>'order_id'`. O Jinja sai intacto da tradução; o argumento, não.
+_MACRO_COM_SQL = re.compile(
+    r"""^(\{\{\s*(?:chave_canonica|identidade_canonica)\()(['"])(.*?)\2(.*)$""", re.S)
+
+
+def _argumento_sql(token: str) -> str:
+    """Traduz para o BigQuery a expressão SQL passada a uma macro de canonização."""
+    m = _MACRO_COM_SQL.match(token)
+    if m is None:
+        return token
+    arvore = sqlglot.parse_one(m.group(3), read="postgres").transform(_traduz_no)
+    expressao = arvore.sql(dialect="bigquery")
+    aspa = '"' if "'" in expressao else "'"
+    if aspa in expressao:
+        raise ValueError(f"argumento com as duas aspas: {expressao}")
+    return m.group(1) + aspa + expressao + aspa + m.group(4)
 
 
 def para_bigquery(corpo: str) -> str:
@@ -128,6 +171,7 @@ def para_bigquery(corpo: str) -> str:
         token = m.group(0)
         if "if target.type" in token:  # o `materialized` do CTE (ADR-0047): só PostgreSQL
             return ""
+        token = _argumento_sql(token)
         chave = f"jj{len(marcas)}x"
         marcas[chave] = token
         return chave
@@ -154,8 +198,12 @@ def para_bigquery(corpo: str) -> str:
     return _pos_traducao(sql)
 
 
-def dois_dialetos(conteudo: str) -> str:
-    """O modelo com o corpo PostgreSQL intacto e o corpo BigQuery traduzido."""
+def dois_dialetos(conteudo: str, corpo_bigquery: str | None = None) -> str:
+    """O modelo com o corpo PostgreSQL intacto e o corpo BigQuery traduzido.
+
+    `corpo_bigquery` substitui a tradução quando ela não é mecânica — a classificação,
+    escrita à mão para o BigQuery (`classification_bigquery.sql`).
+    """
     cabecalho, corpo = _separa(conteudo)
     # O Jinja tira **uma** quebra de linha do fim do modelo. Com o `{% endif %}` depois do
     # corpo, ela deixaria de ser a última e passaria a sair na compilação: o corpo entra sem
@@ -164,7 +212,7 @@ def dois_dialetos(conteudo: str) -> str:
     return (
         cabecalho
         + "{% if target.type == 'bigquery' %}\n"
-        + para_bigquery(corpo)
+        + (para_bigquery(corpo) if corpo_bigquery is None else corpo_bigquery.rstrip("\n"))
         + "\n{% else %}"
         + corpo[: len(corpo) - len(final)]
         + "{% endif %}"

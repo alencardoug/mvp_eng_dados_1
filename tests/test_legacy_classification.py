@@ -246,7 +246,8 @@ def _identidade_canonica(expressao: str) -> str:
     from pathlib import Path
 
     fonte = Path("dbt/macros/identidade_do_vinculo.sql").read_text(encoding="utf-8")
-    return jinja2.Environment().from_string(fonte).module.identidade_canonica(expressao)
+    # A metade PostgreSQL (`default__`): a de cima despacha por `adapter`, que o Jinja puro não tem.
+    return jinja2.Environment().from_string(fonte).module.default__identidade_canonica(expressao)
 
 
 @pytest.mark.integracao  # consulta o armazém pela fixture `classifier_engine`
