@@ -539,3 +539,48 @@ tests/test_governanca_bigquery.py` — 11 passaram, no *bucket* `mvp-ed1-gcp-liv
 `identidade_canonica`; a paridade da identidade foi a **115 de 115** (`python -m
 mvp_ed1.gcp.identidades`), e o caso do espaço Unicode entrou no teste do vínculo
 ([Pendências §2](pendencias.md#d77--a-identidade_canonica-local-só-aceita-os-brancos-que-o-numeric-aceita-decidida-em-07112026)).
+
+## 17. G2.1, terceira peça: a captura com o certificado no BigQuery (07/11/2026, tarde)
+
+O contrato do G2.1 aprovado pelo Owner virou código. O certificado e o bruto passam a poder morar
+no BigQuery, e os *locks*, no PostgreSQL ao lado — no GCP, o Cloud SQL das origens. Na fase local nada
+muda: quem chama continua passando um `Engine`, e os 177 testes da captura, da recuperação e do livro
+passaram sem alteração.
+
+**A forma** (`src/mvp_ed1/legacy/armazem.py`): `BigQuery(cliente, projeto, coordenador, local)` é o
+armazém; o coordenador é o `Engine` do banco legado. `do_ambiente()` escolhe pelo `.env`
+(`LEGACY_WAREHOUSE`, vazio ou `postgres` / `bigquery`), e os dois chamadores — `make sync-legacy` e as
+cinco tarefas da DAG `fluxo_batch` que tocam o certificado — passam por ele, e a CLI do livro
+(linha de base, registro do operador, tratamento) também. As leituras da
+recuperação, do portão e da linha de base (`leitura`, `ledger`, `capture_recovery`) perguntam ao
+módulo como se escreve o nome da tabela e o `sync_id`; o resto da consulta é o mesmo.
+
+**O que cada DML garante no BigQuery:** o número de linhas que vale é o do *job*, não o da resposta.
+Cada DML nasce com um id sorteado e com o reenvio automático do cliente desligado (`job_retry=None`);
+se a resposta se perde, o *job* é procurado pelo id e esperado — **nunca reenviado**. Erro do *job*
+(conflito de DML concorrente incluído) é "não gravou", e quem chama relê o certificado.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A18 | A abertura grava as 40 linhas num **`MERGE` só, a partir de um parâmetro** `ARRAY<STRUCT>` (`on false … where not exists` da tentativa), e não numa tabela de passagem | uma instrução, tudo ou nada, sem tabela a criar e limpar; id repetido grava zero e falha, como o `insert` do PostgreSQL | trocar o `using` por uma tabela de passagem em `_iniciar_bigquery` |
+| A19 | A publicação da fase 2 é **um `update … from unnest(...)`**, não uma transação multi-instrução | atômica por ser uma instrução; a guarda `pending` no `where`, como no PostgreSQL | — |
+| A20 | Leituras "de um estado só" no BigQuery por **viagem no tempo** (`for system_time as of` o `current_timestamp()` do servidor) | é o `REPEATABLE READ` que o livro e a barreira pedem; o relógio é o do servidor, que não lê o futuro | — |
+| A21 | O coordenador no GCP é o **próprio banco legado** no Cloud SQL | o contrato diz "o Cloud SQL das origens"; nenhuma conexão a mais | apontar `coordenador` para o banco de origem principal |
+
+**Prova** [medido] (`data/medicoes/etapa_13/g21_armazem_real.txt`, 11 testes, 3 min 18 s): unidade com cliente simulado —
+resposta perdida lê o *job* e não reenvia, conflito de id lê o existente, erro do *job* é "não
+gravou", *job* que não termina para com erro em vez de fingir resultado. Com `GCP_TESTES=1`, contra o
+BigQuery de verdade, certificado num *dataset* temporário e o lock no PostgreSQL local fazendo o papel
+do Cloud SQL: o ciclo inteiro (abrir, id repetido recusado, registrar o *job* duas vezes, outro *job*
+recusado, concluir, reenvio da fase 2 sem remedir); **duas aberturas concorrentes, uma abre e a outra
+é recusada pela barreira**; a resposta da abertura perdida no meio — 40 linhas, nenhuma a mais; o
+abandono só fora da carência.
+
+**O que a prova cobrou:** sem a região, `get_job` responde "não encontrado" para um *job* em
+`us-central1`, e a resposta perdida esperaria até o limite — o primeiro teste real ficou parado dez
+minutos dentro do lock de abertura. A região agora vai em toda consulta e em toda busca de *job*.
+
+**Fica para depois:** `medir_recebido` faz três leituras por tabela (120 *jobs*, ~2 min por
+conclusão); juntar numa leitura por tabela é otimização, não correção. A época inicial no projeto
+novo (`make ledger-baseline` com `LEGACY_WAREHOUSE=bigquery`) e a prova contra o Cloud SQL real ficam
+para segunda, com o degrau 06.

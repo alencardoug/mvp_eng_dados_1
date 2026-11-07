@@ -239,7 +239,7 @@ perdido, reenvio sem remedir) verdes; na terça, contra Cloud SQL e BigQuery rea
 captura, recuperação de tentativa interrompida, segunda captura, nenhum POST indevido, memória
 anterior intacta.
 
-**G2.1 — o contrato de *backend*, operação a operação** (proposta de 07/11/2026; **aguarda o Owner**).
+**G2.1 — o contrato de *backend*, operação a operação** (proposta de 07/11/2026; **aprovado pelo Owner no mesmo dia** e implementado — [Registro §17](docs/registro_fase_gcp.md#17-g21-terceira-peça-a-captura-com-o-certificado-no-bigquery-07112026-tarde), com as escolhas A18–A21).
 
 Escrito antes de mexer em `captura.py`, `capture_recovery.py` e nas leituras do `ledger`, porque o
 que muda é **onde** cada garantia mora, e isso se revisa melhor em tabela do que em *diff*. Feito
@@ -274,7 +274,7 @@ na terça, contra Cloud SQL e BigQuery reais. Um caso novo que o contrato pede: 
 concorrentes**, para mostrar que o lock de sessão no Cloud SQL serializa a abertura como o
 `xact_lock` serializava.
 
-**Pendente de decisão do Owner:** nenhuma escolha de ferramenta nova (o cliente é o que já existe).
+**Decisão do Owner:** nenhuma escolha de ferramenta nova (o cliente é o que já existe).
 A mudança de `xact_lock` para lock de sessão na abertura é forçada pelo meio — a transação do
 PostgreSQL não envolve o *job* do BigQuery — e mantém a garantia escrita no `iniciar` ("nenhuma
 segunda abertura cabe entre a primeira e o registro dela"), desde que o lock só saia depois de o
