@@ -1,0 +1,66 @@
+# O fluxo do ADR-0025: as policy tags das tabelas que o dbt não materializa, convergidas a partir
+# da classificação versionada, quando ela muda (Etapa 13, G4; D71, D79).
+#
+# **Porta estreita.** É o único CI/CD do projeto (Termo §4). Autentica pela federação de identidade
+# do GitHub — credencial de curta duração, nenhuma chave em segredo nenhum — numa conta que só lê
+# metadado de tabela e troca a tag de coluna (`terraform/politicas.tf`). O provedor de identidade só
+# aceita este repositório e a `main`.
+#
+# **Só na janela.** Fora dela o projeto GCP não existe; o job é **pulado**, não falha, enquanto a
+# variável do repositório `MVP_GCP_ATIVO` não for `true`. O Owner a liga na janela e a desliga no
+# desmonte, com as outras variáveis abaixo (saídas `policy_tags` e `fluxo_politicas` do Terraform —
+# nomes de recurso, não segredos).
+#
+# As actions vão fixadas por commit, não por tag: tag se move, commit não.
+
+name: policy-tags
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dbt/models/**.yml"
+      - "dbt/snapshots/**.yml"
+      - "dbt/seeds/**.yml"
+      - "src/mvp_ed1/gcp/politicas.py"
+      - ".github/workflows/policy-tags.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: policy-tags
+  cancel-in-progress: false
+
+jobs:
+  convergir:
+    if: vars.MVP_GCP_ATIVO == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_BQ_LOCATION: ${{ vars.GCP_BQ_LOCATION }}
+      MVP_POLICY_TAGS: ${{ vars.MVP_POLICY_TAGS }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.MVP_WIF_PROVIDER }}
+          service_account: ${{ vars.MVP_WIF_SERVICE_ACCOUNT }}
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Dependências travadas
+        run: uv sync --frozen
+
+      - name: Manifest (o dbt só lê o projeto; não toca no armazém)
+        working-directory: dbt
+        run: |
+          ../.venv/bin/dbt deps
+          DBT_PROFILES_DIR=. ../.venv/bin/dbt parse --target gcp
+
+      - name: Converge as fontes
+        run: .venv/bin/python -m mvp_ed1.gcp.politicas convergir --manifest dbt/target/manifest.json
