@@ -87,6 +87,7 @@ decisão.
 | [0048](0048-tratar-segredo-achado-no-historico-pelo-tipo-da-credencial.md) | Tratar segredo achado no histórico pelo tipo da credencial | Aceita | D48 |
 | [0049](0049-separar-a-classificacao-da-exposicao.md) | Separar a classificação da exposição do dado sintético | Aceita | — (O2 e N8 do plano do `bi-como-codigo`) |
 | [0050](0050-guardar-a-memoria-do-legado-num-livro-retido.md) | Guardar a memória do legado num livro retido, com recuperação registrada | Aceita | — (N29 a N35 do plano do `bi-como-codigo`) |
+| [0051](0051-cdc-da-fase-gcp-pelo-debezium-server.md) | Levar o CDC da fase GCP ao Pub/Sub pelo Debezium Server | Aceita | D69 |
 
 ---
 

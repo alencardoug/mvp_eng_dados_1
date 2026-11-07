@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.11 |
+| Versão | 3.12 |
 | Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, **autorizada pelo Owner em 06/11/2026**, em planejamento no plano transitório `PLANO_etapa_13.md`, com prazo no fim da avaliação gratuita da conta GCP. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos). A [versão de manutenção `v1.1.0`](#versão-de-manutenção-v110) foi aceita em 05/11/2026, com a *tag* `v1.1.0` |
-| Última revisão | 06/11/2026 — a autorização da Etapa 13 e a D68 (a fase GCP roda no fator `dev`) |
+| Última revisão | 07/11/2026 — o CDC da fase GCP pelo Debezium Server (ADR-0051) e as decisões D69 a D74 |
 
 ---
 
@@ -348,7 +348,7 @@ em três lotes e **aceita pelo Owner em 05/11/2026**.*
 | **Pré-requisito** | M5 e autorização explícita do Owner ✓ (06/11/2026) |
 | **Entregas** | **E12** |
 | **Decisões** | **D11**, **D22** ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)), **Q1** ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)) — aceitas em 04/09/2026 · **D36** ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) — a concorrência entre *batch* e *streaming* é medida aqui, não na fase local · **D68** ([Pendências §2](pendencias.md#d68--a-fase-gcp-roda-no-fator-dev-decidida-em-06112026)) — a fase GCP roda no fator `dev`, e o alto volume sai do M6 |
-| **Artefatos** | `terraform/` provisionando Cloud SQL, BigQuery, IAM, contas de serviço, redes, Datastream, Pub/Sub, Dataflow e *policy tags* · dbt adaptado de dialeto · publicação dos metadados no Dataplex · estimativa de custo por serviço |
+| **Artefatos** | `terraform/` provisionando Cloud SQL, BigQuery, IAM, contas de serviço, redes, Debezium Server no GKE ([ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md)), Pub/Sub, Dataflow e *policy tags* · dbt adaptado de dialeto · publicação dos metadados no Dataplex · estimativa de custo por serviço |
 | **Critérios de conclusão** | Todo item do [mapa de paridade](arquitetura.md#5-mapa-de-paridade-local--gcp) com equivalente provisionado · `terraform plan` revisado antes de cada `apply` · particionamento, *clustering*, retenção e políticas definidos antes do provisionamento · *policy tag* aplicada a cada coluna sensível pelo fluxo automatizado do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md), com acesso negado comprovado e sem credencial longeva · Composer e Airbyte criados e **destruídos** na mesma janela, com custo estimado e real registrados · *batch* e *streaming* de pé ao mesmo tempo, com tamanho, tempo e custo registrados e `caminhos_de_ingestao_reconciliam` passando ([ADR-0046](adr/0046-validar-a-fase-local-por-partes.md)) · paridade funcional com a fase local demonstrada |
 | **Riscos tratados** | **R3**, **R9** |
 | **Conceitos** | Infraestrutura como código · IAM e *policy tags* · particionamento e *clustering* no BigQuery · portabilidade de pipeline · estimativa de custo |

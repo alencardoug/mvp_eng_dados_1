@@ -67,8 +67,8 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 5 pendentes em 04/11/2026: D62 a D64, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0) e a D43 (adiada para a fase GCP); a D65 e a D67, fechadas pela v1.1.0; e a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 (05/11/2026) |
-| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 50 aceitos, 2 pendentes (D43 e D66, adiadas) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 5 pendentes em 04/11/2026: D62 a D64, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0) e a D43 (adiada para a fase GCP, medida na Etapa 13); a D65 e a D67, fechadas pela v1.1.0; as decisões da abertura da Etapa 13, fechadas em 06–07/11/2026; e a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 (05/11/2026) |
+| [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 51 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
 | [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.17 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
@@ -76,13 +76,13 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 ## Decisões já tomadas
 
-**50 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+**51 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
 controle e auditoria · **SQLAlchemy e Alembic** · quatro níveis de classificação e cinco papéis de
 acesso · `src/` como pacote Python instalável · prefixo por tipo nos objetos de banco ·
-**volume por proporções e fator de escala**, com o alto volume reservado à fase GCP · views e
+**volume por proporções e fator de escala**, com o alto volume fora do M6 (D68) · views e
 tabelas por camada, com incremental como exceção justificada · chaves substitutas por *hash* e
 SCD tipo 2 por *snapshot* · Cloud Composer e Airbyte em contêiner na nuvem, em janela curta ·
 **`uv` e Python 3.11** · configuração do gerador em YAML, com o piso de cobertura derivado dos
@@ -102,7 +102,8 @@ o histórico; a de nuvem se revoga e se reescreve, pela mão do Owner · **class
 a classificação continua em todo campo, e a exposição do dado sintético é livre, decidida por
 concessão · **a memória do legado é guardada num livro retido**, fora do banco, e nenhuma captura
 pendente é finalizada sem registro — toda tentativa termina registrada pelo próprio chamador antes
-de qualquer *build*.
+de qualquer *build* · **o CDC da fase GCP chega ao Pub/Sub pelo Debezium Server**, porque o
+Datastream não entrega em Pub/Sub.
 
 Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 

@@ -12,9 +12,9 @@
 |---|---|
 | Escopo | Um único domínio: `inventory_movements` |
 | Decisões | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) · [ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md) · [ADR-0020](adr/0020-debezium-sobre-kafka-connect.md) · [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md) · [ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md) |
-| Versão | 2.2 |
+| Versão | 2.3 |
 | Situação | **Em operação** desde a Etapa 7 — construído, medido e reconciliado; revalidado na regeneração da v1.1.0 (§7.3) |
-| Última revisão | 04/11/2026 — §7.3, a regeneração da v1.1.0 |
+| Última revisão | 07/11/2026 — a captura da fase GCP pelo Debezium Server (ADR-0051) |
 
 ---
 
@@ -52,10 +52,10 @@ flowchart LR
 
 | Camada | Fase local | Fase GCP |
 |---|---|---|
-| Captura (CDC) | **Debezium** como conector do **Kafka Connect**, lendo o log de transações do PostgreSQL ([ADR-0020](adr/0020-debezium-sobre-kafka-connect.md)) | **Datastream** lendo o log do Cloud SQL |
+| Captura (CDC) | **Debezium** como conector do **Kafka Connect**, lendo o log de transações do PostgreSQL ([ADR-0020](adr/0020-debezium-sobre-kafka-connect.md)) | **Debezium Server** com *sink* `pubsub`, lendo o log do Cloud SQL ([ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md)) |
 | Transporte | **Redpanda** — compatível com Kafka e muito mais leve para rodar em Docker | **Pub/Sub** |
 | Processamento | **Apache Beam (Python)**, executor local — o `DirectRunner` delega ao **Prism**, que é quem suporta `DoFn` divisível não-limitado com estado e temporizadores | **O mesmo código Beam** no **Dataflow** |
-| Destino | Tabela de **deltas imutáveis** em `raw`, ao lado da que o Airbyte escreve ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md), [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) | Tabela equivalente no dataset `raw` do BigQuery, via *streaming inserts* |
+| Destino | Tabela de **deltas imutáveis** em `raw`, ao lado da que o Airbyte escreve ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md), [ADR-0031](adr/0031-aterrissagem-do-caminho-quente-em-raw.md)) | Tabela equivalente no dataset `raw` do BigQuery, idempotente por `movement_id`; o mecanismo (D75) é escolhido na Etapa 13 ([ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md)) |
 
 A escolha do Apache Beam é o que sustenta a paridade (**P4**): o mesmo código de pipeline roda
 localmente no `DirectRunner` e, na nuvem, distribuído no Dataflow. Trocam-se as pontas — origem e

@@ -8,6 +8,12 @@
 | Decisão pendente resolvida | — ; decidida de 23/10 a 28/10/2026 como N29 a N35 do [plano do `bi-como-codigo`](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/PLAN.md#12-the-decisions), sobre o [runbook da regeneração](https://github.com/alencardoug/bi-como-codigo/blob/c82391a/docs/regeneration_runbook.md#32-what-stage-15-hands-over) (H6 a H8, T4); o registro em ADR, em 04/11/2026 |
 | Substitui / é substituída por | — ; complementa o [ADR-0044](0044-certificar-cada-captura-do-legado-por-conteudo.md): a certificação não muda, mudam os itens 4 (recuperação) e 5 (idempotência da fase 1) |
 
+> **Nota — 07/11/2026.** Na janela da Etapa 13, o *bucket* do livro tem retenção **sem trava**
+> (D70, [Pendências §2](../pendencias.md#d69-a-d74--decididas-em-07112026-na-revisão-do-plano-da-etapa-13)):
+> travar é irreversível e põe um *lien* que impede apagar o projeto antes do fim da avaliação
+> gratuita. A escrita condicionada (`ifGenerationMatch=0`) é exercitada; a retenção travada do mapa
+> fica como contrapartida de produção, **não medida**.
+
 ## Contexto
 
 A versão de manutenção `v1.1.0` regenera as duas origens e **mantém a memória do armazém**: as

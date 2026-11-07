@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP), mais D69 a D74, da abertura da Etapa 13, com as alternativas no plano transitório até a sua decisão. A D65 e a D67 foram fechadas pela v1.1.0, e a D68 na abertura da Etapa 13 (§2) |
-| Última revisão | 06/11/2026 — a autorização da Etapa 13 e a D68 |
+| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e medida na Etapa 13). A D65 e a D67 foram fechadas pela v1.1.0, e a D68 a D74 na abertura da Etapa 13 (§2) |
+| Última revisão | 07/11/2026 — D69 a D74, decididas sobre a rodada 1 do plano da Etapa 13 |
 
 ---
 
@@ -265,6 +265,28 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D69 a D74 — decididas em 07/11/2026, na revisão do plano da Etapa 13
+
+Decididas pelo Owner sobre a rodada 1 da revisão do plano transitório `PLANO_etapa_13.md`, que
+guarda as alternativas até sair; o escopo inteiro da Etapa 13 foi reafirmado na mesma data.
+
+- **D69 — o CDC da fase GCP pelo Debezium Server com *sink* `pubsub`.** O Datastream não entrega em
+  Pub/Sub. [ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md).
+- **D70 — retenção sem trava no *bucket* do livro retido, na janela.** Travar a retenção é
+  irreversível e põe um *lien* que impede apagar o projeto
+  ([bucket-lock](https://docs.cloud.google.com/storage/docs/bucket-lock)); a trava do
+  [ADR-0050](adr/0050-guardar-a-memoria-do-legado-num-livro-retido.md) fica como contrapartida de
+  produção, não medida. Nota datada no ADR-0050.
+- **D71 — o dbt aplica as *policy tags*** pela propriedade `policy_tags`, gerada do YAML de
+  classificação; o fluxo do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md) cria e mantém
+  a taxonomia e converge as tabelas que o dbt não materializa. Motivo: substituir uma tabela no
+  BigQuery apaga as *tags* dela. Nota datada no ADR-0025.
+- **D72 — o Airbyte grava no BigQuery por *Batched Standard Inserts*, com a identidade do *pod***,
+  sem chave de conta de serviço nem HMAC.
+- **D73 — `us-central1`, Composer 3 com Airflow 3.2.2, GKE Standard, *chart* do Airbyte 2.3.0.**
+- **D74 — projeto dedicado, estado local do Terraform e desmonte em três camadas**, com relógio de
+  emergência que desliga o faturamento mesmo se o `destroy` falhar.
 
 ### D68 — a fase GCP roda no fator `dev` (decidida em 06/11/2026)
 

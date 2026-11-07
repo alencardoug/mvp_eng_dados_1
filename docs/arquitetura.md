@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.6 |
+| Versão | 2.7 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 04/11/2026 — o livro retido da memória do legado no mapa de paridade (ADR-0050) |
+| Última revisão | 07/11/2026 — o CDC da fase GCP pelo Debezium Server (ADR-0051) |
 
 ---
 
@@ -145,7 +145,7 @@ alvos, não o modo de operar. Os comandos concretos vivem em [Execução Local](
 | Banco transacional | Cloud SQL for PostgreSQL | Firmada |
 | Data Warehouse | BigQuery | Firmada |
 | Infraestrutura como código | **Terraform** | [ADR-0004](adr/0004-terraform-como-iac.md) |
-| Captura de mudanças | Datastream | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
+| Captura de mudanças | Debezium Server com *sink* Pub/Sub, num *pod* do GKE | [ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md), que troca a contrapartida do [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Transporte de eventos | Pub/Sub | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Processamento contínuo | Dataflow (mesmo código Beam) | [ADR-0006](adr/0006-streaming-de-estoque-com-cdc-e-beam.md) |
 | Transformação | dbt, com adaptação de dialeto | Firmada |
@@ -182,7 +182,7 @@ decisão só é aceitável se tiver uma linha correspondente aqui.
 | Ingestão *batch* | Airbyte local | Airbyte em contêiner, por Terraform ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)) |
 | Transformação | dbt | dbt, com adaptação de dialeto |
 | Orquestração | Airflow local | Cloud Composer ([ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md)) |
-| Captura de mudanças | Debezium sobre Kafka Connect | Datastream |
+| Captura de mudanças | Debezium sobre Kafka Connect | Debezium Server com *sink* `pubsub` ([ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md)); o Datastream não entrega em Pub/Sub |
 | Transporte de eventos | Redpanda | Pub/Sub |
 | Processamento contínuo | Beam, executor local (Prism) | Beam / Dataflow |
 | Leitura do transporte | `DoFn` divisível em Python ([ADR-0032](adr/0032-fonte-python-no-lugar-do-kafkaio.md)) | `ReadFromPubSub`, nativo do SDK |

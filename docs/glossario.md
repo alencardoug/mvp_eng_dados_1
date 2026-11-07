@@ -161,7 +161,8 @@ vez de em um sistema separado.
 | **Terraform** | Provisionamento da infraestrutura GCP |
 | **Cloud SQL** | PostgreSQL gerenciado na fase GCP |
 | **BigQuery** | Armazém analítico na fase GCP |
-| **Datastream** | CDC gerenciado na fase GCP |
+| **Datastream** | CDC gerenciado do GCP; entrega só em BigQuery, Cloud Storage e Iceberg — por isso não é a captura da fase GCP ([ADR-0051](adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md)) |
+| **Debezium Server** | O Debezium fora do Kafka Connect, com *sink* próprio; na fase GCP, publica no Pub/Sub |
 | **Pub/Sub** | Transporte de eventos na fase GCP |
 | **Dataflow** | Execução gerenciada do mesmo pipeline Beam |
 | **Dataplex** | Catálogo corporativo na fase GCP |

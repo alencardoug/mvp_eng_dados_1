@@ -7,6 +7,15 @@
 | Decisor | Owner principal |
 | Decisão pendente resolvida | Q1 |
 
+> **Nota — 07/11/2026.** Substituir uma tabela no BigQuery apaga as *policy tags* dela
+> ([column-level-security](https://docs.cloud.google.com/bigquery/docs/column-level-security-intro)),
+> e o dbt materializa `table` por substituição. Pela D71
+> ([Pendências §2](../pendencias.md#d69-a-d74--decididas-em-07112026-na-revisão-do-plano-da-etapa-13)),
+> o **dbt aplica** as *tags* nos objetos que materializa, pela propriedade `policy_tags` gerada do
+> mesmo YAML; o fluxo desta decisão cria e mantém a taxonomia e **converge** as tabelas que o dbt não
+> materializa (fontes do Airbyte, *sink* do caminho quente, `governance`). A fonte continua única, e
+> a credencial continua de curta duração.
+
 ## Contexto
 
 O [ADR-0011](0011-classificacao-e-papeis-de-acesso.md) fixou quatro níveis de classificação e cinco
