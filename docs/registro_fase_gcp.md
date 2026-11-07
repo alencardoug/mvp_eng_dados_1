@@ -283,7 +283,7 @@ numeric)` no lugar de `100.0`, por exemplo). O caminho local não mudou.
 `hired_at = date 'period_start'` numa coluna `timestamptz` — o PostgreSQL converte na meia-noite do
 **fuso da sessão**. Local é UTC e o resultado é estável; noutro fuso mudaria. É a mesma classe do
 RVL3-6-04. O `cast` explícito agora diz isso em voz alta; a decisão ficou para o Owner
-([D76](pendencias.md#d76--o-membro-desconhecido-do-agente-é-contratado-à-meia-noite-do-fuso-da-sessão)).
+([D76](pendencias.md#d76--o-membro-desconhecido-do-agente-é-contratado-à-meia-noite-de-são-paulo-decidida-em-07112026)) — decidida (a) na manhã seguinte (§11).
 
 **A canonização no BigQuery** [medido]: a `bigquery__chave_canonica` rodou no BigQuery sobre as
 mesmas formas que provam a do PostgreSQL (`tests/test_legado_remocao.py`: hexadecimal, octal,

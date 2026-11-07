@@ -435,7 +435,7 @@ def test_a_guarda_acusa_cada_literal_atual_sem_o_offset_nas_duas_aspas() -> None
     assert simples != arquivos and all(literais_sem_fuso(t) == [] for t in simples.values())
     for versao in (arquivos, simples):
         offsets = [(c, m.start()) for c, t in versao.items() for m in re.finditer(r" 00:00[-+]0[03]", t)]
-        assert len(offsets) == 14
+        assert len(offsets) == 15  # 14 até a D76, que deu o fuso ao `hired_at` do membro desconhecido
         for caminho, inicio in offsets:
             texto = versao[caminho]
             sem = texto[:inicio] + " 00:00" + texto[inicio + len(" 00:00-03"):]

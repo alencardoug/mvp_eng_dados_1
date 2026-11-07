@@ -82,9 +82,9 @@ select
     'agente'                                                as agent_last_name,
     'Sem agente'                                            as agent_full_name,
     'desconhecido@exemplo.invalid'                          as agent_email,
-    -- A coluna é instante; o BigQuery não converte DATE em TIMESTAMP numa união sozinho.
-    -- Explícito, o `cast` diz o que o PostgreSQL já fazia: a meia-noite no fuso da sessão.
-    cast(date '{{ var("period_start") }}' as {{ tipo_instante() }}) as hired_at,
+    -- A meia-noite de São Paulo, como o `valid_from` da mesma linha (D76, 07/11/2026): antes,
+    -- `date 'period_start'` virava a meia-noite do fuso da **sessão**.
+    {{ meia_noite(var("period_start")) }}         as hired_at,
     0                                                       as handled_ticket_count,
     0                                                       as handled_event_count,
     'Desconhecido'                                          as agent_team,
