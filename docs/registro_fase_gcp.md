@@ -772,4 +772,21 @@ os cinco papéis e o Owner leem, `mvp-prova-sem-leitura` prova a negação; o fl
   (`confidential`) numa view de `consumption`, pelas duas contas, e os registros de auditoria.
 
 **Plano** [medido]: `09_politicas` — **36 / 0 / 0**, sem custo (taxonomia, IAM e federação não
-cobram). Aguarda o Owner.
+cobram), aprovado pelo Owner e aplicado.
+
+**A prova** [medido, 07/11/2026, `data/medicoes/etapa_13/g4/`]:
+
+| Passo | Resultado |
+|---|---|
+| O fluxo do ADR-0025 no GitHub Actions, disparado pelo *push* com as variáveis do repositório ligadas (aprovado pelo Owner) | autenticou pela federação, **sem chave**; convergiu as **79 tabelas de fonte** — 1.178 colunas, 88 marcadas, nenhuma ausente, nenhuma sem classificação — em 1 min 5 s ([execução 42398859752](https://github.com/alencardoug/mvp_eng_dados_1/actions/runs/42398859752)) |
+| `make gcp-dbt-build` com o mapa das *tags* | **PASS=909, 0 erros** — o mesmo número do local; vale também como a repetição do P2 |
+| Inventário depois da carga | **226 tabelas, 3.516 colunas, 355 marcadas; 0 divergentes, 0 sem classificação, 0 ausentes** |
+| *Rebuild*: `--full-refresh` de `fact_sales_order_item` e `fact_inventory_movement` (PASS=39) e o inventário de novo | **0 divergentes**: o `create or replace` apaga as *tags*, e o dbt as devolve no mesmo *build* (D71) |
+| Negação (`prova_tags`), na view `monthly_revenue_by_channel_and_category` | `analyst`: contagem e `sum(net_revenue_amount)` **permitidas**; `mvp-prova-sem-leitura`: contagem permitida, coluna marcada **negada** — *"User has neither fine-grained reader nor masked get permission to get data protected by policy tag"* |
+| Auditoria das duas | 34 registros do BigQuery; os dois da conta de prova na consulta negada com o código 7 (`PERMISSION_DENIED`) e a mesma mensagem |
+| Chaves de conta de serviço | **0 `USER_MANAGED`** em 8 contas; uma `SYSTEM_MANAGED` em cada, por desenho |
+
+**Falta repetir o inventário** depois de **uma nova sincronização** (o Airbyte no GKE, terça — a
+DAG converge as fontes logo depois dela) e de **uma reclassificação** (mudar o nível de uma coluna no
+YAML, deixar o fluxo e o dbt agirem e inventariar). O desmonte ganhou o passo de desligar o fluxo
+(`MVP_GCP_ATIVO=false`, PLANO §6.5 passo 1).
