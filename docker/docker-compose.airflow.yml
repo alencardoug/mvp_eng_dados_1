@@ -24,6 +24,9 @@ x-airflow-comum: &airflow-comum
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_FOLDER: /opt/mvp_ed1/airflow/dags
+    # A pasta que contém `dbt/` e o glossário, como o Composer tem `/home/airflow/gcs/data`:
+    # a DAG a lê do ambiente desde a Etapa 13 (G2.4).
+    MVP_PROJECT_DIR: /opt/mvp_ed1
     # A credencial vem do `.env`, como a dos outros três bancos (regra
     # inviolável nº 1). `make env` sorteia a senha em `A-Za-z0-9`, que é segura
     # de embutir numa URL sem escapar.
@@ -67,8 +70,9 @@ x-airflow-comum: &airflow-comum
     # varrer o diretório — e, pior, o segredo estaria lá para ser lido se a
     # permissão fosse outra. Least privilege resolve os dois de uma vez.
     #
-    # `dbt/` é o único com escrita: é onde `target/` e `logs/` são gerados.
-    - ../dbt:/opt/mvp_ed1/dbt
+    # Todos somente leitura: desde a Etapa 13 (G2.4) a DAG manda o `target/` e os `logs/` do
+    # dbt para um temporário por tarefa, como precisa no Composer, e não escreve mais em `dbt/`.
+    - ../dbt:/opt/mvp_ed1/dbt:ro
     - ../src:/opt/mvp_ed1/src:ro
     - ../airflow:/opt/mvp_ed1/airflow:ro
     - ../airbyte:/opt/mvp_ed1/airbyte:ro
@@ -77,8 +81,8 @@ x-airflow-comum: &airflow-comum
     - ${LEGACY_LEDGER_DIR:?defina LEGACY_LEDGER_DIR — a raiz do livro retido da memória do legado (make airflow-up a acrescenta)}:/opt/mvp_ed1_ledger
   extra_hosts:
     - "host.docker.internal:host-gateway"
-  # O uid do host, não o 50000 da imagem: o `dbt` escreve em `dbt/target` e
-  # `dbt/logs`, que pertencem a quem clonou o repositório.
+  # O uid do host, não o 50000 da imagem: o portão escreve no livro retido, que
+  # pertence a quem clonou o repositório (até o G2.4, também `dbt/target` e `dbt/logs`).
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     airflow_db:

@@ -1,0 +1,14 @@
+# Pacotes PyPI do ambiente do Composer (Etapa 13, G2.4): só o que a imagem
+# composer-3-airflow-3.2.2-build.9 não traz na versão travada do projeto. O resto
+# que a DAG importa — SQLAlchemy 2.0.54, psycopg 3.3.6, PyYAML 6.0.3,
+# google-cloud-storage 3.1.1, google-cloud-bigquery 3.46.1 — já vem nela, dentro
+# das faixas do pyproject. Conferido contra a lista da imagem em 07/11/2026
+# (docs/registro_fase_gcp.md, G2.4).
+#
+# A imagem traz dbt-core 1.13.0b1 (beta) e dbt-bigquery 1.12.1; o projeto foi
+# provado no BigQuery com 1.12.3 e 1.12.2, e é com elas que o Composer roda.
+dbt-core==1.12.3
+dbt-bigquery==1.12.2
+# A imagem traz 2.42.0, na faixa do problema conhecido de 30/10/2026 (2.28.0 a
+# 2.43.0 com Python 3.11); a correção indicada é >=2.43.1. 2.44.0 é a do uv.lock.
+google-api-core==2.44.0

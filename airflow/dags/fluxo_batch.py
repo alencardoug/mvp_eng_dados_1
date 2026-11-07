@@ -34,9 +34,22 @@ import os
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import dag, task
 
-#: O repositório é montado somente leitura no contêiner (ver o compose).
-PROJETO = "/opt/mvp_ed1"
-DBT = f"cd {PROJETO}/dbt && dbt"
+#: Onde está o projeto dbt — e, ao lado dele, o glossário que os `docs-paths` leem — vem do
+#: ambiente (Etapa 13, G2.4): `/opt/mvp_ed1` no contêiner local, que o compose monta somente
+#: leitura; `/home/airflow/gcs/data` no Composer, a pasta do *bucket* que o ambiente sincroniza.
+#: É lido pelo `bash` na hora da tarefa, não pelo Python no *parse*: sem a variável a tarefa falha
+#: dizendo qual falta, e a DAG continua importável.
+#:
+#: *Target* e *logs* do dbt num diretório temporário **por tarefa**, apagado ao fim: o projeto fica
+#: só para leitura nos dois ambientes — no Composer a pasta `data/` é um sistema de arquivos sobre o
+#: GCS, onde escrever o *target* a cada tarefa seria lento e misturaria execuções. O que a tarefa
+#: fez fica no log dela, que o dbt escreve também na saída padrão. O custo aceito é o *parse*
+#: inteiro em cada tarefa, sem o parcial do *target* anterior.
+DBT = (
+    'cd "${MVP_PROJECT_DIR:?defina MVP_PROJECT_DIR, a pasta que contém dbt/}/dbt"'
+    ' && ARTEFATOS="$(mktemp -d)" && trap \'rm -rf "$ARTEFATOS"\' EXIT'
+    ' && DBT_TARGET_PATH="$ARTEFATOS/target" DBT_LOG_PATH="$ARTEFATOS/logs" dbt'
+)
 
 #: Sem `retries` nas tarefas de dbt: falha de teste de dados **não** se resolve
 #: tentando de novo. Repetir só atrasaria a notícia (Qualidade de Dados §1).
@@ -342,7 +355,9 @@ def fluxo_batch():
     consumption = camada("consumption", f"--select consumption {fronteira}")
     # Todas as camadas construídas: as fronteiras entre elas têm os dois lados.
     fronteiras = camada("fronteiras", "--select tag:fronteira", comando="test")
-    # O catálogo é a última coisa: ele descreve o que acabou de ser construído.
+    # O catálogo é a última coisa: ele descreve o que acabou de ser construído. Desde o G2.4
+    # o arquivo some com o diretório temporário da tarefa, e o que ela prova é que o catálogo
+    # se gera sobre o que está construído. Para servi-lo, o `make docs-serve` gera o seu.
     catalogo = camada("docs", "generate", comando="docs")
 
     # As duas capturas são **independentes** e correm em paralelo: lêem bancos

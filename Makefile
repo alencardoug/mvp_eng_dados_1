@@ -153,7 +153,7 @@ endef
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
-        gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev \
+        gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         require-env require-venv require-abctl require-terraform require-cloud-sql-proxy
 
 help: ## Lista os alvos disponíveis
@@ -970,6 +970,39 @@ gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do le
 		--json findings:code,column && \
 	.venv/bin/python -m mvp_ed1.gcp.oraculo contagens; \
 	.venv/bin/python -m mvp_ed1.gcp.catalogo
+
+# A imagem do Composer da D73, pelo *digest* — a de que o ambiente nasce na janela. A prova do G2.4
+# roda nela, não numa parecida: a lista de pacotes é a da imagem, não a de uma reconstrução.
+COMPOSER_IMAGEM := us-docker.pkg.dev/cloud-airflow-releaser/airflow-worker-scheduler-3-2-2/airflow-worker-scheduler-3-2-2:composer-3-airflow-3.2.2-build.9@sha256:96e0cc9471c8c30561ddf6f0c9d702c8fffeee3d182a4990874270501e182bfe
+TAREFA ?= dbt_staging
+
+gcp-composer-prova: gcp-preflight ## G2.4: a DAG importa e uma tarefa de dbt (TAREFA=dbt_staging) roda no layout do Composer, na imagem dele
+	@# Um contêiner só, sem scheduler nem banco de metadados (R11: ~1 GB com o dbt). O layout
+	@# nasce numa pasta nova e entra somente leitura: o que a tarefa escrever fora do temporário
+	@# dela falha. Os pacotes do ambiente entram por cima da imagem, como o Composer faz, e o
+	@# `pip check` confere que nada da imagem quebrou. A ADC do Owner faz o papel da conta do ambiente.
+	@# Roda como o usuário `airflow` da imagem (uid 999), como no Composer: `/home/airflow` é 700
+	@# dele. Por isso a ADC entra por uma cópia legível *dentro* da pasta temporária — que é 700 do
+	@# Owner no host e some no fim —, no lugar em que o gcloud a deixa, e o relatório sai por uma
+	@# pasta dela, copiado depois.
+	@set -a; . ./.env; set +a; \
+	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
+	.venv/bin/python -m mvp_ed1.gcp.composer montar "$$base/gcs" > /dev/null || exit 1; \
+	tags=$$($(GCP_TF) output -json policy_tags 2>/dev/null) || tags='{}'; \
+	install -m 644 "$$HOME/.config/gcloud/application_default_credentials.json" "$$base/adc.json"; \
+	mkdir -m 777 "$$base/saida"; \
+	docker run --rm --entrypoint bash \
+		-v "$$base/gcs:/home/airflow/gcs:ro" \
+		-v "$(abspath airflow/requirements-composer.txt):/requisitos.txt:ro" \
+		-v "$$base/adc.json:/home/airflow/.config/gcloud/application_default_credentials.json:ro" \
+		-v "$$base/saida:/saida" -e GCP_PROJECT_ID -e GCP_BQ_LOCATION \
+		-e MVP_POLICY_TAGS="$$tags" -e MVP_PROJECT_DIR=/home/airflow/gcs/data \
+		-e DBT_PROFILES_DIR=/home/airflow/gcs/data/dbt -e DBT_TARGET=gcp \
+		-e PYTHONPATH=/home/airflow/gcs/dags -e AIRFLOW__CORE__DAGS_FOLDER=/home/airflow/gcs/dags \
+		$(COMPOSER_IMAGEM) -c 'pip install -q --user --no-warn-script-location -r /requisitos.txt \
+			&& pip check && python -m mvp_ed1.gcp.prova_composer --tarefa $(TAREFA) --saida /saida/prova_composer.json'; \
+	rc=$$?; mkdir -p data/medicoes/etapa_13/g2_4; \
+	cp "$$base/saida/prova_composer.json" data/medicoes/etapa_13/g2_4/ 2>/dev/null; exit $$rc
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
