@@ -242,8 +242,21 @@ def _seed_columns(node: dict) -> list[str]:
         return next(csv.reader(arquivo))
 
 
+def dialect(manifest: dict) -> str:
+    """O dialeto do SQL compilado no manifest: o do adaptador que o compilou (Etapa 13, G2.2).
+
+    O alvo `gcp` compila o corpo BigQuery dos modelos e as metades `bigquery__` das macros;
+    ler esse SQL como PostgreSQL erraria a linhagem, e a linhagem é a classificação.
+    """
+    tipo = manifest.get("metadata", {}).get("adapter_type", "postgres")
+    if tipo not in ("postgres", "bigquery"):
+        raise ValueError(f"adaptador sem dialeto declarado para a derivação: {tipo}")
+    return tipo
+
+
 def derive(manifest: dict) -> Derivation:
     esquema, niveis = source_leaves()
+    leitura = dialect(manifest)
     saida = Derivation()
 
     # Fontes declaradas com colunas no .yml (governance.legacy_captures) são folhas prontas.
@@ -278,7 +291,7 @@ def derive(manifest: dict) -> Derivation:
             folhas = {nome: set() for nome in colunas}     # seed é origem: não vem de lugar nenhum
             transportes = {nome: transport.Computed("seed") for nome in colunas}
         else:
-            folhas, arvore = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings)
+            folhas, arvore = _derive_node(no, esquema, niveis, banco, saida.problems, saida.warnings, leitura)
             colunas = {nome: strictest([niveis[f] for f in chaves]) for nome, chaves in folhas.items()}
             if arvore is not None:
                 transportes = transport.carries_by_output(arvore, (no["schema"], relacao), saida.origin_types.get)
@@ -578,7 +591,8 @@ def load(manifest_path: pathlib.Path | None = None) -> tuple[dict, Derivation]:
     return manifest, derivacao
 
 
-def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str]) -> tuple[dict[str, set["Leaf"]], exp.Expression | None]:
+def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], warnings: list[str],
+                 leitura: str = "postgres") -> tuple[dict[str, set["Leaf"]], exp.Expression | None]:
     """Por coluna de saída do nó, as folhas imediatas — colunas de fonte ou de modelo anterior —, e a árvore qualificada."""
     sql = no.get("compiled_code") or ""
     if not sql.strip():
@@ -586,8 +600,8 @@ def _derive_node(no: dict, esquema, niveis, banco: str, problems: list[str], war
         return {}, None
     catalogo = {banco: {s: dict(t) for s, t in esquema.items()}}
     try:
-        arvore = sqlglot.parse_one(sql, read="postgres")
-        qualificada = qualify(arvore, schema=catalogo, dialect="postgres", validate_qualify_columns=False)
+        arvore = sqlglot.parse_one(sql, read=leitura)
+        qualificada = qualify(arvore, schema=catalogo, dialect=leitura, validate_qualify_columns=False)
     except Exception as erro:  # noqa: BLE001 — o que interessa é o nó e o motivo
         problems.append(f"{no['unique_id']}: não qualificável ({str(erro)[:120]})")
         return {}, None
