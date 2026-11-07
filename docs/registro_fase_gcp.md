@@ -512,18 +512,3 @@ no armazém local e no BigQuery (`dbt test --select source:governance.legacy_cap
 
 O BigQuery cobrou, de novo, uma ordem que a documentação não grita: `default` vem **antes** de
 `not null` na definição da coluna.
-
-## 16. Fim da sessão da manhã (07/11/2026)
-
-Parada por escopo, não por limite: o que o Owner liberou antes de se ausentar está feito — G1
-fechado, plano 04 aplicado, D76 fechada, G3 em planos, D43 medida, G2.1 em duas peças e o contrato do
-resto proposto. O que espera o Owner, em ordem:
-
-1. **Aprovar o plano 05** (`data/medicoes/etapa_13/planos/05_barato.txt`, 36 / 0 / 0, centavos) —
-   destrava a prova "o analista consulta `consumption`" e as provas reais do livro no Cloud Storage;
-2. **Ler o contrato do G2.1** (PLANO_etapa_13, G2.1) antes da refatoração da captura — a abertura
-   passa de `xact_lock` a lock de sessão no Cloud SQL, forçada pelo meio;
-3. **D77** (recomendação (a)) e, depois da janela, a **D43** com o número;
-4. *Push* dos *commits* desde `bc3489c`.
-
-O computador foi desligado no fim, como combinado.
