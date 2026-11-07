@@ -512,3 +512,25 @@ no armazém local e no BigQuery (`dbt test --select source:governance.legacy_cap
 
 O BigQuery cobrou, de novo, uma ordem que a documentação não grita: `default` vem **antes** de
 `not null` na definição da coluna.
+
+## 16. As decisões do Owner e o degrau barato inteiro (07/11/2026, ~11h30)
+
+De volta, o Owner respondeu às quatro pendências da manhã: **aplicar o plano 05**; **contrato do
+G2.1 aprovado como está**; **D77 = (a)**; ***push*** dos *commits* (`0246e88..2217ed5`, publicados).
+
+**O `apply` do 05** [medido]: 36 / 0 / 0, como o plano; a conexão de serviços privados levou 1 min 4 s,
+o resto segundos. Estado anterior guardado em `data/medicoes/etapa_13/planos/tfstate_05_barato.bak`.
+
+**A prova de acesso, agora com consulta** [medido] (`data/medicoes/etapa_13/acesso/prova_*_pos05.txt`):
+
+| Papel | Permitido | Negado |
+|---|---|---|
+| `mvp-analyst` | metadado da view de `consumption`; **consulta** nela (`count(*)` = 1.494) | metadado, linhas e consulta em `analytics`, `trusted`, `quarantine`, `governance` |
+| `mvp-auditor` | metadado e linhas de `quarantine` e de `governance` | `consumption`, `analytics`, `trusted`; nenhuma consulta |
+
+A consulta do analista passa pela *authorized view* (A6) sem que ele leia `analytics`: é a
+separação do ADR de acesso, agora provada com *job*, não só com metadado.
+
+**O livro no Cloud Storage real** [medido]: `GCP_TESTES=1 pytest tests/test_livro_gcs.py
+tests/test_governanca_bigquery.py` — 11 passaram, no *bucket* `mvp-ed1-gcp-livro` (prefixo
+`testes/<uuid>`). Os objetos de teste ficam sob a retenção sem trava da D70 e saem no desmonte.
