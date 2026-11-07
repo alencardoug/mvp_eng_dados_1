@@ -11,10 +11,12 @@
 > ([column-level-security](https://docs.cloud.google.com/bigquery/docs/column-level-security-intro)),
 > e o dbt materializa `table` por substituição. Pela D71
 > ([Pendências §2](../pendencias.md#d69-a-d74--decididas-em-07112026-na-revisão-do-plano-da-etapa-13)),
-> o **dbt aplica** as *tags* nos objetos que materializa, pela propriedade `policy_tags` gerada do
-> mesmo YAML; o fluxo desta decisão cria e mantém a taxonomia e **converge** as tabelas que o dbt não
-> materializa (fontes do Airbyte, *sink* do caminho quente, `governance`). A fonte continua única, e
-> a credencial continua de curta duração.
+> o **dbt aplica** as *tags* nos objetos que materializa, derivadas de `meta.sensitivity` — a
+> classificação que já está em cada coluna — no mesmo `persist_docs` que grava a descrição; o fluxo
+> desta decisão **converge** as tabelas que o dbt não materializa (fontes do Airbyte, *sink* do
+> caminho quente, `governance`). A taxonomia e quem lê cada *tag* são do Terraform, como na
+> [Governança §8](../governanca_de_dados.md) (D79, que corrigiu esta nota em 07/11/2026: ela dizia que
+> o fluxo criava a taxonomia). A fonte continua única, e a credencial continua de curta duração.
 
 ## Contexto
 

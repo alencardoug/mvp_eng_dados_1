@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, e a D62 e a D78 no G2.3 (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3 |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, e a D79 no G4 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4 |
 
 ---
 
@@ -261,6 +261,24 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D79 — as *policy tags*: quais níveis, quem cria, quem lê, quando o fluxo roda (decidida em 07/11/2026)
+
+**Decisão**, as quatro opções recomendadas, no G4 da Etapa 13:
+
+- **Só `confidential` e `personal` viram *tag*** com controle ligado: em `public` e `internal` não há o
+  que negar, e cada *tag* ligada exige concessão a todo papel que lê a coluna.
+- **O Terraform cria** a taxonomia, as *tags* e o IAM de leitura; o dbt **aplica** as *tags* nas
+  tabelas que materializa (D71); o fluxo do ADR-0025 **converge** as que ele não materializa. Resolve
+  a divergência entre a Governança §8 ("o Terraform provisiona a taxonomia") e a nota de 07/11 do
+  ADR-0025 ("o fluxo cria e mantém"), a favor da primeira — a nota foi corrigida.
+- **Os cinco papéis leem** coluna marcada (dado sintético, exposição livre pelo ADR-0049), e o Owner
+  também, para o `dbt build` desta máquina; a negação se prova com `mvp-prova-sem-leitura`, o acesso
+  de *dataset* do `analyst` sem a concessão.
+- **O fluxo roda só na janela**: em *push* do YAML e por disparo manual, pulado enquanto a variável
+  do repositório `MVP_GCP_ATIVO` não for `true` — o Owner a liga na janela e a desliga no desmonte.
+
+Como se faz: [Registro §22](registro_fase_gcp.md#22-g4-as-policy-tags-07112026-noite).
 
 ### D62 — a semente do saldo do alerta corta no instante em que o *pipeline* é construído (decidida em 07/11/2026)
 
