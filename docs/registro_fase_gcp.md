@@ -380,3 +380,63 @@ Duas descobertas, as duas boas de achar agora e não na quarta:
    *manifest*, não escrita de novo (§12).
 
 Evidência: `data/medicoes/etapa_13/acesso/prova_02_sem_jobuser.txt`.
+
+## 12. G3 em planos: o degrau barato e o Cloud SQL (07/11/2026, manhã)
+
+O Owner autorizou o G3 **só em planos**: Terraform escrito, `plan -out` salvo, nenhum `apply`.
+
+**O acesso por *dataset*, derivado.** `python -m mvp_ed1.gcp.acesso` lê o *manifest* do dbt —
+`meta.writers` de cada camada e `grants` de cada fonte — e grava `terraform/acesso.auto.tfvars.json`,
+que o Terraform carrega sozinho. Resultado [medido]: **13 concessões** — `dataEditor` a quem escreve
+(o `transformer` nas seis camadas do pipeline, o `ingestor` em `raw`, `raw_legacy` e `governance`) e
+`dataViewer` a quem lê as fontes (o `transformer` em `raw`, `raw_legacy` e `governance`; o `auditor`
+em `governance` — a negação da §11). Uma concessão por tabela fica **pendente** e listada no próprio
+arquivo: `raw.inventory_movements_stream` (`insert` e `select` do `streamer`), porque a tabela nasce
+com o caminho quente e o IAM dela vai junto, no G2.3. O teste `tests/test_gcp_acesso.py` recusa o
+arquivo que não for o que a declaração dá.
+
+**Um recurso do provider que apagaria o trabalho do G1.** `google_bigquery_dataset_iam_member`
+reescreve a lista de acesso do *dataset* e **remove as *authorized views*** que o dbt grava nela
+(`grant_access_to`) — o aviso está na página do recurso. O `papeis.tf` usa
+`google_bigquery_dataset_access`, que acrescenta uma entrada e não toca nas outras.
+
+**Os planos** [medidos, 07/11/2026]:
+
+| Plano | O quê | Criar / alterar / destruir | Custo |
+|---|---|---|---|
+| `05_barato` | 13 acessos por *dataset*; `jobUser` dos 5 papéis; *buckets* `livro` e `beam` com o IAM; 2 tópicos e 2 assinaturas com o IAM; VPC, sub-rede, faixa e conexão de serviços privados | **36 / 0 / 0** | centavos (Capacidade §2.14, linha do degrau barato) |
+| `06_cloud_sql_revisao` | o 05 **mais** a instância, os 2 bancos, os 2 usuários, as 2 senhas e os 2 segredos | **47 / 0 / 0** | ~US$ 10 na janela (Capacidade §2.14) |
+
+O 06 é **para revisão**: o `.tfplan` foi apagado, ficou só o texto. Aplicado por engano antes do 05,
+ele ligaria o Cloud SQL dois dias cedo; depois do 05, fica obsoleto e é refeito na segunda
+(`make gcp-plan NOME=06_cloud_sql VARS="enable_cloud_sql=true"`). `VARS` é novo no alvo: liga um
+degrau só naquele plano, sem tocar no `terraform.tfvars`, e o plano salvo leva os valores dentro.
+
+**Decisões da sessão** (continuação da tabela da §10):
+
+| # | Decisão | Por quê | Como desfazer |
+|---|---|---|---|
+| A10 | As guardas de texto leem a metade local **renderizada** das macros de instante | é o SQL que o alvo local compila, o que elas sempre leram; regex por macro envelheceria a cada macro nova | — |
+| A11 | Acesso por *dataset* **derivado** do *manifest*, não escrito no Terraform | uma declaração só (CLAUDE.md §5); a negação do auditor na §11 era exatamente essa lacuna | escrever a lista em `papeis.tf` |
+| A12 | `bigquery.jobUser` para os **cinco** papéis | todos consultam, carregam ou fazem DML; sem ele ninguém roda nada | tirar do `for_each` quem não precisar, quando a prova da terça mostrar |
+| A13 | Livro: `ingestor` com `objectCreator` + `objectViewer`; `auditor` com `objectViewer`; retenção **7 dias, sem trava** | `objectCreator` não substitui nem apaga: o "nunca substituído" do ADR-0050 também no IAM; 7 dias cobrem a janela; sem trava pela D70 | outro papel; `ledger_retention_seconds` |
+| A14 | Tópicos com os **nomes do Kafka** local; o `streamer` publica e lê; assinaturas sem expiração | o Debezium Server publica em `<prefixo>.<schema>.<tabela>`, o nome que o conector já tem | — |
+| A15 | Rede no **degrau barato**, faixas 10.10/20 (nós), 10.20/16 (*pods*), 10.30/20 (*services*), 10.40/20 (serviços privados) | não cobra por existir; o Cloud SQL de segunda e o GKE de terça a acham pronta | mudar as faixas antes do `apply` |
+| A16 | Cloud SQL: **uma** instância PostgreSQL 16 com os dois bancos, `db-custom-2-7680`, zonal, sem *backup* e sem PITR, só IP privado, SSL obrigatório; usuários com `deletion_policy = ABANDON` | a versão da fase local; o tamanho da Capacidade §2.14; nada que sobreviva ao desmonte; usuário dono de objeto não sai por `DROP ROLE`, e quem o leva é a instância | outra versão ou *tier* no `cloud_sql.tf` |
+| A17 | O 06 guardado **sem** `.tfplan` | evita ligar o degrau cobrável fora de hora | — |
+
+**O que ficou para os blocos seguintes**, anotado onde vai ser feito: a concessão por tabela do
+*stream* e o privilégio `REPLICATION` do usuário do Debezium no Cloud SQL (G2.3); quem lê os segredos
+— o Composer e o Airbyte (G2.4, GKE); a retenção e a expiração dos *datasets* que o plano do G3 cita
+(não declaradas ainda); SSL obrigatório pede `sslmode=require` nos conectores (G2.1, G2.3).
+
+**Para aprovar:** `data/medicoes/etapa_13/planos/05_barato.txt` (36 / 0 / 0). Depois do `apply`, a
+prova de acesso da §11 roda de novo (`data/medicoes/etapa_13/acesso/prova.py`), agora esperando o
+analista **consultar** `consumption` e o auditor ler `governance`.
+
+**Um *commit* que o portão não viu.** O `make check-offline` passou com o `cloud_sql.tf` ainda fora
+do Git, e a revisão de segredos lê **só arquivos rastreados**: depois do *commit* `4a0b221`, ela
+acusou `secret_id = "mvp-ed1-…-db-password"` — uma atribuição literal a chave com `secret`. Não é
+credencial (é o nome do segredo, e o valor nasce no `apply`), mas a regra é a certa e a correção foi
+na declaração: o nome sai de um `local` montado por expressão. Lição para o resto da etapa: **`git
+add` antes do portão**, não depois.
