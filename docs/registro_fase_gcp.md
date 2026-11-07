@@ -20,7 +20,7 @@
 |---|---|
 | Versão | 1.0 |
 | Abertura | 06/11/2026 |
-| Última revisão | 07/11/2026 — G0: projeto, fundação aplicada, preços lidos, roteiro de evidências |
+| Última revisão | 07/11/2026 — G1, primeira metade: staging inteiro no BigQuery |
 
 ---
 
@@ -202,3 +202,35 @@ do M6. As capturas saem do Chrome do Owner, logado na consola, e ficam em
 contando o crédito e os dias restantes da avaliação:
 
 ![Painel do projeto mvp-ed1-gcp em 07/11/2026](registro_fase_gcp/capturas/2026-11-07_01_projeto_criado.jpg)
+
+## 8. G1 — o dbt nos dois alvos, primeira metade (07/11/2026)
+
+**O degrau barato** [medido], com a aprovação do Owner em cada `apply`: os nove *datasets* (plano
+02) e uma conta de serviço por papel do ADR-0011, sem chave (plano 03).
+
+**A carga de desenvolvimento** — o bruto local copiado para o BigQuery para o dbt ter o que
+transformar antes do Airbyte do GKE: 79 tabelas, 712.861 linhas, `governance` como *fixture*. A
+primeira versão usava `COPY … TO STDOUT` e quebrou numa tabela: o formato texto do `COPY` escapa
+as barras invertidas, e o JSON chegava estragado ("Parser terminated before end of string"). Leitura
+por cursor resolveu.
+
+**O termômetro e o caminho** — `dbt run --target gcp --select staging`, rodada a rodada:
+
+| Rodada | Resultado | O que destravou a seguinte |
+|---|---|---|
+| 1 | 1 de 78 | as fontes declaravam `database: warehouse_db`, que no BigQuery é o projeto → `target.database` |
+| 2 | 1 de 78 | `distinct on` não existe no BigQuery → macro que vira `qualify row_number() … = 1` |
+| 3 | 37 de 78 | o `+grants` traz papéis do PostgreSQL → macro que traduz `select` em `roles/bigquery.dataViewer` na conta do papel |
+| 4–7 | 38 → 78 de 78 | o legado: o gerador continua escrevendo PostgreSQL, e o mesmo SQL é traduzido pelo `sqlglot`; o que ele não traduz (*substring* por padrão, `convert_from`, `split_part`, `at time zone`, `jsonb_*`) é traduzido na árvore sintática, com o motivo de cada regra |
+
+**O oráculo que mantém o local intacto:** compilar o alvo local antes e depois de cada mudança e
+comparar — **0 de 903 arquivos diferem**. O `make check` do lote: `dbt build` com PASS=907, 1079
+testes Python. Dois tropeços do caminho, contados como foram: um *script* que inseriu uma linha de
+`import` **dentro de uma string SQL** (procurava a última linha começando com `from` — e achou o
+`from` de um SQL); corrigido pela árvore sintática do Python, e o `make check` pegou antes do
+*commit*. E dois testes de frescor que comparavam o arquivo gerado com o SQL puro, ensinados a
+esperar os dois corpos.
+
+**Próximo:** a classificação do legado, escrita à mão para o BigQuery (recursão, JSON dinâmico,
+`lateral`), e o oráculo **semântico** — o mesmo bruto nos dois alvos, a classificação comparada
+linha a linha.
