@@ -6,9 +6,9 @@
 -- `stg_retail__payment_transactions`: o modo `append` do ADR-0015 relê a
 -- fronteira do cursor.
 with fonte as (
-    select distinct on (id) *
+    select {{ distinct_on('id') }} *
     from {{ source('retail', 'coupon_redemptions') }}
-    order by id, _airbyte_extracted_at desc
+    {{ distinct_on_order('id', 'id, _airbyte_extracted_at desc') }}
 ),
 
 renomeado as (

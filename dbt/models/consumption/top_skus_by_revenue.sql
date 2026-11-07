@@ -21,7 +21,7 @@ with por_sku as (
         cat.category_name,
         cat.root_category_name,
         b.brand_name,
-        bool_or(p.is_deleted)                       as is_deleted,
+        {{ dbt.bool_or('p.is_deleted') }}                       as is_deleted,
         sum(f.quantity)                             as unit_count,
         sum(f.net_revenue_amount)                   as net_revenue_amount
     from {{ ref('fact_sales_order_item') }} f

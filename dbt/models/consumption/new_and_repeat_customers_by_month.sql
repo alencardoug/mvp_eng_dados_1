@@ -14,7 +14,7 @@ with estreia as (
     -- A chave natural é (origem, id), e não o id sozinho. Dois sistemas numeram
     -- clientes a partir de 1: sem a origem, o cliente 42 do legado e o 42 do
     -- retail viram uma pessoa só, e a coorte perde quem foi fundido.
-    select distinct on (c.source_system, c.customer_natural_key)
+    select {{ distinct_on('c.source_system, c.customer_natural_key') }}
         c.source_system,
         c.customer_natural_key,
         c.customer_segment_name,
@@ -24,7 +24,7 @@ with estreia as (
     from {{ ref('fact_sales_order_item') }} f
     join {{ ref('dim_customer') }} c using (customer_key)
     where f.is_realised
-    order by c.source_system, c.customer_natural_key, f.placed_at
+    {{ distinct_on_order('c.source_system, c.customer_natural_key', 'c.source_system, c.customer_natural_key, f.placed_at') }}
 
 ),
 

@@ -70,7 +70,7 @@ ciclo as (
         order_id,
         count(*)                                        as order_shipment_count,
         count(*) filter (where is_delivered)            as delivered_shipment_count,
-        bool_and(is_delivered)                          as is_order_cycle_closed,
+        {{ bool_and('is_delivered') }}                          as is_order_cycle_closed,
         max(delivered_at) filter (where is_delivered)   as order_delivered_at
     from remessas
     group by source_system, order_id

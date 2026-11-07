@@ -67,8 +67,8 @@ chegadas as (
 
     select
         movement_id,
-        bool_or(caminho = 'stream')     as arrived_by_stream,
-        bool_or(caminho = 'batch')      as arrived_by_batch,
+        {{ dbt.bool_or("caminho = 'stream'") }}     as arrived_by_stream,
+        {{ dbt.bool_or("caminho = 'batch'") }}      as arrived_by_batch,
         min(ingested_at)                as first_ingested_at,
         max(ingested_at)                as ingested_at
     from combinado
@@ -81,9 +81,9 @@ chegadas as (
 -- entregas do mesmo caminho vence a mais recente.
 unico as (
 
-    select distinct on (movement_id) *
+    select {{ distinct_on('movement_id') }} *
     from combinado
-    order by movement_id, caminho desc, ingested_at desc
+    {{ distinct_on_order('movement_id', 'movement_id, caminho desc, ingested_at desc') }}
 
 ),
 

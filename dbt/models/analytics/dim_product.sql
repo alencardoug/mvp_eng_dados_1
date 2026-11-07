@@ -44,23 +44,23 @@ categorias as (
     -- Nomes por categoria, para resolver a categoria **da versão**. Uma
     -- categoria tem o mesmo nome em qualquer SKU, então o `distinct on` é
     -- estável.
-    select distinct on (source_system, product_category_id)
+    select {{ distinct_on('source_system, product_category_id') }}
         source_system,
         product_category_id,
         leaf_category_name,
         sub_category_name,
         root_category_name
     from atual
-    order by source_system, product_category_id, product_variant_id
+    {{ distinct_on_order('source_system, product_category_id', 'source_system, product_category_id, product_variant_id') }}
 
 ),
 
 marcas as (
 
-    select distinct on (source_system, brand_id)
+    select {{ distinct_on('source_system, brand_id') }}
         source_system, brand_id, brand_name, brand_country
     from atual where brand_id is not null
-    order by source_system, brand_id, product_variant_id
+    {{ distinct_on_order('source_system, brand_id', 'source_system, brand_id, product_variant_id') }}
 
 )
 

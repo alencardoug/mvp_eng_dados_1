@@ -29,7 +29,7 @@ endereco_principal as (
     -- Um principal por cliente e tipo, garantido por índice parcial na origem.
     -- `distinct on` protege o modelo mesmo assim: se a garantia cair, o
     -- resultado continua determinístico em vez de dobrar linhas de cliente.
-    select distinct on (source_system, customer_id)
+    select {{ distinct_on('source_system, customer_id') }}
         source_system,
         customer_id,
         city,
@@ -37,7 +37,7 @@ endereco_principal as (
         country
     from ({{ empilhado('customer_addresses') }}) e
     where is_primary and address_type = 'shipping' and not is_deleted
-    order by source_system, customer_id, valid_from desc
+    {{ distinct_on_order('source_system, customer_id', 'source_system, customer_id, valid_from desc') }}
 
 ),
 

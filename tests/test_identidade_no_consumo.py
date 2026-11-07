@@ -77,6 +77,11 @@ _VAR = re.compile(r"\{\{\s*var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\}\}")
 _CONFIG = re.compile(r"\{\{\s*config\(.*?\)\s*\}\}", re.S)
 #: A janela de dias no calendário (macro `dias_no_calendario`): para a identidade, só o instante importa.
 _DIAS = re.compile(r"\{\{\s*dias_no_calendario\(\s*'([^']*)'\s*,\s*-?var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\)\s*\}\}")
+#: As macros de dialeto da Etapa 13 (`dbt/macros/distinct_on.sql`), lidas na forma que o alvo
+#: local compila — a mesma que esta guarda sempre leu. Forma fora destas continua recusada.
+_DISTINCT_ON = re.compile(r"\{\{\s*distinct_on\(\s*'([^']*)'\s*\)\s*\}\}")
+_DISTINCT_ON_ORDER = re.compile(r"\{\{\s*distinct_on_order\(\s*'([^']*)'\s*,\s*'([^']*)'\s*\)\s*\}\}")
+_BOOL = re.compile(r"""\{\{\s*(?:dbt\.)?(bool_or|bool_and)\(\s*(["'])(.*?)\2\s*\)\s*\}\}""")
 
 
 def _sql(caminho: pathlib.Path) -> str:
@@ -91,6 +96,9 @@ def _sql(caminho: pathlib.Path) -> str:
     texto = _REF.sub(r"\1", texto)
     texto = _SOURCE.sub(r"\1.\2", texto)
     texto = _VAR.sub("1", texto)
+    texto = _DISTINCT_ON.sub(r"distinct on (\1)", texto)
+    texto = _DISTINCT_ON_ORDER.sub(r"order by \2", texto)
+    texto = _BOOL.sub(r"\1(\3)", texto)
     if "{{" in texto or "{%" in texto:
         raise AssertionError(f"{caminho.name}: Jinja além de ref — ensine o teste a lê-lo")
     return texto

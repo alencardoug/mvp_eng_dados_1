@@ -6,14 +6,14 @@
 
 with marcas as (
 
-    select distinct on (source_system, brand_id)
+    select {{ distinct_on('source_system, brand_id') }}
         source_system,
         brand_id,
         brand_name,
         brand_country
     from {{ ref('product_skus') }}
     where brand_id is not null
-    order by source_system, brand_id, product_variant_id
+    {{ distinct_on_order('source_system, brand_id', 'source_system, brand_id, product_variant_id') }}
 
 )
 

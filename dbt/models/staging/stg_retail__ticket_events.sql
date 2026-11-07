@@ -7,9 +7,9 @@
 -- o que o atendimento respondeu do que o cliente escreveu.
 
 with fonte as (
-    select distinct on (id) *
+    select {{ distinct_on('id') }} *
     from {{ source('retail', 'ticket_events') }}
-    order by id, _airbyte_extracted_at desc
+    {{ distinct_on_order('id', 'id, _airbyte_extracted_at desc') }}
 ),
 
 renomeado as (
