@@ -542,3 +542,249 @@ vazias até a resposta formal do autor:
   pendência de critério obrigatório impede aceite/tag M6, preservando o prazo de desmonte.
 - [ ] **RV13-1-11:** estimativa por serviço antes dos applies e fechamento econômico somente
   com custo completo; coleta posterior não depende da existência do projeto.
+
+## Rodada 2 — plano da Etapa 13
+
+### Conclusão
+
+**Changes required.** A revisão 2 cobre a maior parte das omissões da rodada 1 e torna o corte de
+faturamento independente do `destroy`. Resta um bloqueante na **prova planejada da idempotência
+concorrente** do destino quente, além de três ajustes de coerência. A revisão do plano **ainda não
+pode ser encerrada**. Não é necessário implementar a D75 para responder ao parecer: é necessário
+definir o contrato de concorrência e a prova que libera sua implementação para a janela.
+
+A regra de **M6 incompleto, sem aceite nem `v2.0.0`**, quando faltar critério, está explícita e é
+adequada. Ela não transforma uma prova insuficiente em prova de paridade. Nenhuma decisão do
+Owner sobre escopo, D68 ou D69–D74 foi reaberta.
+
+### Escopo e versão
+
+- Estado inicial: branch `main`, HEAD `20703a7fa3f915753895a1a8691e2be762f3c363`, árvore limpa
+  (`git status --short` sem saída). Parecer em 07/11/2026.
+- Intervalo exclusivo: `9dac5f8..20703a7`, três commits: `a7c4266`, `e4c6def`, `20703a7`;
+  12 arquivos, somente documentação. Objeto: `PLANO_etapa_13.md`, revisão 2, 458 linhas, respostas
+  RV13-1-01…11 e regressões dessas alterações. A rodada 1 acima foi preservada integralmente.
+- Requisitos confrontados: `AGENTS.md`, `CLAUDE.md` §§5–7, Plano de Desenvolvimento — Etapa 13,
+  Arquitetura §5, Pendências §2 e ADRs citados. As medições estáticas da rodada 1 foram reutilizadas,
+  sem recontagem dos modelos nem nova revisão do código local.
+
+### Achados por gravidade
+
+Gravidade alta corresponde a `bloqueante`; média, `ajuste`; baixa, `observação`.
+*Situação* fica vazia para a resposta do autor.
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV13-2-01 | Plano §2.3, L128–133; G2.3, L238–242 | **Alta:** a proposta transacional e a prova de replay não cobrem dois lotes concorrentes com o mesmo `movement_id`; P3 pode passar sem demonstrar a garantia do ADR-0019 | bloqueante | **Corrigido** na revisão 3: a D75 ganhou o contrato — exclusão por chave sob concorrência (citando a concorrência das transações só de acréscimo), conflito e reexecução sem alerta duplo, recuperação do *job* de retorno perdido —, e a prova do G2.3 exige dois lotes concorrentes com a mesma chave nova e duplicata no lote; sem ela o caminho quente não entra na janela. |
+| RV13-2-02 | Plano §2.1, L89–90; §6.2, P1/P4, L343–346; §6.3 | **Média:** as saídas das portas permitem seguir com bloqueante ou abrir a janela mesmo sem revisão/aprovação, contrariando as condições obrigatórias do próprio plano | ajuste | **Corrigido**: P1 não deixa começar o bloco do bloqueante; P4 abre parcial só por falha funcional de P2/P3 com dependências satisfeitas, e estimativa não aprovada ou `plan` não revisado impedem o `apply` daquele degrau. |
+| RV13-2-03 | Plano §0; G6/G7; §6.1; §6.4, L361–362 | **Média:** Composer/Dataflow devem estar removidos quarta 22:00, mas a janela vai até quinta 07:00 e o desmonte começa então; a vida do Airbyte desde terça também não está incluída na definição da janela | ajuste | **Corrigido**: parte cara quarta 07:00 → 22:00 (provas até 21:00, exportação até 21:30, Composer e Dataflow fora até 22:00), G7 começa quarta 21:30; a janela total vai de terça 08:00 (GKE com Airbyte) a quinta 12:00, com duração real por serviço; as horas de quinta (12:00, 15:00, 18:00) mantidas. |
+| RV13-2-04 | Plano §7.1, L399–401; Arquitetura §5, L189/193 | **Média:** o mapa dito “já corrigido (D69, D70, D72)” ainda exige retenção travada e fixa `streaming inserts`, divergindo de D70 e do mecanismo ainda aberto da D75 | ajuste | **Corrigido**: `docs/arquitetura.md` — destino quente idempotente por `movement_id` com a D75 e o ADR-0051, sem fixar mecanismo; livro com a trava em produção e **sem trava** na janela (D70); §7.1 do plano alinhada. |
+| RV13-2-05 | Plano D73/G3/§8, L114–118/259–267/434–435 | **Baixa:** “2 nós = 8 vCPU” precisa de topologia explícita; num pool regional padrão, dois nós por zona resultam em seis nós | observação | **Corrigido**: GKE Standard **zonal** (`us-central1-a`), 2 nós `e2-standard-4` no total, autoescala desligada (D73 e §8), com o cálculo do regional registrado; conferido contra a cota real no G0. |
+
+### Evidências, correções e validação
+
+**RV13-2-01 — Exigir prova de concorrência no sink. Gravidade: alta.**
+
+O gatilho são dois lotes simultâneos que contêm o mesmo movimento ainda ausente. O procedimento
+proposto lê os IDs ausentes, faz `MERGE` e os devolve; não declara como impede ambos os lotes de
+observar a ausência e inserir. A documentação distingue transações que atualizam/excluem de
+transações que apenas leem/acrescentam linhas: estas podem executar concorrentemente. Assim,
+envolver uma inserção condicional em transação não estabelece, sozinho, exclusão mútua.
+[BigQuery — concorrência de transações](https://docs.cloud.google.com/bigquery/docs/transactions#transaction_concurrency).
+
+Contraprova considerada: a D75 está marcada **proposta**, o ADR-0051 rejeita `insertId` como
+garantia e G2.3 exige replay, reinício e retorno perdido. Isso mantém a intenção correta, mas não
+exige sobreposição de transações: esses ensaios podem passar em série com um destino vulnerável
+à concorrência. Não se está afirmando um defeito em código inexistente, nem que todo `MERGE`
+necessariamente duplica.
+
+Correção no plano: incluir na D75 a obrigação de impedir decisões concorrentes de inserção da
+mesma chave, de tratar conflito/reexecução e de recuperar o resultado de um job cujo retorno se
+perdeu. A escolha do mecanismo pode continuar no G2.3. A prova de P3 deve incluir **dois lotes
+concorrentes com a mesma chave nova**, duplicata no próprio lote e reenvio após confirmação perdida;
+conferir unicidade física, saldo e quais eventos são enviados ao alerta, antes de permitir o
+caminho quente na janela. Sem prova, esse critério permanece incompleto. É lacuna residual de
+RV13-1-05, exposta pela nova proposta; não reabre D69 nem os defeitos locais D62/D63.
+
+**RV13-2-02 — Separar falha funcional de impedimento para provisionar. Gravidade: média.**
+
+P1 oferece “seguir com o bloqueante declarado”, embora §2.1 determine que bloqueante para tudo.
+P4 agrega P2/P3, estimativa aprovada e `plan` revisado, mas dá a todas as falhas a mesma saída:
+“a janela abre do mesmo jeito”. O gatilho pode ser justamente **ausência de aprovação/revisão**,
+não somente um bloco funcional incompleto.
+
+Contraprova: §6.3 exige aprovação do Owner e aplicação do plano salvo; §0.3 impede aceite de M6
+incompleto. Não foi demonstrada autorização inequívoca para um `apply` irregular: há instruções
+incompatíveis, que precisam de precedência expressa.
+
+Correção: limitar a abertura parcial a falhas funcionais de P2/P3, com dependências dos blocos
+restantes satisfeitas e M6 incompleto. Revisão do plano, ausência de bloqueante aplicável,
+estimativa e aprovação do `plan` devem continuar pré-requisitos de qualquer `apply` correspondente.
+Validação documental: percorrer separadamente P2 falha, P3 falha, estimativa não aprovada e `plan`
+não revisado; nos dois últimos casos nenhum recurso daquele degrau nasce. Regressão da revisão 2.
+
+**RV13-2-03 — Unificar os horários de parada e os intervalos de custo. Gravidade: média.**
+
+G6 e §6.1 reservam quarta 11/11 07:00 → quinta 12/11 07:00; G7/§6.5 começam o desmonte quinta
+07:00. Entretanto a primeira ação do relógio de emergência exige **Composer e Dataflow fora
+quarta 22:00**, com remoção manual se necessário. Não se define se as provas terminam até 22:00
+ou se ainda podem usar esses serviços de madrugada. G6 manda exportar as evidências antes de
+qualquer destruição, o que também depende desse corte.
+
+Além disso, §1 L71 repete “Composer e Airbyte criados e destruídos na mesma janela”, enquanto
+Airbyte nasce terça para P3 (§0.4/§6.1), antes da janela nomeada em G6. O ADR-0024 exige uma
+janela de demonstração limitada para ambos; é possível distinguir a janela total da parte cara,
+mas o texto atual não o faz.
+
+Contraprova: desligar serviços **mais cedo** não ameaça o limite duro; o corte de billing continua
+independente quinta 12:00. O achado é de roteiro/custo ambíguos, não retorno do bloqueio de
+RV13-1-01. Correção: declarar uma única hora-limite de provas/exportação e outra de início da
+remoção, ou dizer expressamente que quarta 22:00 encerra antecipadamente a parte cara. Definir o
+intervalo total que inclui a integração de terça e contabilizar a duração real de cada serviço.
+Validar a concordância de §0, G6/G7 e §6.1/6.4/6.5, mantendo unlink quinta 12:00, delete 15:00 e
+limite 18:00. Regressão da mudança de cronograma na revisão 2.
+
+**RV13-2-04 — Refletir as decisões no mapa usado como critério. Gravidade: média.**
+
+Em `20703a7`, `docs/arquitetura.md:193` ainda diz **retenção travada**; `:189` ainda fixa o
+destino por **streaming inserts**. D70 e a nota datada no ADR-0050 autorizam retenção **sem trava**
+na janela. ADR-0051/Streaming agora preservam a garantia de unicidade e deixam o mecanismo D75
+aberto; o plano propõe DML transacional. A mudança `a7c4266` atualizou a linha da captura, mas não
+essas duas linhas, embora §7.1 diga que o mapa já foi corrigido também quanto a D70/D72.
+
+Contraprova: G8 prevê atualizar o mapa, e §0 impede encerrar critério pendente. Isso permite
+concluir a transação documental depois, mas não sustenta a afirmação de correção já realizada
+nem uma prova de paridade contra o requisito antigo de trava. A linha genérica de Airbyte não
+contradiz D72 por si; não há achado separado sobre ela.
+
+Correção: distinguir no mapa a exceção D70 da contrapartida de produção não medida e referenciar
+ADR-0051/D75 no destino quente sem fixar um mecanismo ainda não escolhido; alinhar a afirmação de
+§7.1. Validar cada linha contra a decisão vigente, mantendo os corpos dos ADRs aceitos intactos.
+São células preexistentes que se tornaram divergentes com as decisões deste intervalo.
+
+**RV13-2-05 — Dimensionar o total de nós, incluindo as zonas. Gravidade: baixa.**
+
+A documentação do GKE mostra que pools regionais usam três zonas por padrão: `num-nodes=2`
+significa **seis** nós; uma localização de nós explicitamente limitada permite dois no total.
+[GKE — criar cluster regional](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster).
+Com o tipo proposto, isso distingue 8 de 24 vCPU, antes de Cloud SQL e Dataflow. São cálculos de
+configurações alternativas, **não cotas ou consumos medidos**.
+
+Contraprova: §8 diz “estimado”, G0 confere a cota nova e não há HCL que demonstre uso do padrão
+regional. Portanto não afirmo que a cota será excedida. Registrar no dimensionamento de G0 a
+localização do cluster, `node_locations`, quantidade **total** e limites de escalabilidade; conferir
+esse total e os demais serviços contra as cotas efetivas antes do `apply`. Observação sobre a
+nova estimativa, sem pedir troca de GKE Standard nem reabrir D73.
+
+### Situação independente dos achados da rodada 1
+
+“Resolvido no plano” avalia a resposta documental; não significa implementação validada.
+
+| Achado | Resultado | Seção que responde e fundamento |
+|---|---|---|
+| RV13-1-01 | Resolvido no plano | §0.2, G0 e §6.4: permissão/vínculo/lien antes dos recursos; abandono quinta 11:00, unlink 12:00 com espera limitada e consola, delete 15:00 independente do `destroy`. `DELETE_REQUESTED` não é chamado de eliminação física. A divergência de parada antecipada está em RV13-2-03. |
+| RV13-1-02 | Resolvido no plano | G3 e §6.5: proteções falsas no estado, produtores/job antes da infraestrutura, slot enquanto Cloud SQL existe, Helm/PVCs/PVs/Services antes do cluster, retenção antes dos buckets, orçamento da conta e ação/prova para resíduos. A execução e os defaults do provider permanecem por validar. |
+| RV13-1-03 | Parcialmente resolvido | §4 e G1 incluem geradores/macros/snapshots/testes; P2/P3 antecipam provas e §0.3 impede aceite parcial. As saídas P1/P4 ainda precisam do ajuste RV13-2-02. Não se refez a medição de esforço. |
+| RV13-1-04 | Resolvido no plano | G2.1 e §1 incluem leitores, recuperação, DDL, guardas, locks Cloud SQL separados da escrita BigQuery e confirmação do job, época inicial e provas simuladas/reais. |
+| RV13-1-05 | Parcialmente resolvido | D69/ADR-0051 e G2.3 incluem fonte, envelope/tipos, cursor persistente, ack, semeadura, publicador e garantia por chave. Falta tornar a prova da D75 suficiente sob concorrência: RV13-2-01. |
+| RV13-1-06 | Resolvido no plano | G2.4 declara layout, dependências, configuração, diretórios de execução, rede, ensaio antes da janela e smoke test no Composer. Compatibilidade efetiva dos pacotes continua não verificada. |
+| RV13-1-07 | Resolvido no plano | G2.2 porta dialeto/tipos/manifest e exige comparação das folhas e classificação de todas as colunas antes de G4/G5. A integração de linhagem tem ressalva explícita em G5. |
+| RV13-1-08 | Resolvido no plano | D71, nota datada no ADR-0025 e G4: aplicação por produtor, convergência após sync antes do dbt e inventário repetido após carga, sync, rebuild e reclassificação; prova de negação/permissão e filtro `USER_MANAGED`. |
+| RV13-1-09 | Resolvido no plano | G1.5, G3, G2.4 e §7.3 entregam authorized views, Secret Manager e provas de acesso. O backend de Connections/Variables do Composer 3 tem suporte documental; não depende de chave de serviço. |
+| RV13-1-10 | Resolvido no plano | §2.3/G1, §7.2 e G8: duas capturas com mudança e matriz esperada, normalização, três identidades D43 sem paridade antecipada, V1 por recorte e definição de pronto/revisão integral pelo Owner. Tag condicionada a todos os critérios. |
+| RV13-1-11 | Resolvido no plano | G0/§6.3 exigem estimativa por serviço antes do apply; G8 distingue custo parcial de final e mantém fechamento pendente. Os intervalos de duração precisam da coerência indicada em RV13-2-03. |
+
+### Conferências adicionais e hipóteses descartadas
+
+- **ADR-0051/D75:** a decisão preserva expressamente a garantia do ADR-0019; não a dá como medida.
+  O mecanismo é implementação dentro desse contrato enquanto não trocar ferramenta, camada,
+  modelagem central ou tratamento de dados. Qualquer mudança desses itens volta ao Owner
+  (`CLAUDE.md` §5); não se exige nova decisão apenas por existir o identificador D75. ADR-0051
+  identifica expressamente a troca da contrapartida de ADR-0006/0020 e registra o custo de operar
+  pod/disco/cursor. Não há contradição **sem registro** que justifique reabrir D69 ou reescrever
+  esses ADRs aceitos. O déficit é a prova do mecanismo, RV13-2-01.
+- **Secret Manager no Composer 3:** a página oficial documenta backend, prefixos de Connections e
+  Variables e acesso pela conta do ambiente sem `gcp_key_path`. A hipótese de backend inexistente
+  foi descartada. [Configurar Secret Manager](https://docs.cloud.google.com/composer/docs/composer-3/configure-secret-manager).
+- **Ensaio local do Composer:** a página oficial declara suporte a Airflow 3.2.2 desde
+  `composer-3-airflow-3.2.2-build.3`, anterior ao build.9 escolhido. A dúvida de suporte pode ser
+  retirada de §8; instalação/importação/pacotes continuam por provar. Esse ensaio continua sujeito
+  a R11. [Desenvolvimento local](https://docs.cloud.google.com/composer/docs/composer-3/run-local-airflow-environments).
+- **Liens:** o comando `gcloud alpha resource-manager liens list` existe e lista os liens do
+  projeto selecionado; não foi executado nem demonstrada sua permissão nesta conta.
+  [Referência oficial](https://docs.cloud.google.com/sdk/gcloud/reference/alpha/resource-manager/liens/list).
+- **Estado com segredos:** G3 reconhece a presença de senhas no state; `.gitignore` cobre
+  `terraform.tfstate*` e `data/`, inclusive a cópia. A senha do banco não é uma chave de conta de
+  serviço GCP. Não há evidência de chave longeva introduzida pelo plano; conteúdos de state e
+  permissões locais não foram inspecionados. D74 não foi reaberta.
+- **Linhagem por coluna:** trechos oficiais indexados de `openlineage-mapping` e da integração
+  atual dizem que eventos OpenLineage **customizados** materializam arestas por tabela e não
+  renderizam linhagem por coluna na consola. O resultado antigo de `/dataplex/docs/open-lineage`
+  menciona limites de colunas, mas não demonstra suporte ao produtor customizado proposto.
+  Portanto G5 não pode tratar resposta HTTP bem-sucedida como prova por coluna. Sua ressalva
+  expressa — linha pendente e M6 incompleto se não houver suporte — já trata essa consequência;
+  não foi aberto bloqueante duplicado. Atualizar o “não confirmado” com essa limitação, sem
+  escolher nova ferramenta. [Mapeamento OpenLineage](https://docs.cloud.google.com/knowledge-catalog/docs/openlineage-mapping),
+  [integração e limitações](https://docs.cloud.google.com/knowledge-catalog/docs/open-lineage).
+- **Transação documental:** 51 ADRs aceitos conferidos nos cabeçalhos, excluído o template; o
+  índice inclui 0051/D69, e as duas decisões arquiteturais pendentes indexadas seguem D43/D66.
+  O total de cinco decisões do Owner em Pendências continua coerente com D62–D64/D43/D66;
+  D75 é mecanismo de implementação, não sexta decisão do Owner demonstrada. Notas de D70/D71
+  foram acrescentadas sem reescrever os corpos aceitos. Links novos para ADR-0051 e notas
+  conferidos por leitura; não houve varredura geral de links. Divergências do mapa: RV13-2-04.
+
+### Verificações executadas / não executadas
+
+- Executados somente comandos de leitura: branch/HEAD/status/log, diff do intervalo e dos
+  documentos alterados, `git diff --check 9dac5f8..20703a7` (sem saída), `rg`, `sed`, `cat`, `nl`
+  e Python de biblioteca padrão para contar cabeçalhos de ADRs. Resultado da contagem: **51
+  aceitos**, mais o template com estado de proposta; este não foi contado como decisão.
+- Leitura integral do plano rev. 2, das respostas e evidências da rodada 1; conferência dirigida
+  dos requisitos/ADRs e da transação documental. Não se refez a revisão da versão local.
+- Rede: **cinco páginas oficiais abertas com sucesso** — Secret Manager Composer 3,
+  desenvolvimento local Composer, comando de liens, cluster regional GKE e transações BigQuery;
+  busca restrita a `docs.cloud.google.com` retornou os trechos de linhagem citados acima.
+  `/dataplex/docs/lineage-integration` falhou e não foi usado como evidência.
+- Nenhum teste foi executado. `make check-offline` verde em `20703a7` é informação do autor
+  fornecida para esta rodada, não resultado independente. Nenhum `make`, `docker`, `abctl`,
+  `gcloud`, `terraform`, `dbt`, instalação, serviço, banco ou `.env` foi executado/tocado.
+  Única escrita autorizada: este acréscimo em `REVISAO.md`.
+
+Saídas das conferências estáticas finais (Python somente de leitura; comparação com o arquivo de
+`20703a7` e contagem dos cabeçalhos):
+
+```text
+$ git status --short
+ M REVISAO.md
+Rodada 1 e dossie preservados: True
+Achados novos: RV13-2-01, RV13-2-02, RV13-2-03, RV13-2-04, RV13-2-05
+Situacao vazia nas 5 linhas: True
+ADRs aceitos (sem template): 51
+```
+
+### Limitações e questões abertas
+
+Não foram verificadas permissões reais de unlink/delete, vínculo de billing, liens, cotas,
+disponibilidade/capacidade, preços, grafo Terraform ou resíduos reais. O roteiro agora cobre
+orçamento da conta, job Dataflow, bucket Composer/Beam, discos/Services/PVCs/PVs, slot e Secret
+Manager; a ausência efetiva de resíduos exige as provas de execução. O corte de billing permanece
+necessário mesmo se o inventário falhar. Não se pressupôs eliminação física às 15:00.
+
+WIF nos pods Airbyte/Debezium, envelope/tipos, compatibilidade exata dos pacotes, paridade D43,
+correção das tags em cada recriação, custos completos e duração das tarefas continuam sem medição
+independente. Nenhum desses fatos foi inventado ou convertido em resultado. A viabilidade de
+terminar todo o M6 até o prazo permanece condicionada às provas; a alternativa autorizada é
+declarar M6 incompleto e desmontar. Não há pergunta que impeça o autor de corrigir este plano.
+
+### Passagem para o Claude Code
+
+- [ ] **RV13-2-01:** acrescentar contrato de concorrência/reexecução e prova simultânea na D75/G2.3/P3;
+  não declarar unicidade por movimento com base apenas em replay serial.
+- [ ] **RV13-2-02:** restringir a abertura parcial a blocos funcionalmente prontos; revisão,
+  estimativa e aprovação continuam obrigatórias antes dos applies correspondentes.
+- [ ] **RV13-2-03:** unificar parada/exportação/desmonte e definir a janela total incluindo Airbyte
+  desde terça, com estimativa por duração; preservar as horas de emergência de quinta.
+- [ ] **RV13-2-04:** alinhar mapa e §7.1 a D70/ADR-0051/D75, distinguindo produção de janela e
+  mecanismo proposto de mecanismo provado.
+- [ ] **RV13-2-05:** levar ao dimensionamento de G0 a topologia/quantidade total do pool e a soma
+  contra as cotas reais, sem presumir dois nós totais pela quantidade por zona.

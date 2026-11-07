@@ -22,6 +22,13 @@
 > (RV13-1-11). E a janela cara **mudou de dia** — quarta e quinta de manhã, não terça e quarta —,
 > para dar ao desenvolvimento o dia que a medição mostrou faltar. A *Situação* de cada achado está
 > no `REVISAO.md`.
+>
+> **Revisão 3 — 07/11/2026.** Aplica a rodada 2 (RV13-2-01…05: um bloqueante, três ajustes, uma
+> observação). O contrato da D75 passa a exigir exclusão por chave sob concorrência e a prova de dois
+> lotes simultâneos (RV13-2-01); as portas separam falha funcional de pré-requisito de `apply`
+> (RV13-2-02); a parte cara termina quarta 22:00, e a janela total vai de terça 08:00 a quinta
+> 12:00 (RV13-2-03); o mapa de paridade reflete a D70 e o destino da D75 (RV13-2-04); o GKE é zonal,
+> com dois nós no total (RV13-2-05).
 
 ---
 
@@ -68,7 +75,7 @@ Owner de 06/11, **reafirmada em 07/11** depois do parecer da rodada 1.
 | `terraform plan` revisado antes de cada `apply` | G3 | rito da §6.3 |
 | Particionamento, *clustering*, retenção e políticas definidos antes do provisionamento | G1 (fatos), G3 (*datasets*, *buckets*) | revisão do declarativo antes do `apply` |
 | *Policy tag* em cada coluna sensível pelo fluxo automatizado, acesso negado, sem credencial longeva | G4 | inventário de **todas** as colunas sensíveis × YAML, depois de cada operação que recria objeto (§7.3) |
-| Composer e Airbyte criados e destruídos na mesma janela, custo estimado e real | G3, G6, G7 | estimativa aprovada antes do `apply` (G0); custo real conciliado depois (G8) |
+| Composer e Airbyte criados e destruídos na mesma janela, custo estimado e real | G3, G6, G7 | a **janela total** vai de terça 10, 08:00 (GKE com Airbyte) a quinta 12, 12:00 (faturamento desligado), e a **parte cara** — Composer e Dataflow — de quarta 07:00 a 22:00; estimativa por serviço e duração aprovada antes do `apply` (G0); duração real de cada serviço registrada; custo real conciliado depois (G8) |
 | *Batch* e *streaming* juntos, tamanho/tempo/custo, `caminhos_de_ingestao_reconciliam` | G2, G6 | §7.2 |
 | Paridade funcional com a fase local | G6 | §7 |
 | Metadados no Dataplex; estimativa de custo por serviço | G5; G0 | §7.4; a estimativa na [Capacidade](docs/capacidade_e_recuperacao.md) antes do primeiro `apply` cobrável |
@@ -114,7 +121,7 @@ recuperação da captura (`capture_recovery.recover`) e o livro retido.
 - **D73 — `us-central1`**; **Composer 3** `composer-3-airflow-3.2.2-build.9` (Airflow 3 GA no
   Composer desde 15/04/2026; o *build* é de 20/10 —
   [release notes](https://docs.cloud.google.com/composer/docs/release-notes)), ambiente *small*;
-  **GKE Standard** com um *pool* pequeno; *chart* do Airbyte `2.3.0`, o mesmo de
+  **GKE Standard zonal** (`us-central1-a`) com um *pool* de 2 nós **no total**; *chart* do Airbyte `2.3.0`, o mesmo de
   `AIRBYTE_CHART_VERSION`.
 - **D74 — projeto dedicado, estado local do Terraform, desmonte em três camadas com relógio de
   emergência** (§6.4).
@@ -129,8 +136,16 @@ recuperação da captura (`capture_recovery.recover`) e o livro retido.
   (movement_id) do nothing returning` para emitir alerta **só** do evento que entrou. O BigQuery não
   tem `returning`. Proposta: *script* com transação por lote — inserir numa tabela de passagem,
   `MERGE` pela chave, e devolver os `movement_id` que não existiam antes do `MERGE`; *insertId* e a
-  deduplicação do Dataflow **não** contam como garantia (ADR-0051). O mecanismo é escolhido e
-  provado no G2.3 e registrado no *Streaming*; a garantia não está em aberto, só o meio.
+  deduplicação do Dataflow **não** contam como garantia (ADR-0051). **Contrato que o mecanismo tem
+  de cumprir** (RV13-2-01): (i) duas decisões concorrentes de inserir a mesma chave não podem as
+  duas vencer — transações do BigQuery que só leem e acrescentam **rodam em paralelo**
+  ([transactions](https://docs.cloud.google.com/bigquery/docs/transactions#transaction_concurrency)),
+  então a transação sozinha não é exclusão mútua: o mecanismo precisa serializar por chave (por
+  exemplo, a escrita agrupada por `movement_id` num passo com estado do Beam, um escritor por chave)
+  ou detectar o conflito e reexecutar; (ii) conflito e reexecução tratados sem emitir alerta duas
+  vezes; (iii) o resultado de um *job* cujo retorno se perdeu é recuperado pelo identificador do
+  *job*, sem reenviar às cegas. O mecanismo é escolhido e provado no G2.3 e registrado no
+  *Streaming*; a garantia não está em aberto, só o meio.
 
 ---
 
@@ -238,8 +253,10 @@ nativo; **semeadura** do saldo lendo o BigQuery (`pipeline.py:160`); **alerta** 
 Pub/Sub, não no Kafka (`transport.py:261`); *sink* BigQuery com a idempotência da D75. **Prova antes
 da janela** (terça, Pub/Sub e BigQuery reais, Debezium no GKE): *snapshot* e CDC pelo *parser*,
 decimal e fuso exatos, reinício do *pod* e do *worker*, o mesmo movimento reenviado dentro e fora da
-janela de deduplicação e depois de retorno perdido, contagem física igual à de eventos, alerta
-observado. D62 e D63 continuam o que são — pendências locais aceitas.
+janela de deduplicação e depois de retorno perdido, **dois lotes concorrentes com a mesma chave
+nova** e duplicata dentro do mesmo lote — conferindo unicidade física, saldo e quais eventos foram
+ao alerta —, contagem física igual à de eventos, alerta observado. Sem essa prova o caminho quente
+não entra na janela, e o critério fica incompleto. D62 e D63 continuam o que são — pendências locais aceitas.
 
 **G2.4 — a DAG no Composer** (RV13-1-06). Layout declarado: `fluxo_batch.py` e o pacote `mvp_ed1`
 em `dags/`; o projeto dbt, o glossário que ele referencia e os pacotes dbt em `data/`
@@ -293,12 +310,13 @@ confirmada**: conferir com o Gemini (URL oficial) no sábado; se a API não acei
 fica pendente e é dita assim. **Prova:** linhagem de uma coluna de `consumption` até a origem na
 consola, e o número de arestas publicadas igual ao do módulo.
 
-### G6 — a janela (quarta 07:00 → quinta 07:00)
+### G6 — a parte cara da janela (quarta 07:00 → 22:00)
 
-O roteiro da §7. **Prova:** registro de execução e medições exportadas para `data/medicoes/etapa_13/`
-**antes** de destruir qualquer coisa.
+O roteiro da §7. Provas até **21:00**; **exportação** do registro de execução e das medições para
+`data/medicoes/etapa_13/` até **21:30**; Composer e Dataflow removidos até **22:00**. Nada da
+parte cara roda de madrugada.
 
-### G7 — desmonte (quinta 07:00 → 15:00)
+### G7 — desmonte (quarta 21:30 → quinta 15:00)
 
 A ordem da §6.5 e o relógio da §6.4.
 
@@ -331,7 +349,8 @@ na sexta, se ainda incompleto, registrado como **parcial**, e o fechamento econ�
 | **ter 10, 20:00** | **porta da janela** (§6.2) | |
 | **qua 11, 07:00** | Composer (~25 min para nascer, [create-environments](https://docs.cloud.google.com/composer/docs/composer-3/create-environments)) e Dataflow; *smoke test*; `fluxo_batch` de ponta a ponta; *streaming* simultâneo; as duas capturas da §7.2 | caro |
 | **qua 11, 20:00** | **ponto de decisão**: o que não rodou vira pendência; a janela não se estende | |
-| qui 12, 07:00 | desmonte (§6.5) | caro → zero |
+| qua 11, 21:00–22:00 | provas encerradas, exportação, Composer e Dataflow fora (§6.5 passos 1–2) | caro → médio |
+| qui 12, 07:00 | desmonte do restante (§6.5 passos 3–10) | médio → zero |
 | **qui 12, 12:00** | **faturamento desligado, haja o que houver** (§6.4) | zero |
 | **qui 12, 15:00** | **projeto apagado, com o Owner** | |
 | sex 13 | folga; custo parcial; documentação | |
@@ -340,10 +359,10 @@ na sexta, se ainda incompleto, registrado como **parcial**, e o fechamento econ�
 
 | Porta | Quando | Passa se | Se não passar |
 |---|---|---|---|
-| P1 — plano | dom 08, 20:00 | revisão encerrada, sem bloqueante aberto | o Owner decide entre seguir com o bloqueante declarado ou cortar |
+| P1 — plano | dom 08, 20:00 | revisão encerrada, sem bloqueante aberto | o bloco do bloqueante **não** começa; o Owner decide entre corrigir a tempo ou cortar o bloco (M6 incompleto) |
 | P2 — dialeto | seg 09, 20:00 | `dbt build --target gcp` verde; catálogo comparado (G2.2) | o que falta não entra na janela; pendência |
 | P3 — integração | ter 10, 18:00 | Airbyte → BigQuery sem chave (D72); G2.1 real; G2.3 real; DAG importada no layout | idem, por bloco |
-| **P4 — janela** | **ter 10, 20:00** | P2 e P3, estimativa aprovada, `plan` caro revisado | **a janela abre do mesmo jeito** com o que passou; o que não passou deixa o M6 incompleto |
+| **P4 — janela** | **ter 10, 20:00** | P2 e P3, estimativa aprovada, `plan` caro revisado | **falha funcional** de P2/P3: a janela abre com os blocos que passaram e cujas dependências passaram, e o M6 fica incompleto. **Estimativa não aprovada ou `plan` não revisado: nenhum recurso daquele degrau nasce** — esses dois são pré-requisitos de todo `apply`, não blocos cortáveis |
 
 ### 6.3 O rito de cada `apply`
 
@@ -358,7 +377,7 @@ Independe do sucesso de qualquer passo da §6.5. Responsável: o Owner, com o Cl
 
 | Hora | Ação | Espera máxima |
 |---|---|---|
-| qua 11, 22:00 | Composer e Dataflow fora, ou escalada: remoção manual por `gcloud` | — |
+| qua 11, 22:00 | Composer e Dataflow fora (§6.5 passos 1–2), ou escalada: remoção manual por `gcloud` | 1 h; depois, o Owner pela consola |
 | qui 12, 07:00 | início da §6.5 | — |
 | qui 12, 11:00 | o que a §6.5 não removeu é anotado e **abandonado** à camada 2 | — |
 | **qui 12, 12:00** | `gcloud billing projects unlink`; conferir `billingEnabled: false` e guardar a saída | 30 min; se falhar, o Owner desliga pela consola |
@@ -397,7 +416,7 @@ Com o gerador determinístico (mesma `seed`, mesma `as_of_date`, fator `dev`), n
 ### 7.1 A matriz do mapa
 
 Uma linha de evidência por linha da [Arquitetura §5](docs/arquitetura.md#5-mapa-de-paridade-local--gcp),
-com o mapa já corrigido (D69, D70, D72): o que foi provisionado, a consulta ou o *log* que prova, e
+com o mapa corrigido em 07/11 (D69, D70 e o destino quente idempotente da D75): o que foi provisionado, a consulta ou o *log* que prova, e
 `medido`/`não medido` com motivo. Linha sem evidência não conta como paridade.
 
 ### 7.2 Dados e memória
@@ -431,10 +450,16 @@ O que não se medir fica escrito como **não medido**, com o motivo, e conta con
 
 ## 8. Premissas e o não verificado
 
-- A cota do projeto novo e o dimensionamento [estimado]: Cloud SQL 2 vCPU; GKE um *pool* de 2 nós
-  `e2-standard-4` (8 vCPU); Dataflow 1 *worker*; Composer 3 fora da cota do projeto. Conferido no G0.
-- A ferramenta de desenvolvimento local do Composer com imagem 3 (G2.4).
-- Linhagem OpenLineage por coluna na Data Lineage API (G5).
+- A cota do projeto novo e o dimensionamento [estimado]: Cloud SQL 2 vCPU; GKE **zonal**, um *pool* de 2 nós `e2-standard-4` **no total**
+  (8 vCPU; um *pool* regional teria 2 por zona, 6 nós e 24 vCPU — RV13-2-05), autoescala desligada; Dataflow 1 *worker*; Composer 3 fora da cota do projeto. Conferido no G0.
+- A ferramenta de desenvolvimento local do Composer **suporta** Airflow 3.2.2 desde o *build*.3
+  ([run-local-airflow-environments](https://docs.cloud.google.com/composer/docs/composer-3/run-local-airflow-environments));
+  instalação, importação e pacotes seguem por provar, e o ensaio respeita o R11.
+- Linhagem por coluna: eventos OpenLineage **customizados** materializam arestas por tabela e **não**
+  renderizam linhagem por coluna na consola
+  ([openlineage-mapping](https://docs.cloud.google.com/knowledge-catalog/docs/openlineage-mapping)).
+  Resposta HTTP de sucesso não é prova por coluna; se não houver caminho suportado, a linha do mapa
+  fica pendente (G5) e o M6 incompleto.
 - Workload Identity no *sink* do Debezium Server e nos *pods* de *job* do Airbyte (D69, D72).
 - Faturamento e relatórios de custo acessíveis depois do fim da avaliação (G8) — **exportar o
   relatório por serviço na sexta**, para não depender disso.
