@@ -487,7 +487,9 @@ Independe do sucesso de qualquer passo da §6.5. Responsável: o Owner, com o Cl
 Cada passo tem ação e prova; a rede, o IAM e as APIs ficam de pé até o último.
 
 1. **Parar quem produz:** pausar a DAG; parar o produtor; **drenar e cancelar o *job* Dataflow**
-   (`gcloud dataflow jobs list --status=active` vazio).
+   (`gcloud dataflow jobs list --status=active` vazio); **desligar o fluxo das *policy tags***
+   (`gh variable set MVP_GCP_ATIVO --body false`, D79) — sem isso, o próximo *push* do YAML
+   tentaria autenticar num projeto apagado.
 2. **Composer** (`destroy` do módulo) e o *bucket* dele, se sobrar.
 3. **Debezium Server** (`helm uninstall`), e o *slot* de replicação **removido no Cloud SQL**
    (`pg_drop_replication_slot`) enquanto o Cloud SQL existe.
