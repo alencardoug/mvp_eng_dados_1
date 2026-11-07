@@ -145,6 +145,7 @@ endef
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
+        gcp-preflight gcp-plan gcp-apply gcp-dbt-build gcp-oraculos gcp-carga-dev \
         require-env require-venv require-abctl require-terraform
 
 help: ## Lista os alvos disponíveis
@@ -890,3 +891,48 @@ pgcli-legacy: require-env ## Abre o pgcli, somente leitura, na origem legada
 
 pgcli-warehouse: require-env ## Abre o pgcli, somente leitura, no armazém
 	$(call pgcli,WAREHOUSE)
+
+# ── Fase GCP (Etapa 13) ───────────────────────────────────────────────────────
+# Todo alvo `gcp-*` passa pelo `gcp-preflight`: o projeto do `.env` (GCP_PROJECT_ID),
+# o do `terraform.tfvars` e o *quota project* das credenciais (ADC) têm de ser o mesmo,
+# ou nada roda — um `plan` ou um `dbt build` contra o projeto errado é o erro que não
+# se desfaz. `apply` só de plano salvo e aprovado pelo Owner (rito §6.3 do PLANO_etapa_13):
+# não há alvo que planeje e aplique de uma vez.
+GCP_TF := .tools/terraform -chdir=terraform
+GCP_PLANOS := data/medicoes/etapa_13/planos
+
+gcp-preflight: require-env require-venv require-terraform ## Recusa se .env, terraform.tfvars e ADC não apontam o mesmo projeto GCP
+	@set -a; . ./.env; set +a; \
+	test -n "$$GCP_PROJECT_ID" || { echo "ERRO: GCP_PROJECT_ID ausente no .env."; exit 1; }; \
+	test -f terraform/terraform.tfvars || { echo "ERRO: terraform/terraform.tfvars ausente (copie o .example)."; exit 1; }; \
+	tf=$$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' terraform/terraform.tfvars); \
+	test "$$tf" = "$$GCP_PROJECT_ID" || { echo "ERRO: terraform.tfvars aponta '$$tf', o .env '$$GCP_PROJECT_ID'."; exit 1; }; \
+	adc=$$(.venv/bin/python -c 'import json,pathlib; print(json.loads((pathlib.Path.home()/".config/gcloud/application_default_credentials.json").read_text()).get("quota_project_id",""))' 2>/dev/null); \
+	test "$$adc" = "$$GCP_PROJECT_ID" || { echo "ERRO: o quota project das credenciais (ADC) é '$$adc', não '$$GCP_PROJECT_ID'."; exit 1; }; \
+	echo "gcp-preflight: projeto $$GCP_PROJECT_ID nos três lugares"
+
+gcp-plan: gcp-preflight ## Salva um plano do Terraform para o Owner aprovar: NOME=05_rede (sem aplicar)
+	@test -n "$(NOME)" || { echo "ERRO: NOME=<nn_assunto> obrigatório."; exit 1; }
+	@$(GCP_TF) plan -no-color -out=../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME).txt 2>&1; \
+		rc=$$?; grep -E "Plan:|No changes" $(GCP_PLANOS)/$(NOME).txt; exit $$rc
+
+gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=05_rede; guarda o estado antes
+	@test -f $(GCP_PLANOS)/$(NOME).tfplan || { echo "ERRO: plano $(NOME) não existe; rode gcp-plan."; exit 1; }
+	@cp terraform/terraform.tfstate $(GCP_PLANOS)/tfstate_$(NOME).bak
+	@$(GCP_TF) apply -no-color ../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME)_apply.txt 2>&1; \
+		rc=$$?; tail -3 $(GCP_PLANOS)/$(NOME)_apply.txt; exit $$rc
+
+gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e logs separados do local
+	@cd dbt && set -a && . ../.env && set +a && ../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
+
+gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do legado, contagens das camadas e catálogo
+	@set -a; . ./.env; set +a; \
+	.venv/bin/python -m mvp_ed1.gcp.oraculo trusted.legacy_classifications \
+		--chave source_system,snapshot_id,source_table,legacy_row_id \
+		--colunas classification,rejection_origin,catalog_version,treatment_fingerprint \
+		--json findings:code,column && \
+	.venv/bin/python -m mvp_ed1.gcp.oraculo contagens; \
+	.venv/bin/python -m mvp_ed1.gcp.catalogo
+
+gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
