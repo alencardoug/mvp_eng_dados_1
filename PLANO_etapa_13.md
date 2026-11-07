@@ -357,6 +357,12 @@ confirmada**: conferir com o Gemini (URL oficial) no sábado; se a API não acei
 fica pendente e é dita assim. **Prova:** linhagem de uma coluna de `consumption` até a origem na
 consola, e o número de arestas publicadas igual ao do módulo.
 
+> **Revisto pela D80 (07/11/2026, Owner):** evento customizado não leva linhagem por coluna, e o
+> BigQuery já a captura sozinho dos *jobs* do dbt. Por coluna, a **nativa**, medida contra o
+> módulo (paridade); por tabela, as travessias de fora do BigQuery, pela API nativa (o *endpoint*
+> OpenLineage recusa o Cloud SQL); `domain`/`owner` como *labels* do BigQuery pelo dbt.
+> [Registro §23](docs/registro_fase_gcp.md#23-g5-catálogo-e-linhagem-07112026-noite).
+
 ### G6 — a parte cara da janela (quarta 07:00 → 22:00)
 
 O roteiro da §7. Provas até **21:00**; **exportação** do registro de execução e das medições para

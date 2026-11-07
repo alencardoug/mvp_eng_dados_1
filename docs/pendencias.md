@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, e a D79 no G4 (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4 |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4 e a D80 no G5 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5 |
 
 ---
 
@@ -261,6 +261,17 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D80 — a linhagem por coluna é a nativa do BigQuery; o metadado vai em *labels* (decidida em 07/11/2026)
+
+**Decisão**, as duas opções recomendadas, no G5 da Etapa 13: **por coluna**, a linhagem que o
+BigQuery captura sozinho dos *jobs* do dbt, **medida** contra o módulo do Dicionário §3 em vez de
+publicada a partir dele — evento OpenLineage customizado não leva linhagem por coluna
+([about-data-lineage](https://docs.cloud.google.com/dataplex/docs/about-data-lineage)); **por
+tabela**, as travessias de fora do BigQuery publicadas pela API; e `domain`/`owner`/`retention`
+como ***labels*** do BigQuery, derivados do `meta` por um *post-hook* do dbt, no lugar de um tipo de
+*aspect* do Dataplex (recurso novo e uma API a mais para provar). Revê o texto do G5 no plano, que
+previa publicar as arestas do módulo. Como ficou: [Registro §23](registro_fase_gcp.md#23-g5-catálogo-e-linhagem-07112026-noite).
 
 ### D79 — as *policy tags*: quais níveis, quem cria, quem lê, quando o fluxo roda (decidida em 07/11/2026)
 
