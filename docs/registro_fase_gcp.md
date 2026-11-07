@@ -790,3 +790,44 @@ cobram), aprovado pelo Owner e aplicado.
 DAG converge as fontes logo depois dela) e de **uma reclassificação** (mudar o nível de uma coluna no
 YAML, deixar o fluxo e o dbt agirem e inventariar). O desmonte ganhou o passo de desligar o fluxo
 (`MVP_GCP_ATIVO=false`, PLANO §6.5 passo 1).
+
+## 23. G5: catálogo e linhagem (07/11/2026, noite)
+
+**Decidido pelo Owner** (D80, [Pendências §2](pendencias.md#d80--a-linhagem-por-coluna-é-a-nativa-do-bigquery-o-metadado-vai-em-labels-decidida-em-07112026)),
+sobre o que a documentação e a API mostraram antes de qualquer código:
+
+| Fato | Fonte | Efeito |
+|---|---|---|
+| Evento OpenLineage customizado **não** leva linhagem por coluna | [about-data-lineage](https://docs.cloud.google.com/dataplex/docs/about-data-lineage), "Column-level lineage limitations"; [openlineage-mapping](https://docs.cloud.google.com/knowledge-catalog/docs/openlineage-mapping) | publicar as arestas do módulo daria só linhagem por tabela |
+| O BigQuery já registrou a linhagem **por coluna** dos *jobs* do dbt de hoje — `CREATE TABLE AS SELECT`, `CREATE VIEW` — com o tipo de cada dependência | `searchLinks` com `field`, em 07/11/2026 | por coluna, a nativa; o módulo vira a régua |
+| Não se coleta linhagem por coluna de *job* com mais de 1.500 ligações de coluna; ela aparece em até 24 h e fica 30 dias | mesma página | as ausências se explicam por isso (abaixo) |
+| O `searchLinks` aceita até 20 colunas da mesma tabela por consulta (`targets.entities`); uma por coluna estoura a cota (429) | documento de descoberta da API; medido | a paridade consulta por relação, com espera no 429 |
+| O *endpoint* OpenLineage recusa o espaço de nomes do Cloud SQL ("Unrecognized input"); o evento nativo aceita o FQN `cloudsql_postgresql:` | medido | as travessias vão pela API nativa (processo, execução, evento) |
+
+**A paridade** [medido, `data/medicoes/etapa_13/g5/paridade.json` e `paridade_por_relacao.json`]:
+das **4.982** arestas de valor que o módulo deriva do SQL (2.772 colunas), **4.399 estão na captura
+nativa (88,3 %)**; as **583** que faltam vêm de **duas** relações só, e nelas a nativa não tem
+**nenhuma** aresta por coluna, embora tenha a por tabela: `trusted.legacy_presence_by_capture` (536
+arestas no módulo; a união das 40 tabelas do legado; 42 arestas por tabela na nativa) e
+`analytics.fact_shipment_item` (47; 10 por tabela) — o limite de 1.500 ligações por *job*. Em todas
+as outras relações, **100 %** das arestas do módulo estão na nativa. A nativa é mais larga, como
+esperado: 14.637 arestas a mais, quase todas `OTHER` (*join* e filtro), que o módulo não conta como
+origem do valor. Nessas duas, a linhagem por coluna fica no Dicionário §3, não na nuvem.
+
+**As travessias** [medido, `travessias.json`]: **79 de 79** publicadas — uma por tabela extraída pelo
+Airbyte (36 + 40), o certificado de captura, o Debezium Server (`oltp.inventory_movements` → tópico
+do Pub/Sub) e o Beam (tópico → `raw.inventory_movements_stream`).
+
+**Uma coluna de `consumption` até a origem** [medido, `caminho_ate_a_origem.txt`]: o valor de
+`monthly_revenue_by_channel_and_category.net_revenue_amount` ← `fact_sales_order_item` ←
+`trusted.order_items` ← `stg_retail__order_items` ← `raw.order_items`, cada salto uma aresta do módulo
+**presente na nativa**; e `raw.order_items` ← `cloudsql_postgresql:…mvp-ed1-origens.<banco>.oltp.order_items`,
+a travessia publicada. A captura de tela da mesma cadeia na consola fica para a janela, com o Cloud
+SQL de pé.
+
+**O metadado** [medido]: `domain`, `owner` e `retention` como *labels*, por um *post-hook* do dbt
+(`rotulos_no_bigquery.sql`) que os lê do `meta` — `analytics.dim_brand`: `domain=catalogo`,
+`owner=data_custodian`, `retention=rebuildable`; a view `monthly_revenue_by_channel_and_category`:
+`domain=vendas`. As descrições já iam pelo `persist_docs` (G1.4). Os *labels* das demais relações
+entram no próximo `gcp-dbt-build`.
+
