@@ -523,9 +523,17 @@ airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão 
 	@$(AIRBYTE_TF_ENV); \
 		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false -parallelism=1 $(if $(filter 1,$(AUTO)),-auto-approve)
 
-airbyte-plan: require-env require-terraform ## Mostra o que o airbyte-config mudaria no Airbyte local, sem aplicar (sai 2 se há mudança)
+airbyte-plan: require-env require-terraform ## Mostra o que o airbyte-config mudaria no Airbyte local, sem aplicar; falha se há mudança ou erro, e diz qual
+	@# O `-detailed-exitcode` distingue nada (0), erro (1) e mudança (2), mas o `make` devolve 2
+	@# para qualquer falha de receita: quem diz qual das três foi é a última linha.
 	@$(AIRBYTE_TF_ENV); \
-		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) plan -input=false -no-color -detailed-exitcode
+		$(TERRAFORM) init -input=false -no-color >/dev/null || exit 1; \
+		$(TERRAFORM) plan -input=false -no-color -detailed-exitcode; rc=$$?; \
+		case $$rc in \
+			0) echo "airbyte-plan: nada a mudar" ;; \
+			2) echo "airbyte-plan: HÁ MUDANÇA (acima); nada foi aplicado"; exit 1 ;; \
+			*) echo "airbyte-plan: o plan falhou (acima)"; exit 1 ;; \
+		esac
 
 sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 descarta o cursor antes
 	@$(CREDENCIAIS); \
