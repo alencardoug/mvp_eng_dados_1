@@ -920,3 +920,23 @@ corte antigo teria deslocado o saldo (a soma desses eventos no par não é zero)
 
 A D62 fica provada nas duas fases: na nuvem pelo alerta da prova quente (§19), aqui pelo saldo de
 cada alerta contra o livro.
+
+## 27. A raiz `airbyte/` sem mudança no local (07/11/2026, noite)
+
+A pendência do §21: o `plan` local da raiz `airbyte/` depois da variável `armazem` e do destino
+BigQuery condicional. Pelo alvo novo `make airbyte-plan` (planeja com as mesmas variáveis do
+`airbyte-config`, sem aplicar), no *workspace* `default`: **"No changes. Your infrastructure matches
+the configuration."** [medido, `data/medicoes/etapa_13/g3/airbyte_plan_local.txt`].
+
+Duas coisas do caminho até aí:
+
+- **o alvo nasceu com um defeito meu:** a ajuda dizia "sai 2 se há mudança", mas o `make` devolve 2
+  para **qualquer** falha de receita, e a primeira rodada deu 2 por **erro** (API fora). A receita
+  agora traduz o `-detailed-exitcode` na última linha — nada a mudar, mudança ou falha;
+- **o Airbyte demorou a voltar:** o preflight recusou primeiro por memória (sobravam 0,3 GB; o Owner
+  liberou a máquina), e depois da retomada o `airbyte-server` reiniciou pela sonda de vida antes de
+  terminar de subir (código 143, a 77ª reinicialização em 43 dias) até a API responder, 80 s depois
+  de o `airbyte-resume` desistir de esperar. O `workload-launcher` seguia reiniciando; o `plan` não
+  dispara *job* e não depende dele.
+
+A máquina voltou ao estado de antes: Airflow de pé; Airbyte e *streaming* pausados.
