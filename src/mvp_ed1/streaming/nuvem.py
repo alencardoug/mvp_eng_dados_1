@@ -167,15 +167,14 @@ class GravarEventos(beam.DoFn):
             yield TimestampedValue(evento, _instante(evento))
 
 
-def semente(bq: BigQuery, destino: Destino) -> tuple[dt.datetime, list[tuple[int, int, int]]]:
-    """O instante do servidor e o saldo durável antes dele — o corte do `AcumularSaldoEAlertar.setup`."""
-    inicio = bq.escalar("select current_timestamp()")
+def semente(bq: BigQuery, destino: Destino, inicio: dt.datetime) -> list[tuple[int, int, int]]:
+    """O saldo durável antes de `inicio` — o instante em que o *pipeline* foi construído (D62)."""
     linhas = bq.linhas(
         f"select warehouse_id, product_variant_id, sum(quantity_delta) as s from {bq.tabela(destino.qualificado)} "
         "where _stream_extracted_at < :inicio group by 1, 2",
         {"inicio": inicio},
     )
-    return inicio, [(l["warehouse_id"], l["product_variant_id"], l["s"]) for l in linhas]
+    return [(l["warehouse_id"], l["product_variant_id"], l["s"]) for l in linhas]
 
 
 class Semear:
@@ -184,11 +183,11 @@ class Semear:
     def __init__(self, destino: Destino):
         self._destino = destino
 
-    def __call__(self):
+    def __call__(self, inicio: dt.datetime):
         bq = armazem()
         try:
             garantir_tabela(bq, self._destino)
-            return semente(bq, self._destino)
+            return semente(bq, self._destino, inicio)
         finally:
             bq.dispose()
 

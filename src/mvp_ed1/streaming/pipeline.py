@@ -150,9 +150,14 @@ class AcumularSaldoEAlertar(beam.DoFn):
 
     SALDO = userstate.ReadModifyWriteStateSpec("saldo", VarIntCoder())
 
-    def __init__(self, limiar: int, destino, semear=None):
+    def __init__(self, limiar: int, destino, inicio: dt.datetime, semear=None):
         self._limiar = limiar
         self._destino = destino
+        #: O corte da semente: o instante em que o *pipeline* foi **construído**, não o do
+        #: `setup` (D62). O `setup` roda quando o primeiro painel chega, e a gravação da
+        #: mesma execução já escreveu eventos antes disso — eles entrariam na semente e
+        #: voltariam pelo fluxo, contados duas vezes.
+        self._inicio = inicio
         #: Na nuvem, a semente lê o BigQuery (`nuvem.Semear`); sem ela, o armazém local.
         self._semear = semear
         self._semente: dict[tuple[int, int], int] = {}
@@ -167,8 +172,10 @@ class AcumularSaldoEAlertar(beam.DoFn):
         nada cruzaria um limiar partindo de zero, e o alerta nunca dispararia.
 
         O corte é **temporal e exato**: entra na semente tudo que foi gravado
-        *antes* de esta instância começar. O que ela mesma gravar carrega carimbo
-        posterior e chega pelo fluxo, uma vez só. Evento gravado por uma execução
+        *antes* de o *pipeline* ser construído (D62, decidida em 07/11/2026: até
+        então o corte era o instante do `setup`, que vem depois das primeiras
+        gravações). O que esta execução gravar carrega carimbo posterior e chega
+        pelo fluxo, uma vez só. Evento gravado por uma execução
         anterior e nunca contabilizado por ela não existe — o destino grava antes
         de encaminhar, e o que já está gravado volta como duplicata e é barrado.
 
@@ -177,7 +184,7 @@ class AcumularSaldoEAlertar(beam.DoFn):
         mesmo código dar o mesmo resultado nos dois, que é o ponto do **P4**.
         """
         if self._semear is not None:
-            self._inicio, linhas = self._semear()
+            linhas = self._semear(self._inicio)
             self._semente = {(w, v): int(s) for w, v, s in linhas}
             LOG.info("saldo semeado a partir de %s pares já duráveis", len(self._semente))
             return
@@ -189,7 +196,6 @@ class AcumularSaldoEAlertar(beam.DoFn):
         motor = engine()
         try:
             with motor.connect() as conexao:
-                self._inicio = conexao.execute(sa.text("select now()")).scalar_one()
                 linhas = conexao.execute(
                     sa.text(
                         f"select warehouse_id, product_variant_id, sum(quantity_delta) "
@@ -261,6 +267,9 @@ def construir(p: beam.Pipeline, fluxo: Fluxo, *, nuvem: bool = False) -> dict[st
     do saldo lê o BigQuery. Deduplicação, janela, gatilho e saldo são os mesmos.
     """
     proc = fluxo.processamento
+    # O corte da semente (D62): o relógio de quem constrói, o mesmo que carimba o
+    # `_stream_extracted_at` na gravação — tudo o que esta execução gravar vem depois.
+    inicio = dt.datetime.now(dt.timezone.utc)
     if nuvem:
         import os
 
@@ -328,7 +337,7 @@ def construir(p: beam.Pipeline, fluxo: Fluxo, *, nuvem: bool = False) -> dict[st
             trigger=trigger.Repeatedly(trigger.AfterCount(1)),
             accumulation_mode=trigger.AccumulationMode.DISCARDING,
         )
-        | "AcumularSaldo" >> beam.ParDo(AcumularSaldoEAlertar(fluxo.limiar_de_unidades, fluxo.destino, semear))
+        | "AcumularSaldo" >> beam.ParDo(AcumularSaldoEAlertar(fluxo.limiar_de_unidades, fluxo.destino, inicio, semear))
         | "PublicarAlerta" >> publicar
     )
 

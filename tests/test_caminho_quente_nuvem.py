@@ -192,7 +192,9 @@ def test_no_bigquery_de_verdade_fragmentos_diferentes_escrevem_em_paralelo(real)
     assert resultados == {"p": ["p1", "p2"], "q": ["q1", "q2"]}
 
 
-def test_no_bigquery_de_verdade_a_semente_ve_so_o_que_veio_antes(real):
-    nuvem.escrever_lote(real, DESTINO, _tipados("s1"))
-    inicio, linhas = nuvem.semente(real, DESTINO)
-    assert linhas == [(1, 2, -3)] and inicio.tzinfo is not None
+def test_no_bigquery_de_verdade_a_semente_ve_so_o_que_veio_antes_do_inicio(real):
+    """D62: o que o pipeline grava depois de construído não entra na semente."""
+    nuvem.escrever_lote(real, DESTINO, _tipados("antes"))
+    inicio = dt.datetime.now(dt.timezone.utc)
+    nuvem.escrever_lote(real, DESTINO, _tipados("depois"))
+    assert nuvem.semente(real, DESTINO, inicio) == [(1, 2, -3)]
