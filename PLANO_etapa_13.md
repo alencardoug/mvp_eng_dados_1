@@ -334,6 +334,57 @@ serviço **depois** de o faturamento estar completo (até dois dias depois do de
 na sexta, se ainda incompleto, registrado como **parcial**, e o fechamento econômico fica pendente
 — sem estender a vida de recurso nenhum. *Tag* `v2.0.0` (D47) **só** com todos os critérios.
 
+### G9 — as evidências e o caso de portfólio (do G0 ao G8)
+
+**O objetivo do Owner** (07/11/2026): comprovar que ele consegue replicar uma estrutura local
+adequada na nuvem — e mostrar isso no portfólio, como caso, por código, capturas de tela,
+documentos e páginas, em conteúdo **humanamente interessante**. Como a infraestrutura é destruída,
+**o que não for capturado antes do `destroy` não existe para o portfólio.** Por isso a captura é
+roteiro, não improviso.
+
+**Onde fica cada coisa:**
+
+| Evidência | Onde | Quem produz |
+|---|---|---|
+| O processo, em ordem, com comandos e saídas | [Registro da fase GCP](docs/registro_fase_gcp.md) | Claude Code, no momento |
+| Capturas da consola e GIFs | `docs/registro_fase_gcp/capturas/`, nome `AAAA-MM-DD_NN_assunto` | Claude Code, pelo Chrome do Owner (Claude in Chrome); o e-mail e o avatar do Owner podem aparecer (decisão de 07/11), o ID da conta de faturamento fica fora do quadro |
+| Saídas de `plan`/`apply`/`destroy` e consultas | trechos no Registro; os planos binários ficam em `data/` | Claude Code |
+| Diagrama local ↔ GCP | Registro e caso | Claude Code, no G8 |
+| O caso de portfólio | redigido aqui, no texto do projeto B em `CONVERSAS_COM_CHAT/TEXTO_PORTFOLIO_engenharia_de_dados.md`; publicado pelo Owner no portfólio (`/v1/projects/*`) **depois do M6**, pelas regras de lá — decisão de 07/11 | Claude Code redige; o Owner publica; o repositório do portfólio não é tocado sem pedido |
+
+**O roteiro de capturas** — cada uma com a frase que ela prova:
+
+| # | Quando | O que | O que prova |
+|---|---|---|---|
+| 01 | G0 ✓ | Painel do projeto recém-criado, com a faixa do crédito e dos dias restantes | o ponto de partida e o relógio |
+| 02 | G0 | O orçamento com os créditos excluídos | o custo é vigiado de verdade |
+| 03 | seg | BigQuery: os nove *datasets*, uma fato particionada e clusterizada | as camadas atravessaram |
+| 04 | seg | Cloud SQL: a instância e os dois bancos | a origem existe na nuvem |
+| 05 | ter | GKE: os *workloads* do Airbyte e do Debezium Server | o mesmo Airbyte, no GKE |
+| 06 | ter | Airbyte: a sincronização para o BigQuery, sem chave | D72 |
+| 07 | qua | Composer: a DAG `fluxo_batch` com as tarefas verdes | a mesma DAG, gerenciada |
+| 08 | qua | Dataflow: o grafo do *job* e as métricas | o mesmo Beam, gerenciado |
+| 09 | qua | Pub/Sub: os tópicos e uma mensagem de alerta | o caminho quente de ponta a ponta |
+| 10 | qua | A mesma consulta de `consumption` no PostgreSQL local e no BigQuery, lado a lado, com o mesmo número | **paridade** — a captura central do caso |
+| 11 | qua | *Policy tag* numa coluna e a consulta **negada** a quem não pode | governança aplicada, não declarada |
+| 12 | qua | *Authorized view*: o analista lê a view e é negado na tabela | idem |
+| 13 | qua | Linhagem no catálogo | o catálogo atravessou (ou o limite dela, dito como é) |
+| 14 | qua | *Logs* de auditoria da negação | a prova fica registrada pela própria nuvem |
+| 15 | qua 21:30 | O `terraform destroy` do degrau caro | o desmonte é código |
+| 16 | qui | Inventário de recursos vazio | nada ficou para trás |
+| 17 | qui 12:00 | Faturamento do projeto desligado | o relógio de emergência funcionou |
+| 18 | qui 15:00 | Projeto em exclusão | o fim declarado |
+| 19 | sex e depois | O relatório de custo por serviço | estimado × real |
+
+Mais dois GIFs na quarta: a DAG rodando no Composer e o grafo do Dataflow recebendo eventos.
+
+**O que torna o caso interessante** (fio da narrativa, para o G8): o prazo de sete dias e a conta
+que se apaga sozinha; as quatro armadilhas achadas **antes** de gastar — o Datastream que não fala
+com o Pub/Sub, a trava de retenção que impediria apagar o projeto, as *policy tags* que somem a cada
+*build*, a idempotência que quebra sob concorrência —; a revisão por outro agente pegando nove
+bloqueantes num plano que parecia pronto; o dia da janela; o desmonte provado; o custo estimado
+contra o real. E, se houver, o que **não** deu certo, dito como é.
+
 ---
 
 ## 6. A janela

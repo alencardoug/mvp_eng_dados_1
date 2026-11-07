@@ -20,7 +20,7 @@
 |---|---|
 | Versão | 1.0 |
 | Abertura | 06/11/2026 |
-| Última revisão | 07/11/2026 — G0: projeto, fundação aplicada, preços lidos |
+| Última revisão | 07/11/2026 — G0: projeto, fundação aplicada, preços lidos, roteiro de evidências |
 
 ---
 
@@ -184,3 +184,21 @@ em DCU não está escrita; o que a página traz é um **exemplo oficial** — 12
 em uso normal, 15 com mais *workers*, a US$ 0,06 —, lido do HTML baixado depois que o Gemini
 esgotou também a cota de `url_context` (429, 07/11). A estimativa por serviço está na
 [Capacidade §2.14](capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026).
+
+## 7. As evidências para o portfólio (07/11/2026)
+
+O Owner, no meio do G0: "o produto que terei ao término deste projeto é o processo de construção,
+visto que o produto em si construído será destruído" — e o objetivo é **comprovar que consegue
+replicar uma estrutura local adequada na nuvem**, mostrando isso no portfólio por código, capturas,
+documentos e páginas, em conteúdo humanamente interessante.
+
+Daí três coisas: este registro passou a ser escrito **no momento**, não no fim; o plano ganhou um
+roteiro de capturas com a frase que cada uma prova (19 capturas e 2 GIFs, a maioria na quarta, antes
+do `destroy`); e o caso de portfólio será redigido aqui e publicado pelo Owner no portfólio depois
+do M6. As capturas saem do Chrome do Owner, logado na consola, e ficam em
+[`registro_fase_gcp/capturas/`](registro_fase_gcp/capturas/).
+
+**A primeira captura** — o painel do projeto recém-criado; a faixa no alto é a própria consola
+contando o crédito e os dias restantes da avaliação:
+
+![Painel do projeto mvp-ed1-gcp em 07/11/2026](registro_fase_gcp/capturas/2026-11-07_01_projeto_criado.jpg)
