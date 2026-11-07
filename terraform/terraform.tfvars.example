@@ -8,3 +8,6 @@ enable_cheap     = false
 enable_cloud_sql = false
 enable_gke       = false
 enable_composer  = false
+
+# Prova de acesso por papel (iam.tf): quem personifica as contas analyst e auditor.
+owner_member = "user:voce@exemplo.com"

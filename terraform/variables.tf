@@ -65,3 +65,9 @@ variable "enable_composer" {
   type        = bool
   default     = false
 }
+
+variable "owner_member" {
+  description = "O Owner como principal do IAM (`user:<email>`), para personificar as contas de papel nas provas de acesso. Vazio desliga. Fica no terraform.tfvars, fora do Git."
+  type        = string
+  default     = ""
+}

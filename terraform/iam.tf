@@ -26,3 +26,16 @@ resource "google_service_account" "role" {
 
   depends_on = [google_project_service.this]
 }
+
+# Prova de acesso por papel (G1, "o analista lê consumption e é negado em analytics"):
+# o Owner roda a consulta **como** a conta do papel, por personificação de curta duração
+# (`gcloud … --impersonate-service-account`), sem chave nenhuma. O papel de Owner do
+# projeto não inclui criar token de outra conta; este vínculo dá isso, só nas duas contas
+# cujas negações o plano prova, e some com o projeto.
+resource "google_service_account_iam_member" "owner_personifica" {
+  for_each = var.enable_cheap && var.owner_member != "" ? toset(["analyst", "auditor"]) : toset([])
+
+  service_account_id = google_service_account.role[each.key].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = var.owner_member
+}
