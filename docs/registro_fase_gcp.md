@@ -489,3 +489,26 @@ contra o Cloud Storage real está escrita (`GCP_TESTES=1`) e **espera o *bucket*
 (`captura.py`, `capture_recovery.py`, as medidas do `ledger`); a escrita do certificado em *staging*
 + `MERGE`; os *locks* no Cloud SQL, separados do *insert*; o DDL da governança; a guarda de
 identidade do `airbyte.py`; a época inicial no projeto novo.
+
+## 15. G2.1, segunda peça: o DDL do `governance` no BigQuery (07/11/2026, manhã)
+
+`governance.garantir_bigquery()` aplica no BigQuery as **mesmas** duas migrações, com os mesmos
+nomes, e as registra no mesmo `_versions`: a lista diz, nos dois armazéns, quais valem. Sem
+transação que envolva DDL no BigQuery, cada migração é idempotente por si e só entra em `_versions`
+depois de todos os comandos dela.
+
+O que o BigQuery não impõe, e para onde foi: o `check (status in …)` e a chave primária (lá,
+`not enforced`) viraram **testes da fonte** — `accepted_values` no `status` e combinação única de
+`(capture_attempt_id, source_table)` —, gerados pelo `make legacy-models` a partir das constantes
+da `captura`, e por isso rodando **nos dois alvos**: a regra continua uma só. O índice virou
+*clustering* pelas mesmas colunas.
+
+**Prova** [medido]: `tests/test_governanca_bigquery.py` — as duas listas com os mesmos nomes na mesma
+ordem; o `create table` dos dois dialetos lido pelo `sqlglot` com as mesmas colunas, tipos
+equivalentes e nulidade; os testes da fonte com os mesmos vereditos do `check`. Com `GCP_TESTES=1`,
+num *dataset* temporário apagado no fim: as migrações aplicam do zero, a segunda chamada não aplica
+nada, *clustering* e ordem das colunas conferidos (4 testes, 16 s). Os testes novos da fonte passaram
+no armazém local e no BigQuery (`dbt test --select source:governance.legacy_captures`).
+
+O BigQuery cobrou, de novo, uma ordem que a documentação não grita: `default` vem **antes** de
+`not null` na definição da coluna.
