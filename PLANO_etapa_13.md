@@ -96,8 +96,8 @@ recuperação da captura (`capture_recovery.recover`) e o livro retido.
   parcial com segunda janela paga depois. Consequência registrada na regra 3 do §0.
 - **D69 — o caminho quente chega ao Pub/Sub pelo Debezium Server** (*sink* `pubsub`), num *pod* do
   mesmo GKE do Airbyte; o Beam no Dataflow lê com `ReadFromPubSub`. Sai o Datastream do mapa.
-  **ADR-0051**, que também fixa o contrato do caminho (§5, G2.3) — porque o ADR-0019 garante
-  idempotência por `movement_id`, e a garantia tem de atravessar a troca.
+  [ADR-0051](docs/adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md), que fixa a garantia do
+  ADR-0019 — idempotência por `movement_id`, alerta só do evento que entrou — através da troca.
 - **D70 — retenção sem trava no *bucket* do livro retido**, removida no desmonte antes de
   esvaziar o *bucket*. A trava do ADR-0050 fica declarada como contrapartida de produção, **não
   medida**; nota datada no ADR-0050.
