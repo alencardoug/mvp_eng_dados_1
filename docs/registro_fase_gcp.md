@@ -729,6 +729,13 @@ texto (A17). O dos *releases* só se faz com o *cluster* de pé.
 
 **A conferir** (não medido): o plano da raiz `airbyte/` contra o Airbyte local mostrando nada a
 mudar — os endereços do estado são os mesmos, mas a prova pede a API local de pé, e ela está pausada;
-os *templates* do chart local renderizados (`helm template`; o Helm não está instalado nesta
-máquina — é a primeira coisa do `apply` de terça); o alvo do Makefile que aplica a raiz `airbyte/` no
-*workspace* `gcp` por `kubectl port-forward`, que nasce com o *cluster*.
+o alvo do Makefile que aplica a raiz `airbyte/` no *workspace* `gcp` por `kubectl port-forward`, que
+nasce com o *cluster*.
+
+**Renderizado** [medido]: o Helm `v3.22.1` (a linha do provider do Terraform) entrou no `make tools`,
+fixado pela soma SHA-256 — o desmonte da §6.5 usa `helm uninstall`. O chart local passa no
+`helm lint` e renderiza conta, ConfigMap com o `application.properties` gerado, Secret, PVC e
+Deployment. O do Airbyte, com os valores do projeto: `AIRBYTE_URL`, `STORAGE_TYPE=minio`,
+`JOB_KUBE_SERVICEACCOUNT=airbyte-admin` e a anotação `iam.gke.io/gcp-service-account` na conta. Um
+cuidado que o *template* mostrou: a `airbyte-admin` nasce como *hook* `pre-install`, e uma anotação
+mudada depois **não** chega a ela por `upgrade` — tem de estar certa no primeiro `apply`.
