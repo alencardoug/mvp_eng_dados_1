@@ -234,3 +234,149 @@ esperar os dois corpos.
 **Próximo:** a classificação do legado, escrita à mão para o BigQuery (recursão, JSON dinâmico,
 `lateral`), e o oráculo **semântico** — o mesmo bruto nos dois alvos, a classificação comparada
 linha a linha.
+
+## 9. G1 — o dbt nos dois alvos, segunda metade (07/11/2026, madrugada)
+
+**A classificação do legado, à mão.** O `sqlglot` traduz os 40 modelos de limpeza, mas não a
+classificação: `jsonb_each_text`, `lateral`, `pg_input_is_valid` e o recursivo com `union` não têm
+tradução mecânica. O corpo BigQuery foi escrito à mão (`legacy/classification_bigquery.sql`), a
+mesma regra noutro dialeto, e o gerador o põe no lugar da tradução. O que o BigQuery recusou no
+caminho, rodada a rodada: `NULLS LAST` em agregado ascendente (a ordem virou `x is null, x`), um
+`not exists` sobre `union distinct` que ele não descorrelaciona (virou anti-junção). O recursivo:
+o PostgreSQL termina em ciclo porque o `union` deduplica; o BigQuery só aceita `union all`, então a
+profundidade é limitada em 64 e o modelo **recusa** se alguma ocorrência só aparece no limite — em
+ciclo ela já apareceu antes, e a guarda não dispara.
+
+**O oráculo semântico** [medido]: o mesmo bruto nos dois alvos, a classificação comparada linha a
+linha por `(source_system, snapshot_id, source_table, legacy_row_id)` — **12.741 × 12.741 linhas,
+0 divergências**, nos campos `classification`, `rejection_origin`, versão, impressão digital e na
+lista ordenada de achados (código e coluna). Ferramenta: `python -m mvp_ed1.gcp.oraculo`.
+
+**Os modelos escritos à mão.** O plano contava "~25"; eram 70 modelos, 4 *snapshots*, 34 testes
+singulares e 15 macros. A técnica foi uma só: **macro com duas metades** (`macros/portavel.sql`) —
+a `default__` emite o texto que o modelo já tinha, a `bigquery__` o equivalente. Uma passada
+mecânica (`count(*) filter (where …)`, `extract(epoch …)`, `at time zone`, `timestamptz '…'`,
+`x::tipo`) e o resto à mão. O que o BigQuery cobrou, e que nenhuma leitura da documentação teria
+listado de antemão:
+
+| Recusa do BigQuery | Saída |
+|---|---|
+| tipo parametrizado no `cast` (`numeric(12, 4)`) | `decimal_fixo`: `round(cast(x as numeric), 4)` — o mesmo arredondamento |
+| `percentile_cont` só como janela | `mediana`: lista ordenada, interpolação em FLOAT64 como o `double` do PostgreSQL |
+| `count(distinct (a, b))` sobre STRUCT | `contar_distintos`: o texto JSON da combinação |
+| `except all` não existe | `diferenca_multiconjunto`: a linha como JSON e a ocorrência numerada |
+| `varchar(n)` nos *seeds*, `timestamp with time zone` no contrato | o tipo escolhido por alvo no `.yml` |
+| `100.0` é FLOAT64 e o contrato diz `numeric` | `cast(100.0 as numeric)`; `sum` de bigint é numeric lá e INT64 aqui |
+| descrição de coluna com mais de 1.024 caracteres | cortada **só no BigQuery**, com a indicação do catálogo |
+| `where` sem `from` | uma linha de `from` |
+| `lateral` e `exists` com chave canônica correlacionada | junções sobre as chaves calculadas antes |
+
+**O oráculo de compilação ficou mais fino.** Igualdade de texto não basta mais: `x::int` e
+`cast(x as int)` são o mesmo SQL. O comparador (`python -m mvp_ed1.gcp.compilacao`) classifica
+cada arquivo compilado do alvo local em **igual** (texto), **equivalente** (a mesma árvore no
+`sqlglot`, sem comentários) ou **diferente** — e com `--rodar` executa os diferentes, antes e
+depois, no armazém local, comparando linhas e tipos. Resultado [medido]: **858 iguais, 30
+equivalentes, 11 diferentes na árvore e com o mesmo resultado no armazém** (`cast(100.0 as
+numeric)` no lugar de `100.0`, por exemplo). O caminho local não mudou.
+
+**Achado latente** (não corrigido, registrado): o membro desconhecido de `dim_support_agent` tem
+`hired_at = date 'period_start'` numa coluna `timestamptz` — o PostgreSQL converte na meia-noite do
+**fuso da sessão**. Local é UTC e o resultado é estável; noutro fuso mudaria. É a mesma classe do
+RVL3-6-04. O `cast` explícito agora diz isso em voz alta; a decisão ficou para o Owner
+([D76](pendencias.md#d76--o-membro-desconhecido-do-agente-é-contratado-à-meia-noite-do-fuso-da-sessão)).
+
+**A canonização no BigQuery** [medido]: a `bigquery__chave_canonica` rodou no BigQuery sobre as
+mesmas formas que provam a do PostgreSQL (`tests/test_legado_remocao.py`: hexadecimal, octal,
+binário, `_`, as fronteiras de cada domínio, cadeias de 131 mil caracteres) e devolveu o que o
+`cast` do PostgreSQL devolve em **todas** — `GCP_TESTES=1 pytest tests/test_gcp_dialetos.py`,
+12 testes, 16 s. Fica fora do `make check`: o projeto é destruído no fim da etapa.
+
+**O build inteiro no BigQuery** [medido, 07/11/2026 ~04h20]: `dbt build --target gcp` —
+**PASS=907, 0 erros**, o mesmo número do `make check` local: *seeds*, *snapshots*, os 9 schemas,
+testes de dados, *unit tests* e contratos. Foram cinco *builds* até lá (`g1_build_01` a `05`):
+2 erros, 3, 1, 3, 0 — cada um destravando os nós que o anterior pulava.
+
+**A paridade das camadas** [medido]: `python -m mvp_ed1.gcp.oraculo contagens` — **277 de 278**
+tabelas e views com a mesma contagem de linhas nos dois alvos. A única diferença é a quarentena
+(84.843 × 2.855), e é de propósito: ela é destino permanente (ADR-0037) e guarda localmente 27
+auditorias; recortada na captura e no tratamento correntes, dá **2.855** dos dois lados.
+
+**Partição, *clustering* e *authorized views*** [medido]: as dez fatos reconstruídas com
+`--full-refresh` (PASS=269), particionadas por mês e clusterizadas (por exemplo,
+`fact_sales_order_item`: `placed_at`, `MONTH`, `[source_system, sales_channel_key,
+product_key]`), e **16 views de `consumption` autorizadas** no *dataset* `analytics`.
+
+## 10. Decisões da sessão autônoma (07/11/2026, madrugada) — para o Owner ler
+
+O Owner autorizou seguir sozinho com as decisões que eu marcaria como recomendadas, desde que
+anotadas. Nenhuma delas pede ADR; as que mexem em infraestrutura esperam a aprovação dele.
+
+| # | Decisão | Por quê | Como desfazer |
+|---|---|---|---|
+| A1 | A classificação do legado tem corpo BigQuery **escrito à mão**, não traduzido | a tradução mecânica não existe para `lateral`, `jsonb_each_text` e recursivo com `union`; o oráculo semântico é a prova | apagar `classification_bigquery.sql`; o alvo `gcp` deixa de rodar `trusted` |
+| A2 | A impressão digital do tratamento (D34) continua sendo a do **texto PostgreSQL**; o corpo BigQuery não entra nela | incluir mudaria a impressão local e criaria auditorias novas na quarentena sem o tratamento ter mudado; a equivalência é provada pelo oráculo | incluir o corpo BigQuery em `impressao_digital` |
+| A3 | Oráculo de compilação em três níveis (igual, equivalente pela árvore, mesmo resultado no armazém) | `x::int` × `cast(x as int)` não muda nada e quebrava a igualdade de texto | — |
+| A4 | Descrição de coluna acima de 1.024 caracteres é **cortada só no BigQuery**, com aviso | o limite é do BigQuery e derrubava quatro views; o texto inteiro fica no `.yml` e no catálogo | encurtar as quatro descrições na declaração |
+| A5 | Fatos particionadas **por mês** pelo instante do evento; *clustering* pela origem e duas chaves de dimensão | ~24 meses e até 81 mil linhas: diária seriam centenas de partições minúsculas | trocar `granularity` no `dbt_project.yml` |
+| A6 | Views de `consumption` autorizadas em `analytics`, `trusted` e `raw` (*authorized views*) | são os três que elas leem; sem isso o `analyst` precisaria ler `analytics` | tirar a entrada do `grant_access_to` |
+| A7 | Os *unit tests* da remoção perdem o `payloads` do *fixture* | nenhum caso confere o payload, e o BigQuery não converte texto em JSON no *fixture* | — |
+| A8 | Mediana no BigQuery pela lista ordenada, interpolada em FLOAT64 | é a conta do `percentile_cont` do PostgreSQL, que devolve `double`; o BigQuery só o tem como janela | — |
+| A9 | **Plano 04 salvo, não aplicado**: o Owner pode personificar `mvp-analyst` e `mvp-auditor` (Token Creator) | é o que falta para provar "o analista lê `consumption` e é negado em `analytics`" sem chave | não aprovar; o vínculo some com o projeto |
+
+**Para aprovar de manhã:** `data/medicoes/etapa_13/planos/04_personificacao.txt` (2 a adicionar, 0
+a mudar, 0 a destruir). Depois do `apply`, a prova é uma consulta em cada *dataset* como
+`mvp-analyst`. *(Aprovado pelo Owner às ~06h20 e aplicado — §11.)*
+
+## 11. G1 fechado e o primeiro `apply` da manhã (07/11/2026, ~06h–07h)
+
+A sessão anterior parou no limite de uso, no meio do `make check`; o vigia desligou o computador,
+como combinado. Retomada por uma conta nova do Claude Code, lendo o `RETORNO.md` do vigia e a memória.
+Antes de se ausentar, o Owner respondeu a quatro perguntas: **aplicar o plano 04**; **D76 = (a)**;
+*commits* **sem *push***; depois do G1, **o G3 só em planos**, sem `apply`.
+
+**O vigia rearmado.** O timer transitório some no *reboot*; recriado
+(`systemd-run --user --unit=mvp-vigia`), agora olhando a transcrição da conta nova — o caminho da
+transcrição virou variável do `vigia.sh`.
+
+**O socket do Docker, de novo** (o R11 registrado na memória): o primeiro `docker ps` depois do
+*boot* subiu Airbyte e Airflow juntos. `make airbyte-pause` antes do `make check`.
+
+**Os patches deixados prontos**, aplicados em ordem: os testes que renderizam macros com Jinja puro
+(a metade `default__` chamada pelo nome), o dialeto da derivação lido do *manifest* (G2.2), o
+recorte da quarentena no oráculo de contagens, os alvos `gcp-*` no `Makefile`.
+
+**O `make check` cobrou mais sete** [medido]: todas em `tests/test_vigencia_em_utc.py`, guardas que
+leem o texto SQL procurando `at time zone 'UTC'`, `interval 'N days'` e literais `timestamptz` com
+fuso — e o texto agora diz `{{ meia_noite(var("as_of_date")) }}`. A saída foi a mesma da guarda de
+identidade: **renderizar** cada chamada pela metade local antes de ler. A chamada dentro de outra
+expressão Jinja (`{% set as_of = meia_noite(…) %}`) vira a concatenação que o modelo tinha antes; o
+corpo de `default__meia_noite` sai da leitura, e uma contraprova nova confere que o padrão dele é
+`-03`. A contraprova das aspas voltou a achar os **14** literais e a acusar cada um sem o *offset*.
+Segundo `make check`: **dbt PASS=907; pytest 1.088 passaram, 7 pulados; código de saída 0**.
+
+***Commits*** (sem *push*): `1edb117` (classificação à mão), `ee8e31b` (modelos nos dois dialetos),
+`921c52a` (oráculos), `f69c065` (catálogo no dialeto do alvo), `7b092c7` (alvos `gcp-*`), `a7d2e73`
+(personificação).
+
+**Plano 04 aplicado** [medido, 06:22]: `make gcp-apply NOME=04_personificacao` — 2 adicionados, 0
+alterados, 0 destruídos, 9 s. A primeira tentativa de personificar, logo depois, recusou
+(`iam.serviceAccounts.getAccessToken` negado): o IAM leva minutos para propagar. Cinco minutos depois:
+
+| Leitura como… | `consumption` (view) | `analytics` | `trusted` | `quarantine` | `governance` | consulta (*job*) |
+|---|---|---|---|---|---|---|
+| `mvp-analyst` | **metadado lido** | negado | negado | negado | negado | negado |
+| `mvp-auditor` | negado | negado | negado | **metadado e linhas lidos** | **negado** | negado |
+
+Duas descobertas, as duas boas de achar agora e não na quarta:
+
+1. **Nenhuma conta de papel roda consulta.** No BigQuery toda consulta é um *job* do projeto, e
+   `bigquery.jobs.create` vem de `roles/bigquery.jobUser`, que ninguém tinha. No PostgreSQL não
+   existe equivalente: a consulta é da sessão. A prova de que "o analista **lê** `consumption`"
+   precisa do vínculo — entra no plano 05.
+2. **O auditor é negado em `governance`**, que a declaração do dbt concede a ele (`grants` da fonte
+   `governance`). No PostgreSQL quem concede o que fica acima do objeto — o `select` nas fontes, o
+   `create` no schema — é o `on-run-end` (`aplicar_acesso_por_camada`), e ele só roda no alvo
+   local. No BigQuery isso é IAM de *dataset*: Terraform. A lista sai **derivada** do mesmo
+   *manifest*, não escrita de novo (§12).
+
+Evidência: `data/medicoes/etapa_13/acesso/prova_02_sem_jobuser.txt`.

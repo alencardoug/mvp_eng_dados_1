@@ -13,7 +13,7 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e medida na Etapa 13). A D65 e a D67 foram fechadas pela v1.1.0, e a D68 a D74 na abertura da Etapa 13 (§2) |
+| Decisões pendentes | 6 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e medida na Etapa 13; D76, levantada pelo G1 da Etapa 13 em 07/11/2026). A D65 e a D67 foram fechadas pela v1.1.0, e a D68 a D74 na abertura da Etapa 13 (§2) |
 | Última revisão | 07/11/2026 — D69 a D74, decididas sobre a rodada 1 do plano da Etapa 13 |
 
 ---
@@ -116,6 +116,24 @@ entrega no prazo conta só a remessa com algum item aceito.
 remessas entregues (8%) no dado da v1.0.0. No da v1.1.0 ficam de fora **16** remessas legadas
 entregues, todas com os itens rejeitados em cascata (`parent_rejected`), cada uma explicada pela
 reconciliação da P13 (04/11/2026, na regeneração); o total de remessas entregues não foi recontado.
+
+### D76 — o membro desconhecido do agente é contratado à meia-noite do fuso da sessão
+
+**Pergunta:** o `hired_at` do membro desconhecido de `dim_support_agent` passa a ser a meia-noite de
+São Paulo, como o `valid_from` da mesma linha, ou fica como está?
+
+**Medido em 07/11/2026** (Etapa 13, G1): a linha escreve `date 'period_start'` numa coluna
+`timestamptz`, e o PostgreSQL converte a data na meia-noite do **fuso da sessão**. O armazém local
+roda em UTC, e o valor é `2024-01-01 00:00 UTC`; o `valid_from` da mesma linha é `2024-01-01 03:00
+UTC` (00:00 de São Paulo). Uma sessão noutro fuso mudaria o `hired_at` sem nada mudar na entrada — a
+classe do RVL3-6-04. O BigQuery recusou a união de DATE com TIMESTAMP, e o `cast` explícito que
+entrou no lugar preserva o resultado local (oráculo de compilação, `--rodar`).
+
+*Opções:* **(a)** `{{ meia_noite(var("period_start")) }}`, como o `valid_from` — recomendada: tira a
+dependência do fuso e iguala as duas datas da linha; muda o `hired_at` local em 3 horas numa linha
+sintética; **(b)** deixar, com o fuso da sessão como premissa escrita.
+
+*Efeito de não decidir:* nenhum teste falha; nenhuma view de consumo lê o `hired_at`.
 
 ### D43 — a guarda de identidade como função no armazém (adiada em 16/09/2026)
 
