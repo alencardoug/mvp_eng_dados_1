@@ -870,3 +870,29 @@ escrita, nenhum erro de importação, e o prefixo `DBT` da DAG rodando `dbt pars
 **Fica para o Composer de verdade:** *Connections* e *Variables* pelo *backend* do Secret Manager e
 a rede até o Cloud SQL e a API do Airbyte — os dois nascem com o Terraform do Composer, que ainda
 não existe —, e o *smoke test* da janela (§G2.4 do plano).
+
+## 25. G5: os *labels* de todas as relações e a reclassificação de ida e volta (07/11/2026, noite)
+
+**Os *labels*** [medido, `data/medicoes/etapa_13/g5/labels_todas_as_relacoes.json`]: depois de um
+`make gcp-dbt-build` inteiro (**PASS=909**, 10 min 47 s), as **199** relações que o dbt materializa
+no BigQuery — 140 tabelas e 52 views de modelos, 4 *snapshots*, 3 *seeds* — têm `domain`, `owner` e
+`retention` iguais aos do `meta` do manifest, normalizados como a macro normaliza: 199 de 199,
+nenhuma sem *label* esperado.
+
+**A reclassificação** [medido, `g5/reclassificacao_*.json` e `reclassificacao_build*.log`]: a
+declaração de `carriers.tracking_url_template` (`models/logistics.py`) trocada de `public` para
+`confidential`, sem *commit*, e o caminho que uma reclassificação de verdade faz:
+
+| Passo | O que fez | Resultado |
+|---|---|---|
+| `make legacy-models` e `make catalog` (com o `make dbt-build` local que o `catalog` pediu, por o manifest ter ficado atrás da declaração do legado) | a derivação reescreveu **7** `.yml` — as duas fontes, o *staging* dos dois lados, `trusted.carriers`, a ponte `legado__carriers` e `dim_carrier` | `sensitivity --check` sem diferença |
+| `dbt parse --target gcp` e `politicas convergir` | o comando do *workflow* `policy-tags`, aqui com a ADC do Owner em vez da conta do fluxo (o *push* que o dispararia não houve) | **2** colunas trocadas: `raw.carriers` e `raw_legacy.carriers` ganharam a *tag* |
+| `gcp-dbt-build --select` dos 5 modelos | o dbt marcou as colunas das tabelas que materializa | PASS=29 |
+| `politicas inventario` | tudo, sem escrever | **0 divergências**, 361 colunas marcadas (355 antes): as 6 tabelas com a coluna levam a *tag* `confidential`; a view `stg_retail__carriers` não, porque *view* não leva *tag* |
+| reversão pelo Git e os mesmos passos de volta | — | convergência tirou a *tag* das 2 fontes; PASS=29; inventário com **0 divergências** e **355** marcadas, o estado de antes |
+
+O manifest e os comentários do armazém local voltaram com um `make dbt-build` local depois da
+reversão.
+
+**O G5 fica, assim, com uma pendência só:** a captura de tela da cadeia de linhagem na consola, que
+espera o Cloud SQL de pé na janela (§23).
