@@ -11,3 +11,9 @@ enable_composer  = false
 
 # Prova de acesso por papel (iam.tf): quem personifica as contas analyst e auditor.
 owner_member = "user:voce@exemplo.com"
+
+# Cloud SQL (cloud_sql.tf): os mesmos nomes de banco e de usuário do `.env` local.
+cloud_sql_origens = {
+  source = { database = "<SOURCE_DB_NAME>", user = "<SOURCE_DB_USER>" }
+  legacy = { database = "<LEGACY_DB_NAME>", user = "<LEGACY_DB_USER>" }
+}

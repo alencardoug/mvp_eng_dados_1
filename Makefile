@@ -911,9 +911,11 @@ gcp-preflight: require-env require-venv require-terraform ## Recusa se .env, ter
 	test "$$adc" = "$$GCP_PROJECT_ID" || { echo "ERRO: o quota project das credenciais (ADC) é '$$adc', não '$$GCP_PROJECT_ID'."; exit 1; }; \
 	echo "gcp-preflight: projeto $$GCP_PROJECT_ID nos três lugares"
 
-gcp-plan: gcp-preflight ## Salva um plano do Terraform para o Owner aprovar: NOME=05_rede (sem aplicar)
+gcp-plan: gcp-preflight ## Salva um plano do Terraform para o Owner aprovar: NOME=05_rede [VARS="enable_cloud_sql=true"] (sem aplicar)
 	@test -n "$(NOME)" || { echo "ERRO: NOME=<nn_assunto> obrigatório."; exit 1; }
-	@$(GCP_TF) plan -no-color -out=../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME).txt 2>&1; \
+	@# VARS liga um degrau só neste plano, sem mexer no terraform.tfvars: o plano salvo leva os
+	@# valores dentro, e o `gcp-apply` dele aplica exatamente o que foi lido e aprovado.
+	@$(GCP_TF) plan -no-color $(addprefix -var ,$(VARS)) -out=../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME).txt 2>&1; \
 		rc=$$?; grep -E "Plan:|No changes" $(GCP_PLANOS)/$(NOME).txt; exit $$rc
 
 gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=05_rede; guarda o estado antes
