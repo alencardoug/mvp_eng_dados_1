@@ -956,7 +956,11 @@ gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.
 		.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao"
 
 gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e logs separados do local
-	@cd dbt && set -a && . ../.env && set +a && ../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
+	@# O mapa nível → policy tag do Terraform (G4, D71): o dbt marca as colunas das tabelas que
+	@# materializa. Sem a taxonomia aplicada a saída não existe, e nada é marcado.
+	@tags=$$($(GCP_TF) output -json policy_tags 2>/dev/null) || tags='{}'; \
+		cd dbt && set -a && . ../.env && set +a && MVP_POLICY_TAGS="$$tags" \
+		../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
 
 gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do legado, contagens das camadas e catálogo
 	@set -a; . ./.env; set +a; \
