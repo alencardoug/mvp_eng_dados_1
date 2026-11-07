@@ -1,0 +1,10 @@
+# Copie para terraform.tfvars (ignorado pelo Git) e preencha.
+# Nenhum segredo aqui: só identificadores.
+project_id         = "mvp-ed1-gcp"
+billing_account_id = "<id da conta de faturamento>"
+
+# Degraus (PLANO_etapa_13.md §0, regra 4): ligue um por vez, na ordem.
+enable_cheap     = false
+enable_cloud_sql = false
+enable_gke       = false
+enable_composer  = false

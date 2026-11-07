@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.16 |
+| Versão | 2.17 |
 | Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12) e a regeneração da v1.1.0 (§2.13); o ponto de recuperação **entregue em 25/09/2026**, substituído pelo da v1.1.0 em 04/11/2026, cada um restaurado de ponta a ponta antes da promoção (§3) |
-| Última revisão | 04/11/2026 — §2.13, a regeneração da v1.1.0 medida, e §3, o pacote dela |
+| Última revisão | 07/11/2026 — §2.14, a estimativa da janela da Etapa 13 |
 
 ---
 
@@ -566,6 +566,31 @@ na [Origem Legada §4.3](origem_legada.md#43-o-livro-retido-da-memória-v110).
    e a reconciliação da P09 — e 306 testes Python a mais que no B5.
 
 ---
+
+### 2.14 A estimativa da janela da Etapa 13 — 07/11/2026
+
+**[estimado]** antes do primeiro `apply` cobrável, como pede o critério da Etapa 13 e o plano
+transitório (§6.3). Os preços foram **lidos** em 07/11/2026 — Compute pela Cloud Billing Catalog API,
+os demais nas páginas oficiais —, e a história da leitura está no
+[Registro da fase GCP §6](registro_fase_gcp.md#6-preços-lidos-para-a-estimativa-07112026). As
+durações são as do cronograma do plano, não medidas. O real é registrado depois, ao lado.
+
+| Serviço | Configuração | Preço-hora | Duração planejada | Estimado (US$) | Real |
+|---|---|---|---|---|---|
+| Cloud SQL | Enterprise, 2 vCPU / 7,5 GB, zona única, SSD 20 GB | 2 × 0,0413 + 7,5 × 0,007 ≈ 0,135 | seg 09 08:00 → qui 12 09:00, ~73 h | ~10 | pendente |
+| GKE — nós | zonal, 2 × `e2-standard-4` (4 vCPU, 16 GB cada) | 2 × (4 × 0,021812 + 16 × 0,002924) ≈ 0,268 | ter 10 08:00 → qui 12 09:00, ~49 h | ~13 | pendente |
+| GKE — *cluster* | taxa de gerenciamento | 0,10 (o crédito de US$ 74,40/mês por conta cobre um zonal; contado aqui como custo, no pior caso) | ~49 h | ~5 | pendente |
+| GKE — discos, LB interno, NAT | 2 × 50 GB `pd-balanced`; 1 *forwarding rule*; NAT de 2 VMs | ≈ 0,014 + 0,025 + 0,003 | ~49 h | ~2 | pendente |
+| Composer 3 | *small*; o exemplo oficial usa 12 DCUs, 15 com mais *workers* | 12–15 × 0,06 = 0,72–0,90 | qua 11 07:00 → 22:00, ~15 h, mais ~0,5 h para nascer | ~11–14 | pendente |
+| Dataflow | 1 *worker* `n1-standard-2` (2 vCPU, 7,5 GB), Streaming Engine | 2 × 0,069 + 7,5 × 0,003557 ≈ 0,165 | ~15 h na janela + ~6 h de ensaio na terça | ~4 | pendente |
+| BigQuery, Pub/Sub, Cloud Storage, Secret Manager | volume `dev` (D68) | dentro do nível gratuito (1 TiB de consulta, 10 GiB de armazenamento, 10 GiB de Pub/Sub por mês) | toda a semana | ~0–2 | pendente |
+| **Total** | | | | **~45–50**, com margem para reexecução: **US$ 40–70** | pendente |
+
+O crédito da conta era de R$ 1.740,37 em 06/11/2026; a estimativa usa uma fração dele, à taxa de
+câmbio da fatura (não medida aqui). O orçamento do projeto (Terraform, `fundacao.tf`) alerta em
+R$ 120, 240 e 360 com os créditos **excluídos** do cálculo — senão o gasto líquido seria zero e
+nenhum alerta dispararia. **Não estimado:** saída de rede (o tráfego fica na região) e o
+armazenamento do banco do Composer (centavos por GiB-mês).
 
 ## 3. Ponto único de recuperação
 

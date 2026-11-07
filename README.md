@@ -61,7 +61,8 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.10 — o livro retido da memória e o oráculo dela (v1.1.0) |
 | [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.2 — revalidado na D31 e na regeneração da v1.1.0 |
 | [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.15 — toda fronteira com teste; invariante 14 no varejo |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.16 — o ciclo do zero e a regeneração da v1.1.0 medidos; o ponto de recuperação da v1.1.0 |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.17 — a estimativa da janela da Etapa 13 |
+| [Registro da fase GCP](docs/registro_fase_gcp.md) | O processo de construção da Etapa 13, em ordem: comandos, saídas, decisões, becos sem saída, custo — o que sobrevive à destruição da infraestrutura | v1.0 — aberto em 06/11/2026 |
 | [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
 | [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 12 achados, todos tratados — o último, um falso positivo, em 04/11/2026 |
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |

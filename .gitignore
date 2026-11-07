@@ -58,6 +58,10 @@ dbt/logs/
 # fixa imagem por digest e dependência por lock (ADR-0026).
 .terraform/
 terraform.tfstate*
+# Os valores de cada execução (projeto, conta de faturamento, interruptores dos degraus);
+# o modelo versionado é o `terraform.tfvars.example`. Os planos salvos (`-out`) ficam em data/.
+terraform.tfvars
+*.tfplan
 dbt/.user.yml
 
 # Estado de execução do produtor de streaming (Etapa 7) — não é código.
