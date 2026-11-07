@@ -376,8 +376,9 @@ Ao retomar, o *pipeline* releu do *offset* confirmado (797) lotes que o *snapsho
 ([ADR-0019](adr/0019-saldo-em-deltas-com-entrega-idempotente.md)).
 
 **O que esta revalidação não prova.** Que o destino convirja não diz que o alerta está certo: o saldo
-do alerta conta duas vezes o que o próprio *pipeline* gravou antes da semente
-([D62](pendencias.md#d62--o-saldo-do-alerta-conta-duas-vezes-o-que-o-próprio-pipeline-gravou-antes-da-semente)),
+do alerta contava duas vezes o que o próprio *pipeline* gravou antes da semente — a
+[D62](pendencias.md#d62--a-semente-do-saldo-do-alerta-corta-no-instante-em-que-o-pipeline-é-construído-decidida-em-07112026),
+corrigida em 07/11/2026 com o corte no instante de construção do *pipeline* —,
 e o medidor encerra o Beam antes de o ramo de alerta drenar
 ([D63](pendencias.md#d63--o-medidor-do-streaming-encerra-o-beam-antes-de-o-ramo-de-alerta-drenar)).
 Por isso os alertas acima são registro, e não portão. Os dois ficaram fora da v1.1.0 e são

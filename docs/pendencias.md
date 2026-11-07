@@ -13,39 +13,20 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 5 (D62 a D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, e a D78 no G2.3 (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D78 no G2.3 |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, e a D62 e a D78 no G2.3 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3 |
 
 ---
 
 ## 1. Esperando você
 
-As três primeiras nasceram da validação do material de estudo da fase local, em 04/10/2026, que
+As duas primeiras nasceram da validação do material de estudo da fase local, em 04/10/2026, que
 rodou cada laboratório na máquina. Nada foi alterado no código; as saídas estão em
 `data/medicoes/material_estudo/` (fora do Git), e o relato inteiro, na §15 de
 [`CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md`](../CONVERSAS_COM_CHAT/PLANO_material_de_estudo.md),
-onde aparecem como achados A a C. O achado D, a venda antes do lançamento, foi a D65, fechada pela
+onde aparecem como achados A a C. O B, a contagem dupla no saldo do alerta, foi a D62, fechada no
+G2.3 da Etapa 13 (§2). O achado D, a venda antes do lançamento, foi a D65, fechada pela
 v1.1.0 (§2).
-
-### D62 — o saldo do alerta conta duas vezes o que o próprio pipeline gravou antes da semente
-
-**Pergunta:** como corrigir o corte da semente em `AcumularSaldoEAlertar`
-(`src/mvp_ed1/streaming/pipeline.py`)?
-
-**Medido em 04/10/2026.** O `setup` semeia o saldo com o que está no destino "antes de esta
-instância começar", mas no executor local ele só roda quando o primeiro painel chega ao estágio de
-alerta — e o estágio de gravação da mesma execução já escreveu eventos. O evento 15930 (−29, armazém 1
-/ variante 79) foi gravado às 05:42:06.282 por esta execução; a semente veio às 05:42:06.547. No livro,
-o par foi de 56 a 27; o alerta disse 27 → −2: o −29 entrou na semente e voltou pelo fluxo. O destino,
-a fato e a view `skus_below_reorder_point` não são afetados; o saldo do alerta é.
-
-*Opções:* **(a)** capturar o instante de início na construção do *pipeline* e passá-lo ao `DoFn`,
-de modo que a semente corte por ele e não pelo `setup` — recomendada: cumpre o que a docstring já
-promete, sem mudar a semântica; **(b)** semear pelo *offset* confirmado do grupo no instante da
-subida, em vez do relógio.
-
-*Efeito de não decidir:* alertas podem sair errados, falsos ou perdidos, sempre que eventos chegam
-ao destino antes do primeiro painel de alerta — o que acontece em toda subida com produção concorrente.
 
 ### D63 — o medidor do *streaming* encerra o Beam antes de o ramo de alerta drenar
 
@@ -280,6 +261,16 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D62 — a semente do saldo do alerta corta no instante em que o *pipeline* é construído (decidida em 07/11/2026)
+
+**Decisão:** opção (a), a recomendada — o instante de início é capturado em `pipeline.construir` e
+passado ao `AcumularSaldoEAlertar`, e a semente corta por ele, não pelo `setup`. Vale nas duas fases;
+a (b), semear pelo *offset* confirmado, não existe no Pub/Sub. Levantada pela validação do material
+de estudo em 04/10/2026 (o evento 15930 entrou na semente e voltou pelo fluxo: 27 → −2 no lugar de
+56 → 27) e decidida quando bloqueou o critério "alerta observado" da Etapa 13: na prova do caminho
+quente da nuvem, a semente veio com os três movimentos ao vivo que a própria execução já tinha
+gravado, e o alerta não saiu ([Registro §19](registro_fase_gcp.md#19-g23-o-lado-do-beam-pubsub-a-escrita-da-d75-e-o-debezium-server-gerado-07112026-tarde)).
 
 ### D78 — o tempo de evento do caminho quente chega ao Pub/Sub como atributo (decidida em 07/11/2026)
 
