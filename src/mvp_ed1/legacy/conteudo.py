@@ -101,6 +101,26 @@ def hash_no_banco(
     return hash_de_tabela(tabela, linhas)
 
 
+def hash_no_bigquery(
+    armazem: Any,
+    esquema: str,
+    tabela: str,
+    filtro: str = "",
+    parametros: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """`hash_no_banco` no BigQuery (Etapa 13, G2.1): as mesmas colunas, a mesma função Python.
+
+    `armazem` é um `legacy.armazem.BigQuery`. O hash continua sendo calculado
+    aqui, e não em SQL, pelo motivo de `hash_no_banco` — e por isso os dois
+    armazéns respondem com o mesmo número quando têm o mesmo conteúdo.
+    """
+    colunas = ", ".join(f"`{c}`" for c in (schema.IDENTIDADE, *schema.colunas(tabela)))
+    consulta = f"select {colunas} from {armazem.do_bruto(esquema, tabela)}"
+    if filtro:
+        consulta += f" where {filtro}"
+    return hash_de_tabela(tabela, armazem.linhas(consulta, parametros))
+
+
 def tabelas_divergentes(
     conexao: Connection,
     esquema: str,

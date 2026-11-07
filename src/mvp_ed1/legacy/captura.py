@@ -28,6 +28,13 @@ A fase 2 publica veredito e identidade (`snapshot_id`) das 40 tabelas numa
 única transação. Até 15/09/2026 eram duas, e uma interrupção entre elas deixava
 40 linhas `complete` sem identidade — que a recuperação não via e que faziam
 `certificadas` falhar (achado RV10-01).
+
+**Os dois armazéns (Etapa 13, G2.1).** `armazem` é um `Engine` do PostgreSQL —
+armazém e coordenador dos *locks* no mesmo banco, a fase local — ou um
+`armazem.BigQuery`, que leva o certificado e o bruto para o BigQuery e os
+*locks* para o Cloud SQL das origens. Cada garantia, e onde ela mora em cada
+um, está no contrato do G2.1 (`PLANO_etapa_13.md`); o que muda aqui é só o
+meio, nunca a regra.
 """
 
 from __future__ import annotations
@@ -44,6 +51,7 @@ from sqlalchemy import Connection, Engine, text
 from mvp_ed1 import governance
 from mvp_ed1.airbyte import CONCLUIDOS as JOB_TERMINADO
 from mvp_ed1.legacy import conteudo, schema
+from mvp_ed1.legacy.armazem import BigQuery, ErroDoJob, Struct, coordenador, lock_de_sessao
 
 RAW = "raw_legacy"
 TABELA = f"{governance.SCHEMA}.legacy_captures"
@@ -70,6 +78,27 @@ EstadoDoJob = Callable[[int], str]
 LOCK_DA_TENTATIVA = 7101
 
 
+def _t(armazem: Engine | BigQuery) -> str:
+    """O nome do certificado no armazém dado."""
+    return armazem.tabela(TABELA) if isinstance(armazem, BigQuery) else TABELA
+
+
+def _ler(armazem: Engine | BigQuery, sql: str, parametros: dict[str, Any] | None = None) -> list[tuple]:
+    """Linhas como tuplas, na ordem do `select` — nos dois armazéns."""
+    if isinstance(armazem, BigQuery):
+        return [tuple(linha.values()) for linha in armazem.linhas(sql, parametros)]
+    with armazem.connect() as conexao:
+        return [tuple(linha) for linha in conexao.execute(text(sql), parametros or {})]
+
+
+def _escrever(armazem: Engine | BigQuery, sql: str, parametros: dict[str, Any], *, rotulo: str) -> int:
+    """Uma instrução que muda o certificado; devolve as linhas afetadas (no BigQuery, as do *job*)."""
+    if isinstance(armazem, BigQuery):
+        return armazem.dml(sql, parametros, rotulo=rotulo)
+    with armazem.begin() as conexao:
+        return conexao.execute(text(sql), parametros).rowcount
+
+
 class TentativaOcupada(Exception):
     """O lock da tentativa está com outro processo vivo — um chamador ativo."""
 
@@ -82,8 +111,9 @@ def bloqueio_da_tentativa(armazem: Engine, tentativa: str, *, esperar: bool = Tr
     tentativa cujo lock está tomado, por mais velha que seja (H7). `esperar`
     falso recusa na hora em vez de esperar. A conexão é descartada no fim, e
     não devolvida ao *pool*: um lock de sessão esquecido nela seguiria vivo.
+    No GCP o lock mora no coordenador (o Cloud SQL), não no BigQuery.
     """
-    conexao = armazem.connect()
+    conexao = coordenador(armazem).connect()
     try:
         chave = {"ns": LOCK_DA_TENTATIVA, "a": tentativa}
         if esperar:
@@ -148,8 +178,10 @@ def medir_origem(legado: Engine) -> dict[str, Medida]:
         }
 
 
-def medir_recebido(armazem: Engine, job_id: int) -> dict[str, Recebido]:
+def medir_recebido(armazem: Engine | BigQuery, job_id: int) -> dict[str, Recebido]:
     """Por tabela, o que carrega o `sync_id` do *job* — e o que há de intruso na geração dele."""
+    if isinstance(armazem, BigQuery):
+        return _medir_recebido_bigquery(armazem, job_id)
     saida: dict[str, Recebido] = {}
     with armazem.connect() as conexao:
         for tabela in schema.tabelas():
@@ -180,6 +212,28 @@ def medir_recebido(armazem: Engine, job_id: int) -> dict[str, Recebido]:
     return saida
 
 
+def _medir_recebido_bigquery(armazem: BigQuery, job_id: int) -> dict[str, Recebido]:
+    """As mesmas três leituras de `medir_recebido`, no BigQuery; o *hash* continua em Python."""
+    saida: dict[str, Recebido] = {}
+    filtro = f"{armazem.sync_id()} = :j"
+    for tabela in schema.tabelas():
+        bruto = armazem.do_bruto(RAW, tabela)
+        medida = conteudo.hash_no_bigquery(armazem, RAW, tabela, filtro, {"j": str(job_id)})
+        geracoes = tuple(int(linha["g"]) for linha in armazem.linhas(
+            f"select distinct _airbyte_generation_id as g from {bruto} where {filtro} order by 1",
+            {"j": str(job_id)},
+        ))
+        intrusas = 0
+        if geracoes:
+            intrusas = armazem.escalar(
+                f"select count(*) from {bruto} where _airbyte_generation_id in unnest(:gs) "
+                f"and coalesce({armazem.sync_id()}, '') <> :j",
+                {"gs": list(geracoes), "j": str(job_id)},
+            )
+        saida[tabela] = Recebido(medida["linhas"], medida["hash"], geracoes, int(intrusas))
+    return saida
+
+
 # ── Fase 1 ───────────────────────────────────────────────────────────────────
 
 #: O lock de abertura (RR-37): uma chave só, a mesma para os dois chamadores,
@@ -188,8 +242,9 @@ def medir_recebido(armazem: Engine, job_id: int) -> dict[str, Recebido]:
 LOCK_DE_ABERTURA = (7102, 0)
 
 #: A barreira que `iniciar` roda dentro do lock de abertura: recebe a conexão
-#: da transação do *insert* e devolve o que impede a abertura — vazio, abre.
-Barreira = Callable[[Connection], list[str]]
+#: da transação do *insert* (no BigQuery, o próprio armazém) e devolve o que
+#: impede a abertura — vazio, abre.
+Barreira = Callable[[Connection | BigQuery], list[str]]
 
 
 class AberturaRecusada(Exception):
@@ -227,7 +282,14 @@ def iniciar(
     `tentativa` é o id que o chamador já sorteou para tomar o lock da tentativa
     antes de o *insert* confirmar (H7); sem ele, sorteia-se aqui. O *insert*
     não é *upsert*: um id que já existe é um campo imutável trocado, e falha.
+
+    No BigQuery (`_iniciar_bigquery`) a transação não envolve o *job*: o lock
+    de abertura vira **de sessão**, no coordenador, e só sai depois de o *job*
+    que grava as 40 linhas ter terminado — a mesma garantia, por outro meio.
     """
+    if isinstance(armazem, BigQuery):
+        return _iniciar_bigquery(legado, armazem, conexao_airbyte, barreira=barreira,
+                                 tentativa=tentativa, agora=agora)
     governance.garantir(armazem)
     agora = agora or dt.datetime.now(dt.timezone.utc)
     tentativa = tentativa or uuid.uuid4().hex
@@ -254,18 +316,68 @@ def iniciar(
     return tentativa
 
 
-def conferir_antes_do_disparo(armazem: Engine, tentativa: str) -> None:
+class IdRepetido(Exception):
+    """A tentativa já existe no certificado: um id repetido falha, nunca se sobrescreve."""
+
+
+def _iniciar_bigquery(
+    legado: Engine,
+    armazem: BigQuery,
+    conexao_airbyte: str,
+    *,
+    barreira: Barreira,
+    tentativa: str | None,
+    agora: dt.datetime | None,
+) -> str:
+    """`iniciar` no BigQuery: lock de abertura de sessão no Cloud SQL, barreira, um `MERGE` só.
+
+    O `MERGE` insere as 40 linhas **só se** a tentativa não existir — tudo ou
+    nada, numa instrução: um id repetido grava zero, e falha como o *insert*
+    do PostgreSQL. O DDL não roda aqui: no GCP é `governance.garantir_bigquery`,
+    na preparação do ambiente (época inicial), e não um *job* a mais por captura.
+    """
+    agora = agora or dt.datetime.now(dt.timezone.utc)
+    tentativa = tentativa or uuid.uuid4().hex
+    origem = medir_origem(legado)
+    linhas = [
+        Struct({"t": ("STRING", tabela), "n": ("INT64", medida.linhas), "h": ("STRING", medida.hash)})
+        for tabela, medida in origem.items()
+    ]
+    with lock_de_sessao(coordenador(armazem), LOCK_DE_ABERTURA[0], ":k", {"k": LOCK_DE_ABERTURA[1]}):
+        problemas = barreira(armazem)
+        if problemas:
+            raise AberturaRecusada(problemas)
+        gravadas = armazem.dml(
+            f"""
+            merge {_t(armazem)} c
+            using (
+                select n.* from unnest(:linhas) n
+                where not exists (select 1 from {_t(armazem)} where capture_attempt_id = :a)
+            ) n
+            on false
+            when not matched then insert
+                (capture_attempt_id, source_table, connection_name, source_rows_before,
+                 source_hash_before, status, started_at)
+            values (:a, n.t, :c, n.n, n.h, '{PENDING}', :quando)
+            """,
+            {"linhas": linhas, "a": tentativa, "c": conexao_airbyte, "quando": agora},
+            rotulo="abertura",
+        )
+        # O lock sai só aqui, com o job terminado: a próxima abertura já vê as 40 linhas.
+        if gravadas != len(origem):
+            raise IdRepetido(f"tentativa {tentativa}: {gravadas} de {len(origem)} linhas gravadas — "
+                             "o id já existe no certificado")
+    return tentativa
+
+
+def conferir_antes_do_disparo(armazem: Engine | BigQuery, tentativa: str) -> None:
     """Antes do `POST` que cria o *job*, segurando o lock da tentativa: ela ainda é `pending` sem *job*.
 
     Um chamador atrasado além da carência encontra a tentativa abandonada pela
     recuperação e não cria *job* nenhum (RR-39). Levanta `TentativaIndisponivel`.
     """
-    with armazem.connect() as conexao:
-        linhas = conexao.execute(
-            text(f"select count(*) from {TABELA} where capture_attempt_id = :a "
-                 f"and status = '{PENDING}' and job_id is null"),
-            {"a": tentativa},
-        ).scalar_one()
+    ((linhas,),) = _ler(armazem, f"select count(*) from {_t(armazem)} where capture_attempt_id = :a "
+                                 f"and status = '{PENDING}' and job_id is null", {"a": tentativa})
     if linhas != len(schema.tabelas()):
         raise TentativaIndisponivel(
             f"tentativa {tentativa} não está mais pendente sem job ({linhas} de {len(schema.tabelas())} "
@@ -277,7 +389,7 @@ class TentativaIndisponivel(Exception):
     """A tentativa já está fechada, ou já pertence a outro *job*: precisa de fase 1 própria."""
 
 
-def registrar_job(armazem: Engine, tentativa: str, job_id: int) -> None:
+def registrar_job(armazem: Engine | BigQuery, tentativa: str, job_id: int) -> None:
     """Grava o `job_id` assim que o *job* nasce — antes de esperar por ele.
 
     Idempotente para o **mesmo** *job*; recusa outro *job* numa tentativa já
@@ -285,15 +397,21 @@ def registrar_job(armazem: Engine, tentativa: str, job_id: int) -> None:
     mesma tentativa misturava duas capturas — `complete` para o *job* novo com
     o `snapshot_id` do antigo (RV10-2-03). Uma sincronização nova exige a sua
     própria fase 1.
+
+    No BigQuery, um conflito de DML concorrente é erro do *job* — ele não
+    gravou nada —, e o que vale é relido: as linhas que já têm este *job*.
     """
-    with armazem.begin() as conexao:
-        gravadas = conexao.execute(
-            text(
-                f"update {TABELA} set job_id = :j where capture_attempt_id = :a "
-                f"and ((job_id is null and status = '{PENDING}') or job_id = :j)"
-            ),
-            {"j": int(job_id), "a": tentativa},
-        ).rowcount
+    parametros = {"j": int(job_id), "a": tentativa}
+    try:
+        gravadas = _escrever(
+            armazem,
+            f"update {_t(armazem)} set job_id = :j where capture_attempt_id = :a "
+            f"and ((job_id is null and status = '{PENDING}') or job_id = :j)",
+            parametros, rotulo="registro_do_job",
+        )
+    except ErroDoJob:
+        ((gravadas,),) = _ler(armazem, f"select count(*) from {_t(armazem)} "
+                                       "where capture_attempt_id = :a and job_id = :j", parametros)
     if gravadas != len(schema.tabelas()):
         raise TentativaIndisponivel(
             f"tentativa {tentativa} não aceita o job {job_id}: já fechada ou associada a outro job "
@@ -303,7 +421,7 @@ def registrar_job(armazem: Engine, tentativa: str, job_id: int) -> None:
 
 def retomar(
     legado: Engine,
-    armazem: Engine,
+    armazem: Engine | BigQuery,
     *,
     estado_do_job: EstadoDoJob | None = None,
     agora: dt.datetime | None = None,
@@ -349,7 +467,7 @@ def retomar(
 
 # ── Fase 2 ───────────────────────────────────────────────────────────────────
 
-def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
+def concluir(legado: Engine, armazem: Engine | BigQuery, tentativa: str) -> dict[str, Any]:
     """Fecha a tentativa: mede a origem de novo e o bruto do *job*, decide por tabela.
 
     Recuperável: usa o "antes" **gravado** na fase 1, nunca remedido. Tentativa
@@ -359,14 +477,12 @@ def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
     `unstable` e mudaria a memória que a detecção de exclusão física usa
     (RV10-02).
     """
-    with armazem.connect() as conexao:
-        linhas = conexao.execute(
-            text(
-                f"select source_table, job_id, source_rows_before, source_hash_before, status, snapshot_id "
-                f"from {TABELA} where capture_attempt_id = :a"
-            ),
-            {"a": tentativa},
-        ).all()
+    linhas = _ler(
+        armazem,
+        f"select source_table, job_id, source_rows_before, source_hash_before, status, snapshot_id "
+        f"from {_t(armazem)} where capture_attempt_id = :a",
+        {"a": tentativa},
+    )
     if not linhas:
         raise ValueError(f"tentativa {tentativa} não existe; a fase 1 não aconteceu")
     if all(status != PENDING for *_, status, _g in linhas):
@@ -398,15 +514,23 @@ def concluir(legado: Engine, armazem: Engine, tentativa: str) -> dict[str, Any]:
 
 
 def _publicar(
-    armazem: Engine,
+    armazem: Engine | BigQuery,
     tentativa: str,
     depois: dict[str, Medida],
     recebido: dict[str, Recebido],
     vereditos: dict[str, str],
     snapshot_id: int | None,
 ) -> None:
-    """As 40 linhas, veredito e identidade, numa transação só — ou nada."""
+    """As 40 linhas, veredito e identidade, numa transação só — ou nada.
+
+    No BigQuery é **uma** instrução — `update … from unnest(...)` —, atômica
+    por si; a guarda `pending` vai no `where`, como aqui. Erro do *job* não
+    gravou nada: `_gravado`, depois, diz o que vale.
+    """
     agora = dt.datetime.now(dt.timezone.utc)
+    if isinstance(armazem, BigQuery):
+        _publicar_bigquery(armazem, tentativa, depois, recebido, vereditos, snapshot_id, agora)
+        return
     with armazem.begin() as conexao:
         for tabela, veredito in vereditos.items():
             conexao.execute(
@@ -428,13 +552,56 @@ def _publicar(
             )
 
 
-def _gravado(armazem: Engine, tentativa: str) -> dict[str, Any]:
+def _publicar_bigquery(
+    armazem: BigQuery,
+    tentativa: str,
+    depois: dict[str, Medida],
+    recebido: dict[str, Recebido],
+    vereditos: dict[str, str],
+    snapshot_id: int | None,
+    agora: dt.datetime,
+) -> None:
+    valores = [
+        Struct({
+            "t": ("STRING", tabela),
+            "na": ("INT64", depois[tabela].linhas), "ha": ("STRING", depois[tabela].hash),
+            "nr": ("INT64", recebido[tabela].linhas), "hr": ("STRING", recebido[tabela].hash),
+            "m": ("BOOL", recebido[tabela].intrusas == 0 and len(recebido[tabela].geracoes) <= 1),
+            "s": ("STRING", veredito),
+        })
+        for tabela, veredito in vereditos.items()
+    ]
+    try:
+        armazem.dml(
+            f"""
+            update {_t(armazem)} c
+               set source_rows_after = v.na, source_hash_after = v.ha,
+                   received_rows = v.nr, received_hash = v.hr,
+                   sync_id_matches = v.m, status = v.s, completed_at = :quando,
+                   snapshot_id = :g
+              from unnest(:v) v
+             where c.capture_attempt_id = :a and c.source_table = v.t and c.status = '{PENDING}'
+            """,
+            {"v": valores, "quando": agora, "g": ("INT64", snapshot_id), "a": tentativa},
+            rotulo="publicacao",
+        )
+    except ErroDoJob:
+        # O job não gravou nada. Se foi outro chamador publicando ao mesmo tempo, a tentativa
+        # já não está pendente, e o certificado dele é o que vale; senão, o erro é deste.
+        if _ainda_pendente(armazem, tentativa):
+            raise
+
+
+def _ainda_pendente(armazem: Engine | BigQuery, tentativa: str) -> bool:
+    ((n,),) = _ler(armazem, f"select count(*) from {_t(armazem)} where capture_attempt_id = :a "
+                            f"and status = '{PENDING}'", {"a": tentativa})
+    return bool(n)
+
+
+def _gravado(armazem: Engine | BigQuery, tentativa: str) -> dict[str, Any]:
     """O certificado como está no banco — a única fonte que a elegibilidade lê."""
-    with armazem.connect() as conexao:
-        linhas = conexao.execute(
-            text(f"select source_table, job_id, status, snapshot_id from {TABELA} where capture_attempt_id = :a"),
-            {"a": tentativa},
-        ).all()
+    linhas = _ler(armazem, f"select source_table, job_id, status, snapshot_id from {_t(armazem)} "
+                           "where capture_attempt_id = :a", {"a": tentativa})
     return _certificado(tentativa, linhas[0][1], {t: s for t, _, s, _ in linhas}, linhas[0][3])
 
 
@@ -453,49 +620,50 @@ def _pior(estados: set[str]) -> str:
     return COMPLETE
 
 
-def _pendentes(armazem: Engine) -> list[tuple[str, int | None, dt.datetime]]:
-    with armazem.connect() as conexao:
-        return [
-            (a, j, inicio)
-            for a, j, inicio in conexao.execute(
-                text(
-                    f"select capture_attempt_id, min(job_id), min(started_at) from {TABELA} "
-                    f"where status = '{PENDING}' group by capture_attempt_id order by 3"
-                )
-            )
-        ]
+def _pendentes(armazem: Engine | BigQuery) -> list[tuple[str, int | None, dt.datetime]]:
+    return [
+        (a, j, inicio)
+        for a, j, inicio in _ler(
+            armazem,
+            f"select capture_attempt_id, min(job_id), min(started_at) from {_t(armazem)} "
+            f"where status = '{PENDING}' group by capture_attempt_id order by 3",
+        )
+    ]
 
 
-def _abandonar(armazem: Engine, tentativa: str, iniciada_ate: dt.datetime) -> bool:
+def _abandonar(armazem: Engine | BigQuery, tentativa: str, iniciada_ate: dt.datetime) -> bool:
     """`abandoned` nas 40 linhas — só se todas ainda estiverem pendentes, sem job e antigas o bastante.
 
     A condição é revalidada **no `UPDATE`**, não na lista lida antes: é o que
     impede o abandono de sobrescrever uma tentativa que ganhou job ou foi
     concluída no meio-tempo. Devolve se abandonou.
     """
-    with armazem.begin() as conexao:
-        gravadas = conexao.execute(
-            text(
-                f"update {TABELA} set status = '{ABANDONED}', completed_at = now() "
-                f"where capture_attempt_id = :a and status = '{PENDING}' and job_id is null "
-                f"and started_at <= :limite"
-            ),
-            {"a": tentativa, "limite": iniciada_ate},
-        ).rowcount
+    agora = "current_timestamp()" if isinstance(armazem, BigQuery) else "now()"
+    try:
+        gravadas = _escrever(
+            armazem,
+            f"update {_t(armazem)} set status = '{ABANDONED}', completed_at = {agora} "
+            f"where capture_attempt_id = :a and status = '{PENDING}' and job_id is null "
+            f"and started_at <= :limite",
+            {"a": tentativa, "limite": iniciada_ate}, rotulo="abandono",
+        )
+    except ErroDoJob:
+        # Não gravou nada: só é "não abandonou" se alguém mudou a tentativa no meio-tempo.
+        if _ainda_pendente(armazem, tentativa):
+            raise
+        return False
     return gravadas == len(schema.tabelas())
 
 
-def certificadas(armazem: Engine) -> list[int]:
+def certificadas(armazem: Engine | BigQuery) -> list[int]:
     """`snapshot_id` das capturas com certificado `complete` nas 40 tabelas, em ordem."""
-    with armazem.connect() as conexao:
-        return [
-            int(g)
-            for (g,) in conexao.execute(
-                text(
-                    f"select snapshot_id from {TABELA} "
-                    f"where status = '{COMPLETE}' and snapshot_id is not null "
-                    "group by snapshot_id having count(distinct source_table) = :n order by 1"
-                ),
-                {"n": len(schema.tabelas())},
-            )
-        ]
+    return [
+        int(g)
+        for (g,) in _ler(
+            armazem,
+            f"select snapshot_id from {_t(armazem)} "
+            f"where status = '{COMPLETE}' and snapshot_id is not null "
+            "group by snapshot_id having count(distinct source_table) = :n order by 1",
+            {"n": len(schema.tabelas())},
+        )
+    ]
