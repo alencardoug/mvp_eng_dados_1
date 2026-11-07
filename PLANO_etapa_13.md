@@ -479,5 +479,7 @@ resposta entra em `CONVERSAS_COM_CHAT/gemini/` com o trecho citado; o Codex tem 
 
 ## 10. Revisão
 
-Rodada 1 do Codex: `REVISAO.md`, RV13-1-01…11, respondidos na *Situação*. Rodada 2: esta revisão
-do plano, com escopo nos *commits* da resposta.
+**Encerrada em 07/11/2026 — porta P1 passada.** Três rodadas do Codex: 11 achados (9 bloqueantes,
+2 ajustes), 5 (1 bloqueante, 3 ajustes, 1 observação) e 0 — todos corrigidos no plano. O parecer
+inteiro, com a *Situação* de cada achado, está no `REVISAO.md` do *commit* `62541b2`, removido no
+*commit* seguinte. "Resolvido no plano" é correção documental: as provas continuam por executar.
