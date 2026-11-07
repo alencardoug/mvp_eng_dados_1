@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: debezium-server
+spec:
+  replicas: 1
+  # Um conector, um slot, um disco de offsets ReadWriteOnce: dois pods ao mesmo tempo nunca.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: debezium-server }
+  template:
+    metadata:
+      labels: { app: debezium-server }
+      annotations:
+        # Propriedades novas reiniciam o pod: sem isto, o ConfigMap mudaria e o conector não.
+        checksum/propriedades: {{ .Values.propriedades | sha256sum }}
+    spec:
+      serviceAccountName: debezium-server
+      securityContext:
+        # `jboss` (uid 185) é o usuário da imagem; o disco dos offsets precisa ser dele.
+        fsGroup: 185
+      containers:
+        - name: debezium-server
+          image: {{ .Values.imagem }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: SOURCE_DB_HOST, value: {{ .Values.origem.host | quote }} }
+            - { name: SOURCE_DB_PORT, value: {{ .Values.origem.porta | quote }} }
+            - { name: SOURCE_DB_USER, value: {{ .Values.origem.usuario | quote }} }
+            - { name: SOURCE_DB_NAME, value: {{ .Values.origem.banco | quote }} }
+            - { name: GCP_PROJECT_ID, value: {{ .Values.projeto | quote }} }
+            - name: SOURCE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: debezium-server, key: SOURCE_DB_PASSWORD }
+          volumeMounts:
+            - { name: configuracao, mountPath: /debezium/config }
+            - { name: offsets, mountPath: /debezium/data }
+          # O Debezium Server expõe a saúde do Quarkus: o pod só conta como pronto com o conector de pé.
+          readinessProbe:
+            httpGet: { path: /q/health/ready, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /q/health/live, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+{{ toYaml .Values.recursos | indent 12 }}
+      volumes:
+        - name: configuracao
+          configMap: { name: debezium-server }
+        - name: offsets
+          persistentVolumeClaim: { claimName: debezium-server-offsets }

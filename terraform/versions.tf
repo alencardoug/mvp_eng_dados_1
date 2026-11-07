@@ -20,6 +20,12 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    # Os releases do GKE (aplicacoes_gke.tf). 3.3.0, de 02/09/2026: o `kubernetes` do provider é
+    # atributo (`= {}`) desde a 3.0.
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 3.3.0"
+    }
   }
 }
 

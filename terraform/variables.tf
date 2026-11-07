@@ -60,6 +60,12 @@ variable "enable_gke" {
   default     = false
 }
 
+variable "enable_gke_apps" {
+  description = "Os releases do Helm no GKE — Airbyte e Debezium Server —, num apply depois do do cluster (aplicacoes_gke.tf)."
+  type        = bool
+  default     = false
+}
+
 variable "enable_composer" {
   description = "Cloud Composer 3 — só na parte cara da janela (quarta, 11/11, 07:00–22:00)."
   type        = bool

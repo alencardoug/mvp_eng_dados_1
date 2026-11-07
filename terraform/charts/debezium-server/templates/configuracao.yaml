@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-server
+data:
+  application.properties: |
+{{ required "propriedades" .Values.propriedades | indent 4 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: debezium-server
+type: Opaque
+stringData:
+  SOURCE_DB_PASSWORD: {{ required "origem.senha" .Values.origem.senha | quote }}

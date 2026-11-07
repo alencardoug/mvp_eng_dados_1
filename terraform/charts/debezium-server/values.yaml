@@ -1,0 +1,26 @@
+# Os valores vêm do Terraform (`aplicacoes_gke.tf`); aqui só a forma e o que não muda.
+
+# 3.7.1.Final, a primeira versão com o atributo cru do Pub/Sub (D78), fixada por digest.
+imagem: quay.io/debezium/server:3.7.1.Final@sha256:8e1036358ba53393a8c2e544a1d2dd6fdf97679f5237987c9e3dac5e13e08582
+
+# A conta de papel que a do Kubernetes personifica (Workload Identity): `mvp-streamer`.
+contaDePapel: ""
+
+# O conteúdo de streaming/debezium_server/application.properties, gerado da declaração do conector.
+propriedades: ""
+
+# O ambiente que as `${VAR}` das propriedades leem. A senha vai num Secret à parte.
+origem:
+  host: ""
+  porta: "5432"
+  usuario: ""
+  banco: ""
+  senha: ""
+projeto: ""
+
+# Os offsets do conector: um disco só deste pod, apagado com o release (§6.5 passo 3).
+disco: 1Gi
+
+recursos:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }

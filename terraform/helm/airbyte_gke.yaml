@@ -1,0 +1,17 @@
+# O que o GKE muda nos valores do Airbyte local (`airbyte/values.yaml`, passado antes deste e
+# que segue valendo: os limites de memória e o dimensionamento dos jobs do ADR-0041).
+#
+# Instalado pelo Helm direto (`terraform/aplicacoes_gke.tf`), e não pelo `abctl`, que é só local.
+# O que o `abctl` v0.30.4 passa ao chart e importa aqui (`internal/helm/airbyte_values.go`):
+# autenticação ligada — o bootloader gera as credenciais no Secret `airbyte-auth-secrets`, e o
+# `mvp_ed1.airbyte` as usa como na fase local.
+global:
+  auth:
+    enabled: true
+  # A API e a interface só são alcançadas por `kubectl port-forward` desta máquina e, do
+  # Composer, pelo Service interno (G2.4); não há Ingress.
+  airbyteUrl: http://localhost:8000
+  # O `local` do `abctl` monta um disco compartilhado por pods de nós diferentes, o que dois nós
+  # não dão; fica o MinIO do chart, num disco próprio, apagado com o release.
+  storage:
+    type: minio
