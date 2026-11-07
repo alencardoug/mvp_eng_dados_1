@@ -232,6 +232,7 @@ origem e destinos; não contorne a falha enfraquecendo a imutabilidade ou editan
 | `make dbt-drop-snapshots` | **Destrói** o histórico SCD; só depois de regerar a origem | Etapa 5 |
 | `make tools` | Baixa `abctl` e Terraform nas versões fixadas, para `.tools/` | Etapa 5 |
 | `make airbyte-credentials` | Mostra as credenciais do Airbyte local | Etapa 5 |
+| `make airbyte-plan` | O que o `airbyte-config` mudaria no Airbyte local, sem aplicar; sai com 2 se há mudança. Precisa do Airbyte de pé | Etapa 13 |
 | `make airbyte-down` | Derruba o Airbyte | Etapa 5 |
 | `make preflight` | Diz se cabe subir um subconjunto; `ALVO=airbyte\|airflow\|streaming`. Consulta pura | Etapa 10 |
 | `make airbyte-pause` / `-resume` | Para e religa o cluster do Airbyte devolvendo a memória, sem desmontá-lo; a retomada passa pela troca do *preflight* | Etapa 10 · 12 |

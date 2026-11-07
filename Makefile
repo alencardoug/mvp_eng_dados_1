@@ -144,7 +144,7 @@ endef
         pgcli-source pgcli-legacy pgcli-warehouse \
         migrate migrate-down migrate-new migrate-status migrate-legacy migrate-legacy-down \
         migrate-legacy-status migrate-legacy-new catalog seed-data seed-plan size-report test test-carga \
-        tools airbyte-up airbyte-down airbyte-credentials airbyte-config sync-airbyte \
+        tools airbyte-up airbyte-down airbyte-credentials airbyte-config airbyte-plan sync-airbyte \
         dbt-build dbt-drop-snapshots dbt-test dbt-docs airflow-up airflow-down dag-run dag-status \
         stream-up stream-down stream-connector stream-status stream-run stream-produce \
         stream-duplicate stream-alerts stream-reset-sink \
@@ -504,20 +504,28 @@ airbyte-down: require-abctl ## Derruba o Airbyte, preservando os dados dele
 airbyte-credentials: require-abctl ## Mostra as credenciais do Airbyte local
 	@$(ABCTL) local credentials
 
+# As variáveis do Terraform do Airbyte local: as credenciais do `abctl`, o *workspace* e os três
+# bancos do `.env`. Uma definição para os dois alvos que leem a raiz `airbyte/`.
+AIRBYTE_TF_ENV = set -a; . ./.env; set +a; $(CREDENCIAIS); \
+	export TF_VAR_airbyte_client_id="$$AIRBYTE_CLIENT_ID"; \
+	export TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET"; \
+	export TF_VAR_airbyte_workspace_id="$${AIRBYTE_WORKSPACE_ID:-$$(.venv/bin/python -m mvp_ed1.airbyte workspace)}"; \
+	export TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" TF_VAR_source_db_password="$$SOURCE_DB_PASSWORD"; \
+	export TF_VAR_legacy_db_name="$$LEGACY_DB_NAME" TF_VAR_legacy_db_user="$$LEGACY_DB_USER" TF_VAR_legacy_db_password="$$LEGACY_DB_PASSWORD" TF_VAR_legacy_db_port="$$LEGACY_DB_PORT"; \
+	export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"
+
 airbyte-config: require-env require-terraform ## Cria fonte, destino e conexão a partir do Terraform
 	@# `-parallelism=1`: num Airbyte recém-instalado a tabela de segredos nasce na
 	@# primeira escrita, por `CREATE TABLE IF NOT EXISTS`, que o PostgreSQL não
 	@# serializa. No B5, em 25/09/2026, quatro criações simultâneas colidiram
 	@# (`duplicate key … pg_type_typname_nsp_index`) e o Airbyte devolveu 500. Seis
 	@# recursos, um por vez, custam segundos.
-	@set -a; . ./.env; set +a; $(CREDENCIAIS); \
-		export TF_VAR_airbyte_client_id="$$AIRBYTE_CLIENT_ID"; \
-		export TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET"; \
-		export TF_VAR_airbyte_workspace_id="$${AIRBYTE_WORKSPACE_ID:-$$(.venv/bin/python -m mvp_ed1.airbyte workspace)}"; \
-		export TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" TF_VAR_source_db_password="$$SOURCE_DB_PASSWORD"; \
-		export TF_VAR_legacy_db_name="$$LEGACY_DB_NAME" TF_VAR_legacy_db_user="$$LEGACY_DB_USER" TF_VAR_legacy_db_password="$$LEGACY_DB_PASSWORD" TF_VAR_legacy_db_port="$$LEGACY_DB_PORT"; \
-		export TF_VAR_warehouse_db_name="$$WAREHOUSE_DB_NAME" TF_VAR_warehouse_db_user="$$WAREHOUSE_DB_USER" TF_VAR_warehouse_db_password="$$WAREHOUSE_DB_PASSWORD"; \
+	@$(AIRBYTE_TF_ENV); \
 		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) apply -input=false -parallelism=1 $(if $(filter 1,$(AUTO)),-auto-approve)
+
+airbyte-plan: require-env require-terraform ## Mostra o que o airbyte-config mudaria no Airbyte local, sem aplicar (sai 2 se há mudança)
+	@$(AIRBYTE_TF_ENV); \
+		$(TERRAFORM) init -input=false -no-color >/dev/null && $(TERRAFORM) plan -input=false -no-color -detailed-exitcode
 
 sync-airbyte: require-env require-abctl ## Sincroniza oltp -> raw; RESET=1 descarta o cursor antes
 	@$(CREDENCIAIS); \
