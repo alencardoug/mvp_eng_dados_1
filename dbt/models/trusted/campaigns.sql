@@ -21,9 +21,9 @@ select
 
     -- Vigência contra `as_of_date`, nunca contra `current_date`: o relógio do
     -- banco daria resultado diferente a cada execução sobre o mesmo dado.
-    timestamptz '{{ var("as_of_date") }} 00:00-03'
+    {{ meia_noite(var("as_of_date")) }}
         between c.campaign_valid_from and c.campaign_valid_to  as is_running,
-    c.campaign_valid_to < timestamptz '{{ var("as_of_date") }} 00:00-03'
+    c.campaign_valid_to < {{ meia_noite(var("as_of_date")) }}
                                                               as is_finished,
 
     c.is_deleted,

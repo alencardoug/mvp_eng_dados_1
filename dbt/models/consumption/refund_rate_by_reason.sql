@@ -46,7 +46,7 @@ select
     r.refund_count,
     r.refunded_amount,
     coalesce(c.captured_amount, 0)                  as captured_amount,
-    round(100.0 * r.refunded_amount / nullif(c.captured_amount, 0), 2) as refund_rate_pct
+    round(cast(100.0 as numeric) * r.refunded_amount / nullif(c.captured_amount, 0), 2) as refund_rate_pct
 from reembolsos r
 left join capturas c
     on  c.year_month = r.year_month

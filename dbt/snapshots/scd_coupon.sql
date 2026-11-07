@@ -18,7 +18,10 @@
 
 {{
     config(
-        unique_key="source_system || '-' || coupon_id",
+        unique_key=(
+            "source_system || '-' || coupon_id" if target.type != 'bigquery'
+            else "concat(source_system, '-', cast(coupon_id as string))"
+        ),
         strategy='check',
         check_cols=[
             'campaign_id',

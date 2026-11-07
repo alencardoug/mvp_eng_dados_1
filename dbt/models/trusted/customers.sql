@@ -10,7 +10,7 @@
 
 {#- O "hoje" é a meia-noite de São Paulo de `as_of_date`, como nos demais modelos —
     `date 'X'` comparado com `timestamptz` seria a meia-noite do fuso da sessão (RVL3-6-04). -#}
-{% set as_of = "timestamptz '" ~ var("as_of_date") ~ " 00:00-03'" %}
+{% set as_of = meia_noite(var("as_of_date")) %}
 
 with clientes as (
 
@@ -115,10 +115,10 @@ select
     p.first_order_at is not null
         and p.last_order_at < {{ dias_no_calendario(as_of, -var("active_customer_window_days")) }}
                                                         as is_churned,
-    case
+    {% call decimal_fixo(12, 2) %}case
         when p.last_order_at is not null
-        then extract(epoch from {{ as_of }} - p.last_order_at) / 86400.0
-    end::numeric(12, 2)                                 as days_since_last_order,
+        then {{ dias_entre(as_of, 'p.last_order_at') }}
+    end{% endcall %}                                 as days_since_last_order,
 
     c.is_deleted,
     c.source_created_at,

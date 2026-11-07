@@ -13,6 +13,11 @@
     `timestamp without time zone`, o mesmo das colunas que já existem.
 #}
 {%- macro snapshot_get_time() -%}
+    {#- No BigQuery a coluna é TIMESTAMP, que já é instante: fica a do adaptador
+        (`current_timestamp()`), sem a premissa de fuso que esta macro remove. -#}
+    {%- if target.type == 'bigquery' -%}
+    {{ return(adapter.dispatch('snapshot_get_time', 'dbt')()) }}
+    {%- endif -%}
     (now() at time zone 'UTC')
 {%- endmacro -%}
 

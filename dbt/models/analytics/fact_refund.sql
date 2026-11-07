@@ -37,7 +37,7 @@ join {{ ref('orders') }} o
 join {{ ref('payments') }} p
   on p.source_system = r.source_system and p.payment_id = r.payment_id
 join {{ ref('dim_date') }} d
-  on d.full_date = cast(coalesce(r.refunded_at, r.source_created_at) at time zone 'America/Sao_Paulo' as date)
+  on d.full_date = {{ data_em_sao_paulo('coalesce(r.refunded_at, r.source_created_at)') }}
 join {{ ref('dim_payment_method') }} pm
   on pm.source_system = p.source_system
  and pm.payment_method_natural_key = p.payment_method_id

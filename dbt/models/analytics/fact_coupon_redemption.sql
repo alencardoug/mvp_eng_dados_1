@@ -30,7 +30,7 @@ base as (
         o.sales_channel_id,
         o.order_number,
         o.is_realised,
-        cast(r.redeemed_at at time zone 'America/Sao_Paulo' as date) as redemption_date
+        {{ data_em_sao_paulo('r.redeemed_at') }} as redemption_date
     from resgates r
     join {{ ref('orders') }} o
         on o.source_system = r.source_system and o.order_id = r.order_id
@@ -77,10 +77,10 @@ select
     b.coupon_discount_amount,
     b.order_subtotal_amount,
     b.order_total_amount,
-    case
+    {% call decimal_fixo(12, 6) %}case
         when b.order_subtotal_amount > 0
         then b.coupon_discount_amount / b.order_subtotal_amount
-    end::numeric(12, 6)                                 as discount_share_of_order
+    end{% endcall %}                                 as discount_share_of_order
 from base b
 join {{ ref('dim_date') }} d on d.full_date = b.redemption_date
 

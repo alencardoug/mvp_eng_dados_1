@@ -28,13 +28,13 @@ livro as (
         support_ticket_id,
         min(occurred_at)                                    as first_event_at,
         max(occurred_at)                                    as last_event_at,
-        min(occurred_at) filter (where is_assignment)       as first_assigned_at,
-        min(occurred_at) filter (where is_resolution)       as first_resolved_at,
-        max(occurred_at) filter (where is_resolution)       as last_resolved_at,
+        {{ agregado_onde('min', "occurred_at", "is_assignment") }}       as first_assigned_at,
+        {{ agregado_onde('min', "occurred_at", "is_resolution") }}       as first_resolved_at,
+        {{ agregado_onde('max', "occurred_at", "is_resolution") }}       as last_resolved_at,
         count(*)                                            as ticket_event_count,
-        count(*) filter (where is_reopening)                as reopening_count,
-        count(*) filter (where is_message)                  as message_count,
-        count(*) filter (where is_message and is_from_customer) as customer_message_count
+        {{ contar_onde("is_reopening") }}                as reopening_count,
+        {{ contar_onde("is_message") }}                  as message_count,
+        {{ contar_onde("is_message and is_from_customer") }} as customer_message_count
     from {{ ref('ticket_events') }}
     group by source_system, support_ticket_id
 
@@ -75,18 +75,18 @@ select
     -- ── Durações, todas não aditivas ─────────────────────────────────────────
     -- Da abertura à primeira atribuição: o tempo em que o chamado ficou sem
     -- dono. Da abertura à primeira resolução: o tempo que o cliente esperou.
-    case
+    {% call decimal_fixo(12, 4) %}case
         when l.first_assigned_at is not null
-        then extract(epoch from l.first_assigned_at - t.opened_at) / 3600.0
-    end::numeric(12, 4)                                     as hours_to_assignment,
-    case
+        then {{ horas_entre('l.first_assigned_at', 't.opened_at') }}
+    end{% endcall %}                                     as hours_to_assignment,
+    {% call decimal_fixo(12, 4) %}case
         when l.first_resolved_at is not null
-        then extract(epoch from l.first_resolved_at - t.opened_at) / 3600.0
-    end::numeric(12, 4)                                     as hours_to_resolution,
-    case
+        then {{ horas_entre('l.first_resolved_at', 't.opened_at') }}
+    end{% endcall %}                                     as hours_to_resolution,
+    {% call decimal_fixo(12, 4) %}case
         when t.closed_at is not null
-        then extract(epoch from t.closed_at - t.opened_at) / 3600.0
-    end::numeric(12, 4)                                     as hours_open,
+        then {{ horas_entre('t.closed_at', 't.opened_at') }}
+    end{% endcall %}                                     as hours_open,
 
     t.is_deleted,
     t.source_created_at,

@@ -69,9 +69,9 @@ ciclo as (
         source_system,
         order_id,
         count(*)                                        as order_shipment_count,
-        count(*) filter (where is_delivered)            as delivered_shipment_count,
+        {{ contar_onde("is_delivered") }}            as delivered_shipment_count,
         {{ bool_and('is_delivered') }}                          as is_order_cycle_closed,
-        max(delivered_at) filter (where is_delivered)   as order_delivered_at
+        {{ agregado_onde('max', "delivered_at", "is_delivered") }}   as order_delivered_at
     from remessas
     group by source_system, order_id
 
@@ -128,9 +128,9 @@ base as (
 
         -- Remessa ainda não despachada não tem data de saída; a data em que
         -- ela foi criada é o momento que a trouxe à existência.
-        cast(coalesce(r.shipped_at, r.source_created_at) at time zone 'America/Sao_Paulo' as date)
+        {{ data_em_sao_paulo('coalesce(r.shipped_at, r.source_created_at)') }}
                                                         as shipment_date,
-        cast(r.delivered_at at time zone 'America/Sao_Paulo' as date)
+        {{ data_em_sao_paulo('r.delivered_at') }}
                                                         as delivered_date,
 
         p.customer_id,
@@ -148,10 +148,10 @@ base as (
         -- O ciclo do pedido só existe quando ele fechou. Pedido pela metade
         -- entregue não tem tempo até a entrega — tem tempo até agora, que é
         -- outra medida e não é a de P14.
-        case
+        {% call decimal_fixo(12, 4) %}case
             when c.is_order_cycle_closed
-            then extract(epoch from c.order_delivered_at - p.placed_at) / 86400.0
-        end::numeric(12, 4)                             as order_to_delivery_days
+            then {{ dias_entre('c.order_delivered_at', 'p.placed_at') }}
+        end{% endcall %}                             as order_to_delivery_days
     from itens i
     join remessas r
         on r.source_system = i.source_system and r.shipment_id = i.shipment_id

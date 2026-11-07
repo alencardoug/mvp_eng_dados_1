@@ -44,14 +44,14 @@ from por_remessa
 where is_order_cycle_closed
   and delivered_at is not null
   and order_to_delivery_days
-      < (extract(epoch from delivered_at - placed_at) / 86400.0)::numeric(12, 4)
+      < {% call decimal_fixo(12, 4) %}({{ dias_entre('delivered_at', 'placed_at') }}){% endcall %}
 
 union all
 
 -- 2. O ciclo foi declarado fechado com remessa em aberto.
 select distinct
     order_id,
-    null::bigint,
+    cast(null as bigint),
     'ciclo fechado com remessa nao entregue'
 from por_remessa
 where is_order_cycle_closed

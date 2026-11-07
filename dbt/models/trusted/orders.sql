@@ -84,20 +84,20 @@ select
 
     -- ── Recompra pós-pedido, no grão do pedido (ADR-0036) ───────────────────
     r.next_order_at,
-    case
+    {% call decimal_fixo(12, 4) %}case
         when r.next_order_at is not null
-        then extract(epoch from r.next_order_at - p.placed_at) / 86400.0
-    end::numeric(12, 4)                     as days_to_next_order,
+        then {{ dias_entre('r.next_order_at', 'p.placed_at') }}
+    end{% endcall %}                     as days_to_next_order,
 
     -- A janela fecha 90 dias depois do pedido. Enquanto ela está aberta, o
     -- pedido **não** tem resposta: incluí-lo como "não houve recompra" faria a
     -- taxa dos meses recentes cair sozinha, sem que nada tivesse acontecido.
     {{ dias_no_calendario('p.placed_at', var("repeat_purchase_window_days")) }}
-        <= timestamptz '{{ var("as_of_date") }} 00:00-03'
+        <= {{ meia_noite(var("as_of_date")) }}
                                             as is_repeat_window_closed,
     case
         when {{ dias_no_calendario('p.placed_at', var("repeat_purchase_window_days")) }}
-             <= timestamptz '{{ var("as_of_date") }} 00:00-03'
+             <= {{ meia_noite(var("as_of_date")) }}
         then r.next_order_at is not null
              and r.next_order_at <= {{ dias_no_calendario('p.placed_at', var("repeat_purchase_window_days")) }}
     end                                     as has_post_order_repeat,

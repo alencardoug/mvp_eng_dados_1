@@ -13,8 +13,9 @@ seeds:
       tabela de referência incompleta falha calada no dia em que a geração
       passar a produzir a 15ª.
     config:
+      # O BigQuery não tem `varchar(n)`: `string`, e o tamanho fica no teste de valores.
       column_types:
-        state_code: varchar(2)
+        state_code: "{{ 'varchar(2)' if target.type != 'bigquery' else 'string' }}"
     columns:
       - name: state_code
         meta:
@@ -47,8 +48,8 @@ seeds:
       SQL é regra que ninguém revisa. Aqui ela cabe numa olhada.
     config:
       column_types:
-        from_status: varchar(16)
-        to_status: varchar(16)
+        from_status: "{{ 'varchar(16)' if target.type != 'bigquery' else 'string' }}"
+        to_status: "{{ 'varchar(16)' if target.type != 'bigquery' else 'string' }}"
     columns:
       - name: to_status
         meta:
@@ -85,7 +86,7 @@ seeds:
       dimensão perder uma linha em silêncio.
     config:
       column_types:
-        category_code: varchar(20)
+        category_code: "{{ 'varchar(20)' if target.type != 'bigquery' else 'string' }}"
     columns:
       - name: category_code
         description: "Código estável da categoria de chamado; chave natural."

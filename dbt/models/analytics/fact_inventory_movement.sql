@@ -85,7 +85,7 @@ with movimentos as (
     -- para fora de quase toda a captura legada.
     where source_system = 'legacy'
        or occurred_at >= {{ dias_no_calendario(
-              "(select coalesce(max(occurred_at), timestamptz '" ~ var("period_start") ~ " 00:00-03') from " ~ this ~ " where source_system = 'retail')",
+              "(select coalesce(max(occurred_at), " ~ meia_noite(var("period_start")) ~ ") from " ~ this ~ " where source_system = 'retail')",
               -var("atraso_maximo_dias")) }}
     {% endif %}
 
@@ -112,7 +112,7 @@ select
     m.aggregate_version,
     m.occurred_at,
     m.recorded_at,
-    cast(m.occurred_at at time zone 'America/Sao_Paulo' as date) as movement_date,
+    {{ data_em_sao_paulo('m.occurred_at') }} as movement_date,
     m.is_inbound,
     m.is_outbound,
     m.is_sale,
@@ -132,7 +132,7 @@ select
     m.recording_delay_seconds
 from movimentos m
 join {{ ref('dim_date') }} d
-  on d.full_date = cast(m.occurred_at at time zone 'America/Sao_Paulo' as date)
+  on d.full_date = {{ data_em_sao_paulo('m.occurred_at') }}
 
 -- Versão do SKU vigente no instante do movimento.
 join {{ ref('dim_product') }} p

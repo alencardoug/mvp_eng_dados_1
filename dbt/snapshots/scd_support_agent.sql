@@ -14,7 +14,10 @@
 
 {{
     config(
-        unique_key="source_system || '-' || support_agent_id",
+        unique_key=(
+            "source_system || '-' || support_agent_id" if target.type != 'bigquery'
+            else "concat(source_system, '-', cast(support_agent_id as string))"
+        ),
         strategy='check',
         check_cols=[
             'agent_team',

@@ -66,7 +66,7 @@ reservado as (
         source_system,
         warehouse_id,
         product_variant_id,
-        sum(quantity_reserved) filter (where reservation_status = 'active')
+        {{ agregado_onde('sum', "quantity_reserved", "reservation_status = 'active'") }}
                                                     as active_reserved_quantity
     from ({{ empilhado('stock_reservations') }}) sr
     group by source_system, warehouse_id, product_variant_id

@@ -76,7 +76,7 @@ base as (
 
         o.sales_channel_id,
         o.placed_at                                     as order_placed_at,
-        cast(e.occurred_at at time zone 'America/Sao_Paulo' as date) as event_date
+        {{ data_em_sao_paulo('e.occurred_at') }} as event_date
     from eventos e
     join chamados t
         on t.source_system = e.source_system

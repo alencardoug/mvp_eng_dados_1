@@ -44,22 +44,23 @@ select
     w.warehouse_region,
 
     count(*)                                                as delivered_count,
-    count(*) filter (where r.is_on_time)                    as on_time_count,
-    count(*) filter (where not r.is_on_time)                as late_count,
-    count(*) filter (where r.is_split_order)                as split_order_shipment_count,
+    {{ contar_onde("r.is_on_time") }}                    as on_time_count,
+    {{ contar_onde("not r.is_on_time") }}                as late_count,
+    {{ contar_onde("r.is_split_order") }}                as split_order_shipment_count,
 
     -- Não aditiva: recalcula-se a cada recorte, e nunca se soma entre linhas.
     round(
-        count(*) filter (where r.is_on_time)::numeric / nullif(count(*), 0), 4
+        cast({{ contar_onde("r.is_on_time") }} as numeric) / nullif(count(*), 0), 4
     )                                                       as on_time_rate,
 
     -- Positivo é atraso, negativo é adiantamento. A média sobre as atrasadas
     -- responde "quando atrasa, atrasa quanto" — pergunta diferente de "com que
     -- frequência atrasa", e as duas juntas é que descrevem a transportadora.
-    round(avg(r.delivery_delay_days) filter (where not r.is_on_time), 4)
+    round({{ agregado_onde('avg', "r.delivery_delay_days", "not r.is_on_time") }}, 4)
                                                             as avg_delay_days_when_late,
     round(avg(r.transit_days), 4)                           as avg_transit_days,
-    sum(r.failed_attempt_count)                             as failed_attempt_count
+    -- `sum` de bigint é `numeric` no PostgreSQL e INT64 no BigQuery: o contrato diz numeric.
+    cast(sum(r.failed_attempt_count) as numeric)            as failed_attempt_count
 from remessas r
 join {{ ref('dim_date') }} d on d.date_key = r.delivered_date_key
 join {{ ref('dim_carrier') }} c on c.carrier_key = r.carrier_key

@@ -44,15 +44,16 @@ select
     c.carrier_name,
 
     count(*)                                                as order_count,
-    count(*) filter (where p.is_split_order)                as split_order_count,
-    sum(p.order_shipment_count)                             as shipment_count,
+    {{ contar_onde("p.is_split_order") }}                as split_order_count,
+    -- `sum` de bigint é `numeric` no PostgreSQL e INT64 no BigQuery: o contrato diz numeric.
+    cast(sum(p.order_shipment_count) as numeric)            as shipment_count,
 
     -- Não aditivas: médias e mediana. A mediana está aqui porque a cauda de
     -- entregas muito atrasadas puxa a média e esconde o caso típico — as duas
     -- lado a lado dizem se a operação é lenta ou apenas irregular.
     round(avg(p.order_to_delivery_days), 4)                 as avg_order_to_delivery_days,
     round(
-        percentile_cont(0.5) within group (order by p.order_to_delivery_days)::numeric, 4
+        cast({{ mediana('p.order_to_delivery_days') }} as numeric), 4
     )                                                       as median_order_to_delivery_days,
     round(max(p.order_to_delivery_days), 4)                 as max_order_to_delivery_days
 from pedidos p

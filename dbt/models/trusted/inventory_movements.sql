@@ -61,7 +61,7 @@ select
 
     -- Atraso entre o momento de negócio e o registro na origem. É o que a
     -- Etapa 7 vai usar como marca d'água do processamento por tempo de evento.
-    extract(epoch from (recorded_at - occurred_at))::int     as recording_delay_seconds,
+    cast({{ segundos_entre('recorded_at', 'occurred_at') }} as int)     as recording_delay_seconds,
 
     is_deleted,
     source_created_at

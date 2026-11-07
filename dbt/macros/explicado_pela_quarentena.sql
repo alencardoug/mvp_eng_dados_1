@@ -61,8 +61,8 @@
           -- `bigint 8`, e a contrapartida não era encontrada. A canonização não
           -- converte o que não é inteiro — o valor pode ter sido rejeitado
           -- justamente por não ser conversível.
-          and {{ identidade_canonica("q.original_payload->>'" ~ coluna ~ "'") }}
-            = {{ identidade_canonica(alias ~ '.' ~ coluna ~ '::text') }}
+          and {{ identidade_canonica(campo_json('q.original_payload', "'" ~ coluna ~ "'")) }}
+            = {{ identidade_canonica('cast(' ~ alias ~ '.' ~ coluna ~ ' as ' ~ tipo_texto() ~ ')') }}
           {%- endfor %}
     )
 {%- endmacro %}

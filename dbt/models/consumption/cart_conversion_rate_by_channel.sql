@@ -21,7 +21,7 @@ select
     sum(f.converted_cart_count)                     as converted_cart_count,
     sum(f.abandoned_cart_count)                     as abandoned_cart_count,
     round(
-        100.0 * sum(f.converted_cart_count) / nullif(sum(f.closed_cart_count), 0), 2
+        cast(100.0 as numeric) * sum(f.converted_cart_count) / nullif(sum(f.closed_cart_count), 0), 2
     )                                               as cart_conversion_rate_pct,
     sum(f.cart_value_amount)                        as cart_value_amount,
     sum(f.abandoned_value_amount)                   as abandoned_value_amount

@@ -17,8 +17,8 @@ with pares as (
         correlation_id,
         sum(quantity_delta)                                     as desequilibrio,
         count(*)                                                as lados,
-        count(*) filter (where movement_type = 'transfer_out')   as saidas,
-        count(*) filter (where movement_type = 'transfer_in')    as entradas,
+        {{ contar_onde("movement_type = 'transfer_out'") }}   as saidas,
+        {{ contar_onde("movement_type = 'transfer_in'") }}    as entradas,
         count(distinct warehouse_id)                             as armazens,
         count(distinct product_variant_id)                       as skus
     from {{ ref('inventory_movements') }}

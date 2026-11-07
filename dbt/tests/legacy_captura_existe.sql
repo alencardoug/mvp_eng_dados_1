@@ -509,6 +509,10 @@ SELECT
     FROM selecionada
   ) AS snapshot_id,
   'a captura selecionada não existe em raw_legacy' AS violacao
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   NOT EXISTS(
     SELECT
@@ -519,6 +523,10 @@ UNION ALL
 SELECT
   CAST(NULL AS INT64),
   'nenhuma captura foi selecionada'
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT

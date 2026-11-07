@@ -28,6 +28,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__brands') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -55,6 +59,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__campaigns') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -82,6 +90,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__carriers') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -109,6 +121,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__customer_segments') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -136,6 +152,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__payment_methods') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -163,6 +183,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__product_categories') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -190,6 +214,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__sales_channels') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -217,6 +245,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__suppliers') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -244,6 +276,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__support_agents') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -271,6 +307,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__warehouses') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -298,6 +338,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__coupons') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -325,6 +369,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__customers') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -352,6 +400,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__products') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -379,6 +431,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__purchase_orders') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -406,6 +462,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__carts') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -433,6 +493,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__customer_addresses') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -460,6 +524,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__goods_receipts') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -487,6 +555,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__product_variants') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -514,6 +586,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__cart_items') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -541,6 +617,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__inventory_balances') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -568,6 +648,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__inventory_movements') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -595,6 +679,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__orders') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -622,6 +710,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__purchase_order_items') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -649,6 +741,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__coupon_redemptions') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -676,6 +772,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__goods_receipt_items') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -703,6 +803,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__order_items') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -730,6 +834,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__order_status_history') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -757,6 +865,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__payments') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -784,6 +896,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__shipments') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -811,6 +927,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__stock_reservations') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -838,6 +958,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__delivery_events') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -865,6 +989,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__payment_transactions') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -892,6 +1020,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__shipment_items') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -919,6 +1051,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__support_tickets') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -946,6 +1082,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__refunds') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -973,6 +1113,10 @@ SELECT
       COUNT(*)
     FROM {{ ref('legado__ticket_events') }}
   ) AS na_ponte
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT

@@ -14,28 +14,24 @@ with dias as (
     -- O calendário vai **além** do fim dos fatos, de propósito: o caminho
     -- quente da Etapa 7 grava evento com o relógio real, e uma dimensão de data
     -- que parasse em `as_of_date` faria o `join` da fato descartá-lo sem dizer.
-    select generate_series(
-        date '{{ var("period_start") }}',
-        date '{{ var("as_of_date") }}' + interval '{{ var("calendar_horizon_days") }} days',
-        interval '1 day'
-    )::date as full_date
+    {{ serie_de_datas(var("period_start"), var("as_of_date"), var("calendar_horizon_days")) }}
 
 )
 
 select
     {{ dbt_utils.generate_surrogate_key(['full_date']) }}   as date_key,
     full_date,
-    extract(year from full_date)::int                       as year_number,
-    extract(quarter from full_date)::int                    as quarter_number,
-    extract(month from full_date)::int                      as month_number,
-    to_char(full_date, 'TMMonth')                           as month_name,
-    to_char(full_date, 'YYYY-MM')                           as year_month,
-    extract(day from full_date)::int                        as day_of_month,
-    extract(isodow from full_date)::int                     as day_of_week,
-    to_char(full_date, 'TMDay')                             as day_name,
-    extract(week from full_date)::int                       as iso_week_number,
-    date_trunc('month', full_date)::date                    as month_start_date,
-    date_trunc('quarter', full_date)::date                  as quarter_start_date,
-    date_trunc('year', full_date)::date                     as year_start_date,
-    extract(isodow from full_date) >= 6                     as is_weekend
+    cast(extract(year from full_date) as int)               as year_number,
+    cast(extract(quarter from full_date) as int)            as quarter_number,
+    cast(extract(month from full_date) as int)              as month_number,
+    {{ parte_da_data('month_name', 'full_date') }}          as month_name,
+    {{ parte_da_data('year_month', 'full_date') }}          as year_month,
+    cast(extract(day from full_date) as int)                as day_of_month,
+    cast({{ parte_da_data('isodow', 'full_date') }} as int) as day_of_week,
+    {{ parte_da_data('day_name', 'full_date') }}            as day_name,
+    cast({{ parte_da_data('isoweek', 'full_date') }} as int) as iso_week_number,
+    {{ parte_da_data('month', 'full_date') }}               as month_start_date,
+    {{ parte_da_data('quarter', 'full_date') }}             as quarter_start_date,
+    {{ parte_da_data('year', 'full_date') }}                as year_start_date,
+    {{ parte_da_data('isodow', 'full_date') }} >= 6         as is_weekend
 from dias

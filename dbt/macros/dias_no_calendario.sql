@@ -9,5 +9,16 @@
     calendário dito, a janela não depende de quem roda. `dias` negativo subtrai.
 #}
 {%- macro dias_no_calendario(instante, dias) -%}
+    {{ return(adapter.dispatch('dias_no_calendario')(instante, dias)) }}
+{%- endmacro -%}
+
+{%- macro default__dias_no_calendario(instante, dias) -%}
     ((({{ instante }}) at time zone 'America/Sao_Paulo') + interval '{{ dias }} days') at time zone 'America/Sao_Paulo'
+{%- endmacro -%}
+
+
+{#- No BigQuery: o horário civil de São Paulo (DATETIME), os dias somados nele, e o
+    instante de volta pelo mesmo fuso. -#}
+{%- macro bigquery__dias_no_calendario(instante, dias) -%}
+    timestamp(datetime_add(datetime(({{ instante }}), 'America/Sao_Paulo'), interval {{ dias }} day), 'America/Sao_Paulo')
 {%- endmacro -%}

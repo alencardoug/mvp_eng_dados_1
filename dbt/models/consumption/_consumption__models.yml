@@ -873,7 +873,7 @@ models:
         description: "Instante do último movimento do SKU no armazém."
         meta:
           sensitivity: internal
-        data_type: timestamp with time zone
+        data_type: "{{ 'timestamp with time zone' if target.type != 'bigquery' else 'timestamp' }}"
 
   # ── Etapa 8 — entrega e logística ──────────────────────────────────────────
   # As duas medem entrega e **não se cruzam**: a primeira conta remessas, a

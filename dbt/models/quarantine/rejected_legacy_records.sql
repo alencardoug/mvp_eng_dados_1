@@ -66,7 +66,7 @@ union all
 -- coisas que o tratamento vigente não afirma mais.
 select
 {%- for coluna in colunas %}
-    {% if coluna.name in antigas %}old.{{ coluna.name }}{% else %}'anterior-a-D34'::text{% endif %} as {{ coluna.name }}{{ "," if not loop.last }}
+    {% if coluna.name in antigas %}old.{{ coluna.name }}{% else %}cast('anterior-a-D34' as {{ tipo_texto() }}){% endif %} as {{ coluna.name }}{{ "," if not loop.last }}
 {%- endfor %}
 from {{ previous }} old
 where not exists (
@@ -76,6 +76,6 @@ where not exists (
         and t.catalog_version = old.catalog_version
         -- A auditoria que precede a impressão digital nunca casa: ela veio de
         -- um tratamento que não se sabe qual era, e por isso é retida.
-        and t.treatment_fingerprint = {% if 'treatment_fingerprint' in antigas %}old.treatment_fingerprint{% else %}'anterior-a-D34'::text{% endif %}
+        and t.treatment_fingerprint = {% if 'treatment_fingerprint' in antigas %}old.treatment_fingerprint{% else %}cast('anterior-a-D34' as {{ tipo_texto() }}){% endif %}
 )
 {% endif %}

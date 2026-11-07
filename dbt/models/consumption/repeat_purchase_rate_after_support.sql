@@ -79,7 +79,7 @@ classificado as (
         p.has_post_order_repeat,
         p.days_to_next_order,
         false                                           as has_support_ticket,
-        null::text                                      as support_category_key
+        cast(null as {{ tipo_texto() }})                                      as support_category_key
     from pedidos p
     where not exists (
         select 1 from com_chamado c
@@ -97,16 +97,16 @@ select
     coalesce(cat.support_category_name, 'Sem chamado') as support_category_name,
 
     count(*)                                            as order_count,
-    count(*) filter (where cl.has_post_order_repeat)    as repeat_order_count,
+    {{ contar_onde("cl.has_post_order_repeat") }}    as repeat_order_count,
 
     -- Não aditiva.
     round(
-        count(*) filter (where cl.has_post_order_repeat)::numeric / nullif(count(*), 0), 4
+        cast({{ contar_onde("cl.has_post_order_repeat") }} as numeric) / nullif(count(*), 0), 4
     )                                                   as repeat_purchase_rate,
 
     -- Quando volta, volta em quanto tempo. Pergunta diferente de "com que
     -- frequência volta", e as duas juntas é que descrevem o efeito.
-    round(avg(cl.days_to_next_order) filter (where cl.has_post_order_repeat), 2)
+    round({{ agregado_onde('avg', "cl.days_to_next_order", "cl.has_post_order_repeat") }}, 2)
                                                         as avg_days_to_next_order
 from classificado cl
 join {{ ref('dim_date') }} d on d.date_key = cl.date_key

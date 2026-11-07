@@ -68,7 +68,7 @@ vendas as (
         p.has_post_order_repeat,
         p.is_repeat_window_closed,
         p.days_to_next_order,
-        cast(p.placed_at at time zone 'America/Sao_Paulo' as date) as order_date
+        {{ data_em_sao_paulo('p.placed_at') }} as order_date
     from itens i
     join pedidos p
         on p.source_system = i.source_system and p.order_id = i.order_id

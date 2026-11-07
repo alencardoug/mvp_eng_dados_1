@@ -43,10 +43,10 @@ select
     -- responder "quanto do pedido chegou" quando ele se divide em duas
     -- remessas, sem recontar a receita: a medida de dinheiro continua sendo de
     -- `fact_sales_order_item`, e esta é de **unidades**.
-    case
+    {% call decimal_fixo(12, 6) %}case
         when oi.quantity_ordered > 0
-        then si.quantity_shipped::numeric / oi.quantity_ordered
-    end::numeric(12, 6)                             as shipped_share_of_line,
+        then cast(si.quantity_shipped as numeric) / oi.quantity_ordered
+    end{% endcall %}                             as shipped_share_of_line,
 
     si.is_deleted,
     si.source_created_at,

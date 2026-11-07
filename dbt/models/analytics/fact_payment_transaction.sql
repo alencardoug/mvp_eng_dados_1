@@ -55,7 +55,7 @@ join {{ ref('payments') }} p
 join {{ ref('orders') }} o
   on o.source_system = p.source_system and o.order_id = p.order_id
 join {{ ref('dim_date') }} d
-  on d.full_date = cast(t.occurred_at at time zone 'America/Sao_Paulo' as date)
+  on d.full_date = {{ data_em_sao_paulo('t.occurred_at') }}
 join {{ ref('dim_payment_method') }} pm
   on pm.source_system = p.source_system
  and pm.payment_method_natural_key = p.payment_method_id

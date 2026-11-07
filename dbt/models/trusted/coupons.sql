@@ -67,7 +67,7 @@ select
     c.max_redemptions is not null
         and coalesce(u.redemption_count, 0) >= c.max_redemptions  as is_exhausted,
 
-    timestamptz '{{ var("as_of_date") }} 00:00-03'
+    {{ meia_noite(var("as_of_date")) }}
         between c.coupon_valid_from and c.coupon_valid_to         as is_redeemable_now,
 
     c.is_deleted,

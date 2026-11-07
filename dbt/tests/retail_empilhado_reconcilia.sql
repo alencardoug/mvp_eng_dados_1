@@ -37,6 +37,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -65,6 +69,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -93,6 +101,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -121,6 +133,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -149,6 +165,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -177,6 +197,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -205,6 +229,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -233,6 +261,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -261,6 +293,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -289,6 +325,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -317,6 +357,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -345,6 +389,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -373,6 +421,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -401,6 +453,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -429,6 +485,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -457,6 +517,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -485,6 +549,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -513,6 +581,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -541,6 +613,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -569,6 +645,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -597,6 +677,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -625,6 +709,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -653,6 +741,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -681,6 +773,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -709,6 +805,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -737,6 +837,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -765,6 +869,10 @@ SELECT
     WHERE
       source_system = 'retail'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT

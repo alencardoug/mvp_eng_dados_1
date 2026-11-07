@@ -106,14 +106,14 @@ select
     -- `period_start` em vez de `-infinity` por portabilidade: o BigQuery da
     -- Etapa 13 não tem infinito em `timestamp`.
     case
-        when v.numero_da_versao = 1 then timestamptz '{{ var("period_start") }} 00:00-03'
-        else v.dbt_valid_from at time zone 'UTC'
+        when v.numero_da_versao = 1 then {{ meia_noite(var("period_start")) }}
+        else {{ vigencia_do_snapshot('v.dbt_valid_from') }}
     end                                                     as valid_from,
     -- O snapshot grava `dbt_valid_*` como `timestamp` sem fuso, em UTC explícito (macro
     -- `snapshot_get_time` do projeto). Lê-se como instante UTC, explícito:
     -- sem isto, o `valid_to` saía sem fuso e a comparação com o `timestamptz` das fatos
     -- dependia do fuso de quem consulta (RVL3-3-03).
-    v.dbt_valid_to at time zone 'UTC'                       as valid_to,
+    {{ vigencia_do_snapshot('v.dbt_valid_to') }}                       as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
 join atual a

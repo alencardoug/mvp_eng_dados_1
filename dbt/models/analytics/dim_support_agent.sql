@@ -47,14 +47,14 @@ select
     v.is_deleted,
 
     case
-        when v.numero_da_versao = 1 then timestamptz '{{ var("period_start") }} 00:00-03'
-        else v.dbt_valid_from at time zone 'UTC'
+        when v.numero_da_versao = 1 then {{ meia_noite(var("period_start")) }}
+        else {{ vigencia_do_snapshot('v.dbt_valid_from') }}
     end                                                     as valid_from,
     -- O snapshot grava `dbt_valid_*` como `timestamp` sem fuso, em UTC explícito (macro
     -- `snapshot_get_time` do projeto). Lê-se como instante UTC, explícito:
     -- sem isto, o `valid_to` saía sem fuso e a comparação com o `timestamptz` das fatos
     -- dependia do fuso de quem consulta (RVL3-3-03).
-    v.dbt_valid_to at time zone 'UTC'                       as valid_to,
+    {{ vigencia_do_snapshot('v.dbt_valid_to') }}                       as valid_to,
     v.dbt_valid_to is null                                  as is_current
 from versoes v
 join atual a
@@ -82,12 +82,14 @@ select
     'agente'                                                as agent_last_name,
     'Sem agente'                                            as agent_full_name,
     'desconhecido@exemplo.invalid'                          as agent_email,
-    date '{{ var("period_start") }}'                        as hired_at,
+    -- A coluna é instante; o BigQuery não converte DATE em TIMESTAMP numa união sozinho.
+    -- Explícito, o `cast` diz o que o PostgreSQL já fazia: a meia-noite no fuso da sessão.
+    cast(date '{{ var("period_start") }}' as {{ tipo_instante() }}) as hired_at,
     0                                                       as handled_ticket_count,
     0                                                       as handled_event_count,
     'Desconhecido'                                          as agent_team,
     false                                                   as agent_is_active,
     false                                                   as is_deleted,
-    timestamptz '{{ var("period_start") }} 00:00-03'         as valid_from,
-    cast(null as timestamptz)                               as valid_to,
+    {{ meia_noite(var("period_start")) }}         as valid_from,
+    cast(null as {{ tipo_instante() }})                     as valid_to,
     true                                                    as is_current

@@ -33,6 +33,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -61,6 +65,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -89,6 +97,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -117,6 +129,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -145,6 +161,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -173,6 +193,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -201,6 +225,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -229,6 +257,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -257,6 +289,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -285,6 +321,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -313,6 +353,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -341,6 +385,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -369,6 +417,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -397,6 +449,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -425,6 +481,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -453,6 +513,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -481,6 +545,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -509,6 +577,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -537,6 +609,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -565,6 +641,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -593,6 +673,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -621,6 +705,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -649,6 +737,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -677,6 +769,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -705,6 +801,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -733,6 +833,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT
@@ -761,6 +865,10 @@ SELECT
     WHERE
       source_system = 'legacy'
   ) AS empilhados
+FROM (
+  SELECT
+    1
+) AS sem_from
 WHERE
   (
     SELECT

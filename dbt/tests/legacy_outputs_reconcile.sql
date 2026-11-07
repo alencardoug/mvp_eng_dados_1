@@ -27,6 +27,6 @@ with expected as (
             and e.treatment_fingerprint = q.treatment_fingerprint
     )
 )
-(select * from expected except all select * from actual)
+({{ diferenca_multiconjunto('expected', 'actual') }})
 union all
-(select * from actual except all select * from expected)
+({{ diferenca_multiconjunto('actual', 'expected') }})

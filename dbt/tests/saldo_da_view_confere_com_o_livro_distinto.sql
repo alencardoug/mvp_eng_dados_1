@@ -61,9 +61,9 @@ aterrissagem as (
 -- ordena primeiro); o que só está na aterrissagem é a parcela do fluxo.
 livro as (
 
-    select distinct on (source_system, movement_id) *
+    select {{ distinct_on('source_system, movement_id') }} *
     from (select * from fato union all select * from aterrissagem) tudo
-    order by source_system, movement_id, do_fluxo
+    {{ distinct_on_order('source_system, movement_id', 'source_system, movement_id, do_fluxo') }}
 
 ),
 
@@ -74,8 +74,8 @@ posicao as (
         warehouse_id,
         product_variant_id,
         sum(quantity_delta)                                 as quantity_on_hand,
-        coalesce(sum(quantity_delta) filter (where not do_fluxo), 0) as quantity_from_batch,
-        coalesce(sum(quantity_delta) filter (where do_fluxo), 0)     as quantity_from_stream
+        coalesce({{ agregado_onde('sum', "quantity_delta", "not do_fluxo") }}, 0) as quantity_from_batch,
+        coalesce({{ agregado_onde('sum', "quantity_delta", "do_fluxo") }}, 0)     as quantity_from_stream
     from livro
     group by 1, 2, 3
 
@@ -112,8 +112,8 @@ publicado as (
 
 )
 
-select 'falta na view' as problema, * from (select * from esperado except all select * from publicado) faltam
+select 'falta na view' as problema, * from ({{ diferenca_multiconjunto('esperado', 'publicado') }}) faltam
 
 union all
 
-select 'sobra na view' as problema, * from (select * from publicado except all select * from esperado) sobram
+select 'sobra na view' as problema, * from ({{ diferenca_multiconjunto('publicado', 'esperado') }}) sobram

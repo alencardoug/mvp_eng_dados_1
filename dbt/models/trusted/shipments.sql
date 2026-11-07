@@ -33,11 +33,11 @@ livro as (
     select
         source_system,
         shipment_id,
-        max(occurred_at) filter (where is_delivery)         as delivered_at,
-        max(occurred_at) filter (where is_return)           as returned_at,
-        min(occurred_at) filter (where is_pickup)           as picked_up_at,
-        min(occurred_at) filter (where is_out_for_delivery) as out_for_delivery_at,
-        count(*) filter (where is_failed_attempt)           as failed_attempt_count,
+        {{ agregado_onde('max', "occurred_at", "is_delivery") }}         as delivered_at,
+        {{ agregado_onde('max', "occurred_at", "is_return") }}           as returned_at,
+        {{ agregado_onde('min', "occurred_at", "is_pickup") }}           as picked_up_at,
+        {{ agregado_onde('min', "occurred_at", "is_out_for_delivery") }} as out_for_delivery_at,
+        {{ contar_onde("is_failed_attempt") }}           as failed_attempt_count,
         count(*)                                            as delivery_event_count,
         min(occurred_at)                                    as first_event_at,
         max(occurred_at)                                    as last_event_at
@@ -121,14 +121,14 @@ select
         when delivered_at is not null
         then delivered_at <= estimated_delivery_at
     end                                                     as is_on_time,
-    case
+    {% call decimal_fixo(12, 4) %}case
         when delivered_at is not null
-        then extract(epoch from delivered_at - estimated_delivery_at) / 86400.0
-    end::numeric(12, 4)                                     as delivery_delay_days,
-    case
+        then {{ dias_entre('delivered_at', 'estimated_delivery_at') }}
+    end{% endcall %}                                     as delivery_delay_days,
+    {% call decimal_fixo(12, 4) %}case
         when delivered_at is not null and shipped_at is not null
-        then extract(epoch from delivered_at - shipped_at) / 86400.0
-    end::numeric(12, 4)                                     as transit_days,
+        then {{ dias_entre('delivered_at', 'shipped_at') }}
+    end{% endcall %}                                     as transit_days,
 
     -- ── Conferência entre livro e projeção ───────────────────────────────────
     -- Verdadeiro quando a origem diz que entregou e o livro não registra a

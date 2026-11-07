@@ -123,6 +123,45 @@ models:
     analytics:
       +schema: analytics
       +materialized: table
+      # ── Fase GCP (Etapa 13, G1.4; arquitetura §5) ────────────────────────────
+      # Particionamento pelo instante do evento de cada fato, por mês, e
+      # *clustering* pela origem e pelas chaves de filtro mais frequentes. Só o
+      # BigQuery lê estas chaves; o dbt-postgres as ignora, e o caminho local não
+      # muda (oráculo de compilação). Mês, e não dia: o período simulado tem
+      # ~24 meses e as fatos têm de 120 a 81 mil linhas — partição diária daria
+      # centenas de partições minúsculas, e o BigQuery recomenda o contrário.
+      # Instante nulo (remessa não despachada, reembolso sem data) vai para a
+      # partição `__NULL__`, sem perda.
+      fact_cart_event:
+        +partition_by: {field: occurred_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, sales_channel_key, customer_key]
+      fact_coupon_redemption:
+        +partition_by: {field: redeemed_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, coupon_key, customer_key]
+      fact_inventory_movement:
+        +partition_by: {field: occurred_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, warehouse_key, product_key]
+      fact_order_status_event:
+        +partition_by: {field: changed_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, sales_channel_key, customer_key]
+      fact_payment_transaction:
+        +partition_by: {field: occurred_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, payment_method_key, customer_key]
+      fact_purchase_order_item:
+        +partition_by: {field: ordered_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, supplier_key, product_key]
+      fact_refund:
+        +partition_by: {field: refunded_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, payment_method_key, customer_key]
+      fact_sales_order_item:
+        +partition_by: {field: placed_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, sales_channel_key, product_key]
+      fact_shipment_item:
+        +partition_by: {field: shipped_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, carrier_key, warehouse_key]
+      fact_support_ticket_event:
+        +partition_by: {field: occurred_at, data_type: timestamp, granularity: month}
+        +cluster_by: [source_system, support_category_key, customer_key]
     consumption:
       +schema: consumption
       +materialized: view
@@ -131,6 +170,17 @@ models:
       # a criou — o `analyst` não precisa, e não tem, acesso ao que está atrás.
       +grants:
         select: [analyst, transformer]
+      # ── Fase GCP (Etapa 13, G1.5; RV13-1-09) ────────────────────────────────
+      # No BigQuery a view lê com a permissão de quem consulta, não de quem a
+      # criou: sem mais nada, o `analyst` precisaria ler `analytics`. A *authorized
+      # view* inverte isso — a view é autorizada nos datasets que ela lê, e o
+      # `analyst` só precisa de `consumption`. Os três que as views de consumo
+      # leem: `analytics`, `trusted` (saldos e movimentos) e `raw` (a aterrissagem
+      # do caminho quente). O dbt-postgres ignora a chave.
+      +grant_access_to:
+        - {project: "{{ env_var('GCP_PROJECT_ID', 'sem-projeto') }}", dataset: analytics}
+        - {project: "{{ env_var('GCP_PROJECT_ID', 'sem-projeto') }}", dataset: trusted}
+        - {project: "{{ env_var('GCP_PROJECT_ID', 'sem-projeto') }}", dataset: raw}
     # Destino, não passagem (ADR-0008): tabela porque é evidência de auditoria e
     # precisa sobreviver à queda do modelo que a produziu — e por isso permanente.
     quarantine:

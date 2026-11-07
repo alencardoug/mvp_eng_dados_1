@@ -26,8 +26,24 @@
     de um parâmetro a mais nesta.
 -#}
 {% macro identidade_canonica(expressao) -%}
+    {{ return(adapter.dispatch('identidade_canonica')(expressao)) }}
+{%- endmacro %}
+
+{% macro default__identidade_canonica(expressao) -%}
     (case
         when ({{ expressao }}) ~ '^\s*-?[0-9]+\s*$' then (({{ expressao }})::numeric)::text
+        else ({{ expressao }})
+     end)
+{%- endmacro %}
+
+
+{#- No BigQuery (Etapa 13, G1): o `\s` do RE2 não inclui o `\v` do POSIX, por isso a
+    classe é escrita; o `numeric` do PostgreSQL aceita espaço em volta e o BIGNUMERIC
+    não — o `trim` vem antes do `cast`. -#}
+{% macro bigquery__identidade_canonica(expressao) -%}
+    (case
+        when regexp_contains(({{ expressao }}), r'^[ \t\n\v\f\r]*-?[0-9]+[ \t\n\v\f\r]*$')
+            then cast(cast(trim(({{ expressao }}), ' \t\n\v\f\r') as bignumeric) as string)
         else ({{ expressao }})
      end)
 {%- endmacro %}

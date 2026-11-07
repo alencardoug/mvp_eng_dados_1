@@ -21,6 +21,139 @@ RAIZ = pathlib.Path(__file__).resolve().parents[1]
 DBT = RAIZ / "dbt"
 DIMENSOES_SCD = ("dim_customer", "dim_coupon", "dim_product", "dim_support_agent")
 
+#: As macros de dialeto da Etapa 13 (`dbt/macros/portavel.sql`) que escrevem instante. As guardas
+#: abaixo leem o SQL que o alvo **local** compila — o mesmo que sempre leram —, e por isso cada
+#: chamada é trocada pelo que a metade `default__` dela emite, renderizada de verdade. O argumento
+#: `var(...)` fica como Jinja, com as aspas que tinha: é o que a contraprova das aspas exercita.
+_MACROS_DE_INSTANTE = ("meia_noite", "vigencia_do_snapshot")
+_CHAMADA = re.compile(r"\b(" + "|".join(_MACROS_DE_INSTANTE) + r")\(")
+_SENTINELA = "\x00"
+
+
+def _portavel():
+    import jinja2
+
+    modulo = None
+
+    class _Adaptador:
+        def dispatch(self, nome, pacote=None):
+            return getattr(modulo, "default__" + nome)
+
+    fonte = (DBT / "macros" / "portavel.sql").read_text(encoding="utf-8")
+    modulo = jinja2.Environment().from_string(fonte, globals={"adapter": _Adaptador(), "return": lambda v: v}).module
+    return modulo
+
+
+def _fecha(texto: str, i: int) -> int:
+    """O índice depois do `)` que fecha o `(` em `i - 1`, saltando o que está entre aspas."""
+    nivel, aspa = 1, None
+    while nivel:
+        c = texto[i]
+        if aspa:
+            aspa = None if c == aspa else aspa
+        elif c in "'\"":
+            aspa = c
+        else:
+            nivel += (c == "(") - (c == ")")
+        i += 1
+    return i
+
+
+def _argumentos(texto: str) -> list[str]:
+    """Os argumentos da chamada: string vira o valor dela; `var(...)` vira a sentinela, e o texto
+    dele vai junto, para ser devolvido como Jinja no lugar certo."""
+    partes, nivel, aspa, atual = [], 0, None, ""
+    for c in texto:
+        if aspa:
+            aspa = None if c == aspa else aspa
+        elif c in "'\"":
+            aspa = c
+        elif c == "," and nivel == 0:
+            partes.append(atual.strip())
+            atual = ""
+            continue
+        else:
+            nivel += (c == "(") - (c == ")")
+        atual += c
+    partes.append(atual.strip())
+    return partes
+
+
+def renderizado_local(texto: str, modulo=None) -> str:
+    """O texto com cada chamada das macros de instante trocada pela metade local renderizada.
+
+    Chamada em `{{ … }}` vira o SQL, com o `var(...)` como `{{ var(...) }}`; chamada dentro de outra
+    expressão Jinja (`{% set x = meia_noite(var("d")) %}`, `"…" ~ meia_noite(…) ~ "…"`) vira a
+    concatenação Jinja que monta o mesmo literal — a forma que o modelo tinha antes da Etapa 13."""
+    modulo = modulo or _portavel()
+    saida, i = [], 0
+    while (m := _CHAMADA.search(texto, i)) is not None:
+        fim = _fecha(texto, m.end())
+        brutos = _argumentos(texto[m.end():fim - 1])
+        jinja = []
+        args = []
+        for a in brutos:
+            if a.startswith("var("):
+                jinja.append(a)
+                args.append(_SENTINELA)
+            elif len(a) >= 2 and a[0] == a[-1] and a[0] in "'\"":
+                args.append(a[1:-1])
+            else:
+                raise AssertionError(f"argumento que a guarda não sabe ler: {a!r}")
+        sql = str(getattr(modulo, m.group(1))(*args)).strip()
+        antes = texto.rfind("{{", 0, m.start())
+        dentro_de_chaves = antes >= 0 and texto[antes + 2:m.start()].strip() == ""
+        if dentro_de_chaves and (fecho := re.match(r"\s*\}\}", texto[fim:])):
+            pedacos = sql.split(_SENTINELA)
+            sql = "".join(p + ("{{ " + jinja[k] + " }}" if k < len(jinja) else "") for k, p in enumerate(pedacos))
+            saida.append(texto[i:antes] + sql)
+            i = fim + fecho.end()
+        else:
+            pedacos = sql.split(_SENTINELA)
+            expressao = " ~ ".join(
+                x for k, p in enumerate(pedacos)
+                for x in ([json.dumps(p, ensure_ascii=False)] + ([jinja[k]] if k < len(jinja) else []))
+            )
+            saida.append(texto[i:m.start()] + "(" + expressao + ")")
+            i = fim
+    saida.append(texto[i:])
+    return "".join(saida)
+
+
+def _sem_a_macro(texto: str, nome: str) -> str:
+    """O texto sem o corpo de uma macro; as quebras de linha ficam, e a numeração das outras linhas
+    continua a do arquivo."""
+    inicio = texto.index("{% macro " + nome + "(")
+    fim = texto.index("{%- endmacro %}", inicio) + len("{%- endmacro %}")
+    return texto[:inicio] + "\n" * texto[inicio:fim].count("\n") + texto[fim:]
+
+
+def _arquivos_lidos(pastas=("models", "tests", "macros", "snapshots")) -> dict[pathlib.Path, str]:
+    """Os `.sql` fora do legado, como o alvo local os compila. Em `portavel.sql` sai o corpo da
+    `default__meia_noite`: o literal dela tem o fuso no argumento, e o que se confere é cada chamada."""
+    modulo = _portavel()
+    arquivos = {}
+    for pasta in pastas:
+        for c in sorted((DBT / pasta).rglob("*.sql")):
+            if "legacy" in c.parts:
+                continue
+            texto = c.read_text(encoding="utf-8")
+            if c.name == "portavel.sql":
+                # Onde as macros se definem não há chamada a renderizar.
+                arquivos[c] = _sem_a_macro(texto, "default__meia_noite")
+            else:
+                arquivos[c] = renderizado_local(texto, modulo)
+    return arquivos
+
+
+def test_a_meia_noite_local_e_de_sao_paulo_por_padrao() -> None:
+    """A guarda confia na renderização; esta é a contraprova da macro: o padrão é o fuso de São Paulo."""
+    modulo = _portavel()
+    assert str(modulo.meia_noite("2024-01-01")).strip() == "timestamptz '2024-01-01 00:00-03'"
+    assert str(modulo.meia_noite("9999-12-31", "+00")).strip() == "timestamptz '9999-12-31 00:00+00'"
+    assert renderizado_local("{{ meia_noite(var('as_of_date')) }}") == "timestamptz '{{ var('as_of_date') }} 00:00-03'"
+    assert renderizado_local('{% set x = meia_noite(var("d")) %}') == '{% set x = ("timestamptz \'" ~ var("d") ~ " 00:00-03\'") %}'
+
 
 def test_o_escritor_do_snapshot_grava_utc_explicito() -> None:
     macro = (DBT / "macros" / "snapshot_get_time.sql").read_text(encoding="utf-8")
@@ -31,7 +164,7 @@ def test_o_escritor_do_snapshot_grava_utc_explicito() -> None:
 
 @pytest.mark.parametrize("dimensao", DIMENSOES_SCD)
 def test_a_dimensao_le_as_vigencias_como_instante_utc(dimensao: str) -> None:
-    sql = (DBT / "models" / "analytics" / f"{dimensao}.sql").read_text(encoding="utf-8")
+    sql = renderizado_local((DBT / "models" / "analytics" / f"{dimensao}.sql").read_text(encoding="utf-8"))
     assert "v.dbt_valid_from at time zone 'UTC'" in sql
     assert "v.dbt_valid_to at time zone 'UTC'" in sql
 
@@ -49,8 +182,10 @@ def test_o_dbt_carrega_a_macro_do_projeto() -> None:
         assert "(now() at time zone 'UTC')" in macros[f"macro.mvp_ed1.{nome}"]["macro_sql"]
 
 
-#: Onde somar dias a um valor não depende de fuso: `date + interval` em `dim_date`.
+#: Onde somar dias a um valor não depende de fuso: `date + interval` em `dim_date` — desde a Etapa 13,
+#: na metade local da macro que gera a série de datas dele.
 SOMA_DE_DIAS_SEM_INSTANTE = {"dim_date.sql"}
+MACROS_DE_SOMA_SEM_INSTANTE = {"portavel.sql": ("default__serie_de_datas",)}
 
 
 def test_janela_de_dias_sobre_instante_passa_pelo_calendario_de_sao_paulo() -> None:
@@ -64,7 +199,10 @@ def test_janela_de_dias_sobre_instante_passa_pelo_calendario_de_sao_paulo() -> N
     for caminho in arquivos:
         if caminho.name in SOMA_DE_DIAS_SEM_INSTANTE | {"dias_no_calendario.sql"} or "legacy" in caminho.parts:
             continue
-        for numero, linha in enumerate(caminho.read_text(encoding="utf-8").splitlines(), 1):
+        texto = caminho.read_text(encoding="utf-8")
+        for macro in MACROS_DE_SOMA_SEM_INSTANTE.get(caminho.name, ()):
+            texto = _sem_a_macro(texto, macro)
+        for numero, linha in enumerate(texto.splitlines(), 1):
             codigo = linha.split("--", 1)[0]
             if "interval '" in codigo and "days'" in codigo:
                 soltas.append(f"{caminho.relative_to(DBT)}:{numero}")
@@ -214,12 +352,8 @@ def literais_sem_fuso(texto: str) -> list[str]:
 
 def test_todo_literal_timestamptz_diz_o_fuso() -> None:
     """RVL3-7-03: `timestamptz '2024-01-01'` é a meia-noite do fuso da **sessão**; o literal diz o seu."""
-    sem_fuso = []
-    for pasta in ("models", "tests", "macros", "snapshots"):
-        for caminho in sorted((DBT / pasta).rglob("*.sql")):
-            if "legacy" in caminho.parts:
-                continue
-            sem_fuso += [f"{caminho.relative_to(DBT)}: {v}" for v in literais_sem_fuso(caminho.read_text(encoding="utf-8"))]
+    sem_fuso = [f"{caminho.relative_to(DBT)}: {v}" for caminho, texto in _arquivos_lidos().items()
+                for v in literais_sem_fuso(texto)]
     assert sem_fuso == []
 
 
@@ -296,8 +430,7 @@ def test_a_aspa_do_jinja_dentro_do_literal_nao_fecha_a_string(aspas: str, forma:
 def test_a_guarda_acusa_cada_literal_atual_sem_o_offset_nas_duas_aspas() -> None:
     """RVL3-11-03: a contraprova sobre os arquivos reais — trocar as aspas do `var` não muda nada, e tirar o
     offset de qualquer literal é acusado, inclusive o que um `{% set %}` monta fora de `{{ }}`."""
-    arquivos = {c: c.read_text(encoding="utf-8") for pasta in ("models", "tests", "macros", "snapshots")
-                for c in sorted((DBT / pasta).rglob("*.sql")) if "legacy" not in c.parts}
+    arquivos = _arquivos_lidos()
     simples = {c: re.sub(r"""(\{\{\s*var\()"([a-z_]+)"(\)\s*\}\})""", r"\1'\2'\3", t) for c, t in arquivos.items()}
     assert simples != arquivos and all(literais_sem_fuso(t) == [] for t in simples.values())
     for versao in (arquivos, simples):

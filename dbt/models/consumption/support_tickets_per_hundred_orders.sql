@@ -56,7 +56,7 @@ pedidos as (
     select
         date_key,
         sales_channel_key,
-        count(distinct (source_system, order_id))       as channel_order_count
+        {{ contar_distintos(['source_system', 'order_id']) }}       as channel_order_count
     from {{ ref('fact_sales_order_item') }}
     where is_realised
     group by date_key, sales_channel_key
@@ -68,7 +68,8 @@ pedidos_por_mes as (
     select
         d.year_month,
         p.sales_channel_key,
-        sum(p.channel_order_count)                      as channel_order_count
+        -- `sum` de bigint é `numeric` no PostgreSQL e INT64 no BigQuery: o contrato diz numeric.
+        cast(sum(p.channel_order_count) as numeric)     as channel_order_count
     from pedidos p
     join {{ ref('dim_date') }} d on d.date_key = p.date_key
     group by d.year_month, p.sales_channel_key
@@ -84,10 +85,10 @@ chamados_por_mes as (
         c.sales_channel_key,
         c.support_category_key,
         count(*)                                        as ticket_count,
-        count(*) filter (where c.ticket_priority in ('high', 'urgent'))
+        {{ contar_onde("c.ticket_priority in ('high', 'urgent')") }}
                                                         as high_priority_ticket_count,
-        count(*) filter (where c.was_reopened)          as reopened_ticket_count,
-        count(*) filter (where c.is_solved_first_time)  as solved_first_time_count,
+        {{ contar_onde("c.was_reopened") }}          as reopened_ticket_count,
+        {{ contar_onde("c.is_solved_first_time") }}  as solved_first_time_count,
         round(avg(c.hours_to_resolution), 2)            as avg_hours_to_resolution
     from chamados c
     join {{ ref('dim_date') }} d on d.date_key = c.date_key
@@ -112,7 +113,7 @@ select
 
     -- Não aditiva: recalcula-se a cada recorte. Numerador e denominador vão ao
     -- lado, como em toda view de razão do projeto.
-    round(t.ticket_count * 100.0 / nullif(p.channel_order_count, 0), 4)
+    round(t.ticket_count * cast(100.0 as numeric) / nullif(p.channel_order_count, 0), 4)
                                                         as tickets_per_hundred_orders,
     t.avg_hours_to_resolution
 from chamados_por_mes t

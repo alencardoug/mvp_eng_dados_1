@@ -41,7 +41,7 @@ desfecho as (
             -- Abandono e expiração não têm carimbo próprio na origem: o que se
             -- sabe é que o ciclo terminou até a validade. É a melhor
             -- aproximação disponível, e está dita aqui em vez de escondida.
-            else least(cart_expires_at, timestamptz '{{ var("as_of_date") }} 00:00-03')
+            else least(cart_expires_at, {{ meia_noite(var("as_of_date")) }})
         end                             as occurred_at
     from carrinhos
     where cart_status <> 'open'
@@ -63,8 +63,8 @@ select
     e.cart_id,
     e.event_type,
     e.occurred_at,
-    cast(e.occurred_at at time zone 'America/Sao_Paulo' as date)   as event_date,
-    cast(c.cart_created_at at time zone 'America/Sao_Paulo' as date) as cart_created_date,
+    {{ data_em_sao_paulo('e.occurred_at') }}   as event_date,
+    {{ data_em_sao_paulo('c.cart_created_at') }} as cart_created_date,
 
     c.customer_id,
     c.sales_channel_id,

@@ -17,13 +17,13 @@ operacoes as (
         source_system,
         payment_id,
         count(*)                                    as transaction_count,
-        count(*) filter (where is_authorization)     as authorization_count,
-        count(*) filter (where is_authorization and is_approved) as approved_authorization_count,
+        {{ contar_onde("is_authorization") }}     as authorization_count,
+        {{ contar_onde("is_authorization and is_approved") }} as approved_authorization_count,
         sum(authorized_amount)                       as authorized_amount,
         sum(captured_amount)                         as captured_amount,
         sum(refunded_amount)                         as refunded_amount,
-        min(occurred_at) filter (where is_authorization and is_approved) as first_authorized_at,
-        min(occurred_at) filter (where is_capture and is_approved)       as first_captured_at
+        {{ agregado_onde('min', "occurred_at", "is_authorization and is_approved") }} as first_authorized_at,
+        {{ agregado_onde('min', "occurred_at", "is_capture and is_approved") }}       as first_captured_at
     from {{ ref('payment_transactions') }}
     group by source_system, payment_id
 

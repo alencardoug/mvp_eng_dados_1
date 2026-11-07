@@ -53,6 +53,10 @@
     No BigQuery a mesma macro escreve `SAFE_CAST` aos mesmos tipos.
 -#}
 {% macro chave_canonica(expressao, tipo) -%}
+    {{ return(adapter.dispatch('chave_canonica')(expressao, tipo)) }}
+{%- endmacro %}
+
+{% macro default__chave_canonica(expressao, tipo) -%}
     {%- set dominios = {
         'bigint':   ('-9223372036854775808', '9223372036854775807'),
         'integer':  ('-2147483648', '2147483647'),
@@ -104,6 +108,67 @@
      end)
     {%- elif tipo == 'texto' -%}
     nullif(trim(({{ expressao }})), '')
+    {%- else -%}
+    {{ exceptions.raise_compiler_error("chave_canonica: tipo desconhecido " ~ tipo) }}
+    {%- endif -%}
+{%- endmacro %}
+
+
+{#- A mesma regra no BigQuery (Etapa 13, G1). A gramática é a mesma expressão regular,
+    no RE2 com `(?i)` no lugar do `~*`. O BigQuery não tem `lateral`: as etapas viram
+    subconsultas aninhadas, cada uma lendo a de dentro. A soma dos dígitos é exata em
+    BIGNUMERIC (76 dígitos), que cobre os 64 dígitos binários do bigint. O `trim` sem
+    lista tira qualquer espaço Unicode no BigQuery; a lista é escrita, como no
+    PostgreSQL. Equivalência provada pelo oráculo semântico sobre a presença física. -#}
+{% macro bigquery__chave_canonica(expressao, tipo) -%}
+    {%- set dominios = {
+        'bigint':   ('-9223372036854775808', '9223372036854775807'),
+        'integer':  ('-2147483648', '2147483647'),
+        'smallint': ('-32768', '32767'),
+    } -%}
+    {%- if tipo in dominios -%}
+    {%- set brancos = "[ \\t\\n\\v\\f\\r]" -%}
+    {%- set gramatica = "(?i)^" ~ brancos ~ "*[+-]?(0x_?[0-9a-f]+(_[0-9a-f]+)*|0o_?[0-7]+(_[0-7]+)*|0b_?[01]+(_[01]+)*|[0-9]+(_[0-9]+)*)" ~ brancos ~ "*$" -%}
+    (case
+        when regexp_contains(({{ expressao }}), r'{{ gramatica }}') then (
+            select case
+                when valor between {{ dominios[tipo][0] }} and {{ dominios[tipo][1] }}
+                    then cast(valor as string)
+            end
+            from (
+                select
+                    (case when negativo then -1 else 1 end) * (
+                        select coalesce(sum((strpos('0123456789abcdef', substr(digitos, i, 1)) - 1)
+                            * pow(cast(base as bignumeric), length(digitos) - i)), 0)
+                        from unnest(generate_array(1, length(digitos))) as i
+                    ) as valor
+                from (
+                    select negativo,
+                        case left(corpo, 2) when '0x' then 16 when '0o' then 8 when '0b' then 2 else 10 end as base,
+                        ltrim(case when left(corpo, 2) in ('0x', '0o', '0b') then substr(corpo, 3) else corpo end, '0') as digitos
+                    from (
+                        select left(texto, 1) = '-' as negativo, ltrim(texto, '+-') as corpo
+                        from (
+                            select replace(lower(trim(({{ expressao }}), ' \t\n\v\f\r')), '_', '') as texto
+                        )
+                    )
+                )
+                where length(digitos) <= case base when 16 then 16 when 8 then 22 when 2 then 64 else 19 end
+            )
+        )
+     end)
+    {%- elif tipo == 'uuid' -%}
+    (case
+        when regexp_contains(({{ expressao }}), r'(?i)^(\{([0-9a-f]{4}-?){7}[0-9a-f]{4}\}|([0-9a-f]{4}-?){7}[0-9a-f]{4})$')
+            then (
+                select concat(substr(h, 1, 8), '-', substr(h, 9, 4), '-', substr(h, 13, 4), '-',
+                    substr(h, 17, 4), '-', substr(h, 21, 12))
+                from (select lower(regexp_replace(({{ expressao }}), r'[{}-]', '')) as h)
+            )
+        else null
+     end)
+    {%- elif tipo == 'texto' -%}
+    nullif(trim(({{ expressao }}), ' '), '')
     {%- else -%}
     {{ exceptions.raise_compiler_error("chave_canonica: tipo desconhecido " ~ tipo) }}
     {%- endif -%}

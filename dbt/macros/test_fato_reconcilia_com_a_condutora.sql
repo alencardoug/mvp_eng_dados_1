@@ -37,14 +37,14 @@ condutora as (
     from {{ condutora }}
 )
 
-select 'linhas' as medida, f.linhas::numeric as na_fato, c.linhas::numeric as na_condutora
+select 'linhas' as medida, cast(f.linhas as numeric) as na_fato, cast(c.linhas as numeric) as na_condutora
 from fato f, condutora c
 where f.linhas <> c.linhas
 {%- for na_fato in medidas %}
 
 union all
 
-select '{{ na_fato }}', f.{{ na_fato }}::numeric, c.{{ na_fato }}::numeric
+select '{{ na_fato }}', cast(f.{{ na_fato }} as numeric), cast(c.{{ na_fato }} as numeric)
 from fato f, condutora c
 where f.{{ na_fato }} is distinct from c.{{ na_fato }}
 {%- endfor %}

@@ -54,7 +54,7 @@ base as (
         p.placed_at,
         p.order_status,
         p.is_realised,
-        cast(e.changed_at at time zone 'America/Sao_Paulo' as date) as change_date
+        {{ data_em_sao_paulo('e.changed_at') }} as change_date
     from eventos e
     join pedidos p
         on p.source_system = e.source_system and p.order_id = e.order_id

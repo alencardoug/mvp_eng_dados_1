@@ -15,12 +15,12 @@ select
     ch.channel_type,
     cat.root_category_name,
 
-    count(distinct (f.source_system, f.order_id))   as order_count,
+    {{ contar_distintos(['f.source_system', 'f.order_id']) }}   as order_count,
     sum(f.gross_revenue_amount)                     as gross_revenue_amount,
     sum(f.discount_amount)                          as discount_amount,
     sum(f.net_revenue_amount)                       as net_revenue_amount,
     round(
-        100.0 * sum(f.discount_amount) / nullif(sum(f.gross_revenue_amount), 0), 2
+        cast(100.0 as numeric) * sum(f.discount_amount) / nullif(sum(f.gross_revenue_amount), 0), 2
     )                                               as discount_share_pct
 from {{ ref('fact_sales_order_item') }} f
 join {{ ref('dim_date') }} d using (date_key)

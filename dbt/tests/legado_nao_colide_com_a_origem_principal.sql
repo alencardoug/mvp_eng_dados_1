@@ -27,11 +27,13 @@ sobreposicao as (
 
 )
 
-select 'chave substituta repetida' as violacao, customer_key::text as detalhe
+select 'chave substituta repetida' as violacao, cast(customer_key as {{ tipo_texto() }}) as detalhe
 from chaves_repetidas
 
 union all
 
 -- Zero sobreposição significaria que o teste não está exercitando o que diz.
+-- Com FROM de uma linha: o BigQuery não aceita `where` sem `from`.
 select 'sem sobreposição de identificadores entre origens', 'nenhuma'
+from (select 1) as uma_linha
 where not exists (select 1 from sobreposicao)

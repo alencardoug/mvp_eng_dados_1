@@ -45,10 +45,10 @@ select
 
     -- Quanto tempo o pedido ficou no estado de origem antes desta transição.
     -- Nulo na primeira, que não tem estado anterior.
-    case
+    {% call decimal_fixo(12, 4) %}case
         when previous_changed_at is not null
-        then extract(epoch from changed_at - previous_changed_at) / 3600.0
-    end::numeric(12, 4)                                 as hours_in_previous_status,
+        then {{ horas_entre('changed_at', 'previous_changed_at') }}
+    end{% endcall %}                                 as hours_in_previous_status,
 
     from_status is null                                 as is_order_creation,
     changed_at = last_changed_at                        as is_current_status,

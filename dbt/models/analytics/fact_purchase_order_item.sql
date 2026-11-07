@@ -40,7 +40,7 @@ join {{ ref('purchase_orders') }} o
   on o.source_system = i.source_system
  and o.purchase_order_id = i.purchase_order_id
 join {{ ref('dim_date') }} d
-  on d.full_date = cast(o.ordered_at at time zone 'America/Sao_Paulo' as date)
+  on d.full_date = {{ data_em_sao_paulo('o.ordered_at') }}
 join {{ ref('dim_supplier') }} s
   on s.source_system = o.source_system
  and s.supplier_natural_key = o.supplier_id

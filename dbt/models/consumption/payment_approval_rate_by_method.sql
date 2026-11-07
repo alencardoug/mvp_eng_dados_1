@@ -49,11 +49,11 @@ select
     sum(a.authorization_count)                      as authorization_attempt_count,
     sum(a.approved_authorization_count)             as approved_authorization_count,
     round(
-        100.0 * sum(a.approved_authorization_count)
+        cast(100.0 as numeric) * sum(a.approved_authorization_count)
         / nullif(sum(a.authorization_count), 0), 2
     )                                               as approval_rate_pct,
     sum(a.authorized_amount)                        as authorized_amount,
-    coalesce(sum(c.captured_amount) filter (where a.is_first_approval), 0)
+    coalesce({{ agregado_onde('sum', "c.captured_amount", "a.is_first_approval") }}, 0)
                                                     as captured_amount
 from autorizacoes a
 join {{ ref('dim_date') }} d using (date_key)

@@ -70,7 +70,7 @@ select
     coalesce(r.net_revenue_amount, 0) - coalesce(c.cost_of_goods_sold, 0)
                                                          as gross_profit_amount,
     round(
-        100.0 * (coalesce(r.net_revenue_amount, 0) - coalesce(c.cost_of_goods_sold, 0))
+        cast(100.0 as numeric) * (coalesce(r.net_revenue_amount, 0) - coalesce(c.cost_of_goods_sold, 0))
         / nullif(r.net_revenue_amount, 0), 2
     )                                                    as gross_margin_pct,
     coalesce(r.unit_count, 0)                            as unit_count,

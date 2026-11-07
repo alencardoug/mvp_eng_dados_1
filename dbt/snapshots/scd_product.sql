@@ -14,7 +14,10 @@
 
 {{
     config(
-        unique_key="source_system || '-' || product_variant_id",
+        unique_key=(
+            "source_system || '-' || product_variant_id" if target.type != 'bigquery'
+            else "concat(source_system, '-', cast(product_variant_id as string))"
+        ),
         strategy='check',
         check_cols=[
             'product_category_id',

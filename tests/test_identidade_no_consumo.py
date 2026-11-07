@@ -77,11 +77,26 @@ _VAR = re.compile(r"\{\{\s*var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\}\}")
 _CONFIG = re.compile(r"\{\{\s*config\(.*?\)\s*\}\}", re.S)
 #: A janela de dias no calendário (macro `dias_no_calendario`): para a identidade, só o instante importa.
 _DIAS = re.compile(r"\{\{\s*dias_no_calendario\(\s*'([^']*)'\s*,\s*-?var\(\s*[\"'][a-z0-9_]+[\"']\s*\)\s*\)\s*\}\}")
-#: As macros de dialeto da Etapa 13 (`dbt/macros/distinct_on.sql`), lidas na forma que o alvo
-#: local compila — a mesma que esta guarda sempre leu. Forma fora destas continua recusada.
-_DISTINCT_ON = re.compile(r"\{\{\s*distinct_on\(\s*'([^']*)'\s*\)\s*\}\}")
-_DISTINCT_ON_ORDER = re.compile(r"\{\{\s*distinct_on_order\(\s*'([^']*)'\s*,\s*'([^']*)'\s*\)\s*\}\}")
-_BOOL = re.compile(r"""\{\{\s*(?:dbt\.)?(bool_or|bool_and)\(\s*(["'])(.*?)\2\s*\)\s*\}\}""")
+#: As macros de dialeto da Etapa 13 (`distinct_on.sql`, `portavel.sql`), renderizadas de verdade
+#: na metade local (`default__`) — a forma que o alvo local compila, a mesma que esta guarda
+#: sempre leu. Jinja fora delas continua recusado.
+_MACROS_DE_DIALETO = ("distinct_on.sql", "portavel.sql")
+
+
+def _macros_de_dialeto() -> dict:
+    import jinja2
+
+    fonte = "".join((RAIZ / "dbt" / "macros" / nome).read_text(encoding="utf-8") for nome in _MACROS_DE_DIALETO)
+    modulo = None
+
+    class _Adaptador:
+        def dispatch(self, nome, pacote=None):
+            return getattr(modulo, "default__" + nome)
+
+    globais = {"adapter": _Adaptador(), "return": lambda valor: valor}
+    modulo = jinja2.Environment().from_string(fonte, globals=globais).module
+    return {nome: getattr(modulo, nome) for nome in dir(modulo)
+            if not nome.startswith(("_", "default__", "bigquery__"))}
 
 
 def _sql(caminho: pathlib.Path) -> str:
@@ -96,9 +111,15 @@ def _sql(caminho: pathlib.Path) -> str:
     texto = _REF.sub(r"\1", texto)
     texto = _SOURCE.sub(r"\1.\2", texto)
     texto = _VAR.sub("1", texto)
-    texto = _DISTINCT_ON.sub(r"distinct on (\1)", texto)
-    texto = _DISTINCT_ON_ORDER.sub(r"order by \2", texto)
-    texto = _BOOL.sub(r"\1(\3)", texto)
+    import jinja2
+
+    class _Dbt:
+        def bool_or(self, expressao):
+            return f"bool_or({expressao})"
+
+    texto = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(texto).render(
+        dbt=_Dbt(), var=lambda nome, padrao=None: "1",
+        dias_no_calendario=lambda instante, dias: f"({instante})", **_macros_de_dialeto())
     if "{{" in texto or "{%" in texto:
         raise AssertionError(f"{caminho.name}: Jinja além de ref — ensine o teste a lê-lo")
     return texto

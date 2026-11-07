@@ -27,6 +27,11 @@
 
 {{ config(materialized='view') }}
 
+{#- Venda dentro da janela de cobertura (o `filter` da soma abaixo). -#}
+{% set venda_na_janela -%}
+l.is_sale
+              and l.occurred_at >= {{ dias_no_calendario('(select instante from agora)', -var("cover_window_days")) }}
+{%- endset %}
 with frio as (
 
     select
@@ -83,17 +88,14 @@ posicao as (
         l.warehouse_id,
         l.product_variant_id,
         sum(l.quantity_delta)                                       as quantity_on_hand,
-        sum(l.quantity_delta) filter (where not l.do_caminho_quente) as quantity_from_batch,
-        sum(l.quantity_delta) filter (where l.do_caminho_quente)     as quantity_from_stream,
-        count(*) filter (where l.do_caminho_quente)                  as stream_movement_count,
+        {{ agregado_onde('sum', "l.quantity_delta", "not l.do_caminho_quente") }} as quantity_from_batch,
+        {{ agregado_onde('sum', "l.quantity_delta", "l.do_caminho_quente") }}     as quantity_from_stream,
+        {{ contar_onde("l.do_caminho_quente") }}                  as stream_movement_count,
         max(l.occurred_at)                                           as last_movement_at,
         -- Consumo da janela de cobertura: só venda. Transferência e devolução
         -- ao fornecedor também tiram do armazém, e nenhuma das duas é demanda —
         -- somá-las encurtaria a cobertura e faria o alerta disparar cedo.
-        sum(l.quantity_out) filter (
-            where l.is_sale
-              and l.occurred_at >= {{ dias_no_calendario('(select instante from agora)', -var("cover_window_days")) }}
-        )                                                            as window_sold_units
+        {{ agregado_onde('sum', 'l.quantity_out', venda_na_janela) }} as window_sold_units
     from livro l
     -- Sem a origem no agrupamento, o saldo do par armazém/SKU do legado soma ao
     -- do retail de mesmo id — e há 121 pares presentes nas duas origens.
@@ -130,7 +132,7 @@ select
     cast({{ var("reorder_point_units") }} as integer)       as reorder_point,
     -- **Ruptura**: saldo disponível zerado ou negativo — não há o que vender.
     (pos.quantity_on_hand - coalesce(b.quantity_reserved, 0)) <= 0 as is_stockout,
-    round(pos.window_sold_units / {{ var("cover_window_days") }}::numeric, 3)
+    round(pos.window_sold_units / cast({{ var("cover_window_days") }} as numeric), 3)
                                                             as daily_demand_units,
     -- **Cobertura**, em dias: quanto o saldo dura ao ritmo da demanda recente.
     -- **Não aditiva** — é razão. Nula quando não houve venda na janela: SKU sem
@@ -139,7 +141,7 @@ select
         when pos.window_sold_units > 0
         then round(
             (pos.quantity_on_hand - coalesce(b.quantity_reserved, 0))
-            / (pos.window_sold_units / {{ var("cover_window_days") }}::numeric), 1
+            / (pos.window_sold_units / cast({{ var("cover_window_days") }} as numeric)), 1
         )
     end                                                     as days_of_cover,
 

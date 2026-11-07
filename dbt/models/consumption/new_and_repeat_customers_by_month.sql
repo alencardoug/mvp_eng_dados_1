@@ -5,6 +5,11 @@
 -- taxa de um mês para de mudar depois de fechada a janela. Contar no mês da
 -- recompra faria toda coorte antiga variar para sempre.
 
+{#- A recompra dentro da janela, usada duas vezes abaixo. -#}
+{% set recompra_na_janela -%}
+r.second_order_at is not null
+          and r.second_order_at <= {{ dias_no_calendario('e.first_order_at', var("repeat_purchase_window_days")) }}
+{%- endset %}
 with estreia as (
 
     -- Primeira compra realizada de cada cliente, com o canal em que ela
@@ -55,15 +60,9 @@ select
     e.customer_segment_name,
 
     count(*)                                        as new_customer_count,
-    count(*) filter (
-        where r.second_order_at is not null
-          and r.second_order_at <= {{ dias_no_calendario('e.first_order_at', var("repeat_purchase_window_days")) }}
-    )                                               as returning_customer_count,
+    {{ contar_onde(recompra_na_janela) }}                 as returning_customer_count,
     round(
-        100.0 * count(*) filter (
-            where r.second_order_at is not null
-              and r.second_order_at <= {{ dias_no_calendario('e.first_order_at', var("repeat_purchase_window_days")) }}
-        ) / nullif(count(*), 0), 2
+        cast(100.0 as numeric) * {{ contar_onde(recompra_na_janela) }} / nullif(count(*), 0), 2
     )                                               as repeat_purchase_rate_pct
 from estreia e
 join {{ ref('dim_date') }} d on d.date_key = e.first_order_date_key
