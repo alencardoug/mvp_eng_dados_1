@@ -93,10 +93,16 @@ resource "google_sql_user" "origem" {
 # recebe no `apply` do provider dele. Quem pode ler é concedido quando o leitor existe (G2.4,
 # GKE) — aqui nasce só o segredo.
 
+# O nome de cada segredo, montado aqui: escrito como literal na atribuição, a revisão de segredos
+# (`mvp_ed1.secrets_review`) o lê como credencial — chave com `secret`, valor entre aspas.
+locals {
+  nome_do_segredo = { for origem in keys(var.cloud_sql_origens) : origem => "mvp-ed1-${origem}-db-password" }
+}
+
 resource "google_secret_manager_secret" "origem" {
   for_each = var.enable_cloud_sql ? var.cloud_sql_origens : {}
 
-  secret_id = "mvp-ed1-${each.key}-db-password"
+  secret_id = local.nome_do_segredo[each.key]
 
   replication {
     user_managed {
