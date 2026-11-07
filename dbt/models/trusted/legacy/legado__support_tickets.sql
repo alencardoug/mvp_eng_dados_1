@@ -10,7 +10,66 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'support_tickets'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS support_ticket_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.ticket_number')
+  ) AS STRING) AS ticket_number,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.customer_id')
+  ) AS INT64) AS customer_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.order_id')
+  ) AS INT64) AS order_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.shipment_id')
+  ) AS INT64) AS shipment_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.assigned_agent_id')
+  ) AS INT64) AS assigned_agent_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.category')
+  ) AS STRING) AS ticket_category,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.priority')
+  ) AS STRING) AS ticket_priority,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.status')
+  ) AS STRING) AS ticket_status,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.subject')
+  ) AS STRING) AS ticket_subject,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.opened_at')
+  ) AS TIMESTAMP) AS opened_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.closed_at')
+  ) AS TIMESTAMP) AS closed_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.updated_at')
+  ) AS TIMESTAMP) AS source_updated_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) AS source_deleted_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) IS NOT NULL AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -36,4 +95,4 @@ select
     (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
     (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}

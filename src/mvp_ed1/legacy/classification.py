@@ -17,6 +17,7 @@ import yaml
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.catalogo import Catalogo
 from mvp_ed1.models import Base
+from mvp_ed1.legacy.bigquery import dois_dialetos
 
 ROOT = Path("dbt/models")
 HEADER = "-- Gerado por make legacy-models; altere legacy/classification.py ou classification.sql.\n"
@@ -145,6 +146,8 @@ def generate(
     outputs.update(metadata_files(root))
     for path, content in outputs.items():
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix == ".sql":
+            content = dois_dialetos(content)
         path.write_text(content, encoding="utf-8")
     return list(outputs)
 

@@ -13,7 +13,979 @@
 --
 -- Uma linha no resultado é uma tabela em que as duas contagens divergiram.
 
-select
+{% if target.type == 'bigquery' %}
+SELECT
+  'brands' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'brands'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__brands') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'brands'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__brands') }}
+  )
+UNION ALL
+SELECT
+  'campaigns' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'campaigns'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__campaigns') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'campaigns'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__campaigns') }}
+  )
+UNION ALL
+SELECT
+  'carriers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'carriers'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carriers') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'carriers'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carriers') }}
+  )
+UNION ALL
+SELECT
+  'customer_segments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customer_segments'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customer_segments') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customer_segments'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customer_segments') }}
+  )
+UNION ALL
+SELECT
+  'payment_methods' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payment_methods'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_methods') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payment_methods'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_methods') }}
+  )
+UNION ALL
+SELECT
+  'product_categories' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'product_categories'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_categories') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'product_categories'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_categories') }}
+  )
+UNION ALL
+SELECT
+  'sales_channels' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'sales_channels'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__sales_channels') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'sales_channels'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__sales_channels') }}
+  )
+UNION ALL
+SELECT
+  'suppliers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'suppliers'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__suppliers') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'suppliers'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__suppliers') }}
+  )
+UNION ALL
+SELECT
+  'support_agents' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'support_agents'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_agents') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'support_agents'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_agents') }}
+  )
+UNION ALL
+SELECT
+  'warehouses' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'warehouses'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__warehouses') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'warehouses'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__warehouses') }}
+  )
+UNION ALL
+SELECT
+  'coupons' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'coupons'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupons') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'coupons'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupons') }}
+  )
+UNION ALL
+SELECT
+  'customers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customers'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customers') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customers'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customers') }}
+  )
+UNION ALL
+SELECT
+  'products' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'products'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__products') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'products'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__products') }}
+  )
+UNION ALL
+SELECT
+  'purchase_orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'purchase_orders'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_orders') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'purchase_orders'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_orders') }}
+  )
+UNION ALL
+SELECT
+  'carts' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'carts'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carts') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'carts'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carts') }}
+  )
+UNION ALL
+SELECT
+  'customer_addresses' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customer_addresses'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customer_addresses') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'customer_addresses'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customer_addresses') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipts' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'goods_receipts'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__goods_receipts') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'goods_receipts'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__goods_receipts') }}
+  )
+UNION ALL
+SELECT
+  'product_variants' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'product_variants'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_variants') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'product_variants'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_variants') }}
+  )
+UNION ALL
+SELECT
+  'cart_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'cart_items'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__cart_items') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'cart_items'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__cart_items') }}
+  )
+UNION ALL
+SELECT
+  'inventory_balances' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'inventory_balances'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_balances') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'inventory_balances'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_balances') }}
+  )
+UNION ALL
+SELECT
+  'inventory_movements' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'inventory_movements'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_movements') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'inventory_movements'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_movements') }}
+  )
+UNION ALL
+SELECT
+  'orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'orders'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__orders') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'orders'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__orders') }}
+  )
+UNION ALL
+SELECT
+  'purchase_order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'purchase_order_items'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_order_items') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'purchase_order_items'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_order_items') }}
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'coupon_redemptions'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupon_redemptions') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'coupon_redemptions'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupon_redemptions') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipt_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'goods_receipt_items'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__goods_receipt_items') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'goods_receipt_items'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__goods_receipt_items') }}
+  )
+UNION ALL
+SELECT
+  'order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'order_items'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_items') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'order_items'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_items') }}
+  )
+UNION ALL
+SELECT
+  'order_status_history' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'order_status_history'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_status_history') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'order_status_history'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_status_history') }}
+  )
+UNION ALL
+SELECT
+  'payments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payments'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payments') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payments'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payments') }}
+  )
+UNION ALL
+SELECT
+  'shipments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'shipments'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipments') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'shipments'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipments') }}
+  )
+UNION ALL
+SELECT
+  'stock_reservations' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'stock_reservations'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__stock_reservations') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'stock_reservations'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__stock_reservations') }}
+  )
+UNION ALL
+SELECT
+  'delivery_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'delivery_events'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__delivery_events') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'delivery_events'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__delivery_events') }}
+  )
+UNION ALL
+SELECT
+  'payment_transactions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payment_transactions'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_transactions') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'payment_transactions'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_transactions') }}
+  )
+UNION ALL
+SELECT
+  'shipment_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'shipment_items'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipment_items') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'shipment_items'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipment_items') }}
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'support_tickets'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_tickets') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'support_tickets'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_tickets') }}
+  )
+UNION ALL
+SELECT
+  'refunds' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'refunds'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__refunds') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'refunds'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__refunds') }}
+  )
+UNION ALL
+SELECT
+  'ticket_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'ticket_events'
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__ticket_events') }}
+  ) AS na_ponte
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legacy_eligible_records') }}
+    WHERE
+      source_table = 'ticket_events'
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__ticket_events') }}
+  )
+{% else %}select
     'brands'                                  as tabela,
     (select count(*) from {{ ref('legacy_eligible_records') }}
         where source_table = 'brands')        as aptos,
@@ -405,4 +1377,4 @@ select
     (select count(*) from {{ ref('legado__ticket_events') }}) as na_ponte
 where (select count(*) from {{ ref('legacy_eligible_records') }}
         where source_table = 'ticket_events')
-   <> (select count(*) from {{ ref('legado__ticket_events') }})
+   <> (select count(*) from {{ ref('legado__ticket_events') }}){% endif %}

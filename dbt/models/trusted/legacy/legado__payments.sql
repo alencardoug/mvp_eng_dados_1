@@ -10,7 +10,60 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'payments'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS payment_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.payment_code')
+  ) AS STRING) AS payment_code,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.order_id')
+  ) AS INT64) AS order_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.payment_method_id')
+  ) AS INT64) AS payment_method_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.status')
+  ) AS STRING) AS payment_status,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.amount')
+  ) AS NUMERIC) AS payment_amount,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.currency')
+  ) AS STRING) AS currency,
+  CAST(CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.installments')
+  ) AS INT64) AS INT64) AS installments,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.authorized_at')
+  ) AS TIMESTAMP) AS authorized_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.captured_at')
+  ) AS TIMESTAMP) AS captured_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.updated_at')
+  ) AS TIMESTAMP) AS source_updated_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) AS source_deleted_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) IS NOT NULL AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -34,4 +87,4 @@ select
     (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
     (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}

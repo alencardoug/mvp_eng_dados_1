@@ -10,7 +10,54 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'purchase_orders'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS purchase_order_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.po_number')
+  ) AS STRING) AS po_number,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.supplier_id')
+  ) AS INT64) AS supplier_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.status')
+  ) AS STRING) AS purchase_order_status,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.ordered_at')
+  ) AS TIMESTAMP) AS ordered_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.expected_at')
+  ) AS TIMESTAMP) AS expected_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.currency')
+  ) AS STRING) AS currency,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.total_amount')
+  ) AS NUMERIC) AS purchase_order_total_amount,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.updated_at')
+  ) AS TIMESTAMP) AS source_updated_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) AS source_deleted_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) IS NOT NULL AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -32,4 +79,4 @@ select
     (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
     (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}

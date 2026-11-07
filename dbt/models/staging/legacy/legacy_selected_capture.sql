@@ -14,7 +14,25 @@
 
 {{ config(materialized='table') }}
 
-with certificadas as (
+{% if target.type == 'bigquery' %}
+WITH certificadas AS (
+  SELECT
+    snapshot_id
+  FROM {{ source('governance', 'legacy_captures') }}
+  WHERE
+    status = 'complete'
+  GROUP BY
+    snapshot_id
+  HAVING
+    COUNT(DISTINCT source_table) = 40
+)
+SELECT
+  CAST(COALESCE({{ legacy_snapshot_id() }}, (
+    SELECT
+      MAX(snapshot_id)
+    FROM certificadas
+  )) AS INT64) AS snapshot_id
+{% else %}with certificadas as (
 
     select snapshot_id
     from {{ source('governance', 'legacy_captures') }}
@@ -27,4 +45,4 @@ with certificadas as (
 select coalesce(
     {{ legacy_snapshot_id() }},
     (select max(snapshot_id) from certificadas)
-)::bigint                                       as snapshot_id
+)::bigint                                       as snapshot_id{% endif %}

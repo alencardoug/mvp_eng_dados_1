@@ -10,7 +10,72 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'customer_addresses'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS customer_address_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.customer_id')
+  ) AS INT64) AS customer_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.address_type')
+  ) AS STRING) AS address_type,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.street')
+  ) AS STRING) AS street,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.number')
+  ) AS STRING) AS street_number,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.complement')
+  ) AS STRING) AS complement,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.district')
+  ) AS STRING) AS district,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.city')
+  ) AS STRING) AS city,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.state')
+  ) AS STRING) AS state,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.postal_code')
+  ) AS STRING) AS postal_code,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.country')
+  ) AS STRING) AS country,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.is_primary')
+  ) AS BOOL) AS is_primary,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.valid_from')
+  ) AS TIMESTAMP) AS valid_from,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.valid_to')
+  ) AS TIMESTAMP) AS valid_to,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.updated_at')
+  ) AS TIMESTAMP) AS source_updated_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) AS source_deleted_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) IS NOT NULL AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -38,4 +103,4 @@ select
     (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
     (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}

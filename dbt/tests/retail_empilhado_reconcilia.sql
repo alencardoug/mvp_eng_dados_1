@@ -21,7 +21,763 @@
 --
 -- Uma linha no resultado é um modelo em que as duas contagens divergiram.
 
-select
+{% if target.type == 'bigquery' %}
+SELECT
+  'campaigns' AS modelo,
+  'campaigns' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__campaigns') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('campaigns') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__campaigns') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('campaigns') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'carriers' AS modelo,
+  'carriers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__carriers') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carriers') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__carriers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carriers') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'carts' AS modelo,
+  'carts' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__carts') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carts') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__carts') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carts') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS modelo,
+  'coupon_redemptions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__coupon_redemptions') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupon_redemptions') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__coupon_redemptions') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupon_redemptions') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'coupons' AS modelo,
+  'coupons' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__coupons') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupons') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__coupons') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupons') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'customers' AS modelo,
+  'customers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__customers') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('customers') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__customers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('customers') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'delivery_events' AS modelo,
+  'delivery_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__delivery_events') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('delivery_events') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__delivery_events') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('delivery_events') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'inventory_balances' AS modelo,
+  'inventory_balances' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__inventory_balances') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_balances') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__inventory_balances') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_balances') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'inventory_movements' AS modelo,
+  'inventory_movements' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__inventory_movements') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_movements') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__inventory_movements') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_movements') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'order_items' AS modelo,
+  'order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__order_items') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_items') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__order_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_items') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'order_status_events' AS modelo,
+  'order_status_history' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__order_status_history') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_status_events') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__order_status_history') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_status_events') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'orders' AS modelo,
+  'orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__orders') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('orders') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__orders') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('orders') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'payment_methods' AS modelo,
+  'payment_methods' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payment_methods') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_methods') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payment_methods') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_methods') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'payment_transactions' AS modelo,
+  'payment_transactions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payment_transactions') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_transactions') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payment_transactions') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_transactions') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'payments' AS modelo,
+  'payments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payments') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payments') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__payments') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payments') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'product_skus' AS modelo,
+  'product_variants' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__product_variants') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('product_skus') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__product_variants') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('product_skus') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'purchase_order_items' AS modelo,
+  'purchase_order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__purchase_order_items') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_order_items') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__purchase_order_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_order_items') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'purchase_orders' AS modelo,
+  'purchase_orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__purchase_orders') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_orders') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__purchase_orders') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_orders') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'refunds' AS modelo,
+  'refunds' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__refunds') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('refunds') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__refunds') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('refunds') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'sales_channels' AS modelo,
+  'sales_channels' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__sales_channels') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('sales_channels') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__sales_channels') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('sales_channels') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'shipment_items' AS modelo,
+  'shipment_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__shipment_items') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipment_items') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__shipment_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipment_items') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'shipments' AS modelo,
+  'shipments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__shipments') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipments') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__shipments') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipments') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'suppliers' AS modelo,
+  'suppliers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__suppliers') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('suppliers') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__suppliers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('suppliers') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'support_agents' AS modelo,
+  'support_agents' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__support_agents') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_agents') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__support_agents') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_agents') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS modelo,
+  'support_tickets' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__support_tickets') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_tickets') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__support_tickets') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_tickets') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'ticket_events' AS modelo,
+  'ticket_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__ticket_events') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('ticket_events') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__ticket_events') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('ticket_events') }}
+    WHERE
+      source_system = 'retail'
+  )
+UNION ALL
+SELECT
+  'warehouses' AS modelo,
+  'warehouses' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__warehouses') }}
+  ) AS em_staging,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('warehouses') }}
+    WHERE
+      source_system = 'retail'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('stg_retail__warehouses') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('warehouses') }}
+    WHERE
+      source_system = 'retail'
+  )
+{% else %}select
     'campaigns'                          as modelo,
     'campaigns'                                  as tabela,
     (select count(*) from {{ ref('stg_retail__campaigns') }}) as em_staging,
@@ -341,4 +1097,4 @@ select
         where source_system = 'retail')         as empilhados
 where (select count(*) from {{ ref('stg_retail__warehouses') }})
    <> (select count(*) from {{ ref('warehouses') }}
-        where source_system = 'retail')
+        where source_system = 'retail'){% endif %}

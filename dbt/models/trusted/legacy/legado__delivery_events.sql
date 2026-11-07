@@ -10,7 +10,40 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'delivery_events'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS delivery_event_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.shipment_id')
+  ) AS INT64) AS shipment_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.event_type')
+  ) AS STRING) AS delivery_event_type,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.occurred_at')
+  ) AS TIMESTAMP) AS occurred_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.location')
+  ) AS STRING) AS event_location,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.description')
+  ) AS STRING) AS event_description,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  FALSE AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -28,4 +61,4 @@ select
     (cleaned_payload->>'created_at')::timestamptz       as source_created_at,
     false                                               as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}

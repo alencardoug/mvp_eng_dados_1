@@ -15,7 +15,1470 @@
 -- de deixar a divergência passar como órfão legítimo. Não muda tratamento
 -- nenhum: unificar as noções de identidade é decisão da D43.
 
-with registros as (
+{% if target.type == 'bigquery' %}
+WITH registros AS (
+  SELECT
+    source_table,
+    legacy_row_id,
+    cleaned_payload
+  FROM {{ ref('legacy_records') }}
+)
+SELECT
+  'product_categories' AS source_table,
+  f.legacy_row_id,
+  'parent_id' AS column_name,
+  'product_categories' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.parent_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'product_categories'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.parent_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_categories'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.parent_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_categories' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'parent_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'coupons' AS source_table,
+  f.legacy_row_id,
+  'campaign_id' AS column_name,
+  'campaigns' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.campaign_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'coupons'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.campaign_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'campaigns'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.campaign_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'campaigns' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'campaign_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'customers' AS source_table,
+  f.legacy_row_id,
+  'segment_id' AS column_name,
+  'customer_segments' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.segment_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'customers'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.segment_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customer_segments'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.segment_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customer_segments' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'segment_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'price_lists' AS source_table,
+  f.legacy_row_id,
+  'sales_channel_id' AS column_name,
+  'sales_channels' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'price_lists'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'sales_channel_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'products' AS source_table,
+  f.legacy_row_id,
+  'brand_id' AS column_name,
+  'brands' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.brand_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'products'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.brand_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'brands'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.brand_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'brands' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'brand_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'products' AS source_table,
+  f.legacy_row_id,
+  'category_id' AS column_name,
+  'product_categories' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.category_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'products'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.category_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_categories'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.category_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_categories' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'category_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'purchase_orders' AS source_table,
+  f.legacy_row_id,
+  'supplier_id' AS column_name,
+  'suppliers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.supplier_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'purchase_orders'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.supplier_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'suppliers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.supplier_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'suppliers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'supplier_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'carts' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'carts'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'carts' AS source_table,
+  f.legacy_row_id,
+  'sales_channel_id' AS column_name,
+  'sales_channels' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'carts'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'sales_channel_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'customer_addresses' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'customer_addresses'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'customer_contacts' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'customer_contacts'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'customer_preferences' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'customer_preferences'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipts' AS source_table,
+  f.legacy_row_id,
+  'purchase_order_id' AS column_name,
+  'purchase_orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'goods_receipts'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'purchase_order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipts' AS source_table,
+  f.legacy_row_id,
+  'warehouse_id' AS column_name,
+  'warehouses' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'goods_receipts'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'warehouse_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'product_variants' AS source_table,
+  f.legacy_row_id,
+  'product_id' AS column_name,
+  'products' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'product_variants'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'products'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'products' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'cart_items' AS source_table,
+  f.legacy_row_id,
+  'cart_id' AS column_name,
+  'carts' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'cart_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'cart_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'cart_items' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'cart_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'inventory_balances' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'inventory_balances'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'inventory_balances' AS source_table,
+  f.legacy_row_id,
+  'warehouse_id' AS column_name,
+  'warehouses' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'inventory_balances'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'warehouse_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'inventory_movements' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'inventory_movements'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'inventory_movements' AS source_table,
+  f.legacy_row_id,
+  'warehouse_id' AS column_name,
+  'warehouses' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'inventory_movements'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'warehouse_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'orders' AS source_table,
+  f.legacy_row_id,
+  'cart_id' AS column_name,
+  'carts' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'orders'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'cart_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'orders' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'orders'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'orders' AS source_table,
+  f.legacy_row_id,
+  'sales_channel_id' AS column_name,
+  'sales_channels' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'orders'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.sales_channel_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'sales_channels' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'sales_channel_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'product_prices' AS source_table,
+  f.legacy_row_id,
+  'price_list_id' AS column_name,
+  'price_lists' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.price_list_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'product_prices'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.price_list_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'price_lists'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.price_list_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'price_lists' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'price_list_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'product_prices' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'product_prices'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'purchase_order_items' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'purchase_order_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'purchase_order_items' AS source_table,
+  f.legacy_row_id,
+  'purchase_order_id' AS column_name,
+  'purchase_orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'purchase_order_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'purchase_order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS source_table,
+  f.legacy_row_id,
+  'coupon_id' AS column_name,
+  'coupons' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.coupon_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'coupon_redemptions'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.coupon_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'coupons'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.coupon_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'coupons' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'coupon_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'coupon_redemptions'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'coupon_redemptions'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipt_items' AS source_table,
+  f.legacy_row_id,
+  'goods_receipt_id' AS column_name,
+  'goods_receipts' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.goods_receipt_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'goods_receipt_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.goods_receipt_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'goods_receipts'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.goods_receipt_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'goods_receipts' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'goods_receipt_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'goods_receipt_items' AS source_table,
+  f.legacy_row_id,
+  'purchase_order_item_id' AS column_name,
+  'purchase_order_items' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_item_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'goods_receipt_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_item_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_order_items'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.purchase_order_item_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'purchase_order_items' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'purchase_order_item_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'order_items' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'order_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'order_items' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'order_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'order_status_history' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'order_status_history'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'payments' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'payments'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'payments' AS source_table,
+  f.legacy_row_id,
+  'payment_method_id' AS column_name,
+  'payment_methods' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_method_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'payments'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_method_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payment_methods'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_method_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payment_methods' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'payment_method_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'shipments' AS source_table,
+  f.legacy_row_id,
+  'carrier_id' AS column_name,
+  'carriers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.carrier_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'shipments'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.carrier_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carriers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.carrier_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carriers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'carrier_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'shipments' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'shipments'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'shipments' AS source_table,
+  f.legacy_row_id,
+  'warehouse_id' AS column_name,
+  'warehouses' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'shipments'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'warehouse_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'stock_reservations' AS source_table,
+  f.legacy_row_id,
+  'cart_id' AS column_name,
+  'carts' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'stock_reservations'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.cart_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'carts' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'cart_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'stock_reservations' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'stock_reservations'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'stock_reservations' AS source_table,
+  f.legacy_row_id,
+  'product_variant_id' AS column_name,
+  'product_variants' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'stock_reservations'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.product_variant_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'product_variants' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'product_variant_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'stock_reservations' AS source_table,
+  f.legacy_row_id,
+  'warehouse_id' AS column_name,
+  'warehouses' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'stock_reservations'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.warehouse_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'warehouses' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'warehouse_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'delivery_events' AS source_table,
+  f.legacy_row_id,
+  'shipment_id' AS column_name,
+  'shipments' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'delivery_events'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'shipment_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'payment_transactions' AS source_table,
+  f.legacy_row_id,
+  'payment_id' AS column_name,
+  'payments' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'payment_transactions'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payments'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payments' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'payment_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'shipment_items' AS source_table,
+  f.legacy_row_id,
+  'order_item_id' AS column_name,
+  'order_items' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_item_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'shipment_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_item_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'order_items'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_item_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'order_items' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_item_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'shipment_items' AS source_table,
+  f.legacy_row_id,
+  'shipment_id' AS column_name,
+  'shipments' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'shipment_items'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'shipment_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS source_table,
+  f.legacy_row_id,
+  'assigned_agent_id' AS column_name,
+  'support_agents' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.assigned_agent_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'support_tickets'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.assigned_agent_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_agents'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.assigned_agent_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_agents' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'assigned_agent_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS source_table,
+  f.legacy_row_id,
+  'customer_id' AS column_name,
+  'customers' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'support_tickets'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.customer_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'customers' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'customer_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS source_table,
+  f.legacy_row_id,
+  'order_id' AS column_name,
+  'orders' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'support_tickets'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.order_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'orders' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'order_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS source_table,
+  f.legacy_row_id,
+  'shipment_id' AS column_name,
+  'shipments' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'support_tickets'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.shipment_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'shipments' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'shipment_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'refunds' AS source_table,
+  f.legacy_row_id,
+  'payment_transaction_id' AS column_name,
+  'payment_transactions' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_transaction_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'refunds'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_transaction_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payment_transactions'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.payment_transaction_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'payment_transactions' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'payment_transaction_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'ticket_events' AS source_table,
+  f.legacy_row_id,
+  'agent_id' AS column_name,
+  'support_agents' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.agent_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'ticket_events'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.agent_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_agents'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.agent_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_agents' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'agent_id'", 'bigint') }}
+  )
+UNION ALL
+SELECT
+  'ticket_events' AS source_table,
+  f.legacy_row_id,
+  'ticket_id' AS column_name,
+  'support_tickets' AS parent_table,
+  JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.ticket_id') AS parent_value
+FROM registros AS f
+WHERE
+  f.source_table = 'ticket_events'
+  AND JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.ticket_id') IS NOT NULL
+  AND NOT EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_tickets'
+      AND JSON_EXTRACT_SCALAR(p.cleaned_payload, '$.id') = JSON_EXTRACT_SCALAR(f.cleaned_payload, '$.ticket_id')
+  )
+  AND EXISTS(
+    SELECT
+      1
+    FROM registros AS p
+    WHERE
+      p.source_table = 'support_tickets' AND {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }} = {{ chave_canonica("f.cleaned_payload->>'ticket_id'", 'bigint') }}
+  )
+{% else %}with registros as (
 
     select source_table, legacy_row_id, cleaned_payload
     from {{ ref('legacy_records') }}
@@ -860,4 +2323,4 @@ with registros as (
           where p.source_table = 'support_tickets'
             and {{ chave_canonica("p.cleaned_payload->>'id'", 'bigint') }}
               = {{ chave_canonica("f.cleaned_payload->>'ticket_id'", 'bigint') }}
-      )
+      ){% endif %}

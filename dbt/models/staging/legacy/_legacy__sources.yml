@@ -12,7 +12,7 @@ sources:
 
       Os valores chegam como texto, com os defeitos preservados. Tipar aqui
       recusaria justamente as linhas que a etapa existe para tratar.
-    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    database: "{{ target.database }}"
     schema: raw_legacy
     loader: airbyte
     # Governança §8 e ADR-0037: cada captura é retida por acréscimo; o
@@ -2579,7 +2579,7 @@ sources:
       para uma pergunta: esta captura do legado é elegível? É a exceção
       delimitada que o ADR-0044 abre — o certificado por stream de cada
       captura, escrito em duas fases por `mvp_ed1.legacy.captura`.
-    database: "{{ env_var('WAREHOUSE_DB_NAME') }}"
+    database: "{{ target.database }}"
     schema: governance
     loader: mvp_ed1.legacy.captura
     # Log de execução e controle (ADR-0023): evidência de auditoria, permanente.

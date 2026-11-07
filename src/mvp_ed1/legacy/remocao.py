@@ -37,6 +37,7 @@ from sqlalchemy import BigInteger, Integer, SmallInteger, Uuid
 from mvp_ed1.legacy import schema
 from mvp_ed1.legacy.dbt import AVISO, certificadas_sql
 from mvp_ed1.models import Base
+from mvp_ed1.legacy.bigquery import dois_dialetos
 
 DESTINO = pathlib.Path("dbt/models/trusted/legacy")
 TESTES = pathlib.Path("dbt/tests")
@@ -471,5 +472,5 @@ def gerar(destino: pathlib.Path = DESTINO, testes: pathlib.Path = TESTES) -> lis
         testes / "legado_vinculo_nao_diverge_por_representacao.sql": teste_vinculo_por_representacao(),
     }
     for caminho, conteudo in saidas.items():
-        caminho.write_text(conteudo, encoding="utf-8")
+        caminho.write_text(dois_dialetos(conteudo), encoding="utf-8")
     return list(saidas)

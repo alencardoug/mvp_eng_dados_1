@@ -31,6 +31,7 @@ from mvp_ed1.legacy.regras import (
     regra_truncado,
     regras,
 )
+from mvp_ed1.legacy.bigquery import dois_dialetos
 
 #: Onde os modelos gerados moram. Diretório próprio: são derivados, e misturá-los
 #: com os escritos à mão faria a fronteira da revisão desaparecer.
@@ -258,11 +259,11 @@ def gerar(catalogo: Catalogo, promessas: frozenset[str], destino: pathlib.Path =
     escritos = []
     for tabela in schema.tabelas():
         caminho = destino / f"stg_legacy__{tabela}.sql"
-        caminho.write_text(modelo(catalogo, tabela, promessas, limites), encoding="utf-8")
+        caminho.write_text(dois_dialetos(modelo(catalogo, tabela, promessas, limites)), encoding="utf-8")
         escritos.append(caminho)
 
     selecao = destino / "legacy_selected_capture.sql"
-    selecao.write_text(captura_selecionada(), encoding="utf-8")
+    selecao.write_text(dois_dialetos(captura_selecionada()), encoding="utf-8")
     escritos.append(selecao)
 
     testes = pathlib.Path("dbt/tests")
@@ -272,7 +273,7 @@ def gerar(catalogo: Catalogo, promessas: frozenset[str], destino: pathlib.Path =
         ("legacy_captura_completa", teste_captura_completa()),
     ):
         caminho = testes / f"{nome}.sql"
-        caminho.write_text(conteudo, encoding="utf-8")
+        caminho.write_text(dois_dialetos(conteudo), encoding="utf-8")
         escritos.append(caminho)
     return escritos
 
@@ -351,7 +352,7 @@ sources:
 
       Os valores chegam como texto, com os defeitos preservados. Tipar aqui
       recusaria justamente as linhas que a etapa existe para tratar.
-    database: "{{{{ env_var('WAREHOUSE_DB_NAME') }}}}"
+    database: "{{{{ target.database }}}}"
     schema: raw_legacy
     loader: airbyte
     # Governança §8 e ADR-0037: cada captura é retida por acréscimo; o
@@ -375,7 +376,7 @@ sources:
       para uma pergunta: esta captura do legado é elegível? É a exceção
       delimitada que o ADR-0044 abre — o certificado por stream de cada
       captura, escrito em duas fases por `mvp_ed1.legacy.captura`.
-    database: "{{{{ env_var('WAREHOUSE_DB_NAME') }}}}"
+    database: "{{{{ target.database }}}}"
     schema: governance
     loader: mvp_ed1.legacy.captura
     # Log de execução e controle (ADR-0023): evidência de auditoria, permanente.

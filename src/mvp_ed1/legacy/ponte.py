@@ -39,6 +39,7 @@ from sqlalchemy.dialects import postgresql
 from mvp_ed1.legacy import schema
 from mvp_ed1.models import Base
 from mvp_ed1.models.sensitivity import TECHNICAL, expression_level, value_columns
+from mvp_ed1.legacy.bigquery import dois_dialetos
 
 #: Onde estão os modelos de `staging` da origem principal, de onde sai o mapa.
 ORIGEM = pathlib.Path("dbt/models/staging")
@@ -465,7 +466,7 @@ def gerar(destino: pathlib.Path = DESTINO) -> list[pathlib.Path]:
     escritos = []
     for tabela in empilhaveis():
         caminho = destino / f"legado__{tabela}.sql"
-        caminho.write_text(modelo(tabela), encoding="utf-8")
+        caminho.write_text(dois_dialetos(modelo(tabela)), encoding="utf-8")
         escritos.append(caminho)
     declaracao = destino / "_pontes__models.yml"
     declaracao.write_text(models_yml(), encoding="utf-8")
@@ -582,6 +583,6 @@ def gerar_testes(destino: pathlib.Path = TESTES) -> list[pathlib.Path]:
         ("retail_empilhado_reconcilia", teste_do_empilhamento_retail()),
     ):
         caminho = destino / f"{nome}.sql"
-        caminho.write_text(conteudo, encoding="utf-8")
+        caminho.write_text(dois_dialetos(conteudo), encoding="utf-8")
         escritos.append(caminho)
     return escritos

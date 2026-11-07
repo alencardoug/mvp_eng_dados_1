@@ -14,7 +14,3047 @@
 -- primeira falha que casa. O valor original permanece acessível em
 -- `raw_legacy`, que é imutável.
 
-with captura as (
+{% if target.type == 'bigquery' %}
+WITH captura AS (
+  SELECT
+    *
+  FROM {{ source('legacy', 'stock_reservations') }}
+  /* A captura é escolhida **uma vez**, em `legacy_selected_capture`, e não */
+  /* aqui. O máximo por tabela parecia equivalente e não é: uma tabela que */
+  /* não veio na carga nova cairia para a geração anterior sozinha, e o */
+  /* modelo serviria linhas velhas sem que nada dissesse isso. */
+  WHERE
+    CAST((
+      JSON_EXTRACT_SCALAR(_airbyte_meta, '$.sync_id')
+    ) AS INT64) = (
+      SELECT
+        snapshot_id
+      FROM {{ ref('legacy_selected_capture') }}
+    )
+), limpo /* A limpeza vem **antes** dos achados, e não junto: o achado de rejeição */ /* precisa ser conferido contra o valor já convertido, senão uma conversão */ /* bem-sucedida esconde a invalidade do resultado dela. */ /* `materialized`: sem isto o PostgreSQL embute este CTE em **cada** referência */ /* `l."coluna"` do case de achados — a validação de uma data referencia a */ /* coluna limpa dezenas de vezes — e reavalia a limpeza inteira a cada uma. */ /* Medido em 15/09/2026: `carts` 94 s → 8,7 s (D42). O BigQuery não tem a */ /* palavra, e lá o CTE fica como estava. */ AS (
+  SELECT
+    c.legacy_row_id,
+    CASE
+      WHEN TRIM(c.`id`) = '' OR TRIM(c.`id`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      ELSE c.`id`
+    END AS `id`,
+    CASE
+      WHEN TRIM(c.`reservation_code`) = ''
+      OR TRIM(c.`reservation_code`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN c.`reservation_code` LIKE '%;%'
+      AND (
+        c.`warehouse_id` IS NULL OR TRIM(c.`warehouse_id`) = ''
+      )
+      AND (
+        c.`product_variant_id` IS NULL OR TRIM(c.`product_variant_id`) = ''
+      )
+      THEN c.`reservation_code`
+      WHEN REGEXP_CONTAINS(c.`reservation_code`, '(Ã[-¿]|Â[-¿])')
+      AND REGEXP_CONTAINS(
+        c.`reservation_code`,
+        '^([\\x{0001}-\\x{007f}]|[\\x{00c2}-\\x{00df}][\\x{0080}-\\x{00bf}]|\\x{00e0}[\\x{00a0}-\\x{00bf}][\\x{0080}-\\x{00bf}]|[\\x{00e1}-\\x{00ec}][\\x{0080}-\\x{00bf}]{2}|\\x{00ed}[\\x{0080}-\\x{009f}][\\x{0080}-\\x{00bf}]|[\\x{00ee}-\\x{00ef}][\\x{0080}-\\x{00bf}]{2}|\\x{00f0}[\\x{0090}-\\x{00bf}][\\x{0080}-\\x{00bf}]{2}|[\\x{00f1}-\\x{00f3}][\\x{0080}-\\x{00bf}]{3}|\\x{00f4}[\\x{0080}-\\x{008f}][\\x{0080}-\\x{00bf}]{2})*$'
+      )
+      THEN SAFE_CONVERT_BYTES_TO_STRING(CODE_POINTS_TO_BYTES(TO_CODE_POINTS(c.`reservation_code`)))
+      WHEN REGEXP_CONTAINS(c.`reservation_code`, '(Ã[-¿]|Â[-¿])')
+      AND NOT REGEXP_CONTAINS(
+        c.`reservation_code`,
+        '^([\\x{0001}-\\x{007f}]|[\\x{00c2}-\\x{00df}][\\x{0080}-\\x{00bf}]|\\x{00e0}[\\x{00a0}-\\x{00bf}][\\x{0080}-\\x{00bf}]|[\\x{00e1}-\\x{00ec}][\\x{0080}-\\x{00bf}]{2}|\\x{00ed}[\\x{0080}-\\x{009f}][\\x{0080}-\\x{00bf}]|[\\x{00ee}-\\x{00ef}][\\x{0080}-\\x{00bf}]{2}|\\x{00f0}[\\x{0090}-\\x{00bf}][\\x{0080}-\\x{00bf}]{2}|[\\x{00f1}-\\x{00f3}][\\x{0080}-\\x{00bf}]{3}|\\x{00f4}[\\x{0080}-\\x{008f}][\\x{0080}-\\x{00bf}]{2})*$'
+      )
+      THEN c.`reservation_code`
+      WHEN c.`reservation_code` <> TRIM(c.`reservation_code`)
+      OR REGEXP_CONTAINS(c.`reservation_code`, '  ')
+      THEN REGEXP_REPLACE(TRIM(c.`reservation_code`), '\\s+', ' ')
+      ELSE c.`reservation_code`
+    END AS `reservation_code`,
+    c.`warehouse_id` AS `warehouse_id`,
+    c.`product_variant_id` AS `product_variant_id`,
+    c.`cart_id` AS `cart_id`,
+    c.`order_id` AS `order_id`,
+    CASE
+      WHEN TRIM(c.`quantity`) = ''
+      OR TRIM(c.`quantity`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+      AND (
+        CAST(c.`quantity` AS NUMERIC) < 0 OR CAST(c.`quantity` AS NUMERIC) > 1000000
+      )
+      THEN c.`quantity`
+      WHEN NOT REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+      AND (
+        LOWER(TRIM(c.`quantity`)) IN (
+          'um',
+          'dois',
+          'três',
+          'tres',
+          'quatro',
+          'cinco',
+          'seis',
+          'sete',
+          'oito',
+          'nove',
+          'dez'
+        )
+        OR REGEXP_CONTAINS(REPLACE(TRIM(c.`quantity`), ',', '.'), '^-?[0-9]+\\.0+$')
+      )
+      THEN CASE LOWER(TRIM(c.`quantity`))
+        WHEN 'um'
+        THEN '1'
+        WHEN 'dois'
+        THEN '2'
+        WHEN 'três'
+        THEN '3'
+        WHEN 'tres'
+        THEN '3'
+        WHEN 'quatro'
+        THEN '4'
+        WHEN 'cinco'
+        THEN '5'
+        WHEN 'seis'
+        THEN '6'
+        WHEN 'sete'
+        THEN '7'
+        WHEN 'oito'
+        THEN '8'
+        WHEN 'nove'
+        THEN '9'
+        WHEN 'dez'
+        THEN '10'
+        ELSE COALESCE(SPLIT(REPLACE(TRIM(c.`quantity`), ',', '.'), '.')[SAFE_ORDINAL(1)], '')
+      END
+      WHEN NOT REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+      THEN c.`quantity`
+      ELSE c.`quantity`
+    END AS `quantity`,
+    CASE
+      WHEN TRIM(c.`status`) = ''
+      OR TRIM(c.`status`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN NOT TRIM(c.`status`) IN ('active', 'released', 'expired', 'consumed')
+      THEN c.`status`
+      ELSE c.`status`
+    END AS `status`,
+    CASE
+      WHEN TRIM(c.`expires_at`) = ''
+      OR TRIM(c.`expires_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(
+          c.`expires_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        THEN NOT (
+          (
+            CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          AND (
+            CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+            AND CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+          AND (
+            CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+        THEN TRUE
+        ELSE FALSE
+      END
+      THEN c.`expires_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        AND (
+          CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        THEN CAST(LEFT(c.`expires_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+        ELSE FALSE
+      END
+      THEN c.`expires_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN (
+          CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        THEN (
+          CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        ELSE FALSE
+      END
+      THEN CASE
+        WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/')
+        THEN CAST(PARSE_DATE('%d/%m/%Y', c.`expires_at`) AS STRING)
+        ELSE CAST(PARSE_DATE('%Y.%m.%d', c.`expires_at`) AS STRING)
+      END
+      WHEN REGEXP_CONTAINS(
+        c.`expires_at`,
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+      )
+      AND NOT REGEXP_CONTAINS(c.`expires_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+      AND (
+        CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+        AND CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+        AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+      )
+      THEN CAST((
+        TIMESTAMP(CAST(c.`expires_at` AS DATETIME), 'America/Sao_Paulo')
+      ) AS STRING)
+      WHEN NOT (
+        REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(
+          c.`expires_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+      )
+      THEN c.`expires_at`
+      ELSE c.`expires_at`
+    END AS `expires_at`,
+    CASE
+      WHEN TRIM(c.`released_at`) = ''
+      OR TRIM(c.`released_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(
+          c.`released_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        THEN NOT (
+          (
+            CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          AND (
+            CAST(REGEXP_EXTRACT(c.`released_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+            AND CAST(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+          AND (
+            CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+        THEN TRUE
+        ELSE FALSE
+      END
+      THEN c.`released_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        AND (
+          CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        THEN CAST(LEFT(c.`released_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+        ELSE FALSE
+      END
+      THEN c.`released_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN (
+          CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        THEN (
+          CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        ELSE FALSE
+      END
+      THEN CASE
+        WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/')
+        THEN CAST(PARSE_DATE('%d/%m/%Y', c.`released_at`) AS STRING)
+        ELSE CAST(PARSE_DATE('%Y.%m.%d', c.`released_at`) AS STRING)
+      END
+      WHEN REGEXP_CONTAINS(
+        c.`released_at`,
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+      )
+      AND NOT REGEXP_CONTAINS(c.`released_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+      AND (
+        CAST(REGEXP_EXTRACT(c.`released_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+        AND CAST(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+        AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+      )
+      THEN CAST((
+        TIMESTAMP(CAST(c.`released_at` AS DATETIME), 'America/Sao_Paulo')
+      ) AS STRING)
+      WHEN NOT (
+        REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(
+          c.`released_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+      )
+      THEN c.`released_at`
+      ELSE c.`released_at`
+    END AS `released_at`,
+    CASE
+      WHEN TRIM(c.`created_at`) = ''
+      OR TRIM(c.`created_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(
+          c.`created_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        THEN NOT (
+          (
+            CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          AND (
+            CAST(REGEXP_EXTRACT(c.`created_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+            AND CAST(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+          AND (
+            CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+        THEN TRUE
+        ELSE FALSE
+      END
+      THEN c.`created_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        AND (
+          CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        THEN CAST(LEFT(c.`created_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+        ELSE FALSE
+      END
+      THEN c.`created_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN (
+          CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        THEN (
+          CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        ELSE FALSE
+      END
+      THEN CASE
+        WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/')
+        THEN CAST(PARSE_DATE('%d/%m/%Y', c.`created_at`) AS STRING)
+        ELSE CAST(PARSE_DATE('%Y.%m.%d', c.`created_at`) AS STRING)
+      END
+      WHEN REGEXP_CONTAINS(
+        c.`created_at`,
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+      )
+      AND NOT REGEXP_CONTAINS(c.`created_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+      AND (
+        CAST(REGEXP_EXTRACT(c.`created_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+        AND CAST(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+        AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+      )
+      THEN CAST((
+        TIMESTAMP(CAST(c.`created_at` AS DATETIME), 'America/Sao_Paulo')
+      ) AS STRING)
+      WHEN NOT (
+        REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(
+          c.`created_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+      )
+      THEN c.`created_at`
+      ELSE c.`created_at`
+    END AS `created_at`,
+    CASE
+      WHEN TRIM(c.`updated_at`) = ''
+      OR TRIM(c.`updated_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(
+          c.`updated_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        THEN NOT (
+          (
+            CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          AND (
+            CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+            AND CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+          AND (
+            CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+        THEN TRUE
+        ELSE FALSE
+      END
+      THEN c.`updated_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        AND (
+          CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        THEN CAST(LEFT(c.`updated_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+        ELSE FALSE
+      END
+      THEN c.`updated_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN (
+          CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        THEN (
+          CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        ELSE FALSE
+      END
+      THEN CASE
+        WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/')
+        THEN CAST(PARSE_DATE('%d/%m/%Y', c.`updated_at`) AS STRING)
+        ELSE CAST(PARSE_DATE('%Y.%m.%d', c.`updated_at`) AS STRING)
+      END
+      WHEN REGEXP_CONTAINS(
+        c.`updated_at`,
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+      )
+      AND NOT REGEXP_CONTAINS(c.`updated_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+      AND (
+        CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+        AND CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+        AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+      )
+      THEN CAST((
+        TIMESTAMP(CAST(c.`updated_at` AS DATETIME), 'America/Sao_Paulo')
+      ) AS STRING)
+      WHEN NOT (
+        REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(
+          c.`updated_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+      )
+      THEN c.`updated_at`
+      ELSE c.`updated_at`
+    END AS `updated_at`,
+    CASE
+      WHEN TRIM(c.`deleted_at`) = ''
+      OR TRIM(c.`deleted_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+      THEN NULL
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(
+          c.`deleted_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        THEN NOT (
+          (
+            CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          AND (
+            CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+            AND CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+          AND (
+            CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+            AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN NOT (
+          CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+        THEN TRUE
+        ELSE FALSE
+      END
+      THEN c.`deleted_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        AND (
+          CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        THEN CAST(LEFT(c.`deleted_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+        ELSE FALSE
+      END
+      THEN c.`deleted_at`
+      WHEN CASE
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        THEN (
+          CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        THEN (
+          CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+          AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+          AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+          )
+          AND NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+            AND NOT (
+              MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+              AND (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+              )
+            )
+          )
+        )
+        ELSE FALSE
+      END
+      THEN CASE
+        WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/')
+        THEN CAST(PARSE_DATE('%d/%m/%Y', c.`deleted_at`) AS STRING)
+        ELSE CAST(PARSE_DATE('%Y.%m.%d', c.`deleted_at`) AS STRING)
+      END
+      WHEN REGEXP_CONTAINS(
+        c.`deleted_at`,
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+      )
+      AND NOT REGEXP_CONTAINS(c.`deleted_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+      AND (
+        CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+        AND CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+        AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+      )
+      THEN CAST((
+        TIMESTAMP(CAST(c.`deleted_at` AS DATETIME), 'America/Sao_Paulo')
+      ) AS STRING)
+      WHEN NOT (
+        REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+        OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+        OR REGEXP_CONTAINS(
+          c.`deleted_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+      )
+      THEN c.`deleted_at`
+      ELSE c.`deleted_at`
+    END AS `deleted_at`
+  FROM captura AS c
+)
+SELECT
+  c.legacy_row_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(c._airbyte_meta, '$.sync_id')
+  ) AS INT64) AS snapshot_id,
+  c._airbyte_extracted_at AS snapshot_at,
+  'legacy' AS source_system,
+  l.`id`, /* ── Valores tratados ───────────────────────────────────────────────────── */
+  l.`reservation_code`,
+  l.`warehouse_id`,
+  l.`product_variant_id`,
+  l.`cart_id`,
+  l.`order_id`,
+  l.`quantity`,
+  l.`status`,
+  l.`expires_at`,
+  l.`released_at`,
+  l.`created_at`,
+  l.`updated_at`,
+  l.`deleted_at`,
+  JSON_STRIP_NULLS(
+    JSON_OBJECT(
+      'id',
+      CASE
+        WHEN TRIM(c.`id`) = '' OR TRIM(c.`id`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+      END,
+      'reservation_code',
+      CASE
+        WHEN TRIM(c.`reservation_code`) = ''
+        OR TRIM(c.`reservation_code`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN c.`reservation_code` LIKE '%;%'
+        AND (
+          c.`warehouse_id` IS NULL OR TRIM(c.`warehouse_id`) = ''
+        )
+        AND (
+          c.`product_variant_id` IS NULL OR TRIM(c.`product_variant_id`) = ''
+        )
+        THEN 'TEXT_DELIMITER'
+        WHEN REGEXP_CONTAINS(c.`reservation_code`, '(Ã[-¿]|Â[-¿])')
+        AND REGEXP_CONTAINS(
+          c.`reservation_code`,
+          '^([\\x{0001}-\\x{007f}]|[\\x{00c2}-\\x{00df}][\\x{0080}-\\x{00bf}]|\\x{00e0}[\\x{00a0}-\\x{00bf}][\\x{0080}-\\x{00bf}]|[\\x{00e1}-\\x{00ec}][\\x{0080}-\\x{00bf}]{2}|\\x{00ed}[\\x{0080}-\\x{009f}][\\x{0080}-\\x{00bf}]|[\\x{00ee}-\\x{00ef}][\\x{0080}-\\x{00bf}]{2}|\\x{00f0}[\\x{0090}-\\x{00bf}][\\x{0080}-\\x{00bf}]{2}|[\\x{00f1}-\\x{00f3}][\\x{0080}-\\x{00bf}]{3}|\\x{00f4}[\\x{0080}-\\x{008f}][\\x{0080}-\\x{00bf}]{2})*$'
+        )
+        THEN 'TEXT_ENCODING'
+        WHEN REGEXP_CONTAINS(c.`reservation_code`, '(Ã[-¿]|Â[-¿])')
+        AND NOT REGEXP_CONTAINS(
+          c.`reservation_code`,
+          '^([\\x{0001}-\\x{007f}]|[\\x{00c2}-\\x{00df}][\\x{0080}-\\x{00bf}]|\\x{00e0}[\\x{00a0}-\\x{00bf}][\\x{0080}-\\x{00bf}]|[\\x{00e1}-\\x{00ec}][\\x{0080}-\\x{00bf}]{2}|\\x{00ed}[\\x{0080}-\\x{009f}][\\x{0080}-\\x{00bf}]|[\\x{00ee}-\\x{00ef}][\\x{0080}-\\x{00bf}]{2}|\\x{00f0}[\\x{0090}-\\x{00bf}][\\x{0080}-\\x{00bf}]{2}|[\\x{00f1}-\\x{00f3}][\\x{0080}-\\x{00bf}]{3}|\\x{00f4}[\\x{0080}-\\x{008f}][\\x{0080}-\\x{00bf}]{2})*$'
+        )
+        THEN 'TEXT_ENCODING_AMBIGUOUS'
+        WHEN c.`reservation_code` <> TRIM(c.`reservation_code`)
+        OR REGEXP_CONTAINS(c.`reservation_code`, '  ')
+        THEN 'TEXT_WHITESPACE_CASE'
+      END,
+      'quantity',
+      CASE
+        WHEN REGEXP_CONTAINS(l.`quantity`, '^-?[0-9]+$')
+        AND (
+          CAST(l.`quantity` AS NUMERIC) < 0 OR CAST(l.`quantity` AS NUMERIC) > 1000000
+        )
+        THEN 'NUM_OUT_OF_RANGE'
+        WHEN NOT REGEXP_CONTAINS(l.`quantity`, '^-?[0-9]+$')
+        THEN 'NUM_AMBIGUOUS'
+        WHEN TRIM(c.`quantity`) = ''
+        OR TRIM(c.`quantity`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+        AND (
+          CAST(c.`quantity` AS NUMERIC) < 0 OR CAST(c.`quantity` AS NUMERIC) > 1000000
+        )
+        THEN 'NUM_OUT_OF_RANGE'
+        WHEN NOT REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+        AND (
+          LOWER(TRIM(c.`quantity`)) IN (
+            'um',
+            'dois',
+            'três',
+            'tres',
+            'quatro',
+            'cinco',
+            'seis',
+            'sete',
+            'oito',
+            'nove',
+            'dez'
+          )
+          OR REGEXP_CONTAINS(REPLACE(TRIM(c.`quantity`), ',', '.'), '^-?[0-9]+\\.0+$')
+        )
+        THEN 'NUM_TEXT_EQUIV'
+        WHEN NOT REGEXP_CONTAINS(c.`quantity`, '^-?[0-9]+$')
+        THEN 'NUM_AMBIGUOUS'
+      END,
+      'status',
+      CASE
+        WHEN NOT TRIM(l.`status`) IN ('active', 'released', 'expired', 'consumed')
+        THEN 'ENUM_UNKNOWN'
+        WHEN TRIM(c.`status`) = ''
+        OR TRIM(c.`status`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN NOT TRIM(c.`status`) IN ('active', 'released', 'expired', 'consumed')
+        THEN 'ENUM_UNKNOWN'
+      END,
+      'expires_at',
+      CASE
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            l.`expires_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(l.`expires_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(l.`expires_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`expires_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(l.`expires_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`expires_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`expires_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`expires_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`expires_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`expires_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`expires_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`expires_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`expires_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(l.`expires_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN NOT (
+          REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(l.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            l.`expires_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+        WHEN TRIM(c.`expires_at`) = ''
+        OR TRIM(c.`expires_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            c.`expires_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(c.`expires_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN (
+            CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          THEN (
+            CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`expires_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`expires_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`expires_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          ELSE FALSE
+        END
+        THEN 'DATE_FORMAT_KNOWN'
+        WHEN REGEXP_CONTAINS(
+          c.`expires_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        AND NOT REGEXP_CONTAINS(c.`expires_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+        AND (
+          CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+          AND CAST(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+          AND CAST(COALESCE(REGEXP_EXTRACT(c.`expires_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+        )
+        THEN 'DATE_TZ_MISSING'
+        WHEN NOT (
+          REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(c.`expires_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            c.`expires_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+      END,
+      'released_at',
+      CASE
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            l.`released_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(l.`released_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(l.`released_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`released_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(l.`released_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`released_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`released_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`released_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`released_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`released_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`released_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`released_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`released_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`released_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(l.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(l.`released_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN NOT (
+          REGEXP_CONTAINS(l.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`released_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(l.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            l.`released_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+        WHEN TRIM(c.`released_at`) = ''
+        OR TRIM(c.`released_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            c.`released_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(c.`released_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(c.`released_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN (
+            CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          THEN (
+            CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`released_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`released_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`released_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          ELSE FALSE
+        END
+        THEN 'DATE_FORMAT_KNOWN'
+        WHEN REGEXP_CONTAINS(
+          c.`released_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        AND NOT REGEXP_CONTAINS(c.`released_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+        AND (
+          CAST(REGEXP_EXTRACT(c.`released_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+          AND CAST(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+          AND CAST(COALESCE(REGEXP_EXTRACT(c.`released_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+        )
+        THEN 'DATE_TZ_MISSING'
+        WHEN NOT (
+          REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(c.`released_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            c.`released_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+      END,
+      'created_at',
+      CASE
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            l.`created_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(l.`created_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(l.`created_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`created_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(l.`created_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`created_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`created_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`created_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`created_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`created_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`created_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`created_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`created_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`created_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(l.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(l.`created_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN NOT (
+          REGEXP_CONTAINS(l.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`created_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(l.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            l.`created_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+        WHEN TRIM(c.`created_at`) = ''
+        OR TRIM(c.`created_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            c.`created_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(c.`created_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(c.`created_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN (
+            CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          THEN (
+            CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`created_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`created_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`created_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          ELSE FALSE
+        END
+        THEN 'DATE_FORMAT_KNOWN'
+        WHEN REGEXP_CONTAINS(
+          c.`created_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        AND NOT REGEXP_CONTAINS(c.`created_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+        AND (
+          CAST(REGEXP_EXTRACT(c.`created_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+          AND CAST(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+          AND CAST(COALESCE(REGEXP_EXTRACT(c.`created_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+        )
+        THEN 'DATE_TZ_MISSING'
+        WHEN NOT (
+          REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(c.`created_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            c.`created_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+      END,
+      'updated_at',
+      CASE
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            l.`updated_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(l.`updated_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(l.`updated_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`updated_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(l.`updated_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`updated_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`updated_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`updated_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`updated_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`updated_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`updated_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`updated_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`updated_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(l.`updated_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN NOT (
+          REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(l.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            l.`updated_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+        WHEN TRIM(c.`updated_at`) = ''
+        OR TRIM(c.`updated_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            c.`updated_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(c.`updated_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN (
+            CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          THEN (
+            CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`updated_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`updated_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`updated_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          ELSE FALSE
+        END
+        THEN 'DATE_FORMAT_KNOWN'
+        WHEN REGEXP_CONTAINS(
+          c.`updated_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        AND NOT REGEXP_CONTAINS(c.`updated_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+        AND (
+          CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+          AND CAST(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+          AND CAST(COALESCE(REGEXP_EXTRACT(c.`updated_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+        )
+        THEN 'DATE_TZ_MISSING'
+        WHEN NOT (
+          REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(c.`updated_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            c.`updated_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+      END,
+      'deleted_at',
+      CASE
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            l.`deleted_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(l.`deleted_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(l.`deleted_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`deleted_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(l.`deleted_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(l.`deleted_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(l.`deleted_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`deleted_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`deleted_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`deleted_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`deleted_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`deleted_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`deleted_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(l.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(l.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(l.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(l.`deleted_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN NOT (
+          REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(l.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            l.`deleted_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+        WHEN TRIM(c.`deleted_at`) = ''
+        OR TRIM(c.`deleted_at`) IN ('NULL', 'null', 'N/A', '-', '#N/D', '   ')
+        THEN 'NULL_DISGUISED'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(
+            c.`deleted_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+          THEN NOT (
+            (
+              CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+              AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+              AND NOT (
+                CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+                AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+              )
+              AND NOT (
+                CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+                AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+                AND NOT (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                  AND (
+                    MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                    OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                  )
+                )
+              )
+            )
+            AND (
+              CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+              AND CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+            AND (
+              CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[+-]([0-9]{2})(?::?[0-9]{2})?$'), '00') AS INT64) BETWEEN 0 AND 15
+              AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[+-][0-9]{2}:?([0-9]{2})$'), '00') AS INT64) BETWEEN 0 AND 59
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}[-.][0-9]{2}[-.][0-9]{2}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN NOT (
+            CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+          THEN TRUE
+          ELSE FALSE
+        END
+        THEN 'DATE_IMPOSSIBLE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          AND (
+            CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          THEN CAST(LEFT(c.`deleted_at`, 10) AS DATE) > CAST('{{ var("as_of_date") }}' AS DATE)
+          ELSE FALSE
+        END
+        THEN 'DATE_FUTURE'
+        WHEN CASE
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          THEN (
+            CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 4, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 1, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 7, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          WHEN REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          THEN (
+            CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64) BETWEEN 1 AND 9999
+            AND CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) BETWEEN 1 AND 12
+            AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) BETWEEN 1 AND 31
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) IN (4, 6, 9, 11)
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 30
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) > 29
+            )
+            AND NOT (
+              CAST(SUBSTRING(c.`deleted_at`, 6, 2) AS INT64) = 2
+              AND CAST(SUBSTRING(c.`deleted_at`, 9, 2) AS INT64) = 29
+              AND NOT (
+                MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 4) = 0
+                AND (
+                  MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 100) <> 0
+                  OR MOD(CAST(SUBSTRING(c.`deleted_at`, 1, 4) AS INT64), 400) = 0
+                )
+              )
+            )
+          )
+          ELSE FALSE
+        END
+        THEN 'DATE_FORMAT_KNOWN'
+        WHEN REGEXP_CONTAINS(
+          c.`deleted_at`,
+          '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+        )
+        AND NOT REGEXP_CONTAINS(c.`deleted_at`, '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$')
+        AND (
+          CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T]([0-9]{2}):[0-9]{2}') AS INT64) BETWEEN 0 AND 23
+          AND CAST(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:([0-9]{2})') AS INT64) BETWEEN 0 AND 59
+          AND CAST(COALESCE(REGEXP_EXTRACT(c.`deleted_at`, '[ T][0-9]{2}:[0-9]{2}:([0-9]{2})'), '00') AS INT64) BETWEEN 0 AND 59
+        )
+        THEN 'DATE_TZ_MISSING'
+        WHEN NOT (
+          REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+          OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(c.`deleted_at`, '^[0-9]{2}/[0-9]{4}$')
+          OR REGEXP_CONTAINS(
+            c.`deleted_at`,
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)?$'
+          )
+        )
+        THEN 'DATE_UNPARSEABLE'
+      END
+    )
+  ) AS achados, /* ── Achados por coluna, sem os nulos ───────────────────────────────────── */
+  JSON_OBJECT(
+    'id',
+    c.`id`,
+    'reservation_code',
+    c.`reservation_code`,
+    'warehouse_id',
+    c.`warehouse_id`,
+    'product_variant_id',
+    c.`product_variant_id`,
+    'cart_id',
+    c.`cart_id`,
+    'order_id',
+    c.`order_id`,
+    'quantity',
+    c.`quantity`,
+    'status',
+    c.`status`,
+    'expires_at',
+    c.`expires_at`,
+    'released_at',
+    c.`released_at`,
+    'created_at',
+    c.`created_at`,
+    'updated_at',
+    c.`updated_at`,
+    'deleted_at',
+    c.`deleted_at`
+  ) AS original_payload
+FROM captura AS c
+JOIN limpo AS l
+  ON l.legacy_row_id = c.legacy_row_id
+{% else %}with captura as (
 
     select *
     from {{ source('legacy', 'stock_reservations') }}
@@ -224,4 +3264,4 @@ select
     )                                           as achados,
     jsonb_build_object('id', c."id", 'reservation_code', c."reservation_code", 'warehouse_id', c."warehouse_id", 'product_variant_id', c."product_variant_id", 'cart_id', c."cart_id", 'order_id', c."order_id", 'quantity', c."quantity", 'status', c."status", 'expires_at', c."expires_at", 'released_at', c."released_at", 'created_at', c."created_at", 'updated_at', c."updated_at", 'deleted_at', c."deleted_at")              as original_payload
 from captura c
-join limpo l on l.legacy_row_id = c.legacy_row_id
+join limpo l on l.legacy_row_id = c.legacy_row_id{% endif %}

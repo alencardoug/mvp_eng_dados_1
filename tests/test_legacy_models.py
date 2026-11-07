@@ -1,6 +1,7 @@
 """O SQL derivado deve refletir o gerador, inclusive sem banco disponível."""
 
 from mvp_ed1.legacy import dbt, ponte, schema
+from mvp_ed1.legacy.bigquery import dois_dialetos
 from mvp_ed1.legacy.catalogo import carregar
 
 
@@ -9,9 +10,10 @@ def test_generated_legacy_models_are_current() -> None:
     limits = schema.limites(catalog.limite_de_texto, catalog.colunas_estreitadas)
     for table in schema.tabelas():
         path = dbt.DESTINO / f"stg_legacy__{table}.sql"
-        assert path.read_text(encoding="utf-8") == dbt.modelo(
+        # Os dois corpos (Etapa 13): o PostgreSQL do gerador e a tradução para o BigQuery.
+        assert path.read_text(encoding="utf-8") == dois_dialetos(dbt.modelo(
             catalog, table, catalog.promessas, limits
-        ), f"{path}: regenere com make legacy-models"
+        )), f"{path}: regenere com make legacy-models"
 
 
 def test_generated_reconciliation_tests_are_current() -> None:
@@ -22,7 +24,7 @@ def test_generated_reconciliation_tests_are_current() -> None:
         ("retail_empilhado_reconcilia", ponte.teste_do_empilhamento_retail()),
     ):
         path = ponte.TESTES / f"{nome}.sql"
-        assert path.read_text(encoding="utf-8") == esperado, f"{path}: regenere com make legacy-models"
+        assert path.read_text(encoding="utf-8") == dois_dialetos(esperado), f"{path}: regenere com make legacy-models"
 
 
 def test_cleaning_preserves_catalog_order_including_rejections() -> None:

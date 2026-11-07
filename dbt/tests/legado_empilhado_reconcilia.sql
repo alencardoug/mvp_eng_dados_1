@@ -17,7 +17,763 @@
 --
 -- Uma linha no resultado é um modelo em que as duas contagens divergiram.
 
-select
+{% if target.type == 'bigquery' %}
+SELECT
+  'campaigns' AS modelo,
+  'campaigns' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__campaigns') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('campaigns') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__campaigns') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('campaigns') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'carriers' AS modelo,
+  'carriers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carriers') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carriers') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carriers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carriers') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'carts' AS modelo,
+  'carts' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carts') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carts') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__carts') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('carts') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'coupon_redemptions' AS modelo,
+  'coupon_redemptions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupon_redemptions') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupon_redemptions') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupon_redemptions') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupon_redemptions') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'coupons' AS modelo,
+  'coupons' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupons') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupons') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__coupons') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('coupons') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'customers' AS modelo,
+  'customers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customers') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('customers') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__customers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('customers') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'delivery_events' AS modelo,
+  'delivery_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__delivery_events') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('delivery_events') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__delivery_events') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('delivery_events') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'inventory_balances' AS modelo,
+  'inventory_balances' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_balances') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_balances') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_balances') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_balances') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'inventory_movements' AS modelo,
+  'inventory_movements' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_movements') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_movements') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__inventory_movements') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('inventory_movements') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'order_items' AS modelo,
+  'order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_items') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_items') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_items') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'order_status_events' AS modelo,
+  'order_status_history' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_status_history') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_status_events') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__order_status_history') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('order_status_events') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'orders' AS modelo,
+  'orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__orders') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('orders') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__orders') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('orders') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'payment_methods' AS modelo,
+  'payment_methods' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_methods') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_methods') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_methods') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_methods') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'payment_transactions' AS modelo,
+  'payment_transactions' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_transactions') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_transactions') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payment_transactions') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payment_transactions') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'payments' AS modelo,
+  'payments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payments') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payments') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__payments') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('payments') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'product_skus' AS modelo,
+  'product_variants' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_variants') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('product_skus') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__product_variants') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('product_skus') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'purchase_order_items' AS modelo,
+  'purchase_order_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_order_items') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_order_items') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_order_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_order_items') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'purchase_orders' AS modelo,
+  'purchase_orders' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_orders') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_orders') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__purchase_orders') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('purchase_orders') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'refunds' AS modelo,
+  'refunds' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__refunds') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('refunds') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__refunds') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('refunds') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'sales_channels' AS modelo,
+  'sales_channels' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__sales_channels') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('sales_channels') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__sales_channels') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('sales_channels') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'shipment_items' AS modelo,
+  'shipment_items' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipment_items') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipment_items') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipment_items') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipment_items') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'shipments' AS modelo,
+  'shipments' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipments') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipments') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__shipments') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('shipments') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'suppliers' AS modelo,
+  'suppliers' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__suppliers') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('suppliers') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__suppliers') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('suppliers') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'support_agents' AS modelo,
+  'support_agents' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_agents') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_agents') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_agents') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_agents') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'support_tickets' AS modelo,
+  'support_tickets' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_tickets') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_tickets') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__support_tickets') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('support_tickets') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'ticket_events' AS modelo,
+  'ticket_events' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__ticket_events') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('ticket_events') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__ticket_events') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('ticket_events') }}
+    WHERE
+      source_system = 'legacy'
+  )
+UNION ALL
+SELECT
+  'warehouses' AS modelo,
+  'warehouses' AS tabela,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__warehouses') }}
+  ) AS aptos,
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('warehouses') }}
+    WHERE
+      source_system = 'legacy'
+  ) AS empilhados
+WHERE
+  (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('legado__warehouses') }}
+  ) <> (
+    SELECT
+      COUNT(*)
+    FROM {{ ref('warehouses') }}
+    WHERE
+      source_system = 'legacy'
+  )
+{% else %}select
     'campaigns'                          as modelo,
     'campaigns'                                  as tabela,
     (select count(*) from {{ ref('legado__campaigns') }}) as aptos,
@@ -337,4 +1093,4 @@ select
         where source_system = 'legacy')         as empilhados
 where (select count(*) from {{ ref('legado__warehouses') }})
    <> (select count(*) from {{ ref('warehouses') }}
-        where source_system = 'legacy')
+        where source_system = 'legacy'){% endif %}

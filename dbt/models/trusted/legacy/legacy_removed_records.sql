@@ -16,7 +16,97 @@
 
 {{ config(materialized='table') }}
 
-with certificadas as (
+{% if target.type == 'bigquery' %}
+WITH certificadas AS (
+  SELECT
+    snapshot_id
+  FROM {{ source('governance', 'legacy_captures') }}
+  WHERE
+    status = 'complete'
+  GROUP BY
+    snapshot_id
+  HAVING
+    COUNT(DISTINCT source_table) = 40
+), selecionada AS (
+  SELECT
+    snapshot_id
+  FROM {{ ref('legacy_selected_capture') }}
+), presenca AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_presence_by_capture') }}
+  WHERE
+    business_key IS NOT NULL
+), historico AS (
+  SELECT
+    p.*
+  FROM presenca AS p
+  JOIN certificadas AS c
+    ON c.snapshot_id = p.snapshot_id
+  WHERE
+    p.snapshot_id < (
+      SELECT
+        snapshot_id
+      FROM selecionada
+    )
+), presentes_agora AS (
+  SELECT
+    source_table,
+    business_key
+  FROM presenca
+  WHERE
+    snapshot_id = (
+      SELECT
+        snapshot_id
+      FROM selecionada
+    )
+), ausentes AS (
+  SELECT
+    h.source_table,
+    h.business_key,
+    MAX(h.snapshot_id) AS last_seen_snapshot_id
+  FROM historico AS h
+  WHERE
+    NOT EXISTS(
+      SELECT
+        1
+      FROM presentes_agora AS a
+      WHERE
+        a.source_table = h.source_table AND a.business_key = h.business_key
+    )
+  GROUP BY
+    1,
+    2
+)
+SELECT
+  a.source_table,
+  a.business_key,
+  a.last_seen_snapshot_id,
+  (
+    SELECT
+      MIN(c.snapshot_id)
+    FROM certificadas AS c
+    WHERE
+      c.snapshot_id > a.last_seen_snapshot_id
+      AND c.snapshot_id <= (
+        SELECT
+          snapshot_id
+        FROM selecionada
+      )
+  ) AS removed_in_snapshot_id,
+  (
+    SELECT
+      snapshot_id
+    FROM selecionada
+  ) AS observed_in_snapshot_id,
+  h.n AS rows_last_seen,
+  h.payloads AS last_payload
+FROM ausentes AS a
+JOIN historico AS h
+  ON h.source_table = a.source_table
+  AND h.business_key = a.business_key
+  AND h.snapshot_id = a.last_seen_snapshot_id
+{% else %}with certificadas as (
 
     select snapshot_id
     from {{ source('governance', 'legacy_captures') }}
@@ -84,4 +174,4 @@ from ausentes a
 join historico h
   on h.source_table = a.source_table
  and h.business_key = a.business_key
- and h.snapshot_id = a.last_seen_snapshot_id
+ and h.snapshot_id = a.last_seen_snapshot_id{% endif %}

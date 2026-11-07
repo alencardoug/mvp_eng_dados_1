@@ -14,7 +14,151 @@
 
 {{ config(materialized='table') }}
 
-with certificadas as (
+{% if target.type == 'bigquery' %}
+WITH certificadas AS (
+  SELECT
+    snapshot_id
+  FROM {{ source('governance', 'legacy_captures') }}
+  WHERE
+    status = 'complete'
+  GROUP BY
+    snapshot_id
+  HAVING
+    COUNT(DISTINCT source_table) = 40
+), selecionada AS (
+  SELECT
+    snapshot_id
+  FROM {{ ref('legacy_selected_capture') }}
+), anterior AS (
+  SELECT
+    MAX(snapshot_id) AS snapshot_id
+  FROM certificadas
+  WHERE
+    snapshot_id < (
+      SELECT
+        snapshot_id
+      FROM selecionada
+    )
+), presenca AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_presence_by_capture') }}
+), lado_anterior AS (
+  SELECT
+    source_table,
+    business_key,
+    n
+  FROM presenca
+  WHERE
+    snapshot_id = (
+      SELECT
+        snapshot_id
+      FROM anterior
+    )
+), lado_selecionado AS (
+  SELECT
+    source_table,
+    business_key,
+    n
+  FROM presenca
+  WHERE
+    snapshot_id = (
+      SELECT
+        snapshot_id
+      FROM selecionada
+    )
+    AND (
+      SELECT
+        snapshot_id
+      FROM anterior
+    ) IS NOT NULL
+), com_identidade AS (
+  SELECT
+    COALESCE(a.source_table, s.source_table) AS source_table,
+    COALESCE(a.business_key, s.business_key) AS business_key,
+    COALESCE(a.n, 0) AS n_anterior,
+    COALESCE(s.n, 0) AS n_selecionada
+  FROM (
+    SELECT
+      *
+    FROM lado_anterior
+    WHERE
+      business_key IS NOT NULL
+  ) AS a
+  FULL OUTER JOIN (
+    SELECT
+      *
+    FROM lado_selecionado
+    WHERE
+      business_key IS NOT NULL
+  ) AS s
+    ON s.source_table = a.source_table AND s.business_key = a.business_key
+), sem_identidade AS (
+  SELECT
+    COALESCE(a.source_table, s.source_table) AS source_table,
+    CAST(NULL AS STRING) AS business_key,
+    COALESCE(a.n, 0) AS n_anterior,
+    COALESCE(s.n, 0) AS n_selecionada
+  FROM (
+    SELECT
+      *
+    FROM lado_anterior
+    WHERE
+      business_key IS NULL
+  ) AS a
+  FULL OUTER JOIN (
+    SELECT
+      *
+    FROM lado_selecionado
+    WHERE
+      business_key IS NULL
+  ) AS s
+    ON s.source_table = a.source_table
+)
+SELECT
+  (
+    SELECT
+      snapshot_id
+    FROM anterior
+  ) AS previous_snapshot_id,
+  (
+    SELECT
+      snapshot_id
+    FROM selecionada
+  ) AS selected_snapshot_id,
+  source_table,
+  business_key,
+  n_anterior AS rows_before,
+  n_selecionada AS rows_after,
+  CASE
+    WHEN business_key IS NULL
+    THEN 'sem_identidade'
+    WHEN n_anterior > 0 AND n_selecionada = 0
+    THEN 'removida'
+    WHEN n_anterior = 0 AND n_selecionada > 0
+    THEN 'adicionada'
+    WHEN n_anterior > n_selecionada
+    THEN 'reduzida'
+    WHEN n_anterior < n_selecionada
+    THEN 'aumentada'
+    ELSE 'mantida'
+  END AS transition
+FROM (
+  SELECT
+    *
+  FROM com_identidade
+  UNION ALL
+  SELECT
+    *
+  FROM sem_identidade
+) AS t
+WHERE
+  (
+    SELECT
+      snapshot_id
+    FROM anterior
+  ) IS NOT NULL
+{% else %}with certificadas as (
 
     select snapshot_id
     from {{ source('governance', 'legacy_captures') }}
@@ -103,4 +247,4 @@ select
         else                                                 'mantida'
     end                                                 as transition
 from (select * from com_identidade union all select * from sem_identidade) t
-where (select snapshot_id from anterior) is not null
+where (select snapshot_id from anterior) is not null{% endif %}

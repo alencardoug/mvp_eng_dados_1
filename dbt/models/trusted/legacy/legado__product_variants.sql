@@ -10,7 +10,57 @@
 -- Só `accepted` e `corrected` chegam aqui. O rejeitado fica em `quarantine`,
 -- com o motivo: nada é descartado, e nada inválido atravessa (regra 4).
 
-with apto as (
+{% if target.type == 'bigquery' %}
+WITH apto AS (
+  SELECT
+    *
+  FROM {{ ref('legacy_eligible_records') }}
+  WHERE
+    source_table = 'product_variants'
+)
+SELECT
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.id')
+  ) AS INT64) AS product_variant_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.product_id')
+  ) AS INT64) AS product_id,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.sku')
+  ) AS STRING) AS sku,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.size')
+  ) AS STRING) AS variant_size,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.color')
+  ) AS STRING) AS variant_color,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.package')
+  ) AS STRING) AS variant_package,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.barcode')
+  ) AS STRING) AS barcode,
+  CAST(CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.weight_grams')
+  ) AS INT64) AS INT64) AS weight_grams,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.is_active')
+  ) AS BOOL) AS is_active,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.created_at')
+  ) AS TIMESTAMP) AS source_created_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.updated_at')
+  ) AS TIMESTAMP) AS source_updated_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) AS source_deleted_at,
+  CAST((
+    JSON_EXTRACT_SCALAR(cleaned_payload, '$.deleted_at')
+  ) AS TIMESTAMP) IS NOT NULL AS is_deleted,
+  snapshot_at AS ingested_at
+FROM apto
+{% else %}with apto as (
 
     select *
     from {{ ref('legacy_eligible_records') }}
@@ -33,4 +83,4 @@ select
     (cleaned_payload->>'deleted_at')::timestamptz       as source_deleted_at,
     (cleaned_payload->>'deleted_at')::timestamptz is not null as is_deleted,
     snapshot_at                                         as ingested_at
-from apto
+from apto{% endif %}
