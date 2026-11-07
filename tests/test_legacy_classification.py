@@ -292,10 +292,12 @@ def test_a_identidade_do_vinculo_atravessa_a_tipagem_do_pai(classifier_engine):
 
     # Payload não conversível passa intacto, sem `cast` e sem derrubar nada.
     nao_conversivel = f"""
-        with v(payload) as (values ('abc'), ('2024-01-01'), (''))
+        with v(payload) as (values ('abc'), ('2024-01-01'), (''), (E'\\u20038\\u2003'))
         select v.payload, {bruto} from v order by v.payload
     """
     with classifier_engine.connect() as conexao:
         assert [tuple(l) for l in conexao.execute(text(nao_conversivel))] == [
             ("", ""), ("2024-01-01", "2024-01-01"), ("abc", "abc"),
+            # D77: o 8 entre espaços *em* casava o `\s` e o `::numeric` abortava a consulta.
+            ("\u20038\u2003", "\u20038\u2003"),
         ]

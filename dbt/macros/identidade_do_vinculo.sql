@@ -29,9 +29,12 @@
     {{ return(adapter.dispatch('identidade_canonica')(expressao)) }}
 {%- endmacro %}
 
+{#- Os brancos são os que o `numeric` aceita em volta do número — os seis ASCII, não o
+    `\s` da expressão regular, que inclui espaço Unicode e deixava passar um texto que o
+    `cast` recusa, abortando a consulta inteira (D77, decidida em 07/11/2026). -#}
 {% macro default__identidade_canonica(expressao) -%}
     (case
-        when ({{ expressao }}) ~ '^\s*-?[0-9]+\s*$' then (({{ expressao }})::numeric)::text
+        when ({{ expressao }}) ~ '^[ \t\n\v\f\r]*-?[0-9]+[ \t\n\v\f\r]*$' then (({{ expressao }})::numeric)::text
         else ({{ expressao }})
      end)
 {%- endmacro %}
