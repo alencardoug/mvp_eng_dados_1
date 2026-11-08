@@ -750,7 +750,7 @@ livro nunca é reescrito).
 
 Continua a §6.7, depois da época inicial. Junta o que a porta P3 (§6.2) pede às 18:00: Airbyte →
 BigQuery sem chave (D72), G2.1 real e G2.3 real. O ensaio do Dataflow é o da D83, ~1 h, e o
-taxímetro dele corre do passo 13 ao 17.
+taxímetro dele corre do passo 16 ao 19.
 
 **Passo 1 — a folga do `kubectl`.**
 
@@ -833,7 +833,25 @@ make gcp-oraculos
 A classificação do legado, as contagens por camada e o catálogo contra o local. Ele lê o armazém
 local: o banco dele precisa estar de pé (`make ps`).
 
-**Passo 10 — o Debezium Server.** Ele subiu na §6.7 (passo 5) e fez o *snapshot*.
+**Passo 10 — a memória anterior intacta (T3).** Somente leitura; leva minutos, porque mede o
+recebido de cada captura certificada.
+
+```
+make gcp-memoria-oraculo
+```
+
+Deve terminar com `T3: memória contida`. `PROBLEMA` listado é achado do G2.1: anote e siga.
+
+**Passo 11 — nenhum POST indevido.**
+
+```
+make gcp-jobs-auditoria
+```
+
+Deve dizer quantos *jobs* da conexão legada nasceram desde a linha de base e quantas tentativas os
+citam no livro — três e três, depois dos passos 3 a 5 — e `nenhum POST indevido`.
+
+**Passo 12 — o Debezium Server.** Ele subiu na §6.7 (passo 5) e fez o *snapshot*.
 
 ```
 make gcp-debezium-status
@@ -841,13 +859,13 @@ make gcp-debezium-status
 
 Deve mostrar o *pod* `Running`, o fim do log sem erro e `slot mvp_inventory_movements: ativo`.
 
-**Passo 11 — o destino do caminho quente.** Antes do plano do Dataflow, que dá IAM nela.
+**Passo 13 — o destino do caminho quente.** Antes do plano do Dataflow, que dá IAM nela.
 
 ```
 make gcp-dataflow-tabela
 ```
 
-**Passo 12 — o plano e o `apply` do Dataflow.**
+**Passo 14 — o plano e o `apply` do Dataflow.**
 
 ```
 make gcp-plan NOME=11_dataflow VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"
@@ -859,7 +877,7 @@ Deve dar `4 a criar, 0 a alterar, 0 a destruir`, o mesmo do Registro §29. Leia,
 make gcp-apply NOME=11_dataflow
 ```
 
-**Passo 13 — o *job* montado, sem enviar.**
+**Passo 15 — o *job* montado, sem enviar.**
 
 ```
 make gcp-dataflow-validar
@@ -867,7 +885,7 @@ make gcp-dataflow-validar
 
 Nenhuma divergência. Se houver, **pare**: nada foi enviado.
 
-**Passo 14 — lançar.** O taxímetro do Dataflow começa aqui.
+**Passo 16 — lançar.** O taxímetro do Dataflow começa aqui.
 
 ```
 make gcp-dataflow-lancar
@@ -875,7 +893,7 @@ make gcp-dataflow-lancar
 
 Deve aparecer `job enviado: …`. Acompanhe na consola do Dataflow até o *worker* subir, uns minutos.
 
-**Passo 15 — o *snapshot* chegou ao BigQuery.**
+**Passo 17 — o *snapshot* chegou ao BigQuery.**
 
 ```
 make gcp-quente-conferir
@@ -884,7 +902,7 @@ make gcp-quente-conferir
 Repita até não aparecer `PENDENTE`: o *worker* lê o acumulado da assinatura, guardado por uma
 semana. Os alertas lidos aparecem embaixo.
 
-**Passo 16 — movimentos novos, ao vivo.**
+**Passo 18 — movimentos novos, ao vivo.**
 
 ```
 make gcp-quente-produzir LIMITE=200
@@ -896,19 +914,13 @@ E então, repetindo até não aparecer `PENDENTE`:
 make gcp-quente-conferir
 ```
 
-**Passo 17 — parar o Dataflow.**
+**Passo 19 — parar o Dataflow.**
 
 ```
 make gcp-dataflow-parar
 ```
 
 Deve terminar com `nenhum job ativo`. O Debezium Server e o GKE ficam para a quarta.
-
-**O que este roteiro ainda não prova** (Registro §33):
-
-- **"memória anterior intacta":** o oráculo da memória (`memory-oracle`) lê só o PostgreSQL;
-- **"nenhum POST indevido"** como contagem: os *jobs* da conexão legada no Airbyte contra as
-  tentativas do livro.
 
 ---
 

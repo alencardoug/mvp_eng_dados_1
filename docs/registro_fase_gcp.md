@@ -1307,3 +1307,40 @@ sobre o estado de desenvolvimento. Sem Cloud SQL no estado, os alvos do caminho 
 
 Os dois ficam como pendência do G2.1. Sem eles, a linha "G2.1 real" da P3 passa só com as capturas,
 a recuperação e o certificado.
+
+## 34. O G2.1 inteiro na P3: o oráculo da memória no BigQuery e a auditoria dos *jobs* (08/11/2026, manhã)
+
+As duas lacunas do §33 foram fechadas, e o roteiro de terça ganhou os passos 10 e 11 (PLANO §6.8).
+
+**O oráculo da memória (T3) nos dois armazéns.** Quase tudo que ele lê já tinha sido portado no
+G2.1: o certificado, as capturas, a quarentena, a classificação, as versões, as exclusões e o
+recebido. Faltavam:
+
+- o `main`, que abria o `WAREHOUSE_DB` direto. Agora usa `do_ambiente`, como a captura e o livro;
+- quatro nomes sem dialeto: o certificado, a quarentena, a captura selecionada e a existência de
+  *view*. O `tabelas_do_schema` do BigQuery só lista tabela;
+- as duas consultas do `expected_deletion_rows`, a memória de exclusões recalculada do bruto. Elas
+  agora existem nos dois dialetos (`_presenca`, `_payload`): no BigQuery, `json_value` no
+  `_airbyte_meta`, `in unnest(@ids)` e `to_json(struct(…))` no lugar do `jsonb_build_object`.
+
+**A auditoria dos *jobs*** (`mvp_ed1.recovery.job_audit`, `make gcp-jobs-auditoria`) cruza os *jobs*
+da conexão legada com os registros da época. Três coisas falham:
+
+- um *job* que nem a linha de base nem um registro de tentativa citam: é um **POST indevido**;
+- um *job* citado por duas tentativas;
+- um *job* citado no livro que o Airbyte não lista.
+
+Somente leitura, e vale também para a fase local.
+
+**Medido:**
+
+- **o caminho do PostgreSQL, sem mudança:** os testes de integração do oráculo da memória, da
+  remoção e da recuperação adversária, em bancos efêmeros: **70 passaram**;
+- **o caminho do BigQuery, de verdade** (`GCP_TESTES=1`, *dataset* temporário apagado no fim):
+  - a presença por captura;
+  - o *payload* só da captura e das chaves pedidas, com todas as colunas declaradas e nenhuma do
+    Airbyte;
+  - pela viagem no tempo do instante da leitura. **Passou.**
+
+**Não medido:** o T3 inteiro sobre capturas reais no BigQuery, que é o passo 10 da §6.8. Lá ele mede
+o recebido de cada captura certificada, ~2 min por captura pelo §17.
