@@ -39,6 +39,11 @@ CLOUD_SQL_PROXY_SHA256 := 5533a05cdbf12f8a0cb46db34c775847a496e181d47f863284d3d0
 # Debezium Server antes do `apply` e desinstala os releases no desmonte (§6.5 passos 3–4).
 HELM_VERSION := v3.22.1
 HELM_SHA256 := 896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea
+# O kubectl do GKE (A30): lê do cluster as credenciais do Airbyte e o IP do *load balancer*
+# interno para o Secret Manager (`gcp-composer-segredos`). Uma versão menor de folga para cada
+# lado do plano de controle; o canal REGULAR fica atrás da estável. A soma é a de dl.k8s.io.
+KUBECTL_VERSION := v1.35.10
+KUBECTL_SHA256 := c49a28f1f4efc4d475ed05f47f2ce8e563bf7bef69ed77fe1b924ea6d83b6327
 ABCTL := DO_NOT_TRACK=1 .tools/abctl
 TERRAFORM := .tools/terraform -chdir=airbyte
 
@@ -154,7 +159,8 @@ endef
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
-        require-env require-venv require-abctl require-terraform require-cloud-sql-proxy
+        gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
+        require-env require-venv require-abctl require-terraform require-cloud-sql-proxy require-kubectl
 
 help: ## Lista os alvos disponíveis
 	@echo "Alvos disponíveis:"
@@ -343,7 +349,7 @@ source-oracle: require-env require-venv ## T2: as duas origens, em sessão somen
 size-report: require-env require-venv ## Tamanho por banco, tabela e índice — observação, não limite
 	@$(GERADOR) size-report
 
-tools: ## Baixa abctl, Terraform, o Cloud SQL Auth Proxy e o Helm fixados para .tools/ (fora do Git)
+tools: ## Baixa abctl, Terraform, o Cloud SQL Auth Proxy, o Helm e o kubectl fixados para .tools/ (fora do Git)
 	@mkdir -p .tools
 	@test -x .tools/abctl || { \
 		echo "baixando abctl $(ABCTL_VERSION)"; \
@@ -367,7 +373,13 @@ tools: ## Baixa abctl, Terraform, o Cloud SQL Auth Proxy e o Helm fixados para .
 		&& echo "$(HELM_SHA256)  .tools/helm.tar.gz" | sha256sum -c --quiet \
 		&& tar -xzf .tools/helm.tar.gz -C .tools --strip-components=1 linux-amd64/helm && rm -f .tools/helm.tar.gz \
 		|| { rm -f .tools/helm.tar.gz; echo "ERRO: o Helm baixado não confere com a soma fixada"; exit 1; }; }
-	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1; .tools/cloud-sql-proxy --version; .tools/helm version --short
+	@test -x .tools/kubectl || { \
+		echo "baixando kubectl $(KUBECTL_VERSION)"; \
+		curl -sSL "https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/linux/amd64/kubectl" -o .tools/kubectl.baixado \
+		&& echo "$(KUBECTL_SHA256)  .tools/kubectl.baixado" | sha256sum -c --quiet \
+		&& mv .tools/kubectl.baixado .tools/kubectl && chmod +x .tools/kubectl \
+		|| { rm -f .tools/kubectl.baixado; echo "ERRO: o kubectl baixado não confere com a soma fixada"; exit 1; }; }
+	@.tools/abctl version 2>/dev/null | tail -1; .tools/terraform version | head -1; .tools/cloud-sql-proxy --version; .tools/helm version --short; .tools/kubectl version --client | head -1
 
 require-abctl:
 	@test -x .tools/abctl || { echo "ERRO: abctl ausente. Rode 'make tools'."; exit 1; }
@@ -377,6 +389,9 @@ require-terraform:
 
 require-cloud-sql-proxy:
 	@test -x .tools/cloud-sql-proxy || { echo "ERRO: Cloud SQL Auth Proxy ausente. Rode 'make tools'."; exit 1; }
+
+require-kubectl:
+	@test -x .tools/kubectl || { echo "ERRO: kubectl ausente. Rode 'make tools'."; exit 1; }
 
 preflight: ## Diz se cabe subir um subconjunto; ALVO=airbyte|airflow|streaming|trabalho
 	@docker/preflight.sh $(ALVO)
@@ -1018,7 +1033,75 @@ gcp-composer-prova: gcp-preflight ## G2.4: a DAG importa e uma tarefa de dbt (TA
 		$(COMPOSER_IMAGEM) -c 'pip install -q --user --no-warn-script-location -r /requisitos.txt \
 			&& pip check && python -m mvp_ed1.gcp.prova_composer --tarefa $(TAREFA) --saida /saida/prova_composer.json'; \
 	rc=$$?; mkdir -p data/medicoes/etapa_13/g2_4; \
-	cp "$$base/saida/prova_composer.json" data/medicoes/etapa_13/g2_4/ 2>/dev/null; exit $$rc
+	cp "$$base/saida/prova_composer.json" \
+		"data/medicoes/etapa_13/g2_4/prova_composer_$(TAREFA)_$$(date -u +%Y%m%dT%H%M%SZ).json" 2>/dev/null; \
+	exit $$rc
+
+# ── Composer na janela (quarta): segredos, layout e smoke test, nesta ordem ──────────────────────
+# O nome do ambiente e o bucket vêm do `output composer`; vazio é "o degrau não está aplicado".
+COMPOSER_SAIDA = $(GCP_TF) output -json composer | .venv/bin/python -c 'import json,sys; print((json.load(sys.stdin) or {}).get("$(1)", ""))'
+
+gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret Manager as credenciais do Airbyte do GKE e o endereço do load balancer interno, sem mostrá-los
+	@# O bootloader do chart gera as credenciais no Secret `airbyte-auth-secrets`, e o IP do load
+	@# balancer interno só existe depois do Service: nenhum dos dois o Terraform conhece no plano.
+	@# Os valores passam por arquivos de uma pasta 700 que some no fim; nada vai para a tela.
+	@set -a; . ./.env; set +a; \
+	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
+	ep=$$($(GCP_TF) output -raw gke_endpoint); \
+	test -n "$$ep" || { echo "ERRO: sem GKE no estado (degrau 08)."; exit 1; }; \
+	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt"; \
+	token=$$(gcloud auth application-default print-access-token) || exit 1; \
+	k() { .tools/kubectl --server="https://$$ep" --certificate-authority="$$base/ca.crt" --token="$$token" -n airbyte "$$@"; }; \
+	ip=$$(k get service airbyte-airbyte-server-svc -o jsonpath='{.status.loadBalancer.ingress[0].ip}') || exit 1; \
+	porta=$$(k get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
+	test -n "$$ip" || { echo "ERRO: o load balancer interno do Airbyte ainda não tem IP."; exit 1; }; \
+	printf 'http://%s:%s/api/public/v1' "$$ip" "$$porta" > "$$base/airbyte-url"; \
+	for chave in id secret; do \
+		k get secret airbyte-auth-secrets -o jsonpath="{.data.instance-admin-client-$$chave}" \
+			| base64 -d > "$$base/airbyte-client-$$chave" || exit 1; \
+	done; \
+	for nome in airbyte-client-id airbyte-client-secret airbyte-url; do \
+		test -s "$$base/$$nome" || { echo "ERRO: $$nome vazio no cluster."; exit 1; }; \
+		gcloud secrets versions add "mvp-ed1-$$nome" --project "$$GCP_PROJECT_ID" \
+			--data-file="$$base/$$nome" > /dev/null || exit 1; \
+		echo "gcp-composer-segredos: mvp-ed1-$$nome gravado"; \
+	done
+
+gcp-composer-publicar: gcp-preflight ## Janela: publica o layout do G2.4 (dags/ e data/) no bucket do Composer; o que sobrou de publicação anterior sai
+	@# O mesmo `montar` da prova local, numa pasta nova; o `rsync` apaga do bucket o que o layout
+	@# não tem — menos o `airflow_monitoring.py`, que o próprio Composer põe em dags/.
+	@bucket=$$($(call COMPOSER_SAIDA,bucket)); \
+	test -n "$$bucket" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
+	.venv/bin/python -m mvp_ed1.gcp.composer montar "$$base/gcs" > /dev/null || exit 1; \
+	gcloud storage rsync --recursive --delete-unmatched-destination-objects \
+		--exclude='^airflow_monitoring\.py$$' "$$base/gcs/dags" "gs://$$bucket/dags" || exit 1; \
+	gcloud storage rsync --recursive --delete-unmatched-destination-objects \
+		"$$base/gcs/data" "gs://$$bucket/data" || exit 1; \
+	echo "gcp-composer-publicar: layout em gs://$$bucket (dags/ e data/)"
+
+gcp-composer-smoke: gcp-preflight ## Janela: as DAGs importam e a diagnostico_composer roda inteira no Composer (nada escreve); falha dizendo onde
+	@# Depois do `gcp-composer-segredos` e do `gcp-composer-publicar`, e antes da `fluxo_batch`.
+	@# A CLI do Airflow pelo `gcloud` (grupo `dags`, aceito até o Airflow 3.3.0). A DAG nasce
+	@# pausada: o `unpause` é dela só, e ela não tem agendamento.
+	@set -a; . ./.env; set +a; \
+	nome=$$($(call COMPOSER_SAIDA,nome)); \
+	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	g() { gcloud composer environments run "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" "$$@"; }; \
+	erros=$$(g dags list-import-errors -- -o json 2>/dev/null) || exit 1; \
+	printf '%s' "$$erros" | .venv/bin/python -c 'import json,sys; t=sys.stdin.read().strip(); e=[] if not t or "No data found" in t else json.loads(t); print("importação:", "sem erro" if not e else e); sys.exit(1 if e else 0)' || exit 1; \
+	g dags unpause -- diagnostico_composer -y > /dev/null || exit 1; \
+	run="smoke_$$(date -u +%Y%m%dT%H%M%S)"; \
+	g dags trigger -- diagnostico_composer --run-id "$$run" > /dev/null || exit 1; \
+	for _ in $$(seq 60); do \
+		sleep 15; \
+		estado=$$(g dags list-runs -- diagnostico_composer -o json 2>/dev/null | RUN="$$run" .venv/bin/python -c 'import json,os,sys; r=[x for x in json.load(sys.stdin) if x.get("run_id")==os.environ["RUN"]]; print(r[0]["state"] if r else "")'); \
+		case "$$estado" in \
+			success) echo "gcp-composer-smoke: $$run terminou com sucesso"; exit 0 ;; \
+			failed) echo "gcp-composer-smoke: $$run FALHOU — a tarefa que falhou diz o quê, no log dela"; exit 1 ;; \
+		esac; \
+	done; \
+	echo "gcp-composer-smoke: $$run não terminou em 15 min (último estado: $$estado)"; exit 1
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
