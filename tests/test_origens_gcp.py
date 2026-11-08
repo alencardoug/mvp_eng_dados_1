@@ -44,7 +44,8 @@ def _receita(alvo: str) -> str:
 def test_os_alvos_do_cloud_sql_passam_pelo_proxy_e_nao_recarregam_o_env():
     alvos = [a for a in re.findall(r"^(gcp-[a-z0-9-]+):", MAKEFILE, re.M) if "$(GCP_ORIGENS)" in _receita(a)]
     assert set(alvos) == {"gcp-origens-migrar", "gcp-origens-povoar", "gcp-origens-oraculo",
-                          "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot", "gcp-livro-epoca"}
+                          "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot", "gcp-livro-epoca",
+                          "gcp-sync-legacy", "gcp-debezium-status", "gcp-quente-produzir", "gcp-quente-conferir"}
     for alvo in alvos:
         receita = _receita(alvo)
         assert receita.split("$(GCP_ORIGENS)")[0].count("$(GCP_LIMPEZA)") == 1, alvo
@@ -121,5 +122,31 @@ def test_o_airbyte_da_nuvem_nao_muda_o_workspace_do_local():
 def test_a_epoca_inicial_confere_antes_de_abrir():
     receita = _receita("gcp-livro-epoca")
     assert receita.index("armazem_janela pronto") < receita.index("mvp_ed1.recovery.ledger baseline")
-    assert 'LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"' in receita and "livro_raiz" in receita
+    livro = MAKEFILE.split("\nGCP_LIVRO = ", 1)[1].split("\n\n", 1)[0]
+    assert 'export LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"' in livro and "livro_raiz" in livro
+    # A época e a captura do legado leem o mesmo livro e o mesmo armazém.
+    for alvo in ("gcp-livro-epoca", "gcp-sync-legacy"):
+        assert "$(GCP_ORIGENS); $(GCP_LIVRO);" in _receita(alvo), alvo
     assert '--confirmar "$(CONFIRMA)"' in _receita("gcp-armazem-zerar")
+
+
+def test_a_captura_do_legado_e_a_certificada():
+    assert "--connection legacy_para_raw_legacy --certificar-legado" in _receita("gcp-sync-legacy")
+    assert "--connection oltp_para_raw" in _receita("gcp-sync-retail")
+
+
+def test_as_tags_leem_o_manifest_do_alvo_gcp():
+    for alvo in ("gcp-tags-convergir", "gcp-tags-inventario"):
+        receita = _receita(alvo)
+        assert "--manifest dbt/target_gcp/manifest.json" in receita and "output -json policy_tags" in receita, alvo
+
+
+def test_o_destino_quente_confere_contra_a_origem():
+    from mvp_ed1.gcp import quente
+
+    origem = {"movimentos": 10, "max_event_sequence": 10}
+    assert quente.comparar(origem, {"movimentos": 10, "linhas": 10, "max_event_sequence": 10}) == []
+    atrasado = quente.comparar(origem, {"movimentos": 7, "linhas": 7, "max_event_sequence": 7})
+    assert len(atrasado) == 1 and "7 de 10" in atrasado[0]
+    repetido = quente.comparar(origem, {"movimentos": 10, "linhas": 12, "max_event_sequence": 10})
+    assert repetido == ["destino com 2 linhas repetidas por movement_id"]

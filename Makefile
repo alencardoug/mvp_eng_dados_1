@@ -160,6 +160,8 @@ endef
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-origens-migrar gcp-origens-povoar gcp-origens-oraculo \
         gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
+        gcp-sync-retail gcp-sync-legacy gcp-tags-convergir gcp-tags-inventario gcp-gke-versao gcp-debezium-status \
+        gcp-quente-produzir gcp-quente-conferir \
         gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
@@ -1294,13 +1296,54 @@ gcp-livro-epoca: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça
 	@# O `ledger-baseline` da fase local apontado para a nuvem, por cima do `.env`: o armazém
 	@# BigQuery, o livro na saída `livro_raiz`, o legado no Cloud SQL (o coordenador, A21) e o
 	@# Airbyte do GKE, de que a linha de base lista os jobs da conexão legada.
-	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_ORIGENS); \
-	raiz=$$($(GCP_TF) output -raw livro_raiz 2>/dev/null) && test -n "$$raiz" \
-		|| { echo "ERRO: sem a saída livro_raiz no estado (o próximo apply a grava)."; exit 1; }; \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_ORIGENS); $(GCP_LIVRO); \
 	datasets=$$($(GCP_TF) output -json datasets) || exit 1; \
-	export LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"; \
 	.venv/bin/python -m mvp_ed1.gcp.armazem_janela pronto --datasets "$$datasets" || exit 1; \
 	.venv/bin/python -m mvp_ed1.recovery.ledger baseline
+
+# ── Terça, parte 2: as capturas, as tags, o dbt e o caminho quente (PLANO §6.7) ──────────────────
+# A captura do legado como a da fase local (`sync-legacy`): a recuperação, as duas fases do
+# certificado e o registro no livro — aqui com o certificado no BigQuery, o livro no Cloud Storage,
+# os locks no Cloud SQL e o Airbyte do GKE.
+GCP_LIVRO = raiz=$$($(GCP_TF) output -raw livro_raiz 2>/dev/null) && test -n "$$raiz" \
+		|| { echo "ERRO: sem a saída livro_raiz no estado (o próximo apply a grava)."; exit 1; }; \
+	export LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"
+
+gcp-sync-retail: gcp-preflight require-kubectl ## Terça: sincroniza a origem principal do Cloud SQL para o raw do BigQuery pelo Airbyte do GKE (destino sem chave, D72)
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
+	.venv/bin/python -m mvp_ed1.airbyte sync --connection oltp_para_raw
+
+gcp-sync-legacy: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça: captura certificada do legado pelo Airbyte do GKE (recuperação, certificado no BigQuery, registro no livro); cada execução é uma captura
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_ORIGENS); $(GCP_LIVRO); \
+	.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado
+
+gcp-tags-convergir: gcp-preflight ## Terça, depois de cada sincronização: as policy tags nas fontes (raw, raw_legacy, governance), como a DAG fará no Composer
+	@$(GCP_ENV); export MVP_POLICY_TAGS="$$($(GCP_TF) output -json policy_tags)"; \
+	.venv/bin/python -m mvp_ed1.gcp.politicas convergir --manifest dbt/target_gcp/manifest.json > /dev/null \
+		&& echo "gcp-tags-convergir: fontes convergidas"
+
+gcp-tags-inventario: gcp-preflight ## Terça, depois do gcp-dbt-build: o inventário das policy tags (fontes e modelos), sem escrever; falha com divergência
+	@$(GCP_ENV); export MVP_POLICY_TAGS="$$($(GCP_TF) output -json policy_tags)"; mkdir -p data/medicoes/etapa_13/g4; \
+	.venv/bin/python -m mvp_ed1.gcp.politicas inventario --manifest dbt/target_gcp/manifest.json \
+		--saida "data/medicoes/etapa_13/g4/inventario_$$(date -u +%Y%m%dT%H%M%SZ).json" > /dev/null; \
+	rc=$$?; test $$rc = 0 && echo "gcp-tags-inventario: 0 divergências" || echo "gcp-tags-inventario: DIVERGÊNCIA (relatório em data/medicoes/etapa_13/g4/)"; exit $$rc
+
+gcp-gke-versao: gcp-preflight require-kubectl ## Terça, depois do apply do cluster: as versões do plano de controle e do kubectl, dentro da folga de uma versão menor
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
+	k version -o json | .venv/bin/python -c 'import json,sys; v=json.load(sys.stdin); c=int(v["clientVersion"]["minor"]); s=int(v["serverVersion"]["minor"].rstrip("+")); print(f"kubectl 1.{c}, plano de controle 1.{s}"); sys.exit(0 if abs(c-s) <= 1 else 1)' \
+		|| { echo "ERRO: fora da folga de uma versão menor; troque o KUBECTL_VERSION do Makefile."; exit 1; }
+
+gcp-debezium-status: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça: o pod do Debezium Server, o fim do log dele e o slot de replicação no Cloud SQL (ativo, WAL retido)
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GCP_ORIGENS); \
+	k -n debezium get pods; k -n debezium logs deployment/debezium-server --tail=15; \
+	.venv/bin/python -m mvp_ed1.gcp.quente slot
+
+gcp-quente-produzir: gcp-preflight require-cloud-sql-proxy ## Terça: emite movimentos novos no livro da origem do Cloud SQL (o que o Debezium Server captura); LIMITE=
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); \
+	.venv/bin/python -m mvp_ed1.streaming.cli produzir $(if $(LIMITE),--limite $(LIMITE))
+
+gcp-quente-conferir: gcp-preflight require-cloud-sql-proxy ## Terça: o livro da origem no Cloud SQL contra o destino no BigQuery, e os alertas da assinatura de observação; falha enquanto o destino não alcança
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.quente conferir
 
 # ── Desmonte (PLANO_etapa_13 §6.5; quinta, 12/11) ──────────────────────────────────────────────
 # A ordem é a da §6.5. Os planos saem de `make gcp-plan PASSO=n` — o VARS vem do
