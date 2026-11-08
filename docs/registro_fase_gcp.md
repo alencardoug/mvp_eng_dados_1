@@ -1221,3 +1221,53 @@ da fase local.
 **Não medido:** a carga pelo proxy (tempo e volume), o oráculo contra o Cloud SQL, o `ALTER ROLE …
 WITH REPLICATION` aceito pelo Cloud SQL e as provas do G2.1 com o coordenador remoto. São os passos
 5 a 11 do roteiro.
+
+## 32. A época inicial: o Airbyte do GKE, o armazém zerado e a governança da nuvem (08/11/2026, madrugada)
+
+O Owner confirmou a A43: a época inicial vai para terça. Escrever o alvo dela mostrou que ela
+dependia de mais três coisas, nenhuma escrita:
+
+1. **A conexão legada no Airbyte do GKE.** A linha de base procura a conexão pelo nome
+   (`airbyte.conexao`), e quem a cria é o `apply` da raiz `airbyte/` no *workspace* `gcp` (A31).
+   Esse alvo estava "a conferir" desde o §21.
+2. **O armazém da nuvem não está vazio.** Hoje há 278 tabelas e *views* nos nove *datasets*: a
+   cópia do bruto e do certificado **local** (`gcp-carga-dev`) e o que os `dbt build` de ensaio
+   materializaram. O `governance.legacy_captures` tem as **760 linhas do certificado local**, e o
+   `_versions`, as datas de setembro do PostgreSQL local. A linha de base mede capturas,
+   certificado, quarentena e exclusões. Tirada assim, registraria a fase local como a memória da
+   nuvem.
+3. **Ninguém criava a governança da nuvem.** O `governance.garantir_bigquery` só era chamado pelos
+   testes, e o `captura.py` diz que ele roda "na preparação do ambiente (época inicial)".
+
+**O que nasceu:**
+
+- **`GKE_AIRBYTE`** (`Makefile`): um `port-forward` até o Service do `airbyte-server`, porque o
+  *load balancer* é interno, e as credenciais do Secret `airbyte-auth-secrets` no ambiente, sem
+  passar pela tela.
+- **`GCP_LIMPEZA`**: uma pasta temporária e um `trap` por receita, somando os processos de segundo
+  plano. Um `trap` por macro substituiria o do anterior: a receita da época abre o proxy e o
+  `port-forward`, e um dos dois ficaria aberto.
+- **`gcp-airbyte-config`**: a raiz `airbyte/` com `armazem=bigquery`, as origens no IP privado do
+  Cloud SQL e as senhas do Secret Manager. Vai por `TF_WORKSPACE=gcp`, que não troca o *workspace*
+  selecionado, e o `airbyte-config` local continua no `default`.
+- **`gcp-armazem-zerar`** (`CONFIRMA=<id>`), **`gcp-armazem-governanca`** e **`gcp-livro-epoca`**
+  (`mvp_ed1.gcp.armazem_janela`). A época roda o `ledger baseline` com o BigQuery, o livro em
+  `livro_raiz`, o legado no Cloud SQL e o Airbyte do GKE, por cima do `.env`. Ela **recusa** se o
+  livro já tem época, ou se o armazém tem *view* ou linha fora do `governance._versions`.
+- **Três saídas do Terraform** que entram no `apply` de segunda, sem mudar a contagem de recursos:
+  - `livro_raiz`: a raiz do livro, agora uma só, também a do Composer;
+  - `cloud_sql_ip_privado`;
+  - `datasets`.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A45 | O `gcp-airbyte-config` aplica pelo `apply` **interativo** (plano na tela, `yes` do Owner), e não por plano salvo como pede a §6.3 | as senhas do Cloud SQL e o segredo do Airbyte entram como variáveis, e um plano salvo os levaria para um arquivo | plano salvo numa pasta temporária, aplicado na mesma receita |
+| A46 | O armazém é **zerado inteiro** antes da época (toda tabela e *view* dos nove *datasets*), e não só a cópia do `gcp-carga-dev --apagar` | o `--apagar` leva só o que copiou (`raw`, `raw_legacy`, `governance`); as saídas dos `dbt build` de ensaio em `staging`, `trusted`, `quarantine`, `snapshots`, `analytics` e `consumption` ficariam, e a quarentena entra na linha de base | `make gcp-carga-dev APAGAR=1` e conferir o resto à mão |
+
+**Medido (só leitura):** o `pronto` contra o BigQuery e o livro reais **recusou**, com 276 resíduos
+(as 278 menos o `_versions` e uma tabela vazia) e nenhum sobre o livro, que está sem época. É o
+esperado antes do passo 7 da §6.7. Sem as saídas novas no estado, o `gcp-armazem-zerar` recusa limpo.
+
+**Não medido:** se o *bootloader* do chart cria o *workspace* padrão sem a configuração inicial pela
+interface (o `airbyte workspace` o lista); o plano da raiz `airbyte/` contra o Airbyte do GKE; a
+época contra o livro real.

@@ -450,7 +450,7 @@ contra o real. E, se houver, o que **não** deu certo, dito como é.
 | sáb 07 | revisão 2 do plano e rodada 2 do Codex; ADR-0051; G0; G1 e G2 começam; BigQuery, GCS e Pub/Sub de desenvolvimento | centavos |
 | dom 08 | **revisão do plano encerrada**; G1, G2, G3 e G4 em curso | centavos |
 | seg 09 | Cloud SQL de pé (`apply` barato), povoado e provado; G2.1 contra Cloud SQL e BigQuery reais — o roteiro da §6.6; G1 em curso | barato |
-| ter 10 | GKE + Airbyte + Debezium de pé; a época inicial do livro, depois do Airbyte (§6.6); portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
+| ter 10 | GKE + Airbyte + Debezium de pé; o armazém zerado e a época inicial do livro, depois do Airbyte (§6.7); portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
 | **ter 10, 20:00** | **porta da janela** (§6.2) | |
 | **qua 11, 07:00** | Composer (~25 min para nascer, [create-environments](https://docs.cloud.google.com/composer/docs/composer-3/create-environments)) e Dataflow; *smoke test*; `fluxo_batch` de ponta a ponta; *streaming* simultâneo; as duas capturas da §7.2 | caro |
 | **qua 11, 20:00** | **ponto de decisão**: o que não rodou vira pendência; a janela não se estende | |
@@ -661,6 +661,91 @@ Os testes criam e apagam um *dataset* temporário. Teste que falha não derruba 
 
 **No fim do dia:** nada a desligar. O Cloud SQL fica de pé até o desmonte de quinta, e o proxy de
 cada alvo fechou com ele. Não rode `make ledger-baseline` nem edite o `.env`.
+
+### 6.7 Roteiro de terça (10/11), parte 1: o GKE, o Airbyte configurado e a época inicial
+
+Como a §6.6: um comando por passo, na raiz do repositório. O `VARS` de cada plano leva **todos**
+os degraus de pé, e a guarda recusa o plano que destrói. A parte 2 — a primeira captura, o
+Debezium e o ensaio do Dataflow na ordem do [Registro §29](docs/registro_fase_gcp.md#29-g23-e-g6-o-lançamento-no-dataflow-08112026-madrugada)
+(D83) — ainda não está escrita. Os números de plano marcados *pelo código* não foram medidos: só
+saem com o degrau anterior de pé.
+
+**Passo 1 — o projeto certo.**
+
+```
+make gcp-preflight
+```
+
+**Passo 2 — o plano do *cluster*.**
+
+```
+make gcp-plan NOME=08_gke VARS="enable_cloud_sql=true enable_gke=true"
+```
+
+Deve aparecer `11 a criar, 0 a alterar, 0 a destruir`, o mesmo do `08_gke` do Registro §21: o
+*cluster*, o *pool*, a conta dos nós, o Cloud NAT e o Workload Identity. Leia
+`data/medicoes/etapa_13/planos/08_gke.txt` antes do passo 3.
+
+**Passo 3 — aplicar.** O taxímetro do GKE começa aqui.
+
+```
+make gcp-apply NOME=08_gke
+```
+
+**Passo 4 — o plano dos *releases*.**
+
+```
+make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true"
+```
+
+Pelo código, `2 a criar`: o `helm_release` do Debezium Server e o do Airbyte. Leia o plano.
+
+**Passo 5 — aplicar.** A instalação do Airbyte leva minutos, até 20 (`timeout` do *release*).
+
+```
+make gcp-apply NOME=09_aplicacoes
+```
+
+**Passo 6 — as fontes, os destinos e as conexões no Airbyte do GKE.**
+
+```
+make gcp-airbyte-config
+```
+
+Deve aparecer `airbyte: API do GKE em http://127.0.0.1:18001/api/public/v1 (port-forward)`, e o
+Terraform mostra o plano. Pelo código, `6 to add`: duas fontes no Cloud SQL, dois destinos BigQuery
+e duas conexões. Leia e digite `yes`. Ele não mexe no Airbyte local: o estado é o do *workspace*
+`gcp` da raiz `airbyte/`. Se o fim disser `AVISO: … workspace default`, rode o comando que o aviso
+mostra.
+
+**Passo 7 — zerar o armazém.** Apaga a cópia de desenvolvimento e as saídas dos `dbt build` de
+ensaio, e não toca nos *datasets*, no IAM nem nas *policy tags*.
+
+```
+make gcp-armazem-zerar CONFIRMA=mvp-ed1-gcp
+```
+
+Deve aparecer `armazém zerado: N tabelas e views apagadas`, perto de 278 (medido em 08/11). Daqui
+até a primeira sincronização, o `gcp-dbt-build` não tem o que ler.
+
+**Passo 8 — a governança da nuvem.**
+
+```
+make gcp-armazem-governanca
+```
+
+Deve listar as migrações aplicadas (`governance (BigQuery): 0001_…, 0002_…`).
+
+**Passo 9 — a época inicial do livro.**
+
+```
+make gcp-livro-epoca
+```
+
+Deve aparecer `pronto para a época inicial` e, embaixo, `época aberta: gs://mvp-ed1-gcp-livro/legado/…`,
+com `0 capturas no bruto, 0 linhas de certificado, 0 jobs da conexão legada`. Se aparecer
+`RECUSADO`, a linha diz o quê: armazém com dado (volte ao passo 7) ou época já aberta (**pare**: o
+livro nunca é reescrito).
 
 ---
 
