@@ -159,7 +159,8 @@ endef
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-origens-migrar gcp-origens-povoar gcp-origens-oraculo \
-        gcp-origens-replicacao gcp-g21-prova gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
+        gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
+        gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
         gcp-desmonte-parar gcp-desmonte-slot gcp-desmonte-kubernetes gcp-desmonte-orfaos gcp-desmonte-sql gcp-desmonte-linhagem \
@@ -1027,10 +1028,14 @@ gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.
 # (`mvp_ed1.registros`): da raiz, a carga do Cloud SQL encerraria o diário de mutações aberto do
 # manifesto local, que descreve o `legacy_db` local.
 GCP_REGISTROS := $(abspath data/medicoes/etapa_13/origens_cloud_sql)
+# Uma limpeza só por receita: a pasta temporária `base` e os processos de segundo plano que os
+# macros abrem (o proxy, o `port-forward`), cada um somado a `pids`. Um `trap` por macro
+# substituiria o do anterior, e um deles ficaria aberto.
+GCP_LIMPEZA = base=$$(mktemp -d) && pids= && trap 'kill $$pids 2>/dev/null; rm -rf "$$base"' EXIT
 GCP_ORIGENS = conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) \
 		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
 	.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao" > /dev/null 2>&1 & proxy=$$!; \
-	trap 'kill $$proxy 2>/dev/null' EXIT; \
+	pids="$$pids $$proxy"; \
 	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null && break; kill -0 $$proxy 2>/dev/null || break; sleep 1; done; \
 	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
 	for origem in source legacy; do \
@@ -1042,28 +1047,28 @@ GCP_ORIGENS = conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) \
 	echo "origens: Cloud SQL $$conexao pelo proxy em 127.0.0.1:$(GCP_SQL_PORTA); registros em $(GCP_REGISTROS)"
 
 gcp-origens-migrar: gcp-preflight require-cloud-sql-proxy ## Segunda: aplica as migrações das duas origens no Cloud SQL (source_db e legacy_db), do zero
-	@$(GCP_ENV); $(GCP_ORIGENS); \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); \
 	.venv/bin/alembic upgrade head && .venv/bin/alembic -n legacy upgrade head \
 	&& .venv/bin/alembic current && .venv/bin/alembic -n legacy current
 
 gcp-origens-povoar: gcp-preflight require-cloud-sql-proxy ## Segunda: gera as duas origens no Cloud SQL com a semente, o fator e a data declarados (os da fase local)
 	@# Sem SCALE, SEED nem AS_OF: a paridade da §7.2 pede a mesma geração da fase local, e o padrão
 	@# é a declaração. O gerador recusa banco com dados; aqui não há FORCE.
-	@$(GCP_ENV); $(GCP_ORIGENS); \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); \
 	.venv/bin/python -m mvp_ed1.generator.cli seed && .venv/bin/python -m mvp_ed1.legacy.cli seed
 
 gcp-origens-oraculo: gcp-preflight require-cloud-sql-proxy ## Segunda: o oráculo das origens contra o Cloud SQL, somente leitura; MEDIDA= de `make generation-measure`
 	@test -n '$(MEDIDA)' || { echo 'ERRO: use make gcp-origens-oraculo MEDIDA=<medida da geração>'; exit 1; }
-	@$(GCP_ENV); $(GCP_ORIGENS); \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); \
 	RECOVERY_DIR="$(RECOVERY_DIR)" .venv/bin/python -m mvp_ed1.recovery.sources oracle '$(MEDIDA)'
 
 gcp-origens-replicacao: gcp-preflight require-cloud-sql-proxy ## Segunda: concede REPLICATION ao usuário da origem no Cloud SQL (o do Debezium Server) e confere em pg_roles
-	@$(GCP_ENV); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.origens replicacao
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.origens replicacao
 
 gcp-g21-prova: gcp-preflight require-cloud-sql-proxy ## Segunda: as provas do G2.1 contra o BigQuery real com os locks no Cloud SQL (o banco legado é o coordenador, A21)
 	@# Os testes de `GCP_TESTES=1` criam e apagam um *dataset* temporário; o coordenador deles é o
 	@# `WAREHOUSE_DB_*`, que aqui aponta para o legado no Cloud SQL, como no ambiente da nuvem.
-	@$(GCP_ENV); $(GCP_ORIGENS); mkdir -p data/medicoes/etapa_13/g2_1; \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); mkdir -p data/medicoes/etapa_13/g2_1; \
 	export WAREHOUSE_DB_HOST=127.0.0.1 WAREHOUSE_DB_PORT=$(GCP_SQL_PORTA) WAREHOUSE_DB_NAME="$$LEGACY_DB_NAME" \
 		WAREHOUSE_DB_USER="$$LEGACY_DB_USER" WAREHOUSE_DB_PASSWORD="$$LEGACY_DB_PASSWORD"; \
 	saida="data/medicoes/etapa_13/g2_1/cloud_sql_$$(date -u +%Y%m%dT%H%M%SZ).txt"; \
@@ -1132,6 +1137,19 @@ GKE_KUBECTL = ep=$$($(GCP_TF) output -raw gke_endpoint 2>/dev/null); \
 	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt"; \
 	token=$$(gcloud auth application-default print-access-token) || exit 1; \
 	k() { .tools/kubectl --server="https://$$ep" --certificate-authority="$$base/ca.crt" --token="$$token" "$$@"; }
+# A API do Airbyte do GKE nesta máquina: um `port-forward` para o Service do `airbyte-server` (o
+# load balancer é interno e daqui não se alcança) e as credenciais do Secret `airbyte-auth-secrets`
+# no ambiente, sem passar pela tela. Pede `GCP_LIMPEZA` e `GKE_KUBECTL` antes.
+GCP_AIRBYTE_PORTA ?= 18001
+GKE_AIRBYTE = remota=$$(k -n airbyte get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
+	k -n airbyte port-forward service/airbyte-airbyte-server-svc "$(GCP_AIRBYTE_PORTA):$$remota" > "$$base/port-forward.log" 2>&1 & pids="$$pids $$!"; \
+	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null && break; sleep 1; done; \
+	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null || { echo "ERRO: o port-forward do Airbyte não abriu:"; cat "$$base/port-forward.log"; exit 1; }; \
+	AIRBYTE_CLIENT_ID=$$(k -n airbyte get secret airbyte-auth-secrets -o jsonpath='{.data.instance-admin-client-id}' | base64 -d) || exit 1; \
+	AIRBYTE_CLIENT_SECRET=$$(k -n airbyte get secret airbyte-auth-secrets -o jsonpath='{.data.instance-admin-client-secret}' | base64 -d) || exit 1; \
+	test -n "$$AIRBYTE_CLIENT_ID" && test -n "$$AIRBYTE_CLIENT_SECRET" || { echo "ERRO: credenciais do Airbyte vazias no cluster."; exit 1; }; \
+	export AIRBYTE_URL="http://127.0.0.1:$(GCP_AIRBYTE_PORTA)/api/public/v1" AIRBYTE_CLIENT_ID AIRBYTE_CLIENT_SECRET; \
+	echo "airbyte: API do GKE em $$AIRBYTE_URL (port-forward)"
 
 gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret Manager as credenciais do Airbyte do GKE e o endereço do load balancer interno, sem mostrá-los
 	@# O bootloader do chart gera as credenciais no Secret `airbyte-auth-secrets`, e o IP do load
@@ -1233,6 +1251,57 @@ gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min)
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
 	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
 
+# ── Terça: o Airbyte do GKE configurado e a época inicial do livro (A43) ──────────────────────────
+# Na ordem: gcp-airbyte-config → gcp-armazem-zerar → gcp-armazem-governanca → gcp-livro-epoca, e
+# só então a primeira sincronização. Depois do zerar, o `gcp-dbt-build` de ensaio não tem o que ler.
+
+gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a raiz airbyte/ no Airbyte do GKE (workspace gcp do Terraform), pelo port-forward; o apply mostra o plano e só aplica com yes
+	@# O plano salvo da §6.3 levaria para um arquivo as senhas do Cloud SQL e o segredo do Airbyte,
+	@# que entram como variáveis. O `apply` interativo mostra o plano inteiro e só aplica com o `yes`
+	@# do Owner, como no `airbyte-config` local, sem arquivo (A45). O workspace vai por
+	@# `TF_WORKSPACE`, que não muda o selecionado: o `airbyte-config` local segue no `default`.
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
+	ip=$$($(GCP_TF) output -raw cloud_sql_ip_privado 2>/dev/null) && test -n "$$ip" \
+		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
+	for origem in source legacy; do \
+		senha=$$(gcloud secrets versions access latest --secret "mvp-ed1-$$origem-db-password" --project "$$GCP_PROJECT_ID") || exit 1; \
+		export "TF_VAR_$${origem}_db_password=$$senha"; \
+	done; \
+	workspace=$$(.venv/bin/python -m mvp_ed1.airbyte workspace) || exit 1; \
+	export TF_VAR_airbyte_server_url="$$AIRBYTE_URL" TF_VAR_airbyte_client_id="$$AIRBYTE_CLIENT_ID" \
+		TF_VAR_airbyte_client_secret="$$AIRBYTE_CLIENT_SECRET" TF_VAR_airbyte_workspace_id="$$workspace" \
+		TF_VAR_armazem=bigquery TF_VAR_gcp_project_id="$$GCP_PROJECT_ID" TF_VAR_gcp_bq_location="$$GCP_BQ_LOCATION" \
+		TF_VAR_source_db_host="$$ip" TF_VAR_source_db_port=5432 TF_VAR_legacy_db_host="$$ip" TF_VAR_legacy_db_port=5432 \
+		TF_VAR_source_db_name="$$SOURCE_DB_NAME" TF_VAR_source_db_user="$$SOURCE_DB_USER" \
+		TF_VAR_legacy_db_name="$$LEGACY_DB_NAME" TF_VAR_legacy_db_user="$$LEGACY_DB_USER" \
+		TF_VAR_warehouse_db_name= TF_VAR_warehouse_db_user= TF_VAR_warehouse_db_password=; \
+	$(TERRAFORM) init -input=false -no-color > /dev/null || exit 1; \
+	$(TERRAFORM) workspace list | grep -qw gcp || $(TERRAFORM) workspace new gcp > /dev/null || exit 1; \
+	$(TERRAFORM) workspace select default > /dev/null || exit 1; \
+	TF_WORKSPACE=gcp $(TERRAFORM) apply -parallelism=1; rc=$$?; \
+	test "$$($(TERRAFORM) workspace show)" = default || echo "AVISO: a raiz airbyte/ não está no workspace default; rode: .tools/terraform -chdir=airbyte workspace select default"; \
+	exit $$rc
+
+gcp-armazem-zerar: gcp-preflight ## Terça, antes da época: apaga toda tabela e view dos nove datasets (a cópia do gcp-carga-dev e os dbt build de ensaio); CONFIRMA=<id do projeto>
+	@$(GCP_ENV); \
+	datasets=$$($(GCP_TF) output -json datasets) || exit 1; \
+	.venv/bin/python -m mvp_ed1.gcp.armazem_janela zerar --datasets "$$datasets" --confirmar "$(CONFIRMA)"
+
+gcp-armazem-governanca: gcp-preflight ## Terça, depois do zerar: as migrações do governance no BigQuery (governance.garantir_bigquery)
+	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.armazem_janela governanca
+
+gcp-livro-epoca: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça, antes da primeira captura: abre a época inicial do livro no Cloud Storage (BigQuery, Cloud SQL e os jobs do Airbyte do GKE); recusa com época aberta ou armazém com dado
+	@# O `ledger-baseline` da fase local apontado para a nuvem, por cima do `.env`: o armazém
+	@# BigQuery, o livro na saída `livro_raiz`, o legado no Cloud SQL (o coordenador, A21) e o
+	@# Airbyte do GKE, de que a linha de base lista os jobs da conexão legada.
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_ORIGENS); \
+	raiz=$$($(GCP_TF) output -raw livro_raiz 2>/dev/null) && test -n "$$raiz" \
+		|| { echo "ERRO: sem a saída livro_raiz no estado (o próximo apply a grava)."; exit 1; }; \
+	datasets=$$($(GCP_TF) output -json datasets) || exit 1; \
+	export LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"; \
+	.venv/bin/python -m mvp_ed1.gcp.armazem_janela pronto --datasets "$$datasets" || exit 1; \
+	.venv/bin/python -m mvp_ed1.recovery.ledger baseline
+
 # ── Desmonte (PLANO_etapa_13 §6.5; quinta, 12/11) ──────────────────────────────────────────────
 # A ordem é a da §6.5. Os planos saem de `make gcp-plan PASSO=n` — o VARS vem do
 # `mvp_ed1.gcp.desmonte`, a janela inteira menos o já desmontado — e o `apply` de cada um é o rito
@@ -1265,7 +1334,7 @@ gcp-desmonte-slot: gcp-preflight require-cloud-sql-proxy ## Desmonte, passo 3: d
 	@# disco não cresce sozinho (`disk_autoresize = false`). A remoção recusa slot ativo: com o
 	@# Debezium de pé, nada sai. O proxy abre e fecha aqui; a senha vai do Secret Manager para o
 	@# ambiente do processo, não para a tela (`GCP_ORIGENS`).
-	@$(GCP_ENV); $(GCP_ORIGENS); \
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); \
 	.venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force
 
 gcp-desmonte-kubernetes: gcp-preflight require-kubectl ## Desmonte, passo 4: depois do plano 21, apaga os namespaces do Airbyte e do Debezium e prova que nenhum PV nem load balancer ficou

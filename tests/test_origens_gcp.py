@@ -44,15 +44,15 @@ def _receita(alvo: str) -> str:
 def test_os_alvos_do_cloud_sql_passam_pelo_proxy_e_nao_recarregam_o_env():
     alvos = [a for a in re.findall(r"^(gcp-[a-z0-9-]+):", MAKEFILE, re.M) if "$(GCP_ORIGENS)" in _receita(a)]
     assert set(alvos) == {"gcp-origens-migrar", "gcp-origens-povoar", "gcp-origens-oraculo",
-                          "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot"}
+                          "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot", "gcp-livro-epoca"}
     for alvo in alvos:
         receita = _receita(alvo)
-        assert "$(GCP_ENV); $(GCP_ORIGENS);" in receita, alvo
+        assert receita.split("$(GCP_ORIGENS)")[0].count("$(GCP_LIMPEZA)") == 1, alvo
         # As macros locais recarregam o `.env` e apontariam de volta para os bancos locais.
         assert not re.search(r"\$\((ALEMBIC|ALEMBIC_LEGACY|GERADOR|RECOVERY|STREAM)\)", receita), alvo
     macro = MAKEFILE.split("\nGCP_ORIGENS = ", 1)[1].split("\n\n", 1)[0]
     assert 'export MVP_REGISTROS_DIR="$(GCP_REGISTROS)"' in macro
-    assert "trap 'kill $$proxy" in macro and "mvp-ed1-$$origem-db-password" in macro
+    assert 'pids="$$pids $$proxy"' in macro and "trap" not in macro and "mvp-ed1-$$origem-db-password" in macro
     # A carga não força: o gerador recusa banco com dados.
     assert "--force" not in _receita("gcp-origens-povoar")
 
@@ -99,3 +99,27 @@ def test_a_replicacao_so_e_concedida_se_falta():
     ja = _Conexao(tem=True)
     assert origens.replicacao(_Engine(ja)) == (True, True)
     assert origens.CONCEDER not in ja.sql
+
+
+def test_uma_limpeza_so_por_receita():
+    limpeza = MAKEFILE.split("\nGCP_LIMPEZA = ", 1)[1].split("\n", 1)[0]
+    assert "kill $$pids" in limpeza and 'rm -rf "$$base"' in limpeza
+    airbyte = MAKEFILE.split("\nGKE_AIRBYTE = ", 1)[1].split("\n\n", 1)[0]
+    assert 'pids="$$pids $$!"' in airbyte and "trap" not in airbyte
+    for alvo in ("gcp-airbyte-config", "gcp-livro-epoca"):
+        receita = _receita(alvo)
+        assert receita.index("$(GCP_LIMPEZA)") < receita.index("$(GKE_KUBECTL)") < receita.index("$(GKE_AIRBYTE)"), alvo
+
+
+def test_o_airbyte_da_nuvem_nao_muda_o_workspace_do_local():
+    receita = _receita("gcp-airbyte-config")
+    assert "TF_WORKSPACE=gcp $(TERRAFORM) apply -parallelism=1" in receita
+    assert "workspace select gcp" not in receita and "-auto-approve" not in receita
+    assert "TF_VAR_armazem=bigquery" in receita and "cloud_sql_ip_privado" in receita
+
+
+def test_a_epoca_inicial_confere_antes_de_abrir():
+    receita = _receita("gcp-livro-epoca")
+    assert receita.index("armazem_janela pronto") < receita.index("mvp_ed1.recovery.ledger baseline")
+    assert 'LEGACY_WAREHOUSE=bigquery LEGACY_LEDGER_DIR="$$raiz"' in receita and "livro_raiz" in receita
+    assert '--confirmar "$(CONFIRMA)"' in _receita("gcp-armazem-zerar")
