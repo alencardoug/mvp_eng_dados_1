@@ -271,16 +271,16 @@ def construir(p: beam.Pipeline, fluxo: Fluxo, *, nuvem: bool = False) -> dict[st
     # `_stream_extracted_at` na gravação — tudo o que esta execução gravar vem depois.
     inicio = dt.datetime.now(dt.timezone.utc)
     if nuvem:
-        import os
-
         from mvp_ed1.streaming import nuvem as gcp
 
         if fluxo.nuvem is None:
             raise ValueError("fluxo.yml sem a seção `nuvem`: a fase GCP não tem o que ler")
-        eventos = p | "LerDoTransporte" >> gcp.LerDoPubSub(fluxo.nuvem, os.environ["GCP_PROJECT_ID"])
-        gravar = gcp.GravarNaNuvem(fluxo)
-        semear = gcp.Semear(fluxo.destino)
-        publicar = beam.ParDo(gcp.PublicarAlerta(fluxo.nuvem))
+        # Lido aqui, no lançador, e levado dentro das peças: o *worker* do Dataflow não tem o `.env`.
+        projeto = gcp.Projeto.do_ambiente()
+        eventos = p | "LerDoTransporte" >> gcp.LerDoPubSub(fluxo.nuvem, projeto.projeto)
+        gravar = gcp.GravarNaNuvem(fluxo, projeto)
+        semear = gcp.Semear(fluxo.destino, projeto)
+        publicar = beam.ParDo(gcp.PublicarAlerta(fluxo.nuvem, projeto))
     else:
         eventos = p | "LerDoTransporte" >> LerDoTransporte(
             fluxo.transporte, proc.folga_do_watermark_segundos
@@ -330,7 +330,11 @@ def construir(p: beam.Pipeline, fluxo: Fluxo, *, nuvem: bool = False) -> dict[st
             )
         )
         | "SomarDeltaDaJanela" >> beam.CombinePerKey(somar_deltas)
-        | "AnotarJanela" >> beam.ParDo(_AnotarJanela())
+        # A mesma dica da deduplicação, pelo mesmo motivo: a chave do passo com estado logo abaixo.
+        # Sem ela o Beam caía no codificador genérico e avisava (visto no `validar` do Dataflow, G2.3).
+        | "AnotarJanela" >> beam.ParDo(_AnotarJanela()).with_output_types(
+            tuple[tuple[int, int], dict[str, Any]]
+        )
         # Saldo é acumulado: estado por janela zeraria a cada minuto.
         | "VoltarAoGlobal" >> beam.WindowInto(
             window.GlobalWindows(),

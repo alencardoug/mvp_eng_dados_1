@@ -35,6 +35,8 @@ import json
 import logging
 import os
 import zlib
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Iterable
 
 import apache_beam as beam
@@ -67,13 +69,30 @@ COLUNAS: tuple[tuple[str, str], ...] = (
 _OBRIGATORIAS = {"movement_id", "_stream_from_snapshot", "_stream_extracted_at"}
 
 
-def armazem(environ: dict[str, str] | None = None) -> BigQuery:
-    """O BigQuery do projeto do `.env`. Sem coordenador: a escrita aqui não toma *lock*."""
+@dataclass(frozen=True)
+class Projeto:
+    """O projeto e a região, lidos **de quem constrói** o *pipeline* e levados dentro das peças.
+
+    No Dataflow as peças rodam no *worker*, que não tem o `.env` nem variável nenhuma do
+    lançador: lê-las do ambiente lá derrubaria o *pipeline* no primeiro evento. A prova local
+    (§19 do registro) não podia mostrar isso — o executor local roda no processo que as tem.
+    """
+
+    projeto: str
+    local: str
+
+    @classmethod
+    def do_ambiente(cls, environ: Mapping[str, str] | None = None) -> "Projeto":
+        env = os.environ if environ is None else environ
+        return cls(env["GCP_PROJECT_ID"], env["GCP_BQ_LOCATION"])
+
+
+def armazem(projeto: Projeto | None = None) -> BigQuery:
+    """O BigQuery do projeto (o do `.env`, sem argumento). Sem coordenador: a escrita aqui não toma *lock*."""
     from google.cloud import bigquery
 
-    env = os.environ if environ is None else environ
-    projeto, local = env["GCP_PROJECT_ID"], env["GCP_BQ_LOCATION"]
-    return BigQuery(bigquery.Client(project=projeto, location=local), projeto, coordenador=None, local=local)
+    p = projeto or Projeto.do_ambiente()
+    return BigQuery(bigquery.Client(project=p.projeto, location=p.local), p.projeto, coordenador=None, local=p.local)
 
 
 def ddl(bq: BigQuery, destino: Destino) -> str:
@@ -89,6 +108,21 @@ def ddl(bq: BigQuery, destino: Destino) -> str:
 
 
 def garantir_tabela(bq: BigQuery, destino: Destino) -> None:
+    """Cria a tabela se ela não existe — e só pergunta, se existe.
+
+    No Dataflow quem chega aqui é o `streamer`, que tem IAM **da tabela**, não do *dataset*
+    (`terraform/dataflow.tf`: ele escreve uma tabela só, "nada mais"): ler os metadados ele pode,
+    criar no *dataset* não. Por isso o lançador a cria antes, com a ADC do Owner
+    (`mvp_ed1.streaming.dataflow`), e aqui o `get_table` basta.
+    """
+    from google.api_core.exceptions import NotFound
+
+    try:
+        # O mesmo nome do DDL, com o `renomear` do armazém (o *dataset* temporário das provas).
+        bq.cliente.get_table(bq.tabela(destino.qualificado).split("`")[1])
+        return
+    except NotFound:
+        pass
     bq.cliente.query(ddl(bq, destino), location=bq.local).result()
 
 
@@ -144,14 +178,15 @@ def escrever_lote(bq: BigQuery, destino: Destino, eventos: list[dict[str, Any]],
 class GravarEventos(beam.DoFn):
     """O ramo 1 na nuvem: recebe `(fragmento, lote)` e emite só o que entrou, no tempo do evento."""
 
-    def __init__(self, destino: Destino):
+    def __init__(self, destino: Destino, projeto: Projeto):
         self._destino = destino
+        self._projeto = projeto
         self._bq: BigQuery | None = None
         self.gravados = beam.metrics.Metrics.counter("streaming", "eventos_gravados")
         self.duplicados = beam.metrics.Metrics.counter("streaming", "eventos_duplicados")
 
     def setup(self):
-        self._bq = armazem()
+        self._bq = armazem(self._projeto)
         garantir_tabela(self._bq, self._destino)
 
     def teardown(self):
@@ -180,11 +215,12 @@ def semente(bq: BigQuery, destino: Destino, inicio: dt.datetime) -> list[tuple[i
 class Semear:
     """A semente como chamável serializável, para o `AcumularSaldoEAlertar` rodar no *worker*."""
 
-    def __init__(self, destino: Destino):
+    def __init__(self, destino: Destino, projeto: Projeto):
         self._destino = destino
+        self._projeto = projeto
 
     def __call__(self, inicio: dt.datetime):
-        bq = armazem()
+        bq = armazem(self._projeto)
         try:
             garantir_tabela(bq, self._destino)
             return semente(bq, self._destino, inicio)
@@ -195,8 +231,9 @@ class Semear:
 class PublicarAlerta(beam.DoFn):
     """O alerta no tópico do Pub/Sub, com a mesma forma do Kafka local; confirmado antes do fim do pacote."""
 
-    def __init__(self, nuvem: Nuvem):
+    def __init__(self, nuvem: Nuvem, projeto: Projeto):
         self._nuvem = nuvem
+        self._projeto = projeto
         self._editor = None
         self._topico = None
         self._pendentes: list = []
@@ -205,7 +242,7 @@ class PublicarAlerta(beam.DoFn):
         from google.cloud import pubsub_v1
 
         self._editor = pubsub_v1.PublisherClient()
-        self._topico = self._editor.topic_path(os.environ["GCP_PROJECT_ID"], self._nuvem.topico_de_alertas)
+        self._topico = self._editor.topic_path(self._projeto.projeto, self._nuvem.topico_de_alertas)
 
     def process(self, alerta: dict[str, Any]):
         self._pendentes.append(self._editor.publish(
@@ -253,9 +290,10 @@ class LerDoPubSub(beam.PTransform):
 class GravarNaNuvem(beam.PTransform):
     """Fragmento fixo por `movement_id`, lote por fragmento, `MERGE` por lote (D75)."""
 
-    def __init__(self, fluxo: Fluxo):
+    def __init__(self, fluxo: Fluxo, projeto: Projeto):
         super().__init__()
         self._fluxo = fluxo
+        self._projeto = projeto
 
     def expand(self, eventos):
         nuvem = self._fluxo.nuvem
@@ -268,5 +306,5 @@ class GravarNaNuvem(beam.PTransform):
                 self._fluxo.destino.lote_de_escrita,
                 max_buffering_duration_secs=nuvem.espera_maxima_do_lote_segundos,
             )
-            | "GravarNoBigQuery" >> beam.ParDo(GravarEventos(self._fluxo.destino))
+            | "GravarNoBigQuery" >> beam.ParDo(GravarEventos(self._fluxo.destino, self._projeto))
         )
