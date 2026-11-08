@@ -1161,3 +1161,63 @@ alvo do `make` expôs quatro defeitos, nenhum visível na leitura da ordem.
 **Não medido:** o que o Composer, o GKE, o Cloud SQL e o Dataflow criam por padrão, só conhecido na
 janela; se a exclusão branda dos papéis customizados e do *pool* de identidade aparece no
 inventário; e se o `REMOVE_PEERING` é mesmo acionado. O inventário de quinta responde às três.
+
+## 31. O roteiro de segunda e as origens no Cloud SQL (08/11/2026, madrugada)
+
+O roteiro da segunda foi escrito comando por comando ([PLANO §6.6](../PLANO_etapa_13.md#66-roteiro-de-segunda-0911-o-cloud-sql-de-pé-povoado-e-provado)).
+Escrevê-lo assim expôs três lacunas: dois passos não tinham comando, e um teria corrompido evidência
+da fase local.
+
+**As três lacunas:**
+
+1. **Não havia como apontar os comandos locais para o Cloud SQL.** O `make migrate` e o
+   `make seed-data` recarregam o `.env` antes de rodar (`ALEMBIC`, `GERADOR`), e o `.env` aponta
+   para os bancos locais. Uma variável passada na linha de comando é desfeita por eles. O
+   `make gcp-sql-proxy` abria o caminho, mas nenhum alvo o usava.
+2. **A carga do legado no Cloud SQL encerraria o diário local.** O `seed` do legado grava
+   `data/legacy/manifesto-<hash>.json` relativo à pasta de onde roda, e uma carga do mesmo lote
+   **encerra o diário de mutações aberto** dele (`writer.gravar_manifesto`, `carga=True`). Esse
+   manifesto descreve o `legacy_db` local. O `seed` do gerador regrava `data/source/geracao.json`,
+   que o pacote de recuperação leva como oráculo da geração local.
+3. **A época inicial do livro não pode ser na segunda.** O `ledger baseline` lista os *jobs* da
+   conexão legada pela API do Airbyte (`mvp_ed1.recovery.ledger.main`). Na segunda o Airbyte do
+   projeto não existe. Rodada da raiz, a época leria o Airbyte **local** e gravaria no livro da
+   nuvem os *jobs* dele. O §17 a deixava para segunda; o cronograma (§6.1) passa a pô-la na terça,
+   depois do `apply` do Airbyte no GKE.
+
+**O que nasceu:**
+
+- **`GCP_ORIGENS`** (`Makefile`):
+  - abre o proxy em segundo plano e o fecha no fim da receita;
+  - lê as duas senhas do Secret Manager;
+  - exporta `SOURCE_DB_*` e `LEGACY_DB_*` para o proxy, por cima do `.env`, que continua o local.
+- **Os alvos que usam o `GCP_ORIGENS`:**
+  - `gcp-origens-migrar`, `-povoar`, `-oraculo` e `-replicacao`;
+  - `gcp-g21-prova`, que roda os testes de `GCP_TESTES=1` com o legado do Cloud SQL como
+    coordenador dos *locks* (A21);
+  - o `gcp-desmonte-slot` passou a usá-lo.
+- **`MVP_REGISTROS_DIR`** (`mvp_ed1.registros`): a raiz em que a carga deixa o `geracao.json` e o
+  manifesto do legado, e de onde o oráculo das origens o lê. Sem a variável, nada muda. Os alvos do
+  Cloud SQL a apontam para `data/medicoes/etapa_13/origens_cloud_sql/`.
+- **`mvp_ed1.gcp.origens replicacao`**: o `REPLICATION` do usuário da origem, só se faltar,
+  conferido em `pg_roles`. Pendente desde o §20.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A43 | A época inicial do livro na terça, depois do `apply` do Airbyte no GKE | a linha de base lista os *jobs* da conexão legada do Airbyte do projeto, que só existe na terça | — |
+| A44 | Os registros da carga do Cloud SQL numa raiz própria (`MVP_REGISTROS_DIR`), e não um `.env` da nuvem | as senhas continuam só no Secret Manager e no `.env` local; um segundo arquivo de ambiente com elas contrariaria a regra 1 do `CLAUDE.md` | — |
+
+**Medido, sem banco e sem custo:**
+
+- o **`legacy.cli manifesto`** com `MVP_REGISTROS_DIR` no rascunho gravou o lote
+  `060c3fc983fb71984764e6d3074e8e6e` fora de `data/legacy/`, o **mesmo lote** do manifesto local.
+  O manifesto local ficou com a mesma soma SHA-256 e o mesmo *link*;
+- o **`plan` do degrau 06** com o código de hoje (`06_cloud_sql_ensaio`): **11 / 1 / 0**, aceito pela
+  guarda. A alteração é o `REMOVE_PEERING`. O texto está em
+  `data/medicoes/etapa_13/g7/guarda/`, e o `.tfplan` saiu da pasta dos planos: o de segunda nasce no
+  passo 2 do roteiro;
+- os alvos novos recusam limpo sem Cloud SQL no estado (`ERRO: sem Cloud SQL no estado (degrau 06).`).
+
+**Não medido:** a carga pelo proxy (tempo e volume), o oráculo contra o Cloud SQL, o `ALTER ROLE …
+WITH REPLICATION` aceito pelo Cloud SQL e as provas do G2.1 com o coordenador remoto. São os passos
+5 a 11 do roteiro.

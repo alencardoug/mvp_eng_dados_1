@@ -449,8 +449,8 @@ contra o real. E, se houver, o que **não** deu certo, dito como é.
 |---|---|---|
 | sáb 07 | revisão 2 do plano e rodada 2 do Codex; ADR-0051; G0; G1 e G2 começam; BigQuery, GCS e Pub/Sub de desenvolvimento | centavos |
 | dom 08 | **revisão do plano encerrada**; G1, G2, G3 e G4 em curso | centavos |
-| seg 09 | Cloud SQL de pé (`apply` barato); G2.1 contra Cloud SQL e BigQuery reais; G1 em curso | barato |
-| ter 10 | GKE + Airbyte + Debezium de pé; portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
+| seg 09 | Cloud SQL de pé (`apply` barato), povoado e provado; G2.1 contra Cloud SQL e BigQuery reais — o roteiro da §6.6; G1 em curso | barato |
+| ter 10 | GKE + Airbyte + Debezium de pé; a época inicial do livro, depois do Airbyte (§6.6); portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
 | **ter 10, 20:00** | **porta da janela** (§6.2) | |
 | **qua 11, 07:00** | Composer (~25 min para nascer, [create-environments](https://docs.cloud.google.com/composer/docs/composer-3/create-environments)) e Dataflow; *smoke test*; `fluxo_batch` de ponta a ponta; *streaming* simultâneo; as duas capturas da §7.2 | caro |
 | **qua 11, 20:00** | **ponto de decisão**: o que não rodou vira pendência; a janela não se estende | |
@@ -541,6 +541,126 @@ passos sem Terraform são alvos `gcp-desmonte-*`, e cada um falha dizendo o que 
     - `make gcp-apagar-projeto CONFIRMA=<id>`.
 
     Cada um guarda a prova em `data/medicoes/etapa_13/g7/`.
+
+### 6.6 Roteiro de segunda (09/11): o Cloud SQL de pé, povoado e provado
+
+Para o Owner executar, um comando por passo, no terminal, na raiz do repositório. Cada passo diz o
+que conferir antes, o que deve aparecer e o que fazer se não aparecer. Nenhum passo mexe no `.env`:
+os alvos `gcp-origens-*` apontam os comandos locais para o Cloud SQL por cima dele, pelo proxy, com
+as senhas lidas do Secret Manager. Os registros da carga vão para
+`data/medicoes/etapa_13/origens_cloud_sql/`, e os da fase local ficam como estão
+([Registro §31](docs/registro_fase_gcp.md#31-o-roteiro-de-segunda-e-as-origens-no-cloud-sql-08112026-madrugada)).
+O Claude Code anota cada saída no Registro no momento em que ela aparece.
+
+**A época inicial do livro não é de segunda.** O `ledger baseline` lista os *jobs* da conexão
+legada do Airbyte, e o Airbyte do projeto só existe depois do `apply` do GKE, na terça. Rodada
+segunda, ela leria o Airbyte **local**.
+
+**Passo 1 — o projeto certo nos três lugares.**
+
+```
+make gcp-preflight
+```
+
+Deve aparecer `gcp-preflight: projeto mvp-ed1-gcp nos três lugares`. Se reclamar da ADC, renove as
+credenciais num terminal próprio (`gcloud auth application-default login`) e repita.
+
+**Passo 2 — o plano do degrau 06.**
+
+```
+make gcp-plan NOME=06_cloud_sql VARS="enable_cloud_sql=true"
+```
+
+Deve aparecer `Plan: 11 to add, 1 to change, 0 to destroy.` e, embaixo,
+`conferir-plano: construção: 11 a criar, 1 a alterar, 0 a destruir`. A alteração é o
+`deletion_policy` da conexão de serviços privados (Registro §30). Se os números forem outros, ou a
+guarda recusar, **pare**: nada foi aplicado, e o Claude Code lê o plano com você.
+
+**Passo 3 — ler o plano.** Abra `data/medicoes/etapa_13/planos/06_cloud_sql.txt` e confira:
+
+- 11 criações: a instância `mvp-ed1-origens`, os 2 bancos, os 2 usuários, as 2 senhas e os 2
+  segredos com as versões;
+- a única alteração é `google_service_networking_connection.this[0]`, de `DELETE` para
+  `REMOVE_PEERING`.
+
+**Passo 4 — aplicar.** O taxímetro do Cloud SQL começa aqui (Capacidade §2.14).
+
+```
+make gcp-apply NOME=06_cloud_sql
+```
+
+Deve terminar com `Apply complete! Resources: 11 added, 1 changed, 0 destroyed.` A instância leva
+minutos para nascer. Se falhar no meio, **não repita**: o estado anterior está em
+`data/medicoes/etapa_13/planos/tfstate_06_cloud_sql.bak`, e o Claude Code lê o erro em
+`06_cloud_sql_apply.txt` antes de qualquer novo plano.
+
+**Passo 5 — o schema das duas origens.**
+
+```
+make gcp-origens-migrar
+```
+
+Deve aparecer `origens: Cloud SQL … pelo proxy em 127.0.0.1:15432` e, no fim, a revisão `(head)`
+das duas cadeias de migração. Se o proxy não abrir, confira se outro processo ocupa a porta 15432
+(um `make gcp-sql-proxy` esquecido noutro terminal serve: o alvo usa o que estiver ali).
+
+**Passo 6 — os dados das duas origens.** A geração da fase local, sem parâmetro.
+
+```
+make gcp-origens-povoar
+```
+
+Devem aparecer as duas cargas: `carregadas … linhas`, do gerador, e `carregado: … linhas`, do
+legado. Se o gerador disser
+que as tabelas já contêm dados, **pare**: não há `FORCE` neste alvo.
+
+**Passo 7 — o lote do legado é o da fase local.**
+
+```
+ls data/medicoes/etapa_13/origens_cloud_sql/legacy/
+```
+
+Deve listar `manifesto-060c3fc983fb71984764e6d3074e8e6e.json`, o mesmo lote do manifesto local
+(ensaiado em 08/11 sem banco). Outro *hash* é achado de paridade: anote e siga.
+
+**Passo 8 — a medida da geração.** Em memória, sem banco.
+
+```
+make generation-measure
+```
+
+Copie o caminho que ele imprimir no fim (`data/medicoes/v1_1_0/…_geracao_….json`).
+
+**Passo 9 — o oráculo das origens contra o Cloud SQL.** Somente leitura.
+
+```
+make gcp-origens-oraculo MEDIDA=<o caminho do passo 8>
+```
+
+Deve terminar sem problema listado. Problema listado é achado de paridade da §7.2: anote e siga, que
+o Cloud SQL não volta atrás.
+
+**Passo 10 — o atributo de replicação do Debezium (G2.3).**
+
+```
+make gcp-origens-replicacao
+```
+
+Deve aparecer `replicação: concedida agora; conferida em pg_roles`. Se o Cloud SQL recusar o
+`ALTER ROLE`, **pare**: sem o atributo o Debezium de terça não abre o *slot*, e o Claude Code
+procura com você a forma que o Cloud SQL aceita.
+
+**Passo 11 — as provas do G2.1 com os *locks* no Cloud SQL.**
+
+```
+make gcp-g21-prova
+```
+
+Deve terminar com `passed`, nenhum `failed`, e o caminho da saída em `data/medicoes/etapa_13/g2_1/`.
+Os testes criam e apagam um *dataset* temporário. Teste que falha não derruba nada: anote e siga.
+
+**No fim do dia:** nada a desligar. O Cloud SQL fica de pé até o desmonte de quinta, e o proxy de
+cada alvo fechou com ele. Não rode `make ledger-baseline` nem edite o `.env`.
 
 ---
 
