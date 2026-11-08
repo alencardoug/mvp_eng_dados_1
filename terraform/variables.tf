@@ -66,6 +66,12 @@ variable "enable_gke_apps" {
   default     = false
 }
 
+variable "enable_dataflow" {
+  description = "O que o job do Dataflow precisa para rodar como mvp-streamer (D82): ensaio na terça, 10/11 (D83), e a parte cara da quarta. O job em si sai do `make gcp-dataflow-lancar`."
+  type        = bool
+  default     = false
+}
+
 variable "enable_composer" {
   description = "Cloud Composer 3 — só na parte cara da janela (quarta, 11/11, 07:00–22:00)."
   type        = bool

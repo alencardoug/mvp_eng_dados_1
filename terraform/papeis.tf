@@ -27,7 +27,7 @@ variable "acesso_por_dataset" {
 }
 
 variable "pendentes_por_tabela" {
-  description = "Concessões por tabela que o dbt declara e o Terraform ainda não aplica (a tabela nasce depois). Só registro."
+  description = "Concessões por tabela que o dbt declara: a tabela nasce fora do Terraform, e o IAM dela vai no degrau que a usa (`dataflow.tf`). Derivado; não editar à mão."
   type        = any
   default     = []
 }

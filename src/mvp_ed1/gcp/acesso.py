@@ -14,8 +14,9 @@ O que **não** sai daqui:
 - o `select` dos objetos que o dbt materializa — o `+grants`, que ele aplica objeto a objeto
   (`bigquery__apply_grants`);
 - a concessão por tabela que substitui a da fonte (`raw.inventory_movements_stream`, do
-  `streamer`): a tabela nasce com o caminho quente (`streaming/sink.py::garantir_tabela`), e o
-  IAM dela vai com ela, no G2.3. O arquivo a lista em `pendentes_por_tabela`, para não sumir.
+  `streamer`): a tabela nasce com o caminho quente (`streaming/nuvem.py::garantir_tabela`, pelo
+  `make gcp-dataflow-tabela`), e o IAM dela vai com ela, no degrau do Dataflow
+  (`terraform/dataflow.tf`, que lê `pendentes_por_tabela` deste arquivo).
 """
 
 from __future__ import annotations
