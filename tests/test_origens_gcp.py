@@ -46,7 +46,7 @@ def test_os_alvos_do_cloud_sql_passam_pelo_proxy_e_nao_recarregam_o_env():
     assert set(alvos) == {"gcp-origens-migrar", "gcp-origens-povoar", "gcp-origens-oraculo",
                           "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot", "gcp-livro-epoca",
                           "gcp-sync-legacy", "gcp-debezium-status", "gcp-quente-produzir", "gcp-quente-conferir",
-                          "gcp-legado-mutar"}
+                          "gcp-legado-mutar", "gcp-quente-latencia"}
     for alvo in alvos:
         receita = _receita(alvo)
         assert receita.split("$(GCP_ORIGENS)")[0].count("$(GCP_LIMPEZA)") == 1, alvo
@@ -158,3 +158,51 @@ def test_a_memoria_e_os_jobs_leem_o_livro_da_nuvem():
     assert "$(GCP_ENV); $(GCP_LIVRO);" in memoria and "mvp_ed1.recovery.memory_oracle --out" in memoria
     jobs = _receita("gcp-jobs-auditoria")
     assert jobs.index("$(GKE_AIRBYTE)") < jobs.index("$(GCP_LIVRO)") < jobs.index("mvp_ed1.recovery.job_audit")
+
+
+def test_a_latencia_e_a_primeira_vez_que_o_destino_mostra_o_evento():
+    import datetime as dt
+    import types
+
+    from mvp_ed1.gcp import quente
+
+    t0 = dt.datetime(2026, 11, 10, 12, 0, tzinfo=dt.timezone.utc)
+    consultas = [
+        [(1, 0, 4)],                       # o evento 1, gravado em t0, visto em t0 + 4 s
+        [(1, 0, 9), (2, 1, 9)],            # o 1 de novo não muda a sua; o 2 entra com 8 s
+        [(1, 0, 14), (2, 1, 14), (3, 2, 14)],
+    ]
+
+    class Cliente:
+        def query(self, sql):
+            assert "not _stream_from_snapshot" in sql and "event_sequence > 10" in sql
+            linhas = consultas.pop(0) if consultas else [(1, 0, 20), (2, 1, 20), (3, 2, 20)]
+            return types.SimpleNamespace(result=lambda: [
+                {"event_sequence": 10 + s, "recorded_at": t0 + dt.timedelta(seconds=r), "agora": t0 + dt.timedelta(seconds=a)}
+                for s, r, a in linhas])
+
+    relogio = iter(range(0, 10_000, 5))
+    produtor = iter([True, False])
+    relatorio = quente.latencia(Cliente(), "p", "raw.t", 10, produtor=lambda: next(produtor, False),
+                                esperados=lambda: 3, prazo=900, intervalo=5,
+                                relogio=lambda: next(relogio), pausa=lambda s: None)
+    assert relatorio["completo"] and relatorio["vistos"] == 3 and relatorio["esperados"] == 3
+    assert (relatorio["min_s"], relatorio["max_s"]) == (4.0, 12.0)
+
+
+def test_o_tamanho_e_por_dataset_e_os_alvos_novos():
+    import types
+
+    from mvp_ed1.gcp import armazem_janela
+
+    class Cliente:
+        def query(self, sql):
+            assert "__TABLES__" in sql
+            return types.SimpleNamespace(result=lambda: [{"tabelas": 2, "linhas": 10, "bytes": 2048}])
+
+    assert armazem_janela.tamanho(Cliente(), "p", ["raw", "governance"]) == {
+        "governance": {"tabelas": 2, "linhas": 10, "bytes_logicos": 2048},
+        "raw": {"tabelas": 2, "linhas": 10, "bytes_logicos": 2048},
+    }
+    assert "quente latencia --limite $(or $(LIMITE),200)" in _receita("gcp-quente-latencia")
+    assert "armazem_janela tamanho" in _receita("gcp-armazem-tamanho")

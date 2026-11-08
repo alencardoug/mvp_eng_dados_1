@@ -162,7 +162,7 @@ endef
         gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
         gcp-sync-retail gcp-sync-legacy gcp-tags-convergir gcp-tags-inventario gcp-gke-versao gcp-debezium-status \
         gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria \
-        gcp-composer-fluxo gcp-composer-exportar gcp-legado-mutar gcp-legado-matriz \
+        gcp-composer-fluxo gcp-composer-exportar gcp-legado-mutar gcp-legado-matriz gcp-quente-latencia gcp-armazem-tamanho \
         gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
@@ -1322,6 +1322,12 @@ gcp-armazem-zerar: gcp-preflight ## Terça, antes da época: apaga toda tabela e
 gcp-armazem-governanca: gcp-preflight ## Terça, depois do zerar: as migrações do governance no BigQuery (governance.garantir_bigquery)
 	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.armazem_janela governanca
 
+gcp-armazem-tamanho: gcp-preflight ## Quarta, depois da fluxo_batch: tabelas, linhas e bytes lógicos por dataset (§7.2), somente leitura
+	@$(GCP_ENV); mkdir -p $(COMPOSER_EVIDENCIA); \
+	datasets=$$($(GCP_TF) output -json datasets) || exit 1; \
+	.venv/bin/python -m mvp_ed1.gcp.armazem_janela tamanho --datasets "$$datasets" \
+		--saida "$(COMPOSER_EVIDENCIA)/tamanho_$$(date -u +%Y%m%dT%H%M%SZ).json"
+
 gcp-livro-epoca: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça, antes da primeira captura: abre a época inicial do livro no Cloud Storage (BigQuery, Cloud SQL e os jobs do Airbyte do GKE); recusa com época aberta ou armazém com dado
 	@# O `ledger-baseline` da fase local apontado para a nuvem, por cima do `.env`: o armazém
 	@# BigQuery, o livro na saída `livro_raiz`, o legado no Cloud SQL (o coordenador, A21) e o
@@ -1374,6 +1380,11 @@ gcp-quente-produzir: gcp-preflight require-cloud-sql-proxy ## Terça: emite movi
 
 gcp-quente-conferir: gcp-preflight require-cloud-sql-proxy ## Terça: o livro da origem no Cloud SQL contra o destino no BigQuery, e os alertas da assinatura de observação; falha enquanto o destino não alcança
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.quente conferir
+
+gcp-quente-latencia: gcp-preflight require-cloud-sql-proxy ## Terça e quarta: emite LIMITE= movimentos (padrão 200) e mede a latência de ponta a ponta por observação (p50, p95, máx.); falha se não vir todos em 15 min
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); mkdir -p $(DATAFLOW_EVIDENCIA); \
+	.venv/bin/python -m mvp_ed1.gcp.quente latencia --limite $(or $(LIMITE),200) \
+		--saida "$(DATAFLOW_EVIDENCIA)/latencia_$$(date -u +%Y%m%dT%H%M%SZ).json"
 
 gcp-memoria-oraculo: gcp-preflight ## Terça, depois das capturas e do gcp-dbt-build: o oráculo da memória (T3) contra o livro do Cloud Storage e o BigQuery, somente leitura
 	@# O `memory-oracle` da fase local com o armazém e o livro da nuvem. O legado do `.env` só nomeia o

@@ -15,6 +15,10 @@ versões. Tirada sobre a cópia, registraria a fase local como a memória da nuv
     python -m mvp_ed1.gcp.armazem_janela zerar --datasets '["raw", …]' --confirmar PROJETO
     python -m mvp_ed1.gcp.armazem_janela governanca
     python -m mvp_ed1.gcp.armazem_janela pronto --datasets '["raw", …]'
+    python -m mvp_ed1.gcp.armazem_janela tamanho --datasets '["raw", …]' --saida TAMANHO.json
+
+`tamanho` é a medida da §7.2, "tamanho por *dataset*": tabelas, linhas e bytes lógicos de cada um,
+lidos do BigQuery, e não estimados.
 """
 
 from __future__ import annotations
@@ -60,6 +64,23 @@ def residuos(cliente, projeto: str, datasets: list[str]) -> list[str]:
     return achados
 
 
+def tamanho(cliente, projeto: str, datasets: list[str]) -> dict[str, dict[str, int]]:
+    """Por *dataset*: tabelas, linhas e bytes lógicos, da metatabela `__TABLES__` de cada um.
+
+    A `INFORMATION_SCHEMA.TABLE_STORAGE` da região daria também os bytes físicos, mas pede
+    permissão no projeto, e a ADC foi recusada nela (403, medido em 08/11/2026); a `__TABLES__` pede
+    só leitura no *dataset*. *Views* entram com zero bytes.
+    """
+    medido = {}
+    for dataset in sorted(datasets):
+        linha = next(iter(cliente.query(
+            "select count(*) as tabelas, coalesce(sum(row_count), 0) as linhas, coalesce(sum(size_bytes), 0) as bytes "
+            f"from `{projeto}.{dataset}.__TABLES__`").result()))
+        medido[dataset] = {"tabelas": int(linha["tabelas"]), "linhas": int(linha["linhas"]),
+                           "bytes_logicos": int(linha["bytes"])}
+    return medido
+
+
 def _cliente(projeto: str):
     from google.cloud import bigquery
 
@@ -75,6 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("governanca")
     s = sub.add_parser("pronto")
     s.add_argument("--datasets", required=True)
+    s = sub.add_parser("tamanho")
+    s.add_argument("--datasets", required=True)
+    s.add_argument("--saida", help="o relatório em JSON")
     args = ap.parse_args(argv)
 
     projeto = os.environ["GCP_PROJECT_ID"]
@@ -90,6 +114,15 @@ def main(argv: list[str] | None = None) -> int:
     if not datasets:
         print("ERRO: nenhum dataset na saída do Terraform (degrau barato não aplicado).", file=sys.stderr)
         return 1
+    if args.comando == "tamanho":
+        medido = tamanho(cliente, projeto, datasets)
+        for dataset, m in medido.items():
+            print(f"{dataset:<12} {m['tabelas']:>4} tabelas {m['linhas']:>12,} linhas "
+                  f"{m['bytes_logicos'] / 2**20:>10.1f} MiB lógicos")
+        if args.saida:
+            with open(args.saida, "w", encoding="utf-8") as arquivo:
+                arquivo.write(json.dumps(medido, ensure_ascii=False, indent=2) + "\n")
+        return 0
     if args.comando == "zerar":
         if args.confirmar != projeto:
             print(f"ERRO: apaga toda tabela das camadas; repita com CONFIRMA={projeto}.", file=sys.stderr)
