@@ -1571,3 +1571,17 @@ achou 1 bloqueante e 2 ajustes — os três nas provas que a rodada 2 fez nascer
 Sondas da receita do reinício com um `kubectl` dublê, nenhum comando de nuvem: retomada → 0 em 2
 leituras; *offset* e depois *snapshot* → 1; só *offset* → inconclusivo depois de 36 leituras;
 `No previous offset found` com *streaming* → inconclusivo; leitura que falha → 1.
+
+## 40. A rodada 4 da revisão dos roteiros da janela (08/11/2026, tarde)
+
+A rodada 4 (`high`) deu o RV13J-3-02 como resolvido e achou dois restos das correções da rodada 3:
+
+- **a listagem dos *pods* do Debezium que falhava com saída parcial escolhia o *pod* antigo**
+  (RV13J-4-01): o `| tail -1` engolia o erro, e o log antigo, com retomada, aprovava. A listagem
+  agora é conferida antes de escolher o nome; sonda com o `kubectl` dublê (listagem rc 7 com
+  `pod/antigo` na saída): a receita sai com 1;
+- **a conferência do alerta aceitava travessias impossíveis** (RV13J-4-02): o produto
+  `{25…30} × {23, 24}` incluía 25→24, que os movimentos publicados não produzem. A revisão
+  enumerou 3.600 ordens e partições de painel pelo acumulador real e achou seis travessias; elas
+  são as de mesma paridade (o -1 é o único delta ímpar), e a §39, que dizia "de 25–30 para 23 ou
+  24", fica corrigida por esta. `prova_quente.TRAVESSIAS` é exatamente essas seis, com teste.

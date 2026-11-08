@@ -1121,3 +1121,138 @@ caminho quente; este parecer não decide por ela. Os demais limites da rodada 2 
 - [ ] **RV13J-3-03:** retirar a transição não verificada do estado “provado”, ou verificar
   conteúdo/chave do alerta com os resultados permitidos pelo processamento.
 
+## Rodada 4 — lote janela
+
+**Changes required.** Restam um bloqueante e um ajuste nas correções de RV13J-3-01 e
+RV13J-3-03. RV13J-3-02 está resolvido. O lote janela ainda **não pode ser fechado**, mesmo
+separando as decisões pendentes do Owner.
+
+### Escopo e versão
+
+Revisão independente em 08/11/2026, HEAD `4fa0fdc4e501f4997575cd25b0961ea8cad0dcd7`;
+base `5328b10`. Exclusivamente os três commits `b2792ce`, `fbd7986` e `4fa0fdc` (9 arquivos).
+Confrontados o diff e as Situações com as rodadas 1–3, AGENTS.md, CLAUDE.md, a skill local
+`revisao`, §G2.3, §§6.6–6.9, Registro §§37–39 e os módulos chamados. Estado inicial limpo;
+somente `REVISAO.md` editado. Sem subagentes nem comandos contra o projeto GCP.
+
+### Achados e evidências
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV13J-4-01 | `Makefile:1461–1462`; PLANO §6.8, linha 815; Situação de RV13J-3-01 | A seleção do pod ignora falha da listagem e pode aprovar o log antigo recebido como saída parcial | bloqueante | **Corrigido.** A listagem dos *pods* é capturada com o retorno conferido (`pods=$$(k … -o name)` seguido de recusa com `ERRO`) antes de o `tail -1` escolher o mais novo. Sonda com `k` dublê, listagem rc 7 imprimindo `pod/antigo`: rc 1, nenhum log lido. O teste da receita exige a listagem conferida e nenhum `-o name` canalizado direto para o `tail`. |
+| RV13J-4-02 | `gcp/prova_quente.py:58–78`; `tests/test_prova_quente.py:19`; PLANO §6.8, linha 816; Registro §39 e Situação de RV13J-3-03 | Os intervalos independentes aceitam travessias que os movimentos publicados não produzem | ajuste | **Corrigido.** `prova_quente.TRAVESSIAS`: de 25–30 para 23–24 **com a mesma paridade** (o -1 é o único delta ímpar) — exatamente as seis da enumeração da rodada; testes: o conjunto é igual à lista enumerada, as seis passam, as seis impossíveis reprovam. Tabela do G2.3 e Registro §40, que corrige a frase da §39. |
+
+**RV13J-4-01 — alta.** Em `pod=$(k … get pods … | tail -1)`, o retorno observado é o
+do `tail`, sem `pipefail`; nem esse retorno é conferido. A única guarda exige texto não vazio.
+Sonda da receita extraída, com `k` fictício: o rollout retorna 0; a listagem imprime
+`pod/antigo` e falha com 7; o log antigo contém retomada positiva seguida de streaming.
+O log do novo pod seria de snapshot, mas não é consultado:
+
+```text
+listagem rc=7 com stdout parcial do pod antigo: receita rc=0
+gcp-debezium-reiniciar: o pod novo retomou dos offsets e passou ao streaming, sem snapshot
+leituras=1
+```
+
+É uma injeção de falha, não observação do GKE. Demonstra que a afirmação de ler o novo pod
+depende de uma consulta cujo erro é descartado. Recusar qualquer falha da listagem **antes**
+de escolher o último nome; acrescentar esta contraprova. Reabre a classe de falso sucesso de
+RV13J-1-07 neste comando novo. O leitor de frases, isoladamente, não apresentou falso sucesso.
+
+**RV13J-4-02 — média.** `conferir` aceita todo par do produto `{25,…,30} × {23,24}`.
+Por exemplo, aceita 25→24 com saldo durável 23 e chave/limiar corretos (`falhas=[]`). Para
+chegar a 25 partindo de 30, os movimentos -2, -2 e -1 já foram consumidos; resta apenas -2,
+que leva a 23. Não há outro -1 para produzir 25→24.
+
+Também foi chamado o `AcumularSaldoEAlertar.process` real com estado em memória, enumerando
+permutações e partições dos quatro movimentos em painéis que respeitam as janelas de 60 s,
+para cada segundo de publicação dentro do minuto. Sem runner ou transporte:
+
+```text
+ordens/painéis válidos conferidos: 3600
+travessias do acumulador: [(25, 23), (26, 24), (27, 23), (28, 24), (29, 23), (30, 24)]
+travessias válidas recusadas: 0
+travessias impossíveis aceitas: [(25, 24), (26, 23), (27, 24), (28, 23), (29, 24), (30, 23)]
+```
+
+O teste novo chega a exigir aprovação de 30→23: o -1 de oito minutos antes não pode integrar
+o mesmo painel dos três -2. Corrigir a relação entre saldo anterior e posterior e os testes;
+alinhar a alegação de “travessia possível” do Registro/Situação e a prova atribuída pela tabela.
+Par, limiar, quantidade de alertas e saldo final agora são conferidos corretamente.
+
+### Estado de RV13J-3-01…03
+
+| ID | Estado nesta revisão | Evidência |
+|---|---|---|
+| RV13J-3-01 | parcialmente resolvido | Frase positiva antes do primeiro streaming, snapshot prioritário e releitura de pendente funcionam. Seleção explícita lê o mais novo quando a listagem passa; resta RV13J-4-01 quando ela falha com saída parcial. |
+| RV13J-3-02 | resolvido | O teste atual passa com cliente fictício e falha nos mutantes de reenvio, conteúdo errado, retorno vazio, retorno extra e busca por ID errado. A tabela agora separa escrita de saldo/alerta não exercitados nesse cenário. |
+| RV13J-3-03 | parcialmente resolvido | Os contraexemplos antigos são recusados e todas as travessias enumeradas passam; restam as travessias impossíveis aceitas em RV13J-4-02. |
+
+Não foi identificada outra reabertura da rodada 1. As lacunas declaradas de G2.3 e decisões
+do Owner não foram contadas como novos achados; os excessos remanescentes nas linhas alteradas
+da tabela correspondem aos dois IDs acima.
+
+### Verificações executadas
+
+- `make check-offline`, rc 0:
+
+  ```text
+  revisão de segredos: nada encontrado nos arquivos rastreados
+  docs-check: 121 documentos, 1194 links de arquivo, 235 âncoras, 728 citações de ADR — nada quebrado
+  1089 passed, 16 skipped, 188 deselected in 220.15s (0:03:40)
+  check-offline: as três etapas passaram
+  ```
+
+  Os 16 pulados exigem GCP; os 188 excluídos são de integração.
+- `make secrets-history`, rc 0:
+
+  ```text
+  revisão do histórico: nada não tratado (14 achado(s), todos registrados; 1 blob(s) pulado(s))
+  ```
+
+- Pytest dos três arquivos alterados, com `GCP_BQ_LOCATION=us-central1` fictício e
+  `GCP_TESTES=0`, rc 0: `44 passed, 5 skipped in 2.81s`. Primeira execução sem a região:
+  `1 failed, 43 passed, 5 skipped` por `KeyError: GCP_BQ_LOCATION` na montagem preexistente
+  do grafo; repetida com a variável explícita, sem carregar `.env`.
+- Receita isolada, `k` dublê e `sleep` sem espera: retomada 0/2 leituras; offset seguido
+  de snapshot 1/2; só offset e vazio 2/36; streaming sem offset, offset negativo e offset
+  depois do streaming 2/1; snapshot 1/1; leitura falha e leitura parcial com rc 7, mesmo
+  contendo retomada positiva, 1/1; nenhum pod, listagem falha sem stdout e rollout falho
+  1/0. A exceção é a listagem falha **com** stdout, demonstrada em RV13J-4-01.
+- Corpo do teste real de resposta perdida executado com `BigQuery` do código e cliente
+  fictício, sem invocar a fixture GCP:
+
+  ```text
+  atual                     PASSOU          MERGEs=2 get_job=1
+  reenvia_novo_job          AssertionError   MERGEs=2 get_job=1
+  retorno_vazio            AssertionError   MERGEs=1 get_job=1
+  retorno_extra            AssertionError   MERGEs=1 get_job=1
+  retorno_conteudo_errado   AssertionError   MERGEs=1 get_job=1
+  busca_id_errado          AssertionError   MERGEs=1 get_job=1
+  ```
+
+  No caso atual, a segunda submissão é o reenvio intencional **ao final** do teste; o mutante
+  de reenvio falha antes dele. Mutações só em memória. A enumeração dos painéis está acima.
+- `git diff --check`, rc 0; comparação byte a byte com `git show 4fa0fdc:REVISAO.md`
+  confirmou as rodadas anteriores como prefixo integral. Os dois achados novos têm Situação
+  vazia; o único arquivo alterado é `REVISAO.md`.
+- Após acrescentar o parecer, `docs_check` e `secrets_review` passaram novamente (rc 0):
+  1194 links de arquivo, nada quebrado; nenhum segredo encontrado nos arquivos rastreados.
+
+### Limites remanescentes
+
+Nenhuma medição nova de serviços ou duração. As três tentativas de leitura de fontes oficiais
+da tag `v3.7.1.Final` falharam no acesso; as frases dessa versão permanecem não confirmadas,
+como já declarado. O teste real de resposta perdida continua não executado no BigQuery.
+O blob binário pulado na revisão de segredos é a captura JPG já declarada.
+
+RV13J-1-01, RV13J-1-09, RV13J-1-11 e a decisão de entrar com G2.3 incompleto ou cortar o
+caminho quente (RV13J-2-01) continuam com o Owner. Os demais limites anteriores não mudaram.
+
+### Passagem por ID
+
+- [ ] **RV13J-4-01:** falha da listagem com stdout parcial nunca aprova log antigo; preservar
+  os códigos de saída e os casos corretos do leitor/laço.
+- [ ] **RV13J-4-02:** aceitar todas as travessias permitidas e recusar as demais, incluindo
+  25→24 e 30→23; corrigir o teste e alinhar as alegações de prova.
+
