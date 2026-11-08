@@ -1256,3 +1256,117 @@ caminho quente (RV13J-2-01) continuam com o Owner. Os demais limites anteriores 
 - [ ] **RV13J-4-02:** aceitar todas as travessias permitidas e recusar as demais, incluindo
   25→24 e 30→23; corrigir o teste e alinhar as alegações de prova.
 
+## Rodada 5 — lote janela
+
+**No blockers found within the reviewed scope.** Sem achados novos ou correções técnicas
+remanescentes neste recorte. O lote janela **pode ser fechado, pendente das decisões do Owner**
+RV13J-1-01, RV13J-1-09, RV13J-1-11 e RV13J-2-01. Isso não aprova o G2.3 inteiro nem autoriza
+a entrada do caminho quente na janela.
+
+### Escopo e versão
+
+Revisão independente em 08/11/2026, HEAD `91278aa58fb8fd789a9e9fc6413d4b66b0d9de8b`;
+base `4fa0fdc`. Exclusivamente `f66ea9f` e `91278aa` (2 commits, 7 arquivos).
+Confrontados o diff e as Situações com as rodadas 1–4, AGENTS.md, CLAUDE.md, a skill local
+`revisao`, PLANO §G2.3 e §§6.6–6.9, Registro §§37–40 e os módulos chamados.
+Estado inicial limpo; somente `REVISAO.md` editado, preservando integralmente o conteúdo anterior.
+Sem subagentes, leitura de fontes externas ou comandos contra o projeto GCP.
+
+### Achados e evidências
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+
+Nenhum achado enquadrado nos critérios desta rodada; nenhum ID RV13J-5-* atribuído.
+Não foi identificada reabertura de RV13J-1-*. A tabela de G2.3 agora descreve as seis travessias
+efetivamente verificadas e a retomada condicionada ao log; mantém separados os cenários
+exercitados, as garantias pelo desenho e os itens não atendidos. Sem excesso de prova
+remanescente nas alegações revisadas. Registro §40 corrige explicitamente o intervalo da §39;
+as Situações de RV13J-4-01…02 concordam com as sondas abaixo.
+
+### Estado dos achados anteriores
+
+| ID | Estado nesta revisão | Evidência |
+|---|---|---|
+| RV13J-4-01 | resolvido | `Makefile:1461–1464`: retorno da listagem conferido antes de selecionar o nome. Listagem rc 7 com `pod/antigo`: receita rc 1, zero leituras; na base, rc 0 e uma leitura. |
+| RV13J-4-02 | resolvido | `prova_quente.py:54–84` e testes: conjunto aceito igual às seis travessias enumeradas pelo acumulador real; nenhuma válida recusada nem impossível aceita. |
+| RV13J-3-01 | resolvido | Retomada positiva antes do primeiro streaming e ausência de snapshot continuam necessárias; offset isolado não encerra a coleta. Erros de listagem/leitura, inclusive stdout parcial, não aprovam; selecionado somente o pod novo nas sondas. |
+| RV13J-3-03 | resolvido | Conferidos chave, limiar, exatamente uma abertura, travessia permitida e saldo durável 23; tabela alinhada, sem fixar 29→23. |
+| RV13J-3-02 | permanece resolvido | Corpo do teste de resposta perdida passa no código atual e falha nos mutantes de reenvio, conteúdo errado, retorno vazio/extra e busca por ID errado. |
+
+“Resolvido” refere-se ao defeito revisado; as frases da imagem 3.7.1 e os serviços reais
+continuam fora desta medição, como já declarado.
+
+### Verificações executadas
+
+- `make check-offline`, rc 0:
+
+  ```text
+  revisão de segredos: nada encontrado nos arquivos rastreados
+  docs-check: 121 documentos, 1194 links de arquivo, 235 âncoras, 728 citações de ADR — nada quebrado
+  1097 passed, 16 skipped, 188 deselected in 220.64s (0:03:40)
+  check-offline: as três etapas passaram
+  ```
+
+  Os 16 pulados exigem GCP; os 188 excluídos são de integração.
+- `make secrets-history`, rc 0:
+
+  ```text
+  revisão do histórico: nada não tratado (14 achado(s), todos registrados; 1 blob(s) pulado(s))
+  ```
+
+  O blob pulado é a captura JPG já declarada.
+- Pytest específico de `test_composer_cli.py`, `test_prova_quente.py` e
+  `test_caminho_quente_nuvem.py`, com `GCP_TESTES=0`, região fictícia `us-central1` e sem carregar
+  `.env`, rc 0: `52 passed, 5 skipped in 2.43s`. Os cinco pulados exigem GCP.
+- Receita extraída literalmente, substituindo apenas os macros de ambiente por `k` fictício,
+  diretório temporário e `sleep` sem espera; nenhum executável de nuvem chamado. Saídas
+  (`rc/leituras`):
+
+  ```text
+  retomada: 0/2; offset seguido de snapshot: 1/2
+  somente offset e vazio: 2/36
+  sem offset, offset negativo e offset depois do streaming: 2/1
+  snapshot, log falho e log parcial com rc 7: 1/1
+  listagem falha, listagem parcial, nenhum pod, rollout/restart falhos: 1/0
+  antigo com retomada e novo com snapshot: 1/1 (leu somente o novo)
+  leitor: 1555 combinações, sem falso sucesso
+  ```
+
+- `AcumularSaldoEAlertar.process` real, estado em memória, permutações/partições por janela de
+  60 s e cada segundo de publicação no minuto; sem runner ou transporte. Também conferidos
+  todos os pares inteiros de saldos entre -10 e 50 contra o conjunto produzido:
+
+  ```text
+  ordens/painéis válidos conferidos: 3600
+  travessias do acumulador: [(25, 23), (26, 24), (27, 23), (28, 24), (29, 23), (30, 24)]
+  travessias válidas recusadas: 0
+  travessias impossíveis aceitas: []
+  ```
+
+- Corpo do teste real de resposta perdida, `BigQuery` do código com cliente fictício,
+  sem invocar a fixture GCP; mutações somente em memória:
+
+  ```text
+  atual                     PASSOU          MERGEs=2 get_job=1
+  reenvia_novo_job           AssertionError  MERGEs=2 get_job=1
+  retorno_vazio             AssertionError  MERGEs=1 get_job=1
+  retorno_extra             AssertionError  MERGEs=1 get_job=1
+  retorno_conteudo_errado    AssertionError  MERGEs=1 get_job=1
+  busca_id_errado            AssertionError  MERGEs=1 get_job=1
+  ```
+
+  A segunda submissão normal é o reenvio intencional ao final do teste; o mutante falha antes.
+- `git diff --check`, rc 0; prefixo anterior comparado byte a byte com
+  `git show 91278aa:REVISAO.md`: integralmente preservado, somente este arquivo alterado.
+  Após escrever o parecer, `docs_check` e `secrets_review` também passaram (rc 0),
+  com 1194 links de arquivo válidos e nenhum segredo encontrado nos arquivos rastreados.
+
+### Limites remanescentes
+
+Sem alteração material dos limites declarados na rodada 4.
+
+### Passagem por ID
+
+Nenhuma correção técnica a repassar. RV13J-4-01…02 e RV13J-3-01/03 podem ser encerrados;
+as decisões pendentes seguem no Registro §§37–38, sem aceite presumido nesta revisão.
