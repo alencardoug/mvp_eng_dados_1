@@ -657,3 +657,318 @@ Validação técnica das correções, revisão integral do declarativo pelo Owne
 do lote/M6 são atos distintos. Esta rodada entrega o parecer e deixa a coluna Situação para a
 resposta do autor.
 
+## Rodada 2 — lote janela
+
+**Changes required.** Resta um bloqueante na cobertura declarada de G2.3, dois ajustes nos
+roteiros e uma observação sobre entrada fora dos valores usados neles. As correções eliminam os
+falsos sucessos demonstrados nos caminhos normais de latência, inventário, desmonte, paridade e
+coleta de tarefas. O lote ainda **não pode ser fechado**, mesmo separando as três decisões
+pendentes do Owner. Este parecer não aprova a execução da janela nem o restante do projeto.
+
+### Escopo e versão
+
+- Revisão independente em 08/11/2026. `git branch --show-current` → `main`;
+  `git rev-parse HEAD` → `069e1bb436089b6f185503c9dd6ceb069a27550b`.
+- Base mantida: `f1c1c2c103f7c154f9412b0a3628e31f6e2cacef`.
+  `git log --oneline f1c1c2c..069e1bb` → `069e1bb`, `b350c68`, `1a211e4`, exclusivamente.
+  `git diff --stat f1c1c2c..069e1bb` → 17 arquivos, 1712 inserções, 173 exclusões.
+- `git status --short` inicial vazio: sem alterações locais ou arquivos não rastreados. Há três
+  arquivos novos **nos commits**: `src/mvp_ed1/gcp/composer_cli.py`,
+  `tests/test_composer_cli.py` e `tests/test_oraculo_consumo.py`. Só este relatório foi editado.
+- Lidos AGENTS.md, CLAUDE.md, o mapa do README e a skill
+  [revisao](.claude/skills/revisao/SKILL.md). Partida pelo diff, depois os módulos chamados,
+  declarações, testes, PLANO §§6.2–6.9, G2.3 e 7.2 e Registro §§30–37. A rodada 1, inclusive as
+  respostas do autor, permanece integralmente preservada; suas afirmações não foram tomadas como
+  medições desta rodada.
+
+### Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV13J-2-01 | `PLANO_etapa_13.md:803`; `tests/test_caminho_quente_nuvem.py:179`; `src/mvp_ed1/gcp/prova_quente.py:110` | O novo mapa declara provas de G2.3 que os comandos não exercitam | bloqueante | **Corrigido e levado ao Owner.** A tabela do G2.3 (§6.8) agora liga cada item da §G2.3 ao cenário e diz *provado por comando*, *garantido pelo desenho* ou *não atendido*; dois itens ficam não atendidos como prova (mesma chave em lotes concorrentes; recuperação do *worker* no mesmo *job*) e um só na escrita (reenvio fora da janela), e o texto diz que o G2.3 não passa inteiro. Novo teste real da resposta perdida na escrita quente (`test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala`, nunca rodado — roda no passo 3). `gcp-debezium-reiniciar` guarda o log do *pod* novo, falha com `Snapshot step 1`, passa com `previous offset`, e diz `NÃO CONCLUSIVO` sem nenhum (frases do Debezium 3.x, não conferidas na 3.7.1). Entrar com o caminho quente incompleto ou cortá-lo: pergunta ao Owner no Registro §38, com recomendação. |
+| RV13J-2-02 | `PLANO_etapa_13.md:628`; `Makefile:1045` | A recuperação de segunda manda reutilizar um proxy que a receita agora recusa | ajuste | **Corrigido.** §6.6 passo 5: o alvo abre o próprio proxy; com `ERRO: a porta 15432 já está ocupada`, fechar o próprio `gcp-sql-proxy` e repetir; processo desconhecido, identificar por `ss -ltnp` e perguntar antes de encerrar. |
+| RV13J-2-03 | `docs/registro_fase_gcp.md:1345`, `:1391`, `:1432`, `:1436`; `PLANO_etapa_13.md:1233` | A renumeração deixou ponteiros operacionais e um esperado das remoções desatualizados | ajuste | **Corrigido.** Registro §38 traz a tabela dos números de passo antigos → atuais (§34, §35, §36 duas vezes, §36 latência), sem reescrever os parágrafos históricos. §6.9 passo 13: a marca e os três clientes da declaração, e não três chaves. |
+| RV13J-2-04 | `src/mvp_ed1/gcp/quente.py:204`, `:237`, `:268` | `--limite 0` ainda permite aprovar latência sem evento | observação | **Corrigido.** `latencia` recusa `minimo < 1` (`ValueError`) e dá `nenhum evento visto` como motivo; o CLI aceita só `--limite ≥ 1`. Teste novo: falha no código anterior (o `ValueError` não existia). |
+
+**RV13J-2-01 — G2.3 continua parcialmente provado. Alta; bloqueante.**
+
+Evidência estática: `rg -n 'perdid|retorno|dedup|concorr|reenvi|mesma chave'
+tests/test*bigquery* tests/test*quente* src/mvp_ed1/gcp/prova_quente.py` localizou:
+
+- `test_caminho_quente_nuvem.py:180`: **“Chaves diferentes em lotes concorrentes”**. Os lotes são
+  `["p1", "p2"]` e `["q1", "q2"]`; a mesma chave é testada em série, não em concorrência.
+- `prova_quente.py:110–117`: duas publicações de `m2` na mesma sequência de cinco mensagens.
+  Não há reenvio depois de expirar a deduplicação nem perda da resposta de uma escrita quente.
+- Há contraprova real de resposta perdida em `test_armazem_bigquery.py:226`, executada pelo
+  alvo G2.1 de segunda. Ela intercepta somente jobs `mvp_abertura_` de **certificação**. Não
+  confere o retorno de `escrever_lote`, o saldo e os alertas depois da resposta perdida no sink.
+
+A §G2.3:302–306 exige essas provas antes da janela, mas a tabela nova afirma que o passo 3
+cobre a mesma chave em fragmentos paralelos e não declara os demais itens como não atendidos.
+Além disso, parar/drenar um job e lançar outro (21–23) testa retomada de fila; não força a
+recuperação de um worker do mesmo job. O conferir por conteúdo não prova sozinho ausência de
+novo snapshot no reinício do Debezium: o `MERGE` de `streaming/nuvem.py:151` também suprime uma
+repetição integral do snapshot. Os logs de 15 linhas do alvo de reinício não constituem essa
+contraprova.
+
+Não se afirmou que o sink perde dados em produção. O defeito demonstrado é **atribuir cobertura
+e aceite a casos que não são exercitados**. A lacuna de RV13J-1-10 permanece; a equivalência
+incorreta entre provas é nova nestes commits. Correção: ligar cada requisito ao cenário que o
+exercita, com esperado de unicidade, saldo e alertas; os que faltarem ficam expressamente não
+atendidos e cortam G2.3/P3 e suas dependências. Não reduzir o requisito por interpretação do
+revisor. O ensaio D83 de aproximadamente uma hora continua estimativa, não duração demonstrada.
+
+**RV13J-2-02 — Proxy existente: instrução contrária ao código. Média; ajuste.**
+
+Evidência: a §6.6 passo 5 diz que um `gcp-sql-proxy` aberto “serve: o alvo usa o que estiver ali”.
+`GCP_ORIGENS` agora chama `GCP_PORTA_LIVRE` antes de abrir seu próprio proxy; a expressão termina
+com `exit 1` se a conexão TCP à porta ocupada tiver sucesso. Portanto, executar a recuperação
+escrita mantém a recusa, inclusive para o proxy legítimo do Owner. A instrução ficou incorreta
+com **1a211e4**. Correção: alinhar o ramo de falha à posse exclusiva da porta, indicando fechar
+o proxy próprio antes de repetir; processo desconhecido pede identificação, não encerramento
+indiscriminado. A guarda em si é adequada.
+
+**RV13J-2-03 — Referências da janela após renumeração. Média; ajuste.**
+
+Evidência de leitura do Registro e dos títulos `Passo` atuais:
+
+| Referência ainda escrita | Destino atual desse número | Destino correto |
+|---|---|---|
+| Registro §34: T3 em §6.8 passo 10 | sincronização retail | §6.8 passo 19 |
+| Registro §35: matriz em §6.9 passo 11 | conferir caminho quente | §6.9 passo 12 |
+| Registro §36: tamanho em §6.9 passo 14, duas ocorrências | auditoria de jobs | §6.9 passo 15 |
+| Registro §36: latência em §6.8 passo 18 | paridade local × nuvem | §6.8 passo 27 |
+
+O esperado de §6.9 passo 13 ainda fala em **três** chaves removidas. A declaração revista pede
+uma marca e três clientes: quatro, conferidos pelo diário. O código não usa esse três; a prosa
+é que atribui significado errado à saída que o Owner deve conferir. São regressões documentais
+de **b350c68** após a alteração declarativa de **1a211e4**. Corrigir os ponteiros ativos ou
+acrescentar um mapa atual explícito ao registro histórico, distinguindo números válidos à época.
+Não reescrever ADR aceito nem os achados históricos da rodada 1. As referências novas entre
+§§6.8/6.9 e as respostas na coluna Situação estão, no restante conferido, alinhadas.
+
+**RV13J-2-04 — Mínimo zero. Baixa; observação.**
+
+Sonda Python sem banco, cliente com resultado vazio, relógio simulado e produtor encerrado com
+0: `quente.latencia(..., esperados=lambda: 0, minimo=0, ...)` retornou literalmente:
+
+```text
+{'completo': True, 'eventos': 0, 'esperados': 0, 'minimo': 0}
+```
+
+O CLI aceita `--limite` como inteiro sem restrição e o passa a `minimo`; o produtor também
+aceita teto zero e encerra com 0. Logo o retorno normal do CLI pode ser zero sem percentis.
+É remanescente do falso sucesso de RV13J-1-05, **preexistente**, não regressão dos valores
+normais. Classificação baixa porque os comandos escritos usam 20/200/500, nunca zero: depende
+de entrada fora desse percurso. Aceite: limite estritamente positivo e nenhuma amostra vazia
+com `completo=true`, inclusive em chamada direta da função.
+
+### Reavaliação de RV13J-1-01…14
+
+As evidências E1–E6 abaixo são desta revisão. “Resolvido” se refere ao defeito e ao contrato
+examinados; não significa ensaio completo no GCP.
+
+| ID preservado | Estado | Evidência e alcance |
+|---|---|---|
+| RV13J-1-01 | parcialmente resolvido | `git diff … -- Makefile`: `umask 077`, remoção após sucesso; E5 confirma remoção com rc 0 e retenção com erro. §6.3 e Registro §37 reconhecem segredos no plano e submetem a forma ao Owner. Decisão e destino dos planos antigos continuam pendentes; não são novo achado. |
+| RV13J-1-02 | resolvido | Leitura de §6.8 e dos alvos: tabela 4 → IAM 5 → lançamento 7 → conteúdo 8 → parada 9 → sincronizações 10–13 → tags 14 → build 15. E6: 55 nomes de alvos no percurso, nenhum ausente. As fontes precedem o build no caminho normal desde datasets vazios; aprovação de G2.3 tem RV13J-2-01. |
+| RV13J-1-03 | resolvido no percurso vazio da janela | E1: seis testes selecionados; no módulo anterior, `3 failed, 3 passed`; E2: chaves canônicas `brands/8` e `customers/8`, compatíveis com a matriz e com `business_key`. Registro de tratamento existe nos dois dias e `--diary` chega ao T3. Limite da inferência de vazio descrito abaixo. |
+| RV13J-1-04 | resolvido | E1: `11 failed, 3 passed` com módulo e declaração anteriores; E2: commit de customers sem diário leva a recusa na repetição, sem repetir brands. A hash inicial e a atual usam `conteudo.hash_de_tabela` pela mesma serialização; não há incompatibilidade de formato. |
+| RV13J-1-05 | parcialmente resolvido | E1: cinco negativos falham no anterior; check atual passa. Conferidos `poll`, mínimo, `wait` e escalada para `kill`. `>= limite` comporta o evento extra do par de transferência. Resta RV13J-2-04. |
+| RV13J-1-06 | resolvido | E1: os quatro casos de relação ausente retornam 0 no módulo anterior e falham no teste; no atual, a suíte passa. Ambos os comandos retornam 1 com `AUSENTE`; a receita preserva esse retorno. |
+| RV13J-1-07 | resolvido | E3: falhas nas consultas inicial, após drain, antes de cancel e após cancel retornam 1; lista vazia válida retorna 0. Composer confere o retorno antes de analisar; o leitor recusa vazio e texto contaminado. |
+| RV13J-1-08 | resolvido | E4: falha independente de cada um dos quatro comparadores retorna 1; todos são chamados. Todos passando retornam 0. |
+| RV13J-1-09 | parcialmente resolvido | Diff e suíte atual: novo multiconjunto de conteúdo, incluindo contraprova de valor alterado sem mudar contagem. §6.8 passo 18 e Registro §37 declaram o pareamento pendente; §6.9 passo 15 declara diferenças intencionais. Não foi dada paridade às comparações sem pareamento, nem reproduzida a medição 13/16. Decisão do Owner não contabilizada como achado. |
+| RV13J-1-10 | parcialmente resolvido | Conteúdo por chave, prova temporária e reinícios foram acrescentados; os tipos dos 16 campos passam em E2. Falta a cobertura de RV13J-2-01. |
+| RV13J-1-11 | parcialmente resolvido | Diff: plano salvo em `base`, texto separado, confirmação por id e apply do mesmo arquivo. E5: saída de plano de 1 MiB não consome o stdin da confirmação. A localização fora de `data/` e a mitigação de segredos estão explicitamente submetidas ao Owner no Registro §37; conformidade formal ainda pendente. |
+| RV13J-1-12 | resolvido | E4 e fonte oficial da CLI 3.2.2: tarefas possuem os campos lidos; falha de coleta ou falta de tempos impede sucesso. Coleta avulsa e chamada aninhada rastreadas; `set +o pipefail` encerra o trecho que o habilita. |
+| RV13J-1-13 | resolvido | Diff: processo direto, PID próprio, `wait`, guarda de porta e token fora do argv. E5: saída normal, erro e SIGINT no grupo encerram o filho; kubeconfig fictício JSON gerado com modo 0600. Compatibilidade real com o cluster não exercitada. |
+| RV13J-1-14 | parcialmente resolvido | A regra comum distingue leitura, plan, apply e escrita e mantém o relógio independente. Os ramos e esperados acrescentados são verificáveis, mas restam as instruções divergentes de RV13J-2-02/03. |
+
+### Verificações executadas e saídas
+
+**E1 — Testes e contraprovas.** Executado `make check-offline` no HEAD revisado:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 121 documentos, 1192 links de arquivo, 235 âncoras, 728 citações de ADR — nada quebrado
+1066 passed, 15 skipped, 188 deselected in 218.47s (0:03:38)
+check-offline: as três etapas passaram
+```
+
+Os 15 pulados são as provas reais BigQuery/GCS; os 188 excluídos são os testes de integração.
+Executado `make secrets-history`, rc 0:
+
+```text
+revisão do histórico: nada não tratado (14 achado(s), todos registrados; 1 blob(s) pulado(s))
+```
+
+O blob pulado é a imagem `docs/registro_fase_gcp/capturas/2026-11-07_01_projeto_criado.jpg`.
+Essa varredura não examina os planos ignorados pelo Git, nem prova que um futuro log será seguro.
+
+Contraprovas com `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'`: código obtido por
+`git show f1c1c2c:<módulo>`, instalado **apenas em memória** em `sys.modules`, seguido de
+`pytest.main(['-q', '--tb=line', '-p', 'no:cacheprovider', ...])`. Nenhum checkout/stash ou
+alteração de código. Recortes e resultados:
+
+| Testes atuais contra implementação anterior | Saída |
+|---|---|
+| `test_oraculo_da_memoria.py`, seis novos casos de época/diário (`-k 'epoca_do_armazem_vazio or sem_memoria_na_base or mudancas_aceitas_saem or ciclo_da_janela or diary_exclui'`) | `3 failed, 3 passed, 47 deselected` |
+| `test_janela_legado.py`, módulo anterior, declaração atual | `10 failed, 4 passed` |
+| `test_janela_legado.py`, também restaurando em memória a declaração anterior | `11 failed, 3 passed` |
+| `test_origens_gcp.py -k latencia_sem_producao_valida` | `5 failed, 16 deselected` |
+| `test_politicas.py -k tabela_declarada_ausente` | `4 failed, 10 deselected` |
+
+A alegação de 3/5 da memória é compatível com os cinco primeiros casos: o sexto, da tabela ainda
+ausente, passa nos dois códigos. Os 11/14 das mutações exigem incluir o YAML anterior (duas
+marcas). Dez falhas são de interface (`hash_atual`/`Recusa` ausentes), assim como as cinco da
+latência (`minimo` ausente): confirmam incompatibilidade com o código antigo, mas não são cinco
+ou dez reproduções semânticas do defeito antigo. O teste de exclusão mútua dos argumentos do T3
+passa também quando o parser antigo simplesmente desconhece `--diary`; não o use isoladamente
+como prova da correção.
+
+**E2 — Sondas puras de contratos**, por `.venv/bin/python`, sem banco:
+
+```text
+16 colunas, tipos dos DDLs: []
+int/NUMERIC hipotéticos: False (DDL real: INT64)
+diario canônico: ({('customers', '8'), ('brands', '8')}, set())
+mutação tentativa 1 OSError commit feito; gravação do diário indisponível
+mutação tentativa 2 Recusa customers mudou fora do diário (...)
+operações no banco simulado: [('remover', 'brands'), ('remover', 'customers')] diário: 1
+```
+
+Na sonda dos 16 campos foram usados UUID/string, `Decimal('10.5000')`/`Decimal('10.500000000')`
+e o mesmo instante com -03:00/UTC. Os DDLs reais declaram os seis campos inteiros como inteiros
+nos dois lados, custo como NUMERIC/Decimal, instantes com fuso e UUIDs como STRING no destino.
+A divergência hipotética int/Decimal não ocorre nesse destino declarado. Os hashes de carga e
+de banco derivam de `conteudo.hash_de_tabela`; a primeira mutação não depende de um formato
+alternativo. A falha simulada ocorreu em customers, que nenhum item anterior tocara.
+
+**E3 — Desmonte**, corpo lido de `gcp-dataflow-parar`, substituindo comandos externos por funções
+Bash locais e `sleep` por operação vazia; nenhum comando de nuvem executado:
+
+```text
+Dataflow listagem 1 rc 1 consultas 1
+Dataflow listagem 2 rc 1 consultas 2
+Dataflow listagem 62 rc 1 consultas 62
+Dataflow listagem 63 rc 1 consultas 63
+Dataflow listagem 0 rc 0 consultas 1 ultima gcp-dataflow-parar: nenhum job ativo
+```
+
+Nos quatro primeiros casos, a consulta indicada falhou com rc 7; os demais resultados eram
+`job-id`. No último, a consulta foi bem-sucedida e vazia. O erro apareceu explicitamente.
+
+**E4 — Composição**, extração das receitas/variáveis e substituição dos parâmetros usados,
+`bash -n` e execução com funções locais, sem invocar outro alvo make:
+
+```text
+gcp-oraculos falha=nenhum rc=0 chamadas=classificacao,contagens,consumo,catalogo
+gcp-oraculos falha=classificacao rc=1 chamadas=classificacao,contagens,consumo,catalogo
+gcp-oraculos falha=contagens rc=1 chamadas=classificacao,contagens,consumo,catalogo
+gcp-oraculos falha=consumo rc=1 chamadas=classificacao,contagens,consumo,catalogo
+gcp-oraculos falha=catalogo rc=1 chamadas=classificacao,contagens,consumo,catalogo
+COMPOSER_RODAR valido rc 0 arquivo ['fluxo_batch_FIXO.json']
+duração: 270.0
+COMPOSER_RODAR consulta_rc7 rc 1 arquivo ['fluxo_batch_FIXO.json']
+COMPOSER_RODAR sem_fim rc 1 arquivo []
+COMPOSER_RODAR stdout_extra rc 1 arquivo []
+```
+
+O caso rc 7 fornece JSON válido e depois falha: `pipefail` ainda impede sucesso. O arquivo que
+chegou a ser escrito nesse caso não foi anunciado como evidência válida. A expansão foi
+conferida por leitura e substituição dos parâmetros, não pelo motor GNU Make; `make -n` não
+foi usado. As aspas concatenadas de `"$$run"` conservam o nome gerado sem espaços.
+
+Conferência da versão fixada nas fontes oficiais: `dags list-runs` emite `run_id`/`state`;
+`tasks states-for-dag-run` emite `task_id`, `state`, `start_date`, `end_date`, com strings vazias
+quando não há instante. O JSON de lista vazia é `[]`; `No data found` é apresentação de tabela.
+O leitor aceita ambos e rejeita prefixos/sufixos de stdout, portanto essa hipótese não produziu
+falso sucesso. Fontes: [dag_command.py 3.2.2](https://raw.githubusercontent.com/apache/airflow/3.2.2/airflow-core/src/airflow/cli/commands/dag_command.py),
+[task_command.py 3.2.2](https://raw.githubusercontent.com/apache/airflow/3.2.2/airflow-core/src/airflow/cli/commands/task_command.py),
+[simple_table.py 3.2.2](https://raw.githubusercontent.com/apache/airflow/3.2.2/airflow-core/src/airflow/cli/simple_table.py).
+
+**E5 — Arquivos e processos**, somente material fictício e processos próprios temporários:
+
+```text
+gcp-apply stand-in rc 0 binario_retido False
+gcp-apply stand-in rc 7 binario_retido True
+read apos plano stdout longo: rc 0 bytes_stdout 1048576
+kubeconfig fictício: rc 0 modo 0o600 kind Config contexto gke
+GCP_LIMPEZA normal rc 0 filho_vivo False
+GCP_LIMPEZA erro rc 7 filho_vivo False
+grupo_INT shell_rc -2 filho_vivo False pasta_existe False
+grupo_TERM shell_rc -15 filho_vivo False pasta_existe False
+```
+
+O `read` recebeu o id pelo stdin separado; o plano longo saiu no stdout. No apply só o trecho
+final da receita foi executado com função fictícia. O JSON da kubeconfig foi gerado pelo Python
+literal do macro, sem credencial real; não foi carregado pelo kubectl. Nas sondas de sinal, os
+filhos eram `sleep`, nunca proxy ou port-forward reais. Uma sonda de SIGINT dirigido apenas ao
+shell não representou Ctrl-C no grupo e deixou filho até a limpeza da sonda; não é a prova de
+Ctrl-C citada acima. Não foi demonstrada falha no cenário de grupo que representa o terminal.
+
+**E6 — Roteiros**, leitura e extração de nomes, sem executar seus comandos:
+
+```text
+alvos no percurso: 55 ausentes: []
+```
+
+Percurso normal desde vazio: governança/época → tabela quente/IAM/snapshot → capturas → build →
+tratamento/T3/jobs → produção/reinícios → quarta. O Dataflow relançado usa a mesma assinatura
+`beam`, declarada em `streaming/fluxo.yml`, sem seek nem recriação na parada. Mensagens produzidas
+com o job parado continuam destinadas a ela; a entrega efetiva é prova da janela. Os cortes
+18:00/20:00 de terça e a escalada 12:00/15:00/18:00 de quinta continuam escritos; nenhum laço
+revoga o relógio independente. Isso não certifica duração ou término de cobrança.
+
+### Limites e questões abertas
+
+- **Somente relatado pelo autor:** os 117 testes com integração e um pulo, em bancos efêmeros;
+  a comparação de consumo 13/16 no BigQuery de desenvolvimento. Não houve banco, serviço,
+  infraestrutura ou recurso GCP acessado por esta revisão. Os comandos de janela e a integração
+  real Airbyte/Composer/Dataflow não foram executados, conforme o limite do pedido.
+- **Inferência de vazio do T3:** `_base_vazia` normaliza também um objeto sem campo `captures`
+  e um objeto com `captures={}` mas certificado não vazio; a sonda retornou `True` nos dois
+  casos. Isso não é prova suficiente de ausência de capturas em formato genérico. No percurso
+  autorizado, `armazem_janela.pronto` precede a época; o T3 completo acessa `base['captures']`
+  (campo ausente falha) e confere certificado/recebido/conteúdo. Não foi demonstrado bypass
+  dessas verificações completas, razão para não transformar a hipótese em achado confirmado.
+  O aceite desta correção fica restrito à base produzida após o atestado de vazio; não se
+  certificou compatibilidade com outro formato de linha de base.
+- O conferir quente lê todas as linhas dos dois lados e constrói listas e índices Python:
+  memória O(N), consulta integral por conferência. A comparação de consumo também materializa
+  os dois lados. Não se mediram memória, bytes consultados ou custo, nem desvio dos relógios.
+  Não há evidência para chamar essas medidas de feitas ou para garantir o orçamento D83.
+- Os ramos sem Composer ou com DAG falha não equivalem a fluxo completo: os comandos locais
+  mencionados podem produzir uma captura e um build, mas é preciso registrar quais tarefas de
+  fato rodaram antes de interpretar tratamento/matriz/T3. Nenhuma prova de simples existência
+  de uma captura anterior certificada demonstra que a captura da quarta certificou.
+- A ausência de recursos cobráveis às 18:00 de 12/11 só poderá ser medida na janela. O relógio
+  independente e as camadas 2/3 foram preservados; esta revisão não desligou faturamento nem
+  pediu exclusão de projeto. Resíduos de serviços ainda não criados e a duração real da
+  drenagem/destruição permanecem limites, não defeitos inferidos.
+- **Do Owner, sem decisão deste revisor:** forma da mitigação dos segredos em planos
+  (RV13J-1-01), pareamento local/nuvem (RV13J-1-09), localização do plano da raiz `airbyte/`
+  para o rito (RV13J-1-11). Registro §37 apresenta propostas concretas e os roteiros reconhecem
+  as pendências. `umask`, remoção posterior e texto mascarado não tornam o binário isento de
+  segredo; nenhuma conformidade formal foi presumida. Não foram inspecionados conteúdos de
+  `.env`, planos ou credenciais reais para esta rodada.
+
+### Passagem para Claude Code
+
+- [ ] **RV13J-2-01:** mapa de G2.3 fiel aos cenários efetivamente exercitados, com contraprovas
+  de reenvio fora da deduplicação, resposta perdida do sink, disputa da mesma chave e
+  recuperação/reinício exigidos. Cada prova confere unicidade, saldo e alertas pertinentes;
+  o que não estiver provado é declarado não atendido e impede aprovação de G2.3/P3.
+- [ ] **RV13J-2-02:** com proxy próprio já aberto, o roteiro manda encerrá-lo e repetir; o
+  esperado é recusa antes disso e abertura/limpeza do proxy próprio depois, sem reutilizar
+  listener desconhecido.
+- [ ] **RV13J-2-03:** todos os ponteiros ativos do Registro levam ao comando certo após a
+  renumeração; o esperado de remoções concorda com o diário e a declaração atual. Preservar
+  números históricos como históricos, sem reescrever ADR aceito ou a rodada 1.
+- [ ] **RV13J-2-04:** entrada zero/negativa recusada e função incapaz de aprovar amostra vazia;
+  se a observação for adiada, registrar o limite no dono documental sem tratá-lo como medido.
+
+Depois das correções, reavaliar estes mesmos IDs. Validação técnica, decisões pendentes do
+Owner, revisão integral do declarativo e encerramento formal continuam sendo atos distintos.
+
