@@ -201,28 +201,39 @@ def test_no_bigquery_de_verdade_a_semente_ve_so_o_que_veio_antes_do_inicio(real)
 
 
 def test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala(real):
-    """D75 (iii), no destino quente: o `MERGE` roda, a resposta some; o lote acha o *job* pelo id,
-    não reenvia, e devolve exatamente o que entrou — nem a mais (o saldo somaria duas vezes),
-    nem a menos (o alerta se calaria). RV13J-2-01."""
+    """D75 (iii), no destino quente: o `MERGE` roda, a resposta some; o lote acha o *job* **pelo mesmo
+    id**, não reenvia, e devolve exatamente os eventos que entraram — nem a mais (o saldo somaria
+    duas vezes), nem a menos (o alerta se calaria), nem outros. É o contrato da escrita; o saldo e o
+    alerta pendem dela, e não são exercitados aqui (RV13J-2-01, RV13J-3-02)."""
     cliente = real.cliente
-    original = cliente.query
-    perdidas = []
+    consultar, buscar = cliente.query, cliente.get_job
+    submetidos, perdidos, buscados = [], [], []
 
     def perde_a_resposta(sql, job_config=None, job_id=None, **k):
-        job = original(sql, job_config=job_config, job_id=job_id, **k)
-        if job_id and job_id.startswith("mvp_caminho_quente_") and not perdidas:
-            job.result()
-            perdidas.append(job_id)
-            raise ConnectionError("a resposta se perdeu")
+        job = consultar(sql, job_config=job_config, job_id=job_id, **k)
+        if job_id and job_id.startswith("mvp_caminho_quente_"):
+            submetidos.append(job_id)
+            if not perdidos:
+                job.result()
+                perdidos.append(job_id)
+                raise ConnectionError("a resposta se perdeu")
         return job
 
-    cliente.query = perde_a_resposta
+    def busca(job_id, *a, **k):
+        buscados.append(job_id)
+        return buscar(job_id, *a, **k)
+
+    cliente.query, cliente.get_job = perde_a_resposta, busca
+    lote = _tipados("r1", "r2")
     try:
-        entraram, duplicados = nuvem.escrever_lote(real, DESTINO, _tipados("r1", "r2"))
+        entraram, duplicados = nuvem.escrever_lote(real, DESTINO, lote)
     finally:
-        cliente.query = original
-    assert perdidas, "a resposta do MERGE não foi interceptada: a prova não exercitou o caso"
-    assert sorted(e["movement_id"] for e in entraram) == ["r1", "r2"] and duplicados == 0
+        cliente.query, cliente.get_job = consultar, buscar
+    assert perdidos, "a resposta do MERGE não foi interceptada: a prova não exercitou o caso"
+    assert submetidos == perdidos, f"o MERGE foi submetido {len(submetidos)} vezes: houve reenvio"
+    assert perdidos[0] in buscados, "o job da resposta perdida não foi procurado pelo id"
+    assert sorted(entraram, key=lambda e: e["movement_id"]) == sorted(lote, key=lambda e: e["movement_id"])
+    assert duplicados == 0
     ((n,),) = [tuple(l.values()) for l in real.linhas(
         f"select count(*) from {real.tabela(DESTINO.qualificado)} where movement_id in ('r1', 'r2')")]
     assert n == 2

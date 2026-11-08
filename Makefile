@@ -1452,17 +1452,27 @@ gcp-quente-prova: gcp-preflight ## Terça: as provas do G2.3 no Pub/Sub e no Big
 	.venv/bin/python -m mvp_ed1.gcp.prova_quente --saida "$(DATAFLOW_EVIDENCIA)/prova_quente_$$quando.json" || rc=1; \
 	test $$rc = 0 && echo "gcp-quente-prova: as duas provas passaram ($(DATAFLOW_EVIDENCIA)/*_$$quando.*)"; exit $$rc
 
+# O log lido é o do pod **mais novo** (o antigo pode ainda estar saindo), e a decisão é do
+# `mvp_ed1.gcp.debezium_log`: só a passagem ao streaming encerra a observação (RV13J-3-01).
 gcp-debezium-reiniciar: gcp-preflight require-kubectl ## Terça: reinicia o pod do Debezium Server e espera o novo ficar pronto (a prova de reinício do G2.3; os offsets ficam no disco)
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
 	k -n debezium rollout restart deployment/debezium-server || exit 1; \
 	k -n debezium rollout status deployment/debezium-server --timeout=300s || exit 1; \
+	pod=$$(k -n debezium get pods -l app=debezium-server --sort-by=.metadata.creationTimestamp -o name | tail -1); \
+	test -n "$$pod" || { echo "ERRO: nenhum pod do debezium-server depois do rollout"; exit 1; }; \
 	mkdir -p $(DATAFLOW_EVIDENCIA); log="$(DATAFLOW_EVIDENCIA)/debezium_reinicio_$$(date -u +%Y%m%dT%H%M%SZ).log"; \
-	for _ in $$(seq 24); do k -n debezium logs deployment/debezium-server > "$$log" 2>&1 || exit 1; \
-		grep -qiE "previous offset|streaming changes|Starting streaming|Snapshot step 1" "$$log" && break; sleep 5; done; \
+	for _ in $$(seq 36); do \
+		k -n debezium logs "$$pod" > "$$log" 2>&1 || { echo "ERRO: a leitura do log de $$pod falhou"; exit 1; }; \
+		veredito=$$(.venv/bin/python -m mvp_ed1.gcp.debezium_log "$$log"); rc=$$?; \
+		test $$rc = 3 || break; sleep 5; \
+	done; \
 	tail -15 "$$log"; \
-	if grep -qi "Snapshot step 1" "$$log"; then echo "FALHOU — o pod novo refez o snapshot: os offsets do disco não valeram (G2.3, reinício do pod) · $$log"; exit 1; fi; \
-	if grep -qi "previous offset" "$$log"; then echo "gcp-debezium-reiniciar: o pod novo retomou dos offsets, sem snapshot · $$log"; exit 0; fi; \
-	echo "NÃO CONCLUSIVO — o log não diz nem retomada nem snapshot; leia $$log antes de dar o reinício por provado"; exit 2
+	case $$rc in \
+		0) echo "gcp-debezium-reiniciar: $$veredito · $$log"; exit 0 ;; \
+		1) echo "FALHOU — $$veredito (G2.3, reinício do pod) · $$log"; exit 1 ;; \
+		3) echo "NÃO CONCLUSIVO — em 3 min $$veredito; leia $$log antes de dar o reinício por provado"; exit 2 ;; \
+		*) echo "NÃO CONCLUSIVO — $$veredito; leia $$log antes de dar o reinício por provado"; exit 2 ;; \
+	esac
 
 gcp-jobs-auditoria: gcp-preflight require-kubectl ## Terça, depois das capturas: nenhum POST indevido — os jobs da conexão legada no Airbyte do GKE contra os registros do livro
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_LIVRO); \

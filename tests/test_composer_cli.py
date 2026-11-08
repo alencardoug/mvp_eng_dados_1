@@ -93,7 +93,31 @@ def test_o_port_forward_e_o_proxy_sao_o_proprio_processo_e_o_token_nao_vai_na_li
 
 
 def test_o_reinicio_do_debezium_e_conferido_pelo_log_e_nao_so_pelo_rollout():
-    """RV13J-2-01: o MERGE suprime um snapshot refeito, e só o log do pod novo o mostra."""
+    """RV13J-2-01, RV13J-3-01: o MERGE suprime um snapshot refeito, e só o log do pod novo o mostra."""
     receita = _receita("gcp-debezium-reiniciar")
-    assert receita.index("rollout status") < receita.index('grep -qi "Snapshot step 1"') < receita.index('grep -qi "previous offset"')
-    assert "refez o snapshot" in receita and "exit 1" in receita and "NÃO CONCLUSIVO" in receita and "exit 2" in receita
+    assert receita.index("rollout status") < receita.index("--sort-by=.metadata.creationTimestamp") \
+        < receita.index("mvp_ed1.gcp.debezium_log")
+    assert "test $$rc = 3 || break" in receita and "grep" not in receita
+    assert '0) echo "gcp-debezium-reiniciar' in receita and "exit 2 ;;" in receita
+
+
+RETOMOU = """INFO Found previous offset PostgresOffsetContext [lsn=1]
+INFO A previous offset indicating a completed snapshot has been found.
+INFO Starting streaming
+"""
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    (RETOMOU, 0),
+    ("", 3),
+    ("INFO Found previous offset PostgresOffsetContext\n", 3),            # ainda não decidiu
+    ("INFO No previous offset found\nINFO Starting streaming\n", 2),     # contém "previous offset", não é retomada
+    ("INFO A previous offset indicating a completed snapshot has been found.\n", 3),
+    (RETOMOU + "INFO Snapshot step 1 - Preparing\n", 1),
+    ("INFO No previous offsets found\nINFO Snapshot step 1 - Preparing\nINFO Snapshot completed\nINFO Starting streaming\n", 1),
+    ("INFO Starting streaming\nINFO A previous offset indicating a completed snapshot has been found.\n", 2),
+])
+def test_o_veredito_do_log_so_aprova_retomada_dita_antes_do_streaming(texto, esperado):
+    from mvp_ed1.gcp import debezium_log
+
+    assert debezium_log.veredito(texto)[0] == esperado

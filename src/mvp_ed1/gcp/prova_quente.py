@@ -48,6 +48,39 @@ def _mensagem(movement_id: str, ocorreu: dt.datetime, delta: int, *, op: str = "
     return json.dumps(corpo).encode(), {"occurred_at": corpo["occurred_at"]}
 
 
+#: O par armazém/SKU dos movimentos publicados e o limiar do `fluxo.yml` que eles cruzam.
+PAR, LIMIAR = (1, 2), 25
+
+
+def conferir(linhas: list[str], saldo, alertas: list[dict]) -> list[str]:
+    """O que a prova cobra do destino, do saldo e do alerta.
+
+    A ordem dos painéis decide em que movimento a travessia acontece: o atrasado (-1) antes ou
+    depois dos três ao vivo, e os ao vivo num painel só ou em vários. Saldos de partida possíveis
+    da abertura: de 30 (tudo num painel) a 25; de chegada, 24 (o atrasado depois) ou 23. O que
+    não muda: **uma** abertura, no par publicado, com o limiar de 25 cruzado para baixo, e o
+    saldo durável terminando em 23 (RV13J-3-03).
+    """
+    esperado_linhas = ["m1", "m2", "m3", "semente", "tarde"]
+    falhas = []
+    if linhas != esperado_linhas:
+        falhas.append(f"destino: esperado {esperado_linhas}, veio {linhas}")
+    if len(alertas) != 1 or alertas[0].get("motivo") != "abertura":
+        falhas.append(f"alerta: esperado exatamente uma abertura, vieram {alertas}")
+    else:
+        a = alertas[0]
+        if (a.get("warehouse_id"), a.get("product_variant_id")) != PAR:
+            falhas.append(f"alerta: no par {(a.get('warehouse_id'), a.get('product_variant_id'))}, e não no {PAR}")
+        if a.get("limiar") != LIMIAR:
+            falhas.append(f"alerta: limiar {a.get('limiar')}, e não {LIMIAR}")
+        if a.get("quantity_on_hand") not in (23, 24) or not (LIMIAR <= (a.get("quantity_before") or -1) <= 30):
+            falhas.append(f"alerta: de {a.get('quantity_before')} para {a.get('quantity_on_hand')}, fora das "
+                          "travessias possíveis (de 25–30 para 23 ou 24)")
+    if saldo != 23:
+        falhas.append(f"saldo: esperado 23, veio {saldo}")
+    return falhas
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.gcp.prova_quente")
     parser.add_argument("--saida", help="grava o relatório em JSON")
@@ -136,18 +169,7 @@ def main(argv: list[str] | None = None) -> int:
             "saldo_no_destino": saldo,
             "alertas": alertas,
         })
-        esperado_linhas = ["m1", "m2", "m3", "semente", "tarde"]
-        falhas = []
-        if relatorio["linhas_no_destino"] != esperado_linhas:
-            falhas.append(f"destino: esperado {esperado_linhas}")
-        aberturas = [a for a in alertas if a.get("motivo") == "abertura"]
-        # A ordem dos painéis decide em que movimento a travessia acontece (23 ou 24); o que não
-        # muda é haver **uma** abertura e o saldo durável terminar em 23.
-        if len(alertas) != 1 or len(aberturas) != 1:
-            falhas.append("alerta: esperado exatamente uma abertura")
-        if saldo != 23:
-            falhas.append(f"saldo: esperado 23, veio {saldo}")
-        relatorio["falhas"] = falhas
+        relatorio["falhas"] = conferir(relatorio["linhas_no_destino"], saldo, alertas)
         bq.dispose()
     finally:
         for k in nomes:
