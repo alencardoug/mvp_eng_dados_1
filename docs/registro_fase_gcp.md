@@ -1271,3 +1271,39 @@ esperado antes do passo 7 da §6.7. Sem as saídas novas no estado, o `gcp-armaz
 **Não medido:** se o *bootloader* do chart cria o *workspace* padrão sem a configuração inicial pela
 interface (o `airbyte workspace` o lista); o plano da raiz `airbyte/` contra o Airbyte do GKE; a
 época contra o livro real.
+
+## 33. O roteiro de terça, parte 2 (08/11/2026, madrugada)
+
+A parte 2 da terça foi escrita comando por comando (PLANO §6.8). Ela cobre a porta P3:
+as capturas pelo Airbyte do GKE, o `dbt build` sobre o dado real, as *tags* e o caminho quente com
+o ensaio do Dataflow (D83). Os alvos locais equivalentes (`sync-airbyte`, `sync-legacy`,
+`stream-produce`) usam o Airbyte do `abctl` e o `.env`. Nasceram os da nuvem, todos com os macros
+do §31 e do §32:
+
+- **`gcp-sync-retail`** e **`gcp-sync-legacy`**: o mesmo `mvp_ed1.airbyte sync` da fase local,
+  contra o Airbyte do GKE. A captura do legado leva o armazém BigQuery, o livro no Cloud Storage e
+  os *locks* no Cloud SQL (`GCP_LIVRO`, agora também o da época). Ela passa pela recuperação, pelas
+  duas fases do certificado e pelo registro no livro, como a da fase local.
+- **`gcp-tags-convergir`** e **`gcp-tags-inventario`**: o `mvp_ed1.gcp.politicas` com o mapa da
+  saída `policy_tags` e o *manifest* do alvo `gcp`. O padrão do módulo é o do alvo local.
+- **`gcp-gke-versao`**: a folga de uma versão menor entre o `kubectl` fixado e o plano de controle,
+  pendente desde o §28.
+- **`gcp-debezium-status`**: o *pod*, o fim do log e o *slot* no Cloud SQL (ativo, WAL retido).
+- **`gcp-quente-produzir`** e **`gcp-quente-conferir`** (`mvp_ed1.gcp.quente`). O conferir compara
+  o livro da origem no Cloud SQL com o destino no BigQuery. Com o *snapshot* inicial do conector,
+  são todos os movimentos, uma linha por `movement_id`. Ele também lê os alertas da assinatura de
+  observação, e falha enquanto o destino não alcança a origem.
+
+**Medido (só leitura):** o `gcp-tags-inventario` contra o BigQuery de hoje deu **0 divergências**,
+sobre o estado de desenvolvimento. Sem Cloud SQL no estado, os alvos do caminho quente recusam limpo.
+
+**O que a P3 pede e o roteiro ainda não prova:**
+
+- **"memória anterior intacta"**: o `memory_oracle` abre o `WAREHOUSE_DB` e lê o certificado, a
+  captura selecionada e a quarentena por SQL do PostgreSQL. Não foi portado para o BigQuery como o
+  `ledger` e a `captura` foram no G2.1;
+- **"nenhum POST indevido"** como contagem: os *jobs* da conexão legada contra as tentativas
+  registradas no livro. Hoje só se lê pelos registros de tentativa, um a um.
+
+Os dois ficam como pendência do G2.1. Sem eles, a linha "G2.1 real" da P3 passa só com as capturas,
+a recuperação e o certificado.

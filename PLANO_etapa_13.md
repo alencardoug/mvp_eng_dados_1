@@ -665,9 +665,8 @@ cada alvo fechou com ele. Não rode `make ledger-baseline` nem edite o `.env`.
 ### 6.7 Roteiro de terça (10/11), parte 1: o GKE, o Airbyte configurado e a época inicial
 
 Como a §6.6: um comando por passo, na raiz do repositório. O `VARS` de cada plano leva **todos**
-os degraus de pé, e a guarda recusa o plano que destrói. A parte 2 — a primeira captura, o
-Debezium e o ensaio do Dataflow na ordem do [Registro §29](docs/registro_fase_gcp.md#29-g23-e-g6-o-lançamento-no-dataflow-08112026-madrugada)
-(D83) — ainda não está escrita. Os números de plano marcados *pelo código* não foram medidos: só
+os degraus de pé, e a guarda recusa o plano que destrói. A parte 2 — as capturas, o dbt, as *tags*, o
+Debezium e o ensaio do Dataflow (D83) — é a §6.8. Os números de plano marcados *pelo código* não foram medidos: só
 saem com o degrau anterior de pé.
 
 **Passo 1 — o projeto certo.**
@@ -746,6 +745,170 @@ Deve aparecer `pronto para a época inicial` e, embaixo, `época aberta: gs://mv
 com `0 capturas no bruto, 0 linhas de certificado, 0 jobs da conexão legada`. Se aparecer
 `RECUSADO`, a linha diz o quê: armazém com dado (volte ao passo 7) ou época já aberta (**pare**: o
 livro nunca é reescrito).
+
+### 6.8 Roteiro de terça (10/11), parte 2: as capturas, o dbt, as *tags* e o caminho quente
+
+Continua a §6.7, depois da época inicial. Junta o que a porta P3 (§6.2) pede às 18:00: Airbyte →
+BigQuery sem chave (D72), G2.1 real e G2.3 real. O ensaio do Dataflow é o da D83, ~1 h, e o
+taxímetro dele corre do passo 13 ao 17.
+
+**Passo 1 — a folga do `kubectl`.**
+
+```
+make gcp-gke-versao
+```
+
+Deve mostrar as duas versões, a uma versão menor uma da outra no máximo. Se recusar, o Claude Code
+troca a versão fixada no `Makefile` antes de qualquer outro passo que use o `kubectl`.
+
+**Passo 2 — a origem principal para o `raw`.**
+
+```
+make gcp-sync-retail
+```
+
+Deve terminar com `concluída: … linhas`. O destino escreve sem chave, pela conta `mvp-ingestor` via
+Workload Identity: é a prova da D72.
+
+**Passo 3 — a primeira captura do legado.**
+
+```
+make gcp-sync-legacy
+```
+
+Deve aparecer `recuperação: nada devido`, o andamento do *job* (`job …: running · … linhas`) e, no
+fim, o certificado e `concluída`. A tentativa fica registrada no livro do Cloud Storage.
+
+**Passo 4 — uma captura interrompida.** Rode de novo e, na primeira linha `job …: running`, aperte
+**Ctrl-C**.
+
+```
+make gcp-sync-legacy
+```
+
+O *job* segue no Airbyte e a tentativa fica pendente, que é o que o passo 5 resolve. Espere o *job*
+terminar, uns minutos, como o do passo 3.
+
+**Passo 5 — a recuperação e a segunda captura.**
+
+```
+make gcp-sync-legacy
+```
+
+Deve aparecer `recuperação registrou: gs://…` para a tentativa do passo 4, e depois uma captura nova
+certificada. Se a barreira recusar porque o *job* do passo 4 ainda corre, espere e repita: nada se
+abriu.
+
+**Passo 6 — as *tags* nas fontes recém-escritas.**
+
+```
+make gcp-tags-convergir
+```
+
+Deve terminar com `gcp-tags-convergir: fontes convergidas`.
+
+**Passo 7 — o `dbt build` sobre o dado real.**
+
+```
+make gcp-dbt-build
+```
+
+O esperado é o PASS do Registro §22 (909), com 0 erros. Número diferente é achado de paridade:
+anote e siga.
+
+**Passo 8 — o inventário das *tags*.**
+
+```
+make gcp-tags-inventario
+```
+
+Deve dizer `0 divergências`. É a repetição do G4 depois de uma sincronização (Registro §22).
+
+**Passo 9 — a paridade com a fase local.**
+
+```
+make gcp-oraculos
+```
+
+A classificação do legado, as contagens por camada e o catálogo contra o local. Ele lê o armazém
+local: o banco dele precisa estar de pé (`make ps`).
+
+**Passo 10 — o Debezium Server.** Ele subiu na §6.7 (passo 5) e fez o *snapshot*.
+
+```
+make gcp-debezium-status
+```
+
+Deve mostrar o *pod* `Running`, o fim do log sem erro e `slot mvp_inventory_movements: ativo`.
+
+**Passo 11 — o destino do caminho quente.** Antes do plano do Dataflow, que dá IAM nela.
+
+```
+make gcp-dataflow-tabela
+```
+
+**Passo 12 — o plano e o `apply` do Dataflow.**
+
+```
+make gcp-plan NOME=11_dataflow VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"
+```
+
+Deve dar `4 a criar, 0 a alterar, 0 a destruir`, o mesmo do Registro §29. Leia, e então:
+
+```
+make gcp-apply NOME=11_dataflow
+```
+
+**Passo 13 — o *job* montado, sem enviar.**
+
+```
+make gcp-dataflow-validar
+```
+
+Nenhuma divergência. Se houver, **pare**: nada foi enviado.
+
+**Passo 14 — lançar.** O taxímetro do Dataflow começa aqui.
+
+```
+make gcp-dataflow-lancar
+```
+
+Deve aparecer `job enviado: …`. Acompanhe na consola do Dataflow até o *worker* subir, uns minutos.
+
+**Passo 15 — o *snapshot* chegou ao BigQuery.**
+
+```
+make gcp-quente-conferir
+```
+
+Repita até não aparecer `PENDENTE`: o *worker* lê o acumulado da assinatura, guardado por uma
+semana. Os alertas lidos aparecem embaixo.
+
+**Passo 16 — movimentos novos, ao vivo.**
+
+```
+make gcp-quente-produzir LIMITE=200
+```
+
+E então, repetindo até não aparecer `PENDENTE`:
+
+```
+make gcp-quente-conferir
+```
+
+**Passo 17 — parar o Dataflow.**
+
+```
+make gcp-dataflow-parar
+```
+
+Deve terminar com `nenhum job ativo`. O Debezium Server e o GKE ficam para a quarta.
+
+**O que este roteiro ainda não prova** (Registro §33):
+
+- **"memória anterior intacta":** o oráculo da memória (`memory-oracle`) lê só o PostgreSQL;
+- **"nenhum POST indevido"** como contagem: os *jobs* da conexão legada no Airbyte contra as
+  tentativas do livro.
 
 ---
 
