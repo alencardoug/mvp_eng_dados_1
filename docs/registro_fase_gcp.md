@@ -1078,3 +1078,86 @@ confere e nada antes dele pode: a instalação do *wheel* no *worker* sem IP pú
 
 **Um aviso que fica:** o lançador roda `pip freeze` para registrar o ambiente de submissão, e o venv
 do `uv` não tem `pip` — o Beam avisa e segue; é registro, não instalação.
+
+## 30. G7: o desmonte em alvos do `make` (08/11/2026, madrugada)
+
+A §6.5 do plano dizia o quê e a prova de cada passo, mas só como texto. Escrever cada passo como
+alvo do `make` expôs quatro defeitos, nenhum visível na leitura da ordem.
+
+**Os quatro defeitos:**
+
+1. **O `VARS` da janela é cumulativo, e nada o conferia.** O `terraform.tfvars` liga só o degrau
+   barato, e cada plano liga o resto pelo `VARS`. Na terça, um plano com `enable_gke=true` e sem
+   `enable_cloud_sql=true` **destruiria o Cloud SQL**. Do mesmo modo, um plano de desmonte
+   esquecido de um interruptor leva o degrau errado. O Owner leria isso no plano, mas o rito não o
+   recusava.
+2. **Os discos do Airbyte não saem com o `helm uninstall`.** O banco interno e o MinIO do chart
+   2.3.0 são StatefulSets com `volumeClaimTemplates`, sem política de retenção (lido no `.tgz` do
+   chart). O Kubernetes não apaga esses PVCs com o *release*, e o GKE retém o disco ao apagar o
+   *cluster*. Três comentários (`gke.tf`, `aplicacoes_gke.tf` e `helm/airbyte_gke.yaml`) diziam
+   o contrário e foram corrigidos. O PVC do Debezium Server é do *release* e sai com ele.
+3. **O *peering* dos serviços privados trava o `destroy` da rede.** A API recusa apagar a conexão
+   enquanto acha que o Cloud SQL a usa, o que dura além da exclusão da instância, e o *peering*
+   que sobra impede apagar a VPC. O provider 8.10 tem `deletion_policy = "REMOVE_PEERING"` para isso
+   (descrição do esquema do provider): recusada a exclusão, o *peering* sai da rede no lugar dela.
+4. **O `gcloud` desta máquina aponta para outro projeto.** O `core/project` é o `analisador-de-risco`.
+   O primeiro `gcloud asset search-all-resources` faturou a cota nele e falhou com
+   `SERVICE_DISABLED`. Os alvos existentes passavam `--project`, mas os comandos de cota por
+   projeto (`asset`, `billing budgets`) seguem o `core/project`. Todo alvo `gcp-*` agora carrega o
+   `.env` pelo `GCP_ENV`, que exporta `CLOUDSDK_CORE_PROJECT`, e um teste guarda isso.
+
+**O que nasceu:**
+
+- **`mvp_ed1.gcp.desmonte`** (`src/mvp_ed1/gcp/desmonte.py`):
+  - os planos por passo, um degrau a mais desligado sobre a janela inteira ligada:
+    `make gcp-plan PASSO=n` e `make gcp-apply PASSO=n`;
+  - a **guarda** que todo `gcp-plan` passa a fazer, sobre o `terraform show -json`. Recusa plano de
+    construção que destrói, salvo `DESTROI=n` com o número lido no plano, e plano de desmonte que
+    cria. O plano recusado vira `.tfplan.recusado`, e o `gcp-apply` não o acha;
+  - o inventário contra o esperado;
+  - a exclusão da linhagem.
+- **Os passos sem Terraform** (§6.5): `gcp-desmonte-parar`, `-slot`, `-kubernetes`, `-orfaos`,
+  `-sql`, `-linhagem`, `-inventario` e `-orcamento`, além de `gcp-desligar-faturamento` e
+  `gcp-apagar-projeto`. Esses dois pedem `CONFIRMA=<id do projeto>` e guardam a prova em
+  `data/medicoes/etapa_13/g7/`.
+- **`retain_backups_on_delete = false`** explícito no Cloud SQL, como o `deletion_policy` do
+  orçamento: o padrão não é o que se prova.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A39 | A retenção do livro sai no `apply` que leva o Cloud SQL (plano 23), e os *buckets* saem no plano 24, com o resto do degrau barato. A §6.5 pedia os *buckets* antes do Cloud SQL | o interruptor dos *buckets* é o `enable_cheap`: separá-los pediria uma variável nova só para a ordem, e nada depende de os *buckets* saírem antes | `enable_buckets` próprio |
+| A40 | O desmonte **apaga os processos da Data Lineage API**, os das travessias (G5) e os que o BigQuery registra sozinho, e recusa sem a captura de tela da linhagem em `capturas/` | eles não têm `destroy` (ninguém os declarou), e a §6.5 pede ação e prova para todo item fora do esperado, não só registro. A captura é a evidência que fica | deixar à exclusão do projeto, com registro |
+| A41 | O inventário aceita a VPC `default` com as 42 sub-redes, as rotas e as 4 regras de *firewall* dela, e a conta padrão do Compute Engine | é o que o projeto cria ao ligar o Compute Engine, e nenhum recurso o usa | apagar a VPC `default` no G0 de um projeto novo |
+| A42 | O produtor de movimentos para no terminal do Owner, e não por alvo | daqui não se vê processo de outro terminal sem o risco do `pgrep -f` casar com o próprio comando | — |
+
+**Medido:**
+
+- **o que o projeto cria por padrão.** O `gcloud asset search-all-resources` de hoje listou 870
+  recursos de 21 tipos. Os de 9 tipos não vêm do Terraform e são o `residuos_esperados.yml`:
+  - o projeto e o vínculo de faturamento;
+  - as 51 APIs;
+  - a VPC `default`, com 42 sub-redes, 4 regras e as 47 rotas;
+  - a conta padrão do Compute Engine;
+  - 8 grupos de entradas `@…` do catálogo.
+
+  Ficam 368 processos de linhagem (237 `Query` do BigQuery) e 315 tabelas. A VPC `default` tem
+  `default-allow-ssh` e `-rdp` abertas a `0.0.0.0/0`, sem nenhuma VM nela.
+  [medido, `data/medicoes/etapa_13/g7/inventario_padrao_20261108.json`]
+- **a guarda, com planos reais (só leitura):**
+  - o plano sem `VARS` passou: **0 / 1 / 0**, o `REMOVE_PEERING`, que entra no `apply` de segunda;
+  - `VARS="enable_cheap=false"` foi **recusado**: 90 a destruir, e o `.tfplan` foi renomeado;
+  - `PASSO=2` levou a janela menos o Composer e o Dataflow e foi **recusado**: contra o estado de
+    hoje, ele criaria 24.
+
+  Os textos estão em `data/medicoes/etapa_13/g7/guarda/`; os `.tfplan` saíram da pasta dos planos.
+- **os alvos de prova, contra o projeto de hoje:**
+  - `-orfaos` e `-sql` passaram;
+  - `-orcamento` falhou apontando o orçamento;
+  - `-inventario` falhou com 713 resíduos de 870.
+
+  É o esperado com o degrau barato de pé. Os alvos que agem (`-parar`, `-slot`, `-kubernetes`,
+  `-linhagem`) e os das camadas 2 e 3 **não rodaram**: só existem na janela, e são do Owner.
+
+**Não medido:** o que o Composer, o GKE, o Cloud SQL e o Dataflow criam por padrão, só conhecido na
+janela; se a exclusão branda dos papéis customizados e do *pool* de identidade aparece no
+inventário; e se o `REMOVE_PEERING` é mesmo acionado. O inventário de quinta responde às três.
