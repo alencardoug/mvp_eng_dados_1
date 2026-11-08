@@ -481,7 +481,8 @@ senhas do Cloud SQL, e o *token* da ADC que os *providers* do Kubernetes e do He
 (RV13J-1-01). Por isso ele nasce com permissão só do dono (`umask 077`) e **sai depois do `apply`**
 que o consumiu; o que fica como evidência é o texto do plano, onde o Terraform mascara os sensíveis.
 O plano da raiz `airbyte/` nem chega a `data/`: nasce e é aplicado na pasta temporária do
-`gcp-airbyte-config`. *(Levado ao Owner: a forma de conciliar o rito com o segredo no plano.)*
+`gcp-airbyte-config`. É a forma de conciliar o rito com o segredo no plano que o Owner decidiu
+(D84, D86): os `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` saem também.
 
 ### 6.4 O relógio de emergência (RV13-1-01)
 
@@ -819,8 +820,9 @@ pelo desenho* é o que o código impede e nenhum passo força; *não atendido* f
 **O G2.3 não passa inteiro.** Dois itens da §G2.3 ficam não atendidos como prova — os lotes
 concorrentes com a mesma chave e a recuperação do *worker* dentro do mesmo *job* — e um, o reenvio
 fora da janela, só na escrita. Pela §G2.3, "sem essa prova o caminho quente não entra na janela, e o
-critério fica incompleto". **Entrar com o caminho quente na quarta assim, ou cortá-lo, é decisão do
-Owner até a P3** (Registro §38). Com os passos 3 ou 8 vermelhos, nem isso: o caminho quente não entra.
+critério fica incompleto". **O Owner decidiu que ele entra na quarta assim, declarado incompleto
+nesses três itens (D87)**: o desenho impede os dois casos, e cortá-lo tiraria a reconciliação com
+*streaming* simultâneo da §7.2. Com os passos 3 ou 8 vermelhos, nem isso: o caminho quente não entra.
 
 **Passo 1 — a folga do `kubectl`.**
 
@@ -997,13 +999,15 @@ sincronização (Registro §22). Divergência ou ausente: achado do G4, registra
 make gcp-oraculos
 ```
 
-A classificação do legado, as contagens por camada, o **conteúdo** das *views* de `consumption` e o
-catálogo contra o local. Ele lê o armazém local: o banco dele precisa estar de pé (`make ps`). Cada
+As contagens por camada, o **conteúdo** das *views* de `consumption` e o catálogo contra o local —
+o estado corrente (D85). Ele lê o armazém local: o banco dele precisa estar de pé (`make ps`). Cada
 comparação diz o seu veredito, e o alvo falha se uma falhar. Medido no estado de desenvolvimento
 (Registro §37): 13 das 16 *views* iguais em conteúdo; diferem as duas de estoque, que leem os
-movimentos ao vivo de cada ambiente, e a de margem do mês corrente. A classificação e as contagens
-casam por `snapshot_id`, que é o *job* de cada Airbyte: entre o local e a nuvem, os *jobs* diferem,
-e a comparação dessas duas é **pendente da decisão do Owner** (RV13J-1-09). O Claude Code registra
+movimentos ao vivo de cada ambiente, e a de margem do mês corrente. A classificação do legado casa
+por `snapshot_id`, que é o *job* de cada Airbyte, e os *jobs* diferem entre o local e a nuvem: o
+alvo diz que ela **não é comparável entre ambientes** e não a compara (D85). Pelo mesmo motivo, a
+contagem de `raw_legacy`, `governance` e `snapshots`, que guardam a história de cada ambiente, sai
+marcada como não comparável e não reprova; só as camadas de estado reprovam. O Claude Code registra
 cada diferença; nenhuma bloqueia os passos seguintes.
 
 **Passo 19 — a memória anterior intacta (T3).** Somente leitura; leva minutos, porque mede o
@@ -1272,7 +1276,7 @@ make gcp-armazem-tamanho
 
 O primeiro deve dizer `0 divergências, nenhuma tabela ausente`. O segundo repete a comparação da
 terça (§6.8 passo 18) e agora tem diferenças **esperadas** além das de terça: as mutações do passo 8
-existem só na nuvem (a classificação e as contagens do legado) e os movimentos da latência de terça e
+existem só na nuvem (as contagens do legado nas camadas de estado) e os movimentos da latência de terça e
 de hoje, só no caminho quente da nuvem (as *views* de estoque). O Claude Code registra cada
 diferença contra esse esperado; uma fora dele é achado de paridade. O último imprime, por *dataset*,
 as tabelas, as linhas e os bytes lógicos, e guarda o relatório em `data/medicoes/etapa_13/g6/`. É o
@@ -1333,9 +1337,11 @@ com o mapa corrigido em 07/11 (D69, D70 e o destino quente idempotente da D75): 
 ### 7.2 Dados e memória
 
 - Contagens por camada e reconciliações entre camadas no BigQuery iguais às da fase local na mesma
-  geração; os testes do dbt nos dois alvos (PASS comparado); as views de `consumption` com a mesma
-  soma de controle por view — comparação de dados normalizados, **com os metadados de execução
-  excluídos explicitamente**.
+  geração, nas camadas de estado: a classificação por captura e as camadas de história
+  (`raw_legacy`, `governance`, `snapshots`) não são comparáveis entre ambientes (D85); os testes do
+  dbt nos dois alvos (PASS comparado); as views de `consumption` com a mesma soma de controle por
+  view — comparação de dados normalizados, **com os metadados de execução excluídos
+  explicitamente**.
 - **Duas capturas do legado** (RV13-1-10): a primeira, uma mudança controlada na origem pelo
   gerador (o diário de mutações da regeneração da v1.1.0), a segunda — com a matriz de resultados
   esperados: a primeira captura preservada, a transição exercitada

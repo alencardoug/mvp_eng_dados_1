@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 8 (D84 a D87, da revisão dos roteiros da janela da Etapa 13, em 08/11/2026, para antes da P3; D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4 e a D82 e a D83 no G2.3 (§2) |
-| Última revisão | 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3 e a D84 a D87 na revisão dos roteiros da janela (§2) |
+| Última revisão | 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
 
 ---
 
@@ -198,35 +198,6 @@ Etapa 13 (GCP), que reescreve recuperação, acesso, catálogo e guardas para o 
 *Efeito de não decidir:* nenhum no projeto como está. Uma edição futura em uma das formas acima é
 recusada ou fica fora da guarda, e a lista diz onde olhar.
 
-### D84 a D87 — da revisão dos roteiros da janela da Etapa 13, antes da P3 (levantadas em 08/11/2026)
-
-O contexto e as provas de cada uma estão no [Registro da fase GCP §37 e §38](registro_fase_gcp.md#37-a-rodada-1-da-revisão-dos-roteiros-da-janela-08112026-tarde);
-a revisão do Codex fechou o lote dizendo que só elas restam. As quatro têm de estar decididas até a
-**P3 (ter 10, 18:00)**: a D87 decide se o caminho quente entra na quarta.
-
-- **D84 — o segredo no plano salvo** (RV13J-1-01). O binário do plano leva o estado, com as senhas do
-  Cloud SQL e o *token* da ADC. *(a)* binário só do dono e apagado depois do `apply`, como já está
-  — recomendada: o mesmo segredo está no estado remoto, e o *token* vence em uma hora; *(b)*
-  autenticação `exec` no Kubernetes/Helm e senhas em atributos só de escrita. Os sete `.tfplan` já
-  aplicados de `data/medicoes/etapa_13/planos/` continuam lá: apagar ou não é seu.
-- **D85 — o pareamento local × nuvem da paridade** (RV13J-1-09). A classificação do legado e as
-  contagens casam por `snapshot_id`, que é o *job* de cada Airbyte. *(a)* comparar na janela só o
-  estado corrente (o conteúdo das *views* e as contagens das camadas de estado) e declarar a
-  classificação por captura não comparável entre ambientes — recomendada; *(b)* regerar o local com
-  a mesma sequência de capturas, horas de máquina.
-- **D86 — o plano da raiz `airbyte/` fora de `data/`** (RV13J-1-11). Ele nasce e é aplicado na
-  pasta temporária do `gcp-airbyte-config`, e só o texto fica. *(a)* cumpre a §6.3 — recomendada;
-  *(b)* guardá-lo em `data/medicoes/etapa_13/planos/`, com as senhas dentro.
-- **D87 — o caminho quente com o G2.3 incompleto** (RV13J-2-01). Dois itens da §G2.3 ficam não
-  atendidos como prova (lotes concorrentes com a mesma chave nova; recuperação do *worker* no mesmo
-  *job*), e um, o reenvio fora da janela, só na escrita. *(a)* entrar na quarta declarado
-  incompleto — recomendada: os dois são impedidos pelo desenho, e cortar tira a reconciliação com
-  *streaming* simultâneo da §7.2; *(b)* cortar o caminho quente da janela; *(c)* provar a
-  recuperação no mesmo *job* apagando a VM do *worker* na janela, ação destrutiva sua.
-
-*Efeito de não decidir:* a terça segue os roteiros como estão, que já fazem *(a)* em D84 e D86 e
-declaram pendente o que D85 e D87 decidem; a P3 não tem como dizer se o G2.3 passa.
-
 ---
 
 ## 1.1 Decididas e implementadas
@@ -290,6 +261,30 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D84 a D87 — da revisão dos roteiros da janela da Etapa 13 (decididas em 08/11/2026)
+
+Levantadas pela revisão dos roteiros (Registro §37 e §38) e decididas antes da P3, todas pela opção
+recomendada. Como ficou: [Registro §41](registro_fase_gcp.md#41-as-decisões-d84-a-d87-e-a-p1-08112026-tarde).
+
+- **D84 — o segredo no plano salvo** (RV13J-1-01): o binário do plano nasce só do dono (`umask 077`)
+  e sai depois do `apply` que o consumiu; o texto, com os sensíveis mascarados, é a evidência. Os
+  `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` saem também. Descartada: autenticação
+  `exec` no Kubernetes/Helm e senhas em atributos só de escrita, que mudam *providers* às vésperas.
+- **D85 — a paridade local × nuvem é do estado corrente** (RV13J-1-09): o `gcp-oraculos` compara as
+  contagens das camadas de estado, o conteúdo das *views* de `consumption` e o catálogo. A
+  classificação do legado por captura, que casa por `snapshot_id` (o *job* de cada Airbyte), é
+  declarada não comparável entre ambientes, e as contagens de `raw_legacy`, `governance` e
+  `snapshots` saem no relatório sem reprovar. Descartada: regerar o local com a mesma sequência de
+  capturas, horas de máquina.
+- **D86 — o plano da raiz `airbyte/` não chega a `data/`** (RV13J-1-11): nasce e é aplicado na pasta
+  temporária do `gcp-airbyte-config`, e só o texto fica (§6.3 do plano). Descartada: guardá-lo em
+  `data/medicoes/etapa_13/planos/`, com as senhas dentro.
+- **D87 — o caminho quente entra na quarta declarado incompleto** (RV13J-2-01): os lotes concorrentes
+  com a mesma chave nova e a recuperação do *worker* no mesmo *job* ficam garantidos pelo desenho e
+  não atendidos como prova, e o reenvio fora da janela, provado só na escrita. Descartadas: cortar o
+  caminho quente, que tira a reconciliação com *streaming* simultâneo da §7.2; e provar a recuperação
+  apagando a VM do *worker* na janela.
 
 ### D83 — o Dataflow tem um ensaio de ~1 h na terça (decidida em 08/11/2026)
 

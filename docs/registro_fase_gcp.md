@@ -1587,4 +1587,37 @@ A rodada 4 (`high`) deu o RV13J-3-02 como resolvido e achou dois restos das corr
   24", fica corrigida por esta. `prova_quente.TRAVESSIAS` é exatamente essas seis, com teste.
 
 A rodada 5 (`high`) não achou nada e deu o lote como fechável, pendente das decisões do Owner. As
-quatro perguntas dos §37 e §38 viraram as [D84 a D87](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-antes-da-p3-levantadas-em-08112026), para antes da P3.
+quatro perguntas dos §37 e §38 viraram as [D84 a D87](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-decididas-em-08112026), para antes da P3.
+
+## 41. As decisões D84 a D87 e a P1 (08/11/2026, tarde)
+
+**A P1 passou às 13:30, antes das 20:00.** O critério dela (§6.2 do plano) é "revisão encerrada, sem
+bloqueante aberto": a revisão do plano fechou em 07/11 (§3), a dos roteiros da janela fechou de
+madrugada sem achado (§40), e o que ela deixou eram quatro perguntas, não bloqueantes.
+
+O Owner decidiu as quatro (D84 a D87) pela opção recomendada, em uma rodada de perguntas com as
+alternativas explicadas. O que cada uma decide está nas [Pendências §2](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-decididas-em-08112026);
+aqui, o que mudou por causa delas:
+
+- **D84 e D86 não mudam código**: os roteiros já faziam a opção *(a)* (o `gcp-apply` apaga o
+  binário depois do `apply` que deu certo, e o plano da raiz `airbyte/` nasce na pasta temporária).
+  Saíram os sete `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` (`01_fundacao`,
+  `02_datasets`, `03_contas`, `04_personificacao`, `05_barato`, `07_heartbeat`, `09_politicas`),
+  cada um conferido pelo `_apply.txt` ao lado antes do `rm`. Os `tfstate_*.bak` ficam: são a volta
+  da regra de falha 3 (§6.6 do plano), e levam o mesmo segredo que o estado.
+- **D85 muda o `gcp-oraculos`**: a classificação do legado por captura não é mais comparada — o alvo
+  diz que ela não é comparável entre ambientes —, e as contagens de `raw_legacy`, `governance` e
+  `snapshots` saem no relatório marcadas "história do ambiente, não comparável" sem reprovar. A
+  escolha das três camadas sai do que cada uma guarda: o `raw_legacy` é `full_refresh_append`, uma
+  cópia por captura (`airbyte/streams.yml`, ADR-0037); a `governance` registra cada captura e
+  certificado; os `snapshots`, uma versão por execução do dbt. O *staging* e o *trusted* do legado
+  leem só a captura selecionada (`legacy_selected_capture`), e a quarentena já tinha o recorte da
+  captura corrente: ficam como estado. `oraculo.comparar_contagens` saiu de `contagens` para ser
+  testável, e ganhou teste (`tests/test_oraculo_consumo.py`); o teste do alvo conta três vereditos
+  e confere a declaração (`tests/test_composer_cli.py`).
+- **D87 muda só o texto**: a §6.8 do plano diz que o caminho quente entra na quarta declarado
+  incompleto nos três itens da tabela do G2.3; a regra dos passos 3 e 8 vermelhos continua.
+
+Não medido: a D85 ainda não rodou contra o armazém, porque o local e a nuvem estão no estado de
+desenvolvimento, em que as capturas são as mesmas (a `carga_dev` copia uma na outra). A primeira
+execução que a exercita é o passo 18 da terça.
