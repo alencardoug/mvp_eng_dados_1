@@ -161,6 +161,8 @@ endef
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
+        gcp-desmonte-parar gcp-desmonte-slot gcp-desmonte-kubernetes gcp-desmonte-orfaos gcp-desmonte-sql gcp-desmonte-linhagem \
+        gcp-desmonte-inventario gcp-desmonte-orcamento gcp-desligar-faturamento gcp-apagar-projeto \
         require-env require-venv require-abctl require-terraform require-cloud-sql-proxy require-kubectl
 
 help: ## Lista os alvos disponíveis
@@ -958,9 +960,13 @@ GCP_TF := .tools/terraform -chdir=terraform
 GCP_PLANOS := data/medicoes/etapa_13/planos
 # A porta local do proxy do Cloud SQL: fora das portas dos bancos locais do `.env`.
 GCP_SQL_PORTA ?= 15432
+# O `.env` e o projeto do `gcloud`. O `core/project` da configuração do `gcloud` desta máquina é
+# outro projeto (medido em 08/11/2026, Registro §30): comando sem `--project` iria para ele, e a
+# cota de API faturada nele também. Todo alvo `gcp-*` carrega o `.env` por aqui.
+GCP_ENV = set -a; . ./.env; set +a; export CLOUDSDK_CORE_PROJECT="$$GCP_PROJECT_ID"
 
 gcp-preflight: require-env require-venv require-terraform ## Recusa se .env, terraform.tfvars e ADC não apontam o mesmo projeto GCP
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	test -n "$$GCP_PROJECT_ID" || { echo "ERRO: GCP_PROJECT_ID ausente no .env."; exit 1; }; \
 	test -f terraform/terraform.tfvars || { echo "ERRO: terraform/terraform.tfvars ausente (copie o .example)."; exit 1; }; \
 	tf=$$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' terraform/terraform.tfvars); \
@@ -969,18 +975,42 @@ gcp-preflight: require-env require-venv require-terraform ## Recusa se .env, ter
 	test "$$adc" = "$$GCP_PROJECT_ID" || { echo "ERRO: o quota project das credenciais (ADC) é '$$adc', não '$$GCP_PROJECT_ID'."; exit 1; }; \
 	echo "gcp-preflight: projeto $$GCP_PROJECT_ID nos três lugares"
 
-gcp-plan: gcp-preflight ## Salva um plano do Terraform para o Owner aprovar: NOME=05_rede [VARS="enable_cloud_sql=true"] (sem aplicar)
-	@test -n "$(NOME)" || { echo "ERRO: NOME=<nn_assunto> obrigatório."; exit 1; }
+gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sql VARS="enable_cloud_sql=true", ou o do desmonte: PASSO=2 (§6.5)
 	@# VARS liga um degrau só neste plano, sem mexer no terraform.tfvars: o plano salvo leva os
-	@# valores dentro, e o `gcp-apply` dele aplica exatamente o que foi lido e aprovado.
-	@$(GCP_TF) plan -no-color $(addprefix -var ,$(VARS)) -out=../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME).txt 2>&1; \
-		rc=$$?; grep -E "Plan:|No changes" $(GCP_PLANOS)/$(NOME).txt; exit $$rc
+	@# valores dentro, e o `gcp-apply` dele aplica exatamente o que foi lido e aprovado. Como o
+	@# terraform.tfvars só liga o degrau barato, o VARS de cada plano da janela leva **todos** os
+	@# degraus de pé, não só o novo: o esquecido seria destruído. A guarda do `mvp_ed1.gcp.desmonte`
+	@# recusa plano de construção que destrói (DESTROI=n, o número lido no plano, é a exceção do
+	@# Owner) e plano de desmonte que cria; o plano recusado vira `.tfplan.recusado` e não se aplica.
+	@# PASSO=n tira nome e VARS da declaração do desmonte, a janela inteira menos o já desmontado.
+	@$(GCP_ENV); \
+	if test -n "$(PASSO)"; then \
+		test -z "$(NOME)$(VARS)$(DESTROI)" || { echo "ERRO: PASSO= já diz o nome e o VARS do plano; não passe NOME, VARS nem DESTROI."; exit 1; }; \
+		atribuicoes=$$(.venv/bin/python -m mvp_ed1.gcp.desmonte plano --passo "$(PASSO)") || exit 1; \
+		eval "$$atribuicoes"; \
+	else \
+		nome="$(NOME)"; vars="$(VARS)"; modo=construcao; destruir=; \
+		test -n "$$nome" || { echo "ERRO: NOME=<nn_assunto> obrigatório (ou PASSO=n no desmonte)."; exit 1; }; \
+	fi; \
+	args=; for v in $$vars; do args="$$args -var $$v"; done; \
+	echo "gcp-plan: $$nome ($$modo) $$destruir $$vars"; \
+	$(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
+	rc=$$?; grep -E "Plan:|No changes" "$(GCP_PLANOS)/$$nome.txt"; test $$rc = 0 || exit $$rc; \
+	$(GCP_TF) show -json "../$(GCP_PLANOS)/$$nome.tfplan" \
+		| .venv/bin/python -m mvp_ed1.gcp.desmonte conferir-plano --modo "$$modo" $(if $(DESTROI),--destroi $(DESTROI)) \
+		|| { mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit 1; }
 
-gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=05_rede; guarda o estado antes
-	@test -f $(GCP_PLANOS)/$(NOME).tfplan || { echo "ERRO: plano $(NOME) não existe; rode gcp-plan."; exit 1; }
-	@cp terraform/terraform.tfstate $(GCP_PLANOS)/tfstate_$(NOME).bak
-	@$(GCP_TF) apply -no-color ../$(GCP_PLANOS)/$(NOME).tfplan > $(GCP_PLANOS)/$(NOME)_apply.txt 2>&1; \
-		rc=$$?; tail -3 $(GCP_PLANOS)/$(NOME)_apply.txt; exit $$rc
+gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=06_cloud_sql (ou PASSO=n no desmonte); guarda o estado antes
+	@$(GCP_ENV); \
+	nome="$(NOME)"; \
+	if test -n "$(PASSO)"; then \
+		atribuicoes=$$(.venv/bin/python -m mvp_ed1.gcp.desmonte plano --passo "$(PASSO)") || exit 1; \
+		eval "$$atribuicoes"; \
+	fi; \
+	test -n "$$nome" && test -f "$(GCP_PLANOS)/$$nome.tfplan" || { echo "ERRO: plano '$$nome' não existe; rode gcp-plan."; exit 1; }; \
+	cp terraform/terraform.tfstate "$(GCP_PLANOS)/tfstate_$$nome.bak"; \
+	$(GCP_TF) apply -no-color "../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$${nome}_apply.txt" 2>&1; \
+	rc=$$?; tail -3 "$(GCP_PLANOS)/$${nome}_apply.txt"; exit $$rc
 
 gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.0.0.1:15432 (GCP_SQL_PORTA=) pelo Auth Proxy; primeiro plano, Ctrl-C fecha
 	@# Sem rede autorizada no Cloud SQL: só o proxy entra, com a ADC do Owner (cloudsql.client).
@@ -995,7 +1025,7 @@ gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e l
 		../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
 
 gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do legado, contagens das camadas e catálogo
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	.venv/bin/python -m mvp_ed1.gcp.oraculo trusted.legacy_classifications \
 		--chave source_system,snapshot_id,source_table,legacy_row_id \
 		--colunas classification,rejection_origin,catalog_version,treatment_fingerprint \
@@ -1017,7 +1047,7 @@ gcp-composer-prova: gcp-preflight ## G2.4: a DAG importa e uma tarefa de dbt (TA
 	@# dele. Por isso a ADC entra por uma cópia legível *dentro* da pasta temporária — que é 700 do
 	@# Owner no host e some no fim —, no lugar em que o gcloud a deixa, e o relatório sai por uma
 	@# pasta dela, copiado depois.
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
 	.venv/bin/python -m mvp_ed1.gcp.composer montar "$$base/gcs" > /dev/null || exit 1; \
 	tags=$$($(GCP_TF) output -json policy_tags 2>/dev/null) || tags='{}'; \
@@ -1041,24 +1071,27 @@ gcp-composer-prova: gcp-preflight ## G2.4: a DAG importa e uma tarefa de dbt (TA
 # ── Composer na janela (quarta): segredos, layout e smoke test, nesta ordem ──────────────────────
 # O nome do ambiente e o bucket vêm do `output composer`; vazio é "o degrau não está aplicado".
 COMPOSER_SAIDA = $(GCP_TF) output -json composer | .venv/bin/python -c 'import json,sys; print((json.load(sys.stdin) or {}).get("$(1)", ""))'
+# O `kubectl` contra o GKE, sem `kubeconfig`: o endereço e a CA da saída do Terraform, o *token* da
+# ADC. Pede `base` (uma pasta temporária) já criada; define a função `k`.
+GKE_KUBECTL = ep=$$($(GCP_TF) output -raw gke_endpoint 2>/dev/null); \
+	test -n "$$ep" || { echo "ERRO: sem GKE no estado (degrau 08)."; exit 1; }; \
+	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt"; \
+	token=$$(gcloud auth application-default print-access-token) || exit 1; \
+	k() { .tools/kubectl --server="https://$$ep" --certificate-authority="$$base/ca.crt" --token="$$token" "$$@"; }
 
 gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret Manager as credenciais do Airbyte do GKE e o endereço do load balancer interno, sem mostrá-los
 	@# O bootloader do chart gera as credenciais no Secret `airbyte-auth-secrets`, e o IP do load
 	@# balancer interno só existe depois do Service: nenhum dos dois o Terraform conhece no plano.
 	@# Os valores passam por arquivos de uma pasta 700 que some no fim; nada vai para a tela.
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
-	ep=$$($(GCP_TF) output -raw gke_endpoint); \
-	test -n "$$ep" || { echo "ERRO: sem GKE no estado (degrau 08)."; exit 1; }; \
-	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt"; \
-	token=$$(gcloud auth application-default print-access-token) || exit 1; \
-	k() { .tools/kubectl --server="https://$$ep" --certificate-authority="$$base/ca.crt" --token="$$token" -n airbyte "$$@"; }; \
-	ip=$$(k get service airbyte-airbyte-server-svc -o jsonpath='{.status.loadBalancer.ingress[0].ip}') || exit 1; \
-	porta=$$(k get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
+	$(GKE_KUBECTL); \
+	ip=$$(k -n airbyte get service airbyte-airbyte-server-svc -o jsonpath='{.status.loadBalancer.ingress[0].ip}') || exit 1; \
+	porta=$$(k -n airbyte get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
 	test -n "$$ip" || { echo "ERRO: o load balancer interno do Airbyte ainda não tem IP."; exit 1; }; \
 	printf 'http://%s:%s/api/public/v1' "$$ip" "$$porta" > "$$base/airbyte-url"; \
 	for chave in id secret; do \
-		k get secret airbyte-auth-secrets -o jsonpath="{.data.instance-admin-client-$$chave}" \
+		k -n airbyte get secret airbyte-auth-secrets -o jsonpath="{.data.instance-admin-client-$$chave}" \
 			| base64 -d > "$$base/airbyte-client-$$chave" || exit 1; \
 	done; \
 	for nome in airbyte-client-id airbyte-client-secret airbyte-url; do \
@@ -1071,7 +1104,8 @@ gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret 
 gcp-composer-publicar: gcp-preflight ## Janela: publica o layout do G2.4 (dags/ e data/) no bucket do Composer; o que sobrou de publicação anterior sai
 	@# O mesmo `montar` da prova local, numa pasta nova; o `rsync` apaga do bucket o que o layout
 	@# não tem — menos o `airflow_monitoring.py`, que o próprio Composer põe em dags/.
-	@bucket=$$($(call COMPOSER_SAIDA,bucket)); \
+	@$(GCP_ENV); \
+	bucket=$$($(call COMPOSER_SAIDA,bucket)); \
 	test -n "$$bucket" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
 	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
 	.venv/bin/python -m mvp_ed1.gcp.composer montar "$$base/gcs" > /dev/null || exit 1; \
@@ -1085,7 +1119,7 @@ gcp-composer-smoke: gcp-preflight ## Janela: as DAGs importam e a diagnostico_co
 	@# Depois do `gcp-composer-segredos` e do `gcp-composer-publicar`, e antes da `fluxo_batch`.
 	@# A CLI do Airflow pelo `gcloud` (grupo `dags`, aceito até o Airflow 3.3.0). A DAG nasce
 	@# pausada: o `unpause` é dela só, e ela não tem agendamento.
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	nome=$$($(call COMPOSER_SAIDA,nome)); \
 	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
 	g() { gcloud composer environments run "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" "$$@"; }; \
@@ -1116,20 +1150,20 @@ DATAFLOW_PREPARAR = base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
 	pacote=$$(ls "$$base"/pacote/*.whl)
 
 gcp-dataflow-tabela: gcp-preflight ## Cria o destino do caminho quente no BigQuery com a ADC do Owner, se não existe (antes do apply com enable_dataflow)
-	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.streaming.dataflow tabela
+	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.streaming.dataflow tabela
 
 gcp-dataflow-validar: gcp-preflight ## Monta o job do Dataflow inteiro sem enviar (dry run, custo zero) e confere conta, máquina, rede e IP
-	@set -a; . ./.env; set +a; $(DATAFLOW_PREPARAR); \
+	@$(GCP_ENV); $(DATAFLOW_PREPARAR); \
 	mkdir -p $(DATAFLOW_EVIDENCIA); \
 	.venv/bin/python -m mvp_ed1.streaming.dataflow validar --terraform "$$base/tf.json" --pacote "$$pacote" \
 		--saida "$(DATAFLOW_EVIDENCIA)/dataflow_job_$$(date -u +%Y%m%dT%H%M%SZ).json"
 
 gcp-dataflow-lancar: gcp-dataflow-validar ## Janela: lança o caminho quente no Dataflow (1 worker, como mvp-streamer); cobra até o gcp-dataflow-parar
-	@set -a; . ./.env; set +a; $(DATAFLOW_PREPARAR); \
+	@$(GCP_ENV); $(DATAFLOW_PREPARAR); \
 	.venv/bin/python -m mvp_ed1.streaming.dataflow lancar --terraform "$$base/tf.json" --pacote "$$pacote"
 
 gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min), cancela se não terminar, e prova que nenhum ficou ativo (§6.5 passo 1)
-	@set -a; . ./.env; set +a; \
+	@$(GCP_ENV); \
 	regiao=$$($(GCP_TF) output -json dataflow | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["regiao"])') || exit 1; \
 	ativos() { gcloud dataflow jobs list --project "$$GCP_PROJECT_ID" --region "$$regiao" --status=active \
 		--filter="name=$(DATAFLOW_JOB)" --format="value(id)"; }; \
@@ -1143,4 +1177,134 @@ gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min)
 	echo "ERRO: ainda há job ativo; o relógio da §6.4 manda escalar"; exit 1
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
-	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
+	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
+
+# ── Desmonte (PLANO_etapa_13 §6.5; quinta, 12/11) ──────────────────────────────────────────────
+# A ordem é a da §6.5. Os planos saem de `make gcp-plan PASSO=n` — o VARS vem do
+# `mvp_ed1.gcp.desmonte`, a janela inteira menos o já desmontado — e o `apply` de cada um é o rito
+# de sempre, com o Owner. Os alvos daqui são os passos sem Terraform: cada um faz a ação e a prova,
+# e falha dizendo o que sobrou. O relógio da §6.4 independe deles.
+DESMONTE_EVIDENCIA := data/medicoes/etapa_13/g7
+
+gcp-desmonte-parar: gcp-preflight gcp-dataflow-parar ## Desmonte, passo 1: Dataflow drenado, DAGs do Composer pausadas sem execução em curso, fluxo das policy tags desligado
+	@# O produtor de movimentos roda no terminal do Owner e para lá, com Ctrl-C: daqui não se vê
+	@# processo de outro terminal sem o risco do `pgrep -f` casar com o próprio comando.
+	@$(GCP_ENV); \
+	nome=$$($(call COMPOSER_SAIDA,nome)); \
+	if test -n "$$nome"; then \
+		g() { gcloud composer environments run "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" "$$@"; }; \
+		for dag in fluxo_batch diagnostico_composer; do g dags pause -- "$$dag" -y > /dev/null || exit 1; done; \
+		for dag in fluxo_batch diagnostico_composer; do \
+			for estado in running queued; do \
+				n=$$(g dags list-runs -- "$$dag" --state "$$estado" -o json 2>/dev/null | .venv/bin/python -c 'import json,sys; t=sys.stdin.read().strip(); print(0 if not t or "No data found" in t else len(json.loads(t)))') || exit 1; \
+				test "$$n" = 0 || { echo "ERRO: $$dag com $$n execução(ões) $$estado; espere terminar (ou marque falha na interface) e repita."; exit 1; }; \
+			done; \
+		done; \
+		echo "gcp-desmonte-parar: DAGs pausadas, nenhuma execução em curso"; \
+	else echo "gcp-desmonte-parar: sem Composer no estado"; fi; \
+	gh variable set MVP_GCP_ATIVO --body false || exit 1; \
+	test "$$(gh variable get MVP_GCP_ATIVO)" = false || { echo "ERRO: MVP_GCP_ATIVO não ficou false."; exit 1; }; \
+	echo "gcp-desmonte-parar: MVP_GCP_ATIVO=false (D79). O produtor, se estiver rodando, para no terminal dele."
+
+gcp-desmonte-slot: gcp-preflight require-cloud-sql-proxy ## Desmonte, passo 3: depois do plano 21, remove do Cloud SQL o slot de replicação do Debezium e prova a ausência
+	@# Sem o Debezium Server (plano 21) o slot fica inativo e segura WAL até a instância sair, e o
+	@# disco não cresce sozinho (`disk_autoresize = false`). A remoção recusa slot ativo: com o
+	@# Debezium de pé, nada sai. O proxy abre e fecha aqui; a senha vai do Secret Manager para o
+	@# ambiente do processo, não para a tela. Usuário e banco são os do `.env` (cloud_sql.tf).
+	@$(GCP_ENV); \
+	conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) || { echo "ERRO: sem Cloud SQL no estado."; exit 1; }; \
+	.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao" > /dev/null 2>&1 & proxy=$$!; \
+	trap 'kill $$proxy 2>/dev/null' EXIT; \
+	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null && break; kill -0 $$proxy 2>/dev/null || break; sleep 1; done; \
+	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
+	senha=$$(gcloud secrets versions access latest --secret mvp-ed1-source-db-password --project "$$GCP_PROJECT_ID") || exit 1; \
+	SOURCE_DB_HOST=127.0.0.1 SOURCE_DB_PORT=$(GCP_SQL_PORTA) SOURCE_DB_PASSWORD="$$senha" \
+		.venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force
+
+gcp-desmonte-kubernetes: gcp-preflight require-kubectl ## Desmonte, passo 4: depois do plano 21, apaga os namespaces do Airbyte e do Debezium e prova que nenhum PV nem load balancer ficou
+	@# O `helm uninstall` do plano 21 não leva os PVCs dos StatefulSets do chart do Airbyte — o banco
+	@# interno e o MinIO (`volumeClaimTemplates` do chart 2.3.0, sem política de retenção) —, e o
+	@# GKE retém disco persistente ao apagar o cluster. O namespace leva os PVCs; o PV dinâmico, de
+	@# política Delete, leva o disco. Só depois disto o plano 22.
+	@$(GCP_ENV); \
+	base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
+	$(GKE_KUBECTL); \
+	for ns in airbyte debezium; do k delete namespace "$$ns" --ignore-not-found --wait=true --timeout=15m || exit 1; done; \
+	lb=$$(k get services -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}/{.metadata.name} {end}') || exit 1; \
+	test -z "$$lb" || { echo "ERRO: Service LoadBalancer de pé: $$lb"; exit 1; }; \
+	for _ in $$(seq 40); do pvs=$$(k get pv -o name) || exit 1; test -z "$$pvs" && break; sleep 15; done; \
+	test -z "$$pvs" || { echo "ERRO: PV ainda no cluster depois de 10 min: $$pvs"; exit 1; }; \
+	echo "gcp-desmonte-kubernetes: namespaces apagados; nenhum PV nem load balancer no cluster"
+
+gcp-desmonte-orfaos: gcp-preflight ## Desmonte, passo 5: depois do plano 22, prova que o GKE e o Composer não deixaram disco, instância, load balancer nem firewall
+	@$(GCP_ENV); \
+	falhou=; \
+	listar() { gcloud compute "$$@" --project "$$GCP_PROJECT_ID" --format="value(name)"; }; \
+	for categoria in "disks list" "instances list" "instance-groups list" "forwarding-rules list" \
+		"backend-services list" "health-checks list" "target-pools list" "network-attachments list"; do \
+		achados=$$(listar $$categoria) || exit 1; \
+		test -z "$$achados" || { echo "ÓRFÃO ($$categoria): $$achados"; falhou=1; }; \
+	done; \
+	achados=$$(listar addresses list --filter="name!=mvp-ed1-servicos-privados") || exit 1; \
+	test -z "$$achados" || { echo "ÓRFÃO (addresses list): $$achados"; falhou=1; }; \
+	achados=$$(listar firewall-rules list --filter="network~/mvp-ed1$$") || exit 1; \
+	test -z "$$achados" || { echo "ÓRFÃO (firewall-rules na mvp-ed1): $$achados"; falhou=1; }; \
+	test -z "$$falhou" || exit 1; \
+	echo "gcp-desmonte-orfaos: nada do GKE nem do Composer sobrou no Compute Engine"
+
+gcp-desmonte-sql: gcp-preflight ## Desmonte, passo 7: depois do plano 23, prova que nenhuma instância do Cloud SQL nem backup retido ficou
+	@# `--instance=-` lista os backups de todas as instâncias, inclusive os retidos de instância
+	@# apagada (`retain_backups_on_delete`, explícito `false` no cloud_sql.tf).
+	@$(GCP_ENV); \
+	instancias=$$(gcloud sql instances list --project "$$GCP_PROJECT_ID" --format="value(name)") || exit 1; \
+	test -z "$$instancias" || { echo "ERRO: instância do Cloud SQL de pé: $$instancias"; exit 1; }; \
+	backups=$$(gcloud sql backups list --instance=- --project "$$GCP_PROJECT_ID" --format="value(id,instance)") || exit 1; \
+	test -z "$$backups" || { echo "ERRO: backup retido: $$backups"; exit 1; }; \
+	echo "gcp-desmonte-sql: nenhuma instância nem backup do Cloud SQL no projeto"
+
+gcp-desmonte-linhagem: gcp-preflight ## Desmonte, passo 8: antes do plano 24, apaga os processos da Data Lineage API; recusa sem a captura de tela da linhagem (G5)
+	@# Os processos não têm `destroy` (ninguém os declarou no Terraform), e a captura de tela é a
+	@# evidência que fica da linhagem: sem o arquivo, nada se apaga.
+	@ls docs/registro_fase_gcp/capturas/*linhagem* > /dev/null 2>&1 \
+		|| { echo "ERRO: sem captura da linhagem em docs/registro_fase_gcp/capturas/ (G5); tire-a antes."; exit 1; }
+	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.desmonte linhagem
+
+gcp-desmonte-inventario: gcp-preflight ## Desmonte, passo 9: o Cloud Asset Inventory do projeto contra src/mvp_ed1/gcp/residuos_esperados.yml; falha listando cada resíduo
+	@# O inventário atrasa: recurso apagado há minutos ainda pode aparecer. Resíduo listado se
+	@# confere na consola antes de virar ação; repetir o alvo minutos depois faz parte da prova.
+	@$(GCP_ENV); mkdir -p $(DESMONTE_EVIDENCIA); \
+	quando=$$(date -u +%Y%m%dT%H%M%SZ); \
+	gcloud asset search-all-resources --scope="projects/$$GCP_PROJECT_ID" --format=json \
+		> "$(DESMONTE_EVIDENCIA)/inventario_$$quando.json" || exit 1; \
+	.venv/bin/python -m mvp_ed1.gcp.desmonte inventario --entrada "$(DESMONTE_EVIDENCIA)/inventario_$$quando.json" \
+		--saida "$(DESMONTE_EVIDENCIA)/residuos_$$quando.json"
+
+gcp-desmonte-orcamento: gcp-preflight ## Desmonte, passo 10: depois do plano 25, prova que o orçamento saiu da conta de faturamento
+	@$(GCP_ENV); \
+	conta=$$(sed -n 's/^billing_account_id *= *"\(.*\)"/\1/p' terraform/terraform.tfvars); \
+	test -n "$$conta" || { echo "ERRO: billing_account_id ausente no terraform.tfvars."; exit 1; }; \
+	achados=$$(gcloud billing budgets list --billing-account="$$conta" --filter='displayName="mvp-ed1 Etapa 13"' --format="value(name)") || exit 1; \
+	test -z "$$achados" || { echo "ERRO: o orçamento continua na conta: $$achados"; exit 1; }; \
+	echo "gcp-desmonte-orcamento: nenhum orçamento 'mvp-ed1 Etapa 13' na conta de faturamento"
+
+gcp-desligar-faturamento: gcp-preflight ## §6.4, qui 12/11 12:00 — camada 2: desvincula o faturamento (CONFIRMA=<id do projeto>) e guarda a prova billingEnabled=false
+	@$(GCP_ENV); \
+	test "$(CONFIRMA)" = "$$GCP_PROJECT_ID" || { echo "ERRO: para todo recurso pago do projeto; repita com CONFIRMA=$$GCP_PROJECT_ID."; exit 1; }; \
+	mkdir -p $(DESMONTE_EVIDENCIA); saida="$(DESMONTE_EVIDENCIA)/faturamento_$$(date -u +%Y%m%dT%H%M%SZ).json"; \
+	gcloud billing projects unlink "$$GCP_PROJECT_ID" > /dev/null || exit 1; \
+	gcloud billing projects describe "$$GCP_PROJECT_ID" --format=json > "$$saida" || exit 1; \
+	.venv/bin/python -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("billingEnabled") is False or "billingEnabled" not in d else 1)' "$$saida" \
+		|| { echo "ERRO: o faturamento continua ligado ($$saida); o Owner desliga pela consola."; exit 1; }; \
+	echo "gcp-desligar-faturamento: billingEnabled=false · $$saida"
+
+gcp-apagar-projeto: gcp-preflight ## §6.4, qui 12/11 15:00 — camada 3, com o Owner: pede a exclusão do projeto (CONFIRMA=<id do projeto>) e guarda o DELETE_REQUESTED
+	@# Depois da exclusão a cota não pode mais ir para o projeto: a conferência usa o projeto padrão
+	@# do `gcloud` (sem o CLOUDSDK_CORE_PROJECT).
+	@$(GCP_ENV); \
+	test "$(CONFIRMA)" = "$$GCP_PROJECT_ID" || { echo "ERRO: pede a exclusão do projeto inteiro; repita com CONFIRMA=$$GCP_PROJECT_ID."; exit 1; }; \
+	mkdir -p $(DESMONTE_EVIDENCIA); saida="$(DESMONTE_EVIDENCIA)/projeto_$$(date -u +%Y%m%dT%H%M%SZ).json"; \
+	gcloud projects delete "$$GCP_PROJECT_ID" --quiet || exit 1; \
+	env -u CLOUDSDK_CORE_PROJECT gcloud projects describe "$$GCP_PROJECT_ID" --format=json > "$$saida" || exit 1; \
+	estado=$$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("lifecycleState",""))' "$$saida"); \
+	test "$$estado" = DELETE_REQUESTED || { echo "ERRO: estado '$$estado', não DELETE_REQUESTED ($$saida)."; exit 1; }; \
+	echo "gcp-apagar-projeto: DELETE_REQUESTED — pedido de exclusão, não eliminação imediata · $$saida"

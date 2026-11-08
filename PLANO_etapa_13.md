@@ -491,28 +491,56 @@ Independe do sucesso de qualquer passo da §6.5. Responsável: o Owner, com o Cl
 
 ### 6.5 A ordem do desmonte (RV13-1-02)
 
-Cada passo tem ação e prova; a rede, o IAM e as APIs ficam de pé até o último.
+Cada passo tem ação e prova; a rede, o IAM e as APIs ficam de pé até o último. Os planos saem de
+`make gcp-plan PASSO=n`, e o `VARS` de cada um vem de `mvp_ed1.gcp.desmonte`: a janela inteira
+ligada, menos o que já foi desmontado. O `apply` é o rito da §6.3, `make gcp-apply PASSO=n`. A
+guarda do `gcp-plan` recusa plano de desmonte que cria, e plano de construção que destrói. Os
+passos sem Terraform são alvos `gcp-desmonte-*`, e cada um falha dizendo o que sobrou
+([Registro §30](docs/registro_fase_gcp.md#30-g7-o-desmonte-em-alvos-do-make-08112026-madrugada)).
 
-1. **Parar quem produz:** pausar a DAG; parar o produtor; **drenar e cancelar o *job* Dataflow**
-   (`gcloud dataflow jobs list --status=active` vazio); **desligar o fluxo das *policy tags***
-   (`gh variable set MVP_GCP_ATIVO --body false`, D79) — sem isso, o próximo *push* do YAML
-   tentaria autenticar num projeto apagado.
-2. **Composer** (`destroy` do módulo) e o *bucket* dele, se sobrar.
-3. **Debezium Server** (`helm uninstall`), e o *slot* de replicação **removido no Cloud SQL**
-   (`pg_drop_replication_slot`) enquanto o Cloud SQL existe.
-4. **Airbyte** (`helm uninstall`) com a API do Kubernetes ainda disponível; apagar *Services* do tipo
-   *LoadBalancer*, PVCs e PVs — o GKE **retém** discos persistentes ao apagar o *cluster*
-   ([deleting-a-cluster](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deleting-a-cluster)).
-5. **GKE** (`destroy`); conferir discos e *forwarding rules* órfãos.
-6. **Retenção do *bucket* do livro removida** (D70), depois o `destroy` de todos os *buckets*
-   (`force_destroy`), incluindo os do Beam.
-7. **Cloud SQL** (`destroy`), conferindo que nenhum *backup* ficou retido.
-8. **BigQuery, Pub/Sub, Secret Manager, taxonomias, IAM, rede** (`destroy`).
-9. **Inventário de resíduos** (`gcloud asset search-all-resources --scope=projects/<id>`):
-   esperado vazio, salvo uma **lista identificada** do que o projeto cria por padrão; cada item fora
-   dela tem ação e prova, não só registro.
-10. **Orçamento** apagado da conta de faturamento (não sai com o projeto).
-11. Camadas 2 e 3 no relógio da §6.4.
+1. **Parar quem produz** — `make gcp-desmonte-parar`:
+   - drena o *job* Dataflow pelo `gcp-dataflow-parar` (`gcloud dataflow jobs list --status=active`
+     vazio);
+   - pausa as DAGs e recusa seguir com execução em curso;
+   - **desliga o fluxo das *policy tags*** (`gh variable set MVP_GCP_ATIVO --body false`, D79). Sem
+     isso, o próximo *push* do YAML tentaria autenticar num projeto apagado.
+
+   O produtor para no terminal dele.
+2. **Composer** e o *bucket* dele (`force_destroy`), com o IAM do Dataflow:
+   `make gcp-plan PASSO=2` (`20_desmonte_composer`).
+3. **Debezium Server** e **Airbyte** (`helm uninstall`) com a API do Kubernetes ainda disponível:
+   `make gcp-plan PASSO=3` (`21_desmonte_aplicacoes`). Depois, o *slot* de replicação **removido
+   no Cloud SQL** (`pg_drop_replication_slot`) enquanto o Cloud SQL existe:
+   `make gcp-desmonte-slot`.
+4. **PVCs e PVs**: `make gcp-desmonte-kubernetes` apaga os *namespaces* e prova que nenhum PV nem
+   *Service* *LoadBalancer* ficou. O GKE **retém** discos persistentes ao apagar o *cluster*
+   ([deleting-a-cluster](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/deleting-a-cluster)),
+   e o `helm uninstall` não leva os PVCs dos StatefulSets do Airbyte.
+5. **GKE**: `make gcp-plan PASSO=5` (`22_desmonte_gke`). Depois, discos, *forwarding rules* e
+   regras de *firewall* órfãos: `make gcp-desmonte-orfaos`.
+6. **Retenção do *bucket* do livro removida** (D70), no mesmo plano do passo 7
+   (`ledger_retention_seconds = 0`). Os *buckets*, incluindo os do Beam, saem com
+   `force_destroy` no passo 8, com o resto do degrau barato, que é o interruptor deles.
+7. **Cloud SQL**: `make gcp-plan PASSO=7` (`23_desmonte_cloud_sql`). Depois,
+   `make gcp-desmonte-sql` confere que nenhum *backup* ficou retido.
+8. **Linhagem, depois BigQuery, *buckets*, Pub/Sub, Secret Manager, taxonomias, IAM e rede**:
+   - `make gcp-desmonte-linhagem` apaga os processos da Data Lineage API. Recusa sem a captura de
+     tela do G5;
+   - em seguida, `make gcp-plan PASSO=8` (`24_desmonte_barato`). O *peering* dos serviços
+     privados sai com `REMOVE_PEERING` (`terraform/rede.tf`).
+9. **Inventário de resíduos** (`gcloud asset search-all-resources --scope=projects/<id>`) —
+   `make gcp-desmonte-inventario`:
+   - esperado vazio, salvo a **lista identificada** do que o projeto cria por padrão
+     (`src/mvp_ed1/gcp/residuos_esperados.yml`, medida em 08/11);
+   - cada item fora dela tem ação e prova, não só registro.
+10. **Orçamento** apagado da conta de faturamento (não sai com o projeto):
+    `make gcp-plan PASSO=10` (`25_desmonte_raiz`, `-destroy`). Depois,
+    `make gcp-desmonte-orcamento`.
+11. Camadas 2 e 3 no relógio da §6.4:
+    - `make gcp-desligar-faturamento CONFIRMA=<id>`;
+    - `make gcp-apagar-projeto CONFIRMA=<id>`.
+
+    Cada um guarda a prova em `data/medicoes/etapa_13/g7/`.
 
 ---
 

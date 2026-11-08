@@ -1,0 +1,42 @@
+# O que o inventário do desmonte aceita (PLANO_etapa_13 §6.5 passo 9): o que o projeto cria por
+# padrão, ou o Google cria ao ligar uma API, e que nenhum `destroy` desta raiz leva. Tudo o mais que
+# o `gcloud asset search-all-resources` listar é resíduo, e o `make gcp-desmonte-inventario` falha.
+#
+# **Medido**, não suposto: o inventário de 08/11/2026 do projeto com o degrau barato aplicado
+# (Registro §30) — 870 recursos, 21 tipos; os 9 tipos abaixo são os que não vêm do Terraform. O que
+# o Composer, o GKE, o Cloud SQL e o Dataflow criarem por padrão só se conhece na janela: se o
+# inventário de quinta listar algo fora daqui, ou ele tem ação e prova, ou entra aqui com a medida.
+#
+# `nome` é uma expressão regular procurada no nome completo do recurso; sem ela, o tipo inteiro.
+# Tudo aqui sai com a exclusão do projeto (§6.4, camada 3).
+padrao:
+  - tipo: cloudresourcemanager.googleapis.com/Project
+    motivo: o próprio projeto
+  - tipo: cloudbilling.googleapis.com/ProjectBillingInfo
+    motivo: o vínculo com a conta de faturamento; desfeito na camada 2 (§6.4), não pelo Terraform
+  - tipo: compute.googleapis.com/Project
+    motivo: os metadados do Compute Engine do projeto
+  - tipo: serviceusage.googleapis.com/Service
+    motivo: as APIs ligadas; `disable_on_destroy = false` em `terraform/fundacao.tf`, de propósito
+  # A VPC `default` e o que nasce com ela, criada ao ligar o Compute Engine (o projeto não tem a
+  # política de organização que a pula). Nenhum recurso do projeto a usa: a rede é a `mvp-ed1`.
+  - tipo: compute.googleapis.com/Network
+    nome: /global/networks/default$
+    motivo: a VPC padrão
+  - tipo: compute.googleapis.com/Subnetwork
+    nome: /subnetworks/default$
+    motivo: as sub-redes automáticas da VPC padrão, uma por região
+  - tipo: compute.googleapis.com/Firewall
+    nome: /firewalls/default-allow-(icmp|internal|rdp|ssh)$
+    motivo: as quatro regras da VPC padrão
+  # O inventário não diz a rede de uma rota. Aceitar `default-route-*` é seguro porque uma rota assim
+  # só existe com a rede dela, e uma rede que não seja a `default` já é resíduo pela regra acima.
+  - tipo: compute.googleapis.com/Route
+    nome: /routes/default-route-
+    motivo: as rotas automáticas de cada sub-rede e a de saída da VPC padrão
+  - tipo: iam.googleapis.com/ServiceAccount
+    nome: /serviceAccounts/[0-9]+-compute@developer\.gserviceaccount\.com$
+    motivo: a conta padrão do Compute Engine
+  - tipo: dataplex.googleapis.com/EntryGroup
+    nome: /entryGroups/@[a-z]+$
+    motivo: os grupos de entradas de sistema do catálogo (`@bigquery`, `@pubsub`, …)
