@@ -902,13 +902,16 @@ make gcp-quente-conferir
 Repita até não aparecer `PENDENTE`: o *worker* lê o acumulado da assinatura, guardado por uma
 semana. Os alertas lidos aparecem embaixo.
 
-**Passo 18 — movimentos novos, ao vivo.**
+**Passo 18 — movimentos novos, ao vivo, e a latência.** O alvo emite 200 movimentos e consulta o
+destino a cada 5 s até ver todos.
 
 ```
-make gcp-quente-produzir LIMITE=200
+make gcp-quente-latencia
 ```
 
-E então, repetindo até não aparecer `PENDENTE`:
+Deve imprimir `p50_s`, `p95_s` e `max_s` com `"completo": true`, e guardar o relatório em
+`data/medicoes/etapa_13/g23/`. É a latência que um leitor do destino vê: do `recorded_at` na origem
+até a primeira consulta que mostra o evento, com resolução de 5 s. Depois, uma vez:
 
 ```
 make gcp-quente-conferir
@@ -997,10 +1000,10 @@ elas já foram aplicadas: siga.
 make gcp-composer-fluxo
 ```
 
-Enquanto ela roda, num **segundo terminal**:
+Enquanto ela roda, num **segundo terminal**, a latência com o *batch* junto:
 
 ```
-make gcp-quente-produzir LIMITE=500
+make gcp-quente-latencia LIMITE=500
 ```
 
 O primeiro terminal deve terminar com `fluxo_batch: … terminou com sucesso`. O estado e a duração de
@@ -1038,7 +1041,7 @@ make gcp-jobs-auditoria
 
 Agora são quatro *jobs* da conexão legada e quatro tentativas: os três da terça e o da `fluxo_batch`.
 
-**Passo 14 — as *tags* e a paridade.**
+**Passo 14 — as *tags*, a paridade e o tamanho.**
 
 ```
 make gcp-tags-inventario
@@ -1047,6 +1050,13 @@ make gcp-tags-inventario
 ```
 make gcp-oraculos
 ```
+
+```
+make gcp-armazem-tamanho
+```
+
+O último imprime, por *dataset*, as tabelas, as linhas e os bytes lógicos, e guarda o relatório em
+`data/medicoes/etapa_13/g6/`. É o "tamanho por *dataset*" da §7.2.
 
 **20:00 — o ponto de decisão.** O Claude Code registra o que passou e o que não rodou, e o que não
 rodou vira pendência.
@@ -1080,14 +1090,6 @@ make gcp-apply PASSO=2
 
 Se às 22:00 o Composer ou o Dataflow ainda estiverem de pé, vale o relógio da §6.4: uma hora para
 removê-los pelo `gcloud`, e depois a consola, por você.
-
-**O que este roteiro não mede:**
-
-- a latência do caminho quente: o `gcp-quente-conferir` diz se o destino alcançou a origem, e não
-  em quanto tempo;
-- o tamanho por *dataset*.
-
-As duas linhas da §7.2 ficam **não medidas**, salvo leitura na consola durante a janela.
 
 ---
 

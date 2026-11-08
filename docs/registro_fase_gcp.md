@@ -1391,3 +1391,50 @@ legada, a `fluxo_batch` com o *streaming* junto, as provas da §7.2, a exportaç
 - a matriz sobre a captura real, que é o passo 11 da §6.9;
 - a latência do caminho quente e o tamanho por *dataset* da §7.2. Nenhum alvo os mede, e o roteiro
   os declara não medidos, salvo leitura na consola.
+
+## 36. As duas medidas da §7.2 que faltavam: a latência e o tamanho (08/11/2026, manhã)
+
+O §35 deixou duas linhas da §7.2 sem alvo. Agora têm.
+
+**A latência de ponta a ponta, por observação** (`make gcp-quente-latencia`,
+`mvp_ed1.gcp.quente latencia`). O destino não tem coluna de gravação: as colunas são as do evento,
+`occurred_at`, `recorded_at` e `_stream_extracted_at`. Então a latência se mede de fora:
+
+1. o corte da origem;
+2. o produtor solto em segundo plano;
+3. o destino consultado a cada 5 s.
+
+Cada evento vivo conta do `recorded_at`, que o produtor grava com o relógio desta máquina, até a
+primeira consulta que o vê, com o relógio do BigQuery. O alvo falha se não vir todos em 15 min.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A47 | Latência **observada**, com resolução de 5 s, e não uma coluna de gravação no destino | uma coluna nova mudaria o contrato do destino (`sink.tabela`, a D75) às vésperas da janela, pedindo dbt e testes de novo; a observação mede o que um leitor do destino vê | `_written_at` no `GravarEventos` e no DDL |
+| A48 | Tamanho pelos **bytes lógicos** da `__TABLES__` de cada *dataset* | a `INFORMATION_SCHEMA.TABLE_STORAGE` da região, que daria também os físicos, recusou a ADC (403) | a permissão no projeto e a `TABLE_STORAGE` |
+
+**O tamanho por *dataset*** (`make gcp-armazem-tamanho`): tabelas, linhas e bytes lógicos.
+
+**Medido** (o estado de desenvolvimento de hoje, que o zerar da terça apaga):
+
+| *Dataset* | Tabelas | Linhas | MiB lógicos |
+|---|---:|---:|---:|
+| `analytics` | 25 | 144.709 | 45,5 |
+| `consumption` | 16 | 0 (*views*) | 0,0 |
+| `governance` | 2 | 762 | 0,2 |
+| `quarantine` | 2 | 2.855 | 1,7 |
+| `raw` | 37 | 266.036 | 40,5 |
+| `raw_legacy` | 40 | 446.063 | 82,3 |
+| `snapshots` | 4 | 2.222 | 0,6 |
+| `staging` | 77 | 12.742 | 3,4 |
+| `trusted` | 75 | 505.717 | 110,0 |
+
+[medido, `data/medicoes/etapa_13/g6/tamanho_desenvolvimento_20261108.json`]. É a cópia local e os
+`dbt build` de ensaio, e não a medida da janela: essa sai do passo 14 da §6.9.
+
+**Nos roteiros:**
+
+- o passo 18 da terça (§6.8) passou a ser o `gcp-quente-latencia`;
+- o segundo terminal da `fluxo_batch` na quarta (§6.9, passo 9) mede a latência com o *batch* junto;
+- o passo 14 da quarta mede o tamanho.
+
+**Não medido:** a latência real, que só existe com o Debezium e o Dataflow de pé.
