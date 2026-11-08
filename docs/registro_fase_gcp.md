@@ -940,3 +940,77 @@ Duas coisas do caminho até aí:
   dispara *job* e não depende dele.
 
 A máquina voltou ao estado de antes: Airflow de pé; Airbyte e *streaming* pausados.
+
+## 28. G2.4 e G3: o Composer em Terraform (07/11/2026, noite)
+
+**A pergunta que o desenho fez antes do código:** o ambiente tem **uma** conta de serviço, e a DAG
+faz duas coisas que o ADR-0011 separa — a captura do legado (papel `ingestor`: escreve `governance`
+e o livro) e o dbt (papel `transformer`). Até aqui, no GCP, tudo rodou com a ADC do Owner.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| D81 (Owner, 07/11) | Conta própria do ambiente, `mvp-composer`, só com `composer.worker` e a leitura dos segredos de que a DAG precisa; ela **personifica**, por token de curta duração, o `ingestor` nas tarefas Python e o `transformer` no dbt | os cinco papéis do ADR-0011 ficam como estão, e nenhuma conta de papel ganha o que a outra tem; as alternativas eram um sexto papel com a união das concessões (ADR novo, e o dbt passaria a escrever `raw`) ou rodar como `transformer` com as do `ingestor` somadas | conta do ambiente = uma conta de papel, e as concessões somadas a ela |
+
+**O que nasceu**, só em código e em plano, nenhum `apply`:
+
+- **`terraform/composer.tf`** (`enable_composer`): o ambiente Composer 3 na imagem do G2.4,
+  *preset* *small*, ligado à VPC por um *network attachment* que ele mesmo cria na sub-rede; os três
+  pacotes de `airflow/requirements-composer.txt`, lidos do mesmo arquivo da prova local; a conta
+  `mvp-composer` com `composer.worker`, `serviceAccountTokenCreator` só no `ingestor` e no
+  `transformer`, e a leitura **segredo a segredo** dos quatro de que a DAG precisa; o *bucket* do
+  ambiente declarado, com `force_destroy`.
+- **Segredos pelo *backend* do Secret Manager** (RV13-1-09): prefixo `mvp-ed1`, então a *Variable*
+  `legacy-db-password` é o segredo que o `cloud_sql.tf` já cria. As variáveis de ambiente do Composer
+  levam só o que não é segredo — o teste confere. A DAG lia tudo do ambiente; a ponte
+  (`mvp_ed1.orquestracao.segredos`) preenche no ambiente da tarefa **só o que falta**, a partir das
+  *Variables*, e no local nada muda. A URL do Airbyte passou a ser lida na hora da chamada (era lida
+  na importação do módulo).
+- **A personificação** (`mvp_ed1.gcp.credenciais`, `MVP_IMPERSONATE_SA`) nos dois clientes que as
+  tarefas usam — o BigQuery do certificado e o Cloud Storage do livro — e no dbt pelo
+  `impersonate_service_account` do *profile* (`MVP_DBT_IMPERSONATE_SA`). Vazias, como nesta
+  máquina, é a ADC de antes.
+- **O Airbyte para o Composer:** o Service do `airbyte-server` (chart 2.3.0: `airbyte-airbyte-server-svc`,
+  porta 8001, que na edição *community* serve `/api/public` direto — lido no chart em cache do `abctl`)
+  vira *load balancer* **interno** do GKE. Muda o `helm_release` do degrau de terça.
+- **A DAG de diagnóstico** `diagnostico_composer`, só no layout do Composer: seis tarefas que não
+  escrevem nada e perguntam, antes da `fluxo_batch`, o que ela pressupõe — segredos, rede, as duas
+  identidades, a origem com TLS, a época gravável do livro, o Airbyte. O que as duas DAGs partilham
+  (o prefixo do dbt e a ponte) foi para `mvp_ed1.orquestracao`.
+- **Três alvos da janela**, nesta ordem: `gcp-composer-segredos` (credenciais do Airbyte e o IP do
+  *load balancer* do GKE para o Secret Manager, pelo `kubectl`, sem mostrá-los), `gcp-composer-publicar`
+  (o layout no *bucket*) e `gcp-composer-smoke` (importação e a `diagnostico_composer` inteira). O
+  `kubectl` v1.35.10 entrou no `make tools`, fixado pela soma de `dl.k8s.io`.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| A36 | Ambiente de **IP público**, ligado à VPC pelo *attachment* | os pacotes do PyPI se instalam sem Cloud NAT; o tráfego para endereços privados da VPC vai pelo *attachment* | `enable_private_environment = true` e NAT na VPC |
+| A37 | O endereço e as credenciais do Airbyte entram no Secret Manager por um alvo do `make`, não pelo Terraform | nenhum dos dois existe no plano (o bootloader gera as credenciais; o IP nasce com o Service); um *provider* do Kubernetes só para lê-los seria ferramenta nova | `kubernetes_secret_v1` e `kubernetes_service_v1` como *data sources* |
+| A38 | *Smoke test* por uma DAG própria que não escreve, e não por `tasks test` de tarefas da `fluxo_batch` | nenhuma tarefa Python da `fluxo_batch` é livre de efeito: todas tocam a captura | — |
+
+**Medido nesta noite:**
+
+- a personificação, pelos dois caminhos, com a conta `analyst` (a única de papel que a ADC do Owner
+  já pode personificar): o BigQuery respondeu `session_user() = mvp-analyst@…` ao cliente Python e ao
+  `dbt show` do alvo `gcp`; sem a variável, a ADC [medido, `data/medicoes/etapa_13/g2_4/personificacao_d81.txt`];
+- o comando do `dbt_identidade` da DAG de diagnóstico, como o `bash` o recebe: passa com a conta
+  esperada e falha com outra;
+- a **prova do G2.4 refeita** na imagem do Composer com o layout novo (`make gcp-composer-prova
+  TAREFA=dbt_seed`): `pip check` limpo; as duas DAGs importam em 2,2 s, sem erro, a varredura fica
+  nelas (`dags/diagnostico_composer.py`, `dags/fluxo_batch.py`), 15 e 6 tarefas; `dbt_seed` contra o
+  BigQuery **PASS=4** em 37 s, nenhum temporário sobrando [medido,
+  `data/medicoes/etapa_13/g2_4/prova_composer_dbt_seed_20261108T003051Z.json`];
+- **`plan` `10_composer`** com Cloud SQL, GKE e Composer ligados: **36 / 0 / 0** — os 22 dos degraus
+  06 e 08, já revistos, e 14 do Composer; guardado só como texto (A17).
+
+**Não provado, e onde se prova:** que o tráfego que entra pelo *attachment* chega ao **Cloud SQL**,
+do outro lado do *peering* dos serviços privados — a página do Composer 3 fala de "endpoints na sua
+VPC" e não de *peering*. É a tarefa `rede` da `diagnostico_composer`, a primeira depois dos segredos,
+na quarta. Se falhar, o caminho conhecido é o Cloud SQL por Private Service Connect, que o desenho do
+degrau 06 não tem — decisão do Owner na hora. A versão do plano de controle do GKE, para a folga do
+`kubectl`, se lê na terça.
+
+**Um defeito do alvo da prova, e o que se perdeu:** o `gcp-composer-prova` gravava o relatório
+sempre como `prova_composer.json`, e a rodada desta noite sobrescreveu o da prova do §24. O
+conteúdo foi **restaurado** do log daquela rodada, que tinha o JSON inteiro (`dbt_staging`,
+PASS=455, falhas vazias); o alvo agora grava `prova_composer_<tarefa>_<instante UTC>.json` e não
+sobrescreve mais nada.

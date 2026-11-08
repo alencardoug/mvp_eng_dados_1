@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4 e a D80 no G5 (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5 |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5 e a D81 no G2.4 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4 |
 
 ---
 
@@ -261,6 +261,16 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D81 — o Composer roda com conta própria, que personifica as contas de papel (decidida em 07/11/2026)
+
+**Decisão**, a opção recomendada, no G2.4/G3 da Etapa 13: o ambiente do Composer tem uma conta só, e
+a `fluxo_batch` faz trabalho de dois papéis do ADR-0011 — a captura do legado é do `ingestor`, o dbt
+é do `transformer`. A conta do ambiente, `mvp-composer`, tem só `composer.worker`, o *bucket* dele e
+a leitura dos segredos da DAG, e **personifica** por token de curta duração o `ingestor` nas tarefas
+Python e o `transformer` no dbt; os cinco papéis ficam como estão. Descartadas: um sexto papel com a
+união das concessões (ADR novo, e o dbt passaria a escrever `raw`) e rodar como `transformer` com as
+do `ingestor` somadas. Como ficou: [Registro §28](registro_fase_gcp.md#28-g24-e-g3-o-composer-em-terraform-07112026-noite).
 
 ### D80 — a linhagem por coluna é a nativa do BigQuery; o metadado vai em *labels* (decidida em 07/11/2026)
 
