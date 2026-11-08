@@ -53,9 +53,20 @@ locals {
 }
 
 variable "ledger_prefix" {
-  description = "Prefixo da raiz do livro no bucket `<projeto>-livro`: `LEGACY_LEDGER_DIR` é `gs://<bucket>/<prefixo>`, o mesmo do `.env` com que o Owner tira a época inicial."
+  description = "Prefixo da raiz do livro no bucket `<projeto>-livro`: `LEGACY_LEDGER_DIR` é `gs://<bucket>/<prefixo>` (a saída `livro_raiz`)."
   type        = string
   default     = "legado"
+}
+
+# A raiz do livro na nuvem, uma vez só: a do Composer e a da época inicial, que o Owner abre desta
+# máquina (`make gcp-livro-epoca`).
+locals {
+  livro_raiz = var.enable_cheap ? "gs://${google_storage_bucket.this["livro"].name}/${var.ledger_prefix}" : null
+}
+
+output "livro_raiz" {
+  description = "O `LEGACY_LEDGER_DIR` da nuvem: o livro retido no Cloud Storage."
+  value       = local.livro_raiz
 }
 
 resource "google_service_account" "composer" {
@@ -174,7 +185,7 @@ resource "google_composer_environment" "this" {
         MVP_DBT_IMPERSONATE_SA = google_service_account.role["transformer"].email
         # A captura do legado com o certificado no BigQuery e o livro no Cloud Storage (G2.1).
         LEGACY_WAREHOUSE  = "bigquery"
-        LEGACY_LEDGER_DIR = "gs://${google_storage_bucket.this["livro"].name}/${var.ledger_prefix}"
+        LEGACY_LEDGER_DIR = local.livro_raiz
         LEGACY_DB_HOST    = google_sql_database_instance.origens[0].private_ip_address
         LEGACY_DB_PORT    = "5432"
         LEGACY_DB_NAME    = var.cloud_sql_origens["legacy"].database

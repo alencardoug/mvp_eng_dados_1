@@ -29,3 +29,8 @@ resource "google_bigquery_dataset" "layer" {
 
   depends_on = [google_project_service.this]
 }
+
+output "datasets" {
+  description = "Os nove datasets das camadas: o que o `make gcp-armazem-zerar` esvazia e a época inicial confere vazio."
+  value       = var.enable_cheap ? sort(keys(local.datasets)) : []
+}

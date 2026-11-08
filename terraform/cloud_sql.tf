@@ -133,3 +133,8 @@ output "cloud_sql_conexao" {
   description = "O nome de conexão da instância (`projeto:região:instância`), o que o Auth Proxy recebe."
   value       = var.enable_cloud_sql ? google_sql_database_instance.origens[0].connection_name : null
 }
+
+output "cloud_sql_ip_privado" {
+  description = "O IP privado da instância: o que o Airbyte do GKE recebe como host das origens (`make gcp-airbyte-config`)."
+  value       = var.enable_cloud_sql ? google_sql_database_instance.origens[0].private_ip_address : null
+}
