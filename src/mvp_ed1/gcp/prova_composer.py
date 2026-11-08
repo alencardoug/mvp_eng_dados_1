@@ -5,8 +5,9 @@ Roda **dentro** da imagem do Composer (`composer-3-airflow-3.2.2-build.9`), com 
 `airflow/requirements-composer.txt` instalados por cima, como o ambiente faz. Este módulo é
 importado de `dags/mvp_ed1`, não do repositório — é a primeira coisa que ele prova. Depois:
 
-1. a DAG importa pelo processador de DAGs do Airflow, sem erro, com as 15 tarefas, e o
-   `.airflowignore` tira o pacote da varredura;
+1. as duas DAGs do layout importam pelo processador de DAGs do Airflow, sem erro — a `fluxo_batch`
+   com as 15 tarefas, a `diagnostico_composer` com as 6 —, e o `.airflowignore` tira o pacote da
+   varredura;
 2. o comando **da própria tarefa** de dbt pedida, renderizado como o Airflow renderiza, roda no
    layout contra o BigQuery: `cd` pela variável do ambiente, *target* e *logs* num temporário que
    some no fim, e nada escrito em `data/`.
@@ -32,7 +33,8 @@ from pathlib import Path
 from typing import Any
 
 PASTA = Path("/home/airflow/gcs")
-TAREFAS_DA_DAG = 15
+#: As DAGs do layout e o número de tarefas de cada uma.
+TAREFAS = {"fluxo_batch": 15, "diagnostico_composer": 6}
 
 
 def _dagbag(pasta: Path):
@@ -95,15 +97,20 @@ def main(argv: list[str] | None = None) -> int:
     }
     if bag.import_errors:
         relatorio["falhas"].append("erro de importação")
-    if relatorio["importacao"]["arquivos_varridos"] != ["dags/fluxo_batch.py"]:
-        relatorio["falhas"].append("a varredura não ficou só na DAG")
+    if relatorio["importacao"]["arquivos_varridos"] != sorted(f"dags/{d}.py" for d in TAREFAS):
+        relatorio["falhas"].append("a varredura não ficou só nas DAGs")
+    relatorio["tarefas"] = {}
+    for dag_id, esperadas in TAREFAS.items():
+        carregada = bag.dags.get(dag_id)
+        if carregada is None:
+            relatorio["falhas"].append(f"{dag_id} não carregou")
+            continue
+        relatorio["tarefas"][dag_id] = sorted(carregada.task_ids)
+        if len(carregada.task_ids) != esperadas:
+            relatorio["falhas"].append(f"{dag_id}: esperadas {esperadas} tarefas")
     dag = bag.dags.get("fluxo_batch")
     if dag is None:
-        relatorio["falhas"].append("fluxo_batch não carregou")
         return _fim(relatorio, args.saida)
-    relatorio["tarefas"] = sorted(dag.task_ids)
-    if len(dag.task_ids) != TAREFAS_DA_DAG:
-        relatorio["falhas"].append(f"esperadas {TAREFAS_DA_DAG} tarefas")
 
     tarefa = dag.get_task(args.tarefa)
     snapshot = _snapshot_certificado(os.environ["GCP_PROJECT_ID"])

@@ -5,7 +5,8 @@ no `sys.path` e é varrida pelo processador de DAGs, e `data/`, que só é monta
 (`/home/airflow/gcs/data`). O que vai em cada uma está declarado aqui, uma vez, e é o mesmo que a
 prova local monta e que a janela copia para o *bucket*:
 
-* `dags/` — a DAG e o pacote `mvp_ed1` que ela importa, e um `.airflowignore` que tira o pacote da
+* `dags/` — as DAGs (a `fluxo_batch` e a `diagnostico_composer` do *smoke test*) e o pacote
+  `mvp_ed1` que elas importam, e um `.airflowignore` que tira o pacote da
   varredura: módulo do pacote não é arquivo de DAG, e importá-lo como tal só gastaria o *parse*;
 * `data/` — o projeto dbt com os pacotes já instalados (a DAG não roda `dbt deps`) e o glossário,
   ao lado dele, porque os `docs-paths` o leem por `../docs/glossario_de_negocio`.
@@ -29,6 +30,8 @@ RAIZ = Path(__file__).resolve().parents[3]
 #: Pasta no *bucket* → origem no repositório.
 LAYOUT: dict[str, str] = {
     "dags/fluxo_batch.py": "airflow/dags/fluxo_batch.py",
+    # O *smoke test* da janela: só no Composer, fora da pasta que o Airflow local varre.
+    "dags/diagnostico_composer.py": "airflow/composer/diagnostico_composer.py",
     "dags/mvp_ed1": "src/mvp_ed1",
     "data/dbt": "dbt",
     "data/docs/glossario_de_negocio": "docs/glossario_de_negocio",

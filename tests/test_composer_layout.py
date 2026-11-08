@@ -8,19 +8,25 @@ import re
 
 import pytest
 
+from mvp_ed1 import orquestracao
 from mvp_ed1.gcp import composer
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 DAG = (RAIZ / "airflow" / "dags" / "fluxo_batch.py").read_text(encoding="utf-8")
-#: O prefixo de todo comando dbt da DAG, como o `bash` o recebe.
-DBT = next(ast.literal_eval(no.value) for no in ast.parse(DAG).body
-           if isinstance(no, ast.Assign) and getattr(no.targets[0], "id", None) == "DBT")
+DIAGNOSTICO = (RAIZ / "airflow" / "composer" / "diagnostico_composer.py").read_text(encoding="utf-8")
+ORQUESTRACAO = (RAIZ / "src" / "mvp_ed1" / "orquestracao.py").read_text(encoding="utf-8")
+#: O prefixo de todo comando dbt das DAGs, como o `bash` o recebe.
+DBT = orquestracao.DBT
 
 
-def test_a_dag_nao_fixa_o_caminho_do_projeto():
-    codigo = [no for no in ast.parse(DAG).body if not isinstance(no, ast.Expr)]  # sem a docstring
-    assert "/opt/mvp_ed1" not in "".join(ast.unparse(no) for no in codigo)
+def test_as_dags_nao_fixam_o_caminho_do_projeto():
+    for fonte in (DAG, DIAGNOSTICO, ORQUESTRACAO):
+        codigo = [no for no in ast.parse(fonte).body if not isinstance(no, ast.Expr)]  # sem a docstring
+        assert "/opt/mvp_ed1" not in "".join(ast.unparse(no) for no in codigo)
     assert DBT.startswith('cd "${MVP_PROJECT_DIR:?')
+    # As duas DAGs usam o mesmo prefixo, importado do pacote — nenhuma o reescreve.
+    for fonte in (DAG, DIAGNOSTICO):
+        assert "from mvp_ed1.orquestracao import DBT" in fonte and "mktemp" not in fonte
 
 
 def test_target_e_logs_do_dbt_num_temporario_que_some():
@@ -39,6 +45,7 @@ def test_o_layout_monta_dags_e_data_sem_o_que_e_gerado(tmp_path):
     montados = composer.montar(destino)
     assert montados == sorted([*composer.LAYOUT, "dags/.airflowignore"])
     assert (destino / "dags/fluxo_batch.py").read_text(encoding="utf-8") == DAG
+    assert (destino / "dags/diagnostico_composer.py").read_text(encoding="utf-8") == DIAGNOSTICO
     assert (destino / "dags/mvp_ed1/__init__.py").exists()
     assert (destino / "dags/.airflowignore").read_text(encoding="utf-8") == "mvp_ed1/\n"
     assert (destino / "data/dbt/dbt_project.yml").exists() and (destino / "data/dbt/dbt_packages").is_dir()
