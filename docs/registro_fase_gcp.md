@@ -1548,3 +1548,26 @@ rodada 1 o alvo recusa porta ocupada, e o passo manda fechar o próprio proxy e 
 antes de encerrar (RV13J-2-02). O esperado do T3 da quarta dizia três chaves removidas; são a marca
 e os três clientes da declaração. E `--limite 0` deixava de ser medida vazia aprovada: a amostra
 mínima é um evento (RV13J-2-04).
+
+## 39. A rodada 3 da revisão dos roteiros da janela (08/11/2026, tarde)
+
+A rodada 3 (`high`, só regressão) deu os quatro da rodada 2 como resolvidos, menos o RV13J-2-01, e
+achou 1 bloqueante e 2 ajustes — os três nas provas que a rodada 2 fez nascer:
+
+- **o reinício do Debezium aprovava texto ambíguo** (RV13J-3-01): `previous offset` casa também com
+  `No previous offset found`, e a coleta parava antes de o *pod* decidir se fotografava. As frases
+  agora vêm do código: copiei os *jars* do conector da imagem `quay.io/debezium/connect:3.6.2.Final`
+  desta máquina (sem iniciar o contêiner) e li as mensagens deles — `A previous offset indicating a
+  completed snapshot has been found.`, `Snapshot step 1 - Preparing`, `Starting streaming`,
+  `No previous offset found`. A decisão foi para `mvp_ed1.gcp.debezium_log`: só a passagem ao
+  *streaming* encerra a observação, e só a retomada dita antes dela aprova. A imagem da janela é a
+  3.7.1, **não conferida**; frase mudada dá inconclusivo. O log lido é o do *pod* mais novo;
+- **o teste da resposta perdida passava com reenvio e com conteúdo errado** (RV13J-3-02): agora
+  exige uma submissão só, a busca pelo mesmo id e os eventos devolvidos iguais aos do lote;
+- **a prova do grafo cobrava só que houvesse uma abertura** (RV13J-3-03): `prova_quente.conferir`
+  cobra o par, o limiar e uma travessia possível (de 25–30 para 23 ou 24). A "abertura de 29 para
+  23" deste registro (§19, §26) foi o que **aquela** execução mostrou, e não o que a prova garante.
+
+Sondas da receita do reinício com um `kubectl` dublê, nenhum comando de nuvem: retomada → 0 em 2
+leituras; *offset* e depois *snapshot* → 1; só *offset* → inconclusivo depois de 36 leituras;
+`No previous offset found` com *streaming* → inconclusivo; leitura que falha → 1.
