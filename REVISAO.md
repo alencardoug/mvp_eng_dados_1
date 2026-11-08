@@ -972,3 +972,152 @@ revoga o relógio independente. Isso não certifica duração ou término de cob
 Depois das correções, reavaliar estes mesmos IDs. Validação técnica, decisões pendentes do
 Owner, revisão integral do declarativo e encerramento formal continuam sendo atos distintos.
 
+## Rodada 3 — lote janela
+
+**Changes required.** Resta um bloqueante na prova do reinício do Debezium e dois ajustes na
+cobertura alegada de G2.3. O lote janela ainda **não pode ser fechado**, mesmo separando as
+decisões pendentes do Owner. As correções de proxy, referências e amostra mínima estão resolvidas.
+
+### Escopo e versão
+
+Revisão independente em 08/11/2026, `main`, HEAD
+`5328b10b6bc2adec4a679d16655326233ac27c09`. Base `069e1bb`; exclusivamente os commits
+`6739d58`, `a17b994` e `5328b10` (8 arquivos). O arquivo de testes já existia na base: o caso
+de resposta perdida é novo. Conferidos o diff, as respostas da rodada 2, AGENTS.md, CLAUDE.md,
+a skill local [revisao](.claude/skills/revisao/SKILL.md), §G2.3, §§6.6–6.9 e Registro §§37–38,
+com rastreamento dos módulos chamados. Estado inicial limpo; somente este relatório foi editado.
+As rodadas anteriores permanecem preservadas. Não houve subagentes nem acesso ao projeto GCP.
+
+### Achados e evidências
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV13J-3-01 | `Makefile:1460–1464`; `PLANO_etapa_13.md:815`, passo 24 | Encontrar `previous offset` encerra a coleta antes de demonstrar retomada sem snapshot | bloqueante | **Corrigido.** Decisão em `mvp_ed1.gcp.debezium_log.veredito`, com as frases lidas nos *jars* do conector 3.6.2 da imagem local (Registro §39): `Snapshot step 1 - Preparing` → falha; `A previous offset indicating a completed snapshot has been found.` antes de `Starting streaming` → passa; *streaming* sem ela (inclui `No previous offset found`) → inconclusivo; antes do *streaming* → pendente, e a receita lê de novo (36 × 5 s). Log do *pod* mais novo (`--sort-by=.metadata.creationTimestamp`). Teste parametrizado com os casos da sonda da rodada; sonda da receita com `k` dublê: retomada 0, *offset* depois *snapshot* 1, só *offset* 2 (36 leituras), sem *offset* 2, leitura falha 1. A 3.7.1 da janela não foi conferida e está declarada. |
+| RV13J-3-02 | `tests/test_caminho_quente_nuvem.py:211–229`; `PLANO_etapa_13.md:812` | O teste novo passa com MERGE adicional e com conteúdo incorreto nas linhas devolvidas | ajuste | **Corrigido.** O teste exige `submetidos == perdidos` (uma submissão do MERGE), o id perdido entre os buscados por `get_job`, e os eventos devolvidos iguais aos do lote; a tabela do G2.3 separa a escrita provada do saldo e alerta, garantidos pelo desenho. Segue nunca rodado no BigQuery real (passo 3 da terça). |
+| RV13J-3-03 | `PLANO_etapa_13.md:816`; `src/mvp_ed1/gcp/prova_quente.py:140–152` | A tabela declara provado um alerta de 29 para 23, mas o comando não confere seu conteúdo | ajuste | **Corrigido.** `prova_quente.conferir` (extraída do `main`, testável): exatamente uma abertura, no par (1, 2), limiar 25, de 25–30 para 23 ou 24, saldo durável 23. `tests/test_prova_quente.py`: as travessias possíveis passam; as mutações da sonda da rodada (só `motivo`, 999/-999, par 999, limiar, travessia impossível) reprovam. Tabela do G2.3 sem o 29→23 fixo. |
+
+**RV13J-3-01 — alta.** O laço para na primeira ocorrência de `previous offset`, mesmo sem
+`Starting streaming`. Uma coleta contendo apenas o offset passa imediatamente; se a próxima
+coleta trouxesse `Snapshot step 1`, ela nunca seria feita. Além disso, o padrão aceita uma frase
+negativa como `No previous offsets found`. Não se está afirmando que essa frase seja a emitida
+pela versão fixada: o defeito demonstrado é aceitar texto ambíguo como prova positiva e encerrar
+a observação antes da decisão de snapshot.
+
+Sonda executada com a receita extraída do Makefile, `k` como função Bash fictícia e `sleep`
+sem espera; nenhum executável de nuvem chamado:
+
+```text
+vazio                       rc=2 leituras=24
+erro_leitura                rc=1 leituras=1
+snapshot                    rc=1 leituras=1
+offset_e_snapshot           rc=1 leituras=1
+sem_offset                  rc=0 leituras=1
+offset_antes_snapshot       rc=0 leituras=1
+retomada                    rc=0 leituras=1
+```
+
+No caso `offset_antes_snapshot`, o dublê acrescentaria o marcador de snapshot na segunda leitura.
+O log vazio ou cuja leitura falha é recusado corretamente; o snapshot já presente também.
+Corrigir a prova para esperar um marco inequívoco de retomada em streaming, com contexto positivo
+de offsets e sem snapshot no log completo desse início do pod; ausência de prova termina
+inconclusiva. Conferir as mensagens da 3.7.1. O teste novo em `test_composer_cli.py` só confere
+texto/ordem dos `grep` e não detecta esses falsos sucessos. A alegação da Situação de RV13J-2-01
+e do Registro §38 excede o que essa receita garante.
+
+**RV13J-3-02 — média.** A interceptação está corretamente ligada: `real.cliente` é usado por
+`BigQuery._consultar`, `rotulo="caminho_quente"` gera `mvp_caminho_quente_*`, e `ConnectionError`
+é capturado por `_perdas()` via `OSError`. O teste exige que a interceptação aconteça e detecta
+retorno vazio ou com IDs a mais. Entretanto, não conta submissões nem compara o conteúdo completo
+dos eventos retornados.
+
+Executado o corpo do teste novo em memória, passando um `BigQuery` real do código com cliente
+fictício, sem invocar a fixture GCP. Na contraprova de reenvio, `_esperar` submete outro MERGE
+com novo ID e os mesmos parâmetros, e depois recupera o job original. Na de conteúdo, o sink
+devolve os mesmos IDs com `quantity_delta=999`:
+
+```text
+atual                    PASSOU          MERGEs=2 get_job=1
+reenvia_novo_job          PASSOU          MERGEs=3 get_job=1
+retorno_vazio            AssertionError  MERGEs=1 get_job=1
+retorno_extra            AssertionError  MERGEs=1 get_job=1
+retorno_conteudo_errado   PASSOU          MERGEs=2 get_job=1
+```
+
+As duas submissões normais incluem o reenvio **intencional** do lote na última asserção; o
+mutante acrescenta uma submissão durante a recuperação da resposta. Isso demonstra insuficiência
+do teste, não reenvio na implementação atual. Contar submissões e recuperação pelo mesmo ID
+durante a chamada interceptada, e comparar os eventos completos. Saldo e alerta nesse cenário
+continuam sem execução do grafo: a tabela deve distinguir o contrato testado do sink da prova
+de ponta a ponta exigida por §G2.3, como já faz para o reenvio fora da deduplicação.
+
+**RV13J-3-03 — média.** A nova linha atribui ao comando a prova de “quais eventos foram ao
+alerta” e de uma transição exata. O verificador exige somente uma mensagem com
+`motivo="abertura"`, cinco IDs no destino e soma durável 23. O próprio comentário admite abertura
+em 23 **ou 24**, conforme os painéis. A existência de uma abertura não prova seu saldo, chave ou
+proveniência.
+
+Contraprova sem serviços: executado por AST apenas o trecho original que monta `falhas`, com
+os IDs esperados e saldo durável 23. Tanto `{'motivo': 'abertura'}` quanto uma abertura com
+`quantity_before=999`, `quantity_on_hand=-999`, `warehouse_id=999` e
+`product_variant_id=999` produziram `falhas=[]`. O código do verificador precede estes commits;
+o achado é a **nova atribuição de prova** na tabela. Ajustar o mapa ao que é conferido, ou
+acrescentar uma verificação do alerta que respeite as ordens de painéis válidas; não fixar 29→23
+como resultado garantido. A revisão não executou o grafo real.
+
+### Estado de RV13J-2-01…04
+
+| ID | Estado nesta revisão | Evidência |
+|---|---|---|
+| RV13J-2-01 | parcialmente resolvido | Concorrência da mesma chave, recuperação no mesmo job e reenvio fora da deduplicação agora têm lacunas explícitas; G2.3 é declarado incompleto e a decisão é remetida ao Owner. Restam RV13J-3-01…03. A cobertura de RV13J-1-10 continua parcial. |
+| RV13J-2-02 | resolvido | §6.6 passo 5 manda fechar o proxy próprio e repetir; processo desconhecido exige identificação. Concorda com `GCP_PORTA_LIVRE`; nenhuma reutilização prometida. |
+| RV13J-2-03 | resolvido | Mapa do Registro §38 confere com os comandos atuais: T3 terça 19, matriz quarta 12, tamanho quarta 15, latência terça 27. T3 quarta reconhece uma marca e três clientes, conforme declaração e diário. |
+| RV13J-2-04 | resolvido | Sondas com 0, -1 e -20: função lança `ValueError`, CLI sai com 2 antes de criar cliente/produtor. Amostra vazia com mínimo 1 retorna `completo=False`. |
+
+Não foi identificada reabertura de outro achado da rodada 1 neste recorte. A coluna Situação
+da rodada 2 foi confrontada com a evidência, sem alterar as respostas do autor.
+
+### Verificações executadas
+
+`make check-offline`, rc 0:
+
+```text
+revisão de segredos: nada encontrado nos arquivos rastreados
+docs-check: 121 documentos, 1193 links de arquivo, 235 âncoras, 728 citações de ADR — nada quebrado
+1068 passed, 16 skipped, 188 deselected in 219.54s (0:03:39)
+check-offline: as três etapas passaram
+```
+
+Os 16 pulados exigem GCP, incluindo o teste novo; os 188 excluídos são de integração.
+`make secrets-history`, rc 0:
+
+```text
+revisão do histórico: nada não tratado (14 achado(s), todos registrados; 1 blob(s) pulado(s))
+```
+
+O blob pulado é a captura JPG já declarada nas rodadas anteriores. Também executadas as sondas
+Bash, o teste com cliente fictício/mutações, o recorte AST e as entradas inválidas de latência
+descritos acima. `git diff --check` passou; comparação com `git show 5328b10:REVISAO.md`
+confirmou que todo o conteúdo anterior foi preservado como prefixo, e o diff só contém este arquivo.
+Após acrescentar o parecer, os módulos `docs_check` e `secrets_review` passaram novamente
+(rc 0): 1194 links de arquivo, nada quebrado; nenhum segredo encontrado nos arquivos rastreados.
+
+### Limites remanescentes
+
+O teste real novo permanece **não executado**: esta revisão usou dublês e mutações apenas em
+memória; não mediu BigQuery, Pub/Sub, Debezium, Dataflow ou duração da janela. Não foi obtida
+confirmação das frases de log da 3.7.1 nas consultas oficiais limitadas desta rodada; as sondas
+de log são sintéticas. Não foram inspecionados conteúdos de `.env`, banco, plano ou credencial real.
+
+As decisões RV13J-1-01, RV13J-1-09 e RV13J-1-11 permanecem pendentes e reconhecidas pelos
+roteiros. A novidade é a pergunta do Registro §38 sobre entrar com G2.3 incompleto ou cortar o
+caminho quente; este parecer não decide por ela. Os demais limites da rodada 2 não mudaram.
+
+### Passagem por ID
+
+- [ ] **RV13J-3-01:** prova de retomada que não aprove offset negativo/isolado nem snapshot
+  posterior; manter recusa de leitura falha, vazio inconclusivo e evidência do pod novo.
+- [ ] **RV13J-3-02:** o teste falha com submissão adicional durante a recuperação e com retorno
+  de conteúdo incorreto; mapa distingue prova do sink de saldo/alerta no grafo.
+- [ ] **RV13J-3-03:** retirar a transição não verificada do estado “provado”, ou verificar
+  conteúdo/chave do alerta com os resultados permitidos pelo processamento.
+
