@@ -476,6 +476,13 @@ destruir contra o esperado do módulo), aprovado pelo Owner, e só então `apply
 Nenhum `apply` sem `-out`; nenhum `-auto-approve`. Antes de cada `apply` cobrável, a linha da
 estimativa daquele degrau já está na Capacidade.
 
+O binário do plano leva o estado anterior inteiro, e com ele o que o estado tem de segredo: as
+senhas do Cloud SQL, e o *token* da ADC que os *providers* do Kubernetes e do Helm leem
+(RV13J-1-01). Por isso ele nasce com permissão só do dono (`umask 077`) e **sai depois do `apply`**
+que o consumiu; o que fica como evidência é o texto do plano, onde o Terraform mascara os sensíveis.
+O plano da raiz `airbyte/` nem chega a `data/`: nasce e é aplicado na pasta temporária do
+`gcp-airbyte-config`. *(Levado ao Owner: a forma de conciliar o rito com o segredo no plano.)*
+
 ### 6.4 O relógio de emergência (RV13-1-01)
 
 Independe do sucesso de qualquer passo da §6.5. Responsável: o Owner, com o Claude Code operando.
@@ -551,6 +558,22 @@ as senhas lidas do Secret Manager. Os registros da carga vão para
 `data/medicoes/etapa_13/origens_cloud_sql/`, e os da fase local ficam como estão
 ([Registro §31](docs/registro_fase_gcp.md#31-o-roteiro-de-segunda-e-as-origens-no-cloud-sql-08112026-madrugada)).
 O Claude Code anota cada saída no Registro no momento em que ela aparece.
+
+**A regra de falha, para todos os roteiros (§6.6 a §6.9 e §6.5)** (RV13J-1-14). Cada passo diz o que
+deve aparecer; o que ele não diz segue esta regra:
+
+1. **`ERRO`, `RECUSADO` ou `FALHOU` num passo que só lê ou confere** (preflight, conferir, oráculo,
+   inventário, prova): o passo é repetível. Repita uma vez; se repetir o mesmo, o Claude Code
+   registra, e **os passos que dependem dele não rodam** — cada passo que pode cortar outros diz
+   quais. Nenhuma saída vazia é sucesso: "nada encontrado" só vale quando o alvo o diz com todas as
+   letras.
+2. **Falha num `gcp-plan`**: nada foi aplicado; não siga para o `gcp-apply` daquele plano.
+3. **Falha num `gcp-apply`**: **não repita o `apply`**. Rode o `gcp-plan` de novo, que mostra o que
+   ficou, e decida pelo plano novo — o estado guardado (`tfstate_<nome>.bak`) é a volta.
+4. **Falha num passo que escreve** (sincronização, mutação, registro no livro): leia a mensagem antes
+   de repetir. Os alvos que escrevem recusam repetir o que já foi feito, e dizem de onde retomar.
+5. **O relógio da §6.4 vale sobre todos.** Nenhum passo se estende além da hora dele; o que não
+   rodou vira pendência, e o desmonte começa na hora.
 
 **A época inicial do livro não é de segunda.** O `ledger baseline` lista os *jobs* da conexão
 legada do Airbyte, e o Airbyte do projeto só existe depois do `apply` do GKE, na terça. Rodada
@@ -691,6 +714,11 @@ Deve aparecer `11 a criar, 0 a alterar, 0 a destruir`, o mesmo do `08_gke` do Re
 make gcp-apply NOME=08_gke
 ```
 
+Deve terminar com `Apply complete! Resources: 11 added, 0 changed, 0 destroyed.` e a linha de que o
+binário do plano saiu. O *cluster* leva uns 10 minutos. Erro: a regra 3 da §6.6 — **não repita**; o
+`gcp-plan` de novo mostra o que ficou. Sem *cluster*, a §6.7 para aqui, e a terça segue só com o que
+não depende do GKE (nada da §6.8 roda).
+
 **Passo 4 — o plano dos *releases*.**
 
 ```
@@ -705,6 +733,10 @@ Pelo código, `2 a criar`: o `helm_release` do Debezium Server e o do Airbyte. L
 make gcp-apply NOME=09_aplicacoes
 ```
 
+Deve terminar com `Apply complete! Resources: 2 added, 0 changed, 0 destroyed.` Erro por `timeout`
+do Airbyte: a regra 3 da §6.6; o Claude Code lê o estado do *release* (`helm status` pelo
+`kubectl`) antes de qualquer novo plano. Sem os dois *releases*, os passos 6 a 9 não rodam.
+
 **Passo 6 — as fontes, os destinos e as conexões no Airbyte do GKE.**
 
 ```
@@ -712,10 +744,13 @@ make gcp-airbyte-config
 ```
 
 Deve aparecer `airbyte: API do GKE em http://127.0.0.1:18001/api/public/v1 (port-forward)`, e o
-Terraform mostra o plano. Pelo código, `6 to add`: duas fontes no Cloud SQL, dois destinos BigQuery
-e duas conexões. Leia e digite `yes`. Ele não mexe no Airbyte local: o estado é o do *workspace*
-`gcp` da raiz `airbyte/`. Se o fim disser `AVISO: … workspace default`, rode o comando que o aviso
-mostra.
+Terraform mostra o plano **salvo** — o rito da §6.3: o binário fica na pasta temporária, porque leva
+as senhas, e o texto, com os sensíveis mascarados, em `data/medicoes/etapa_13/planos/airbyte_gcp_…txt`.
+Pelo código, `6 to add`: duas fontes no Cloud SQL, dois destinos BigQuery e duas conexões. Leia e,
+se estiver certo, digite o id do projeto (`mvp-ed1-gcp`); qualquer outra coisa sai sem aplicar. Ele
+não mexe no Airbyte local: o estado é o do *workspace* `gcp` da raiz `airbyte/`. Se o fim disser
+`AVISO: … workspace default`, rode o comando que o aviso mostra. `ERRO: a porta 18001 já está
+ocupada`: um *port-forward* de outro terminal ficou aberto; feche-o e repita.
 
 **Passo 7 — zerar o armazém.** Apaga a cópia de desenvolvimento e as saídas dos `dbt build` de
 ensaio, e não toca nos *datasets*, no IAM nem nas *policy tags*.
@@ -746,11 +781,34 @@ com `0 capturas no bruto, 0 linhas de certificado, 0 jobs da conexão legada`. S
 `RECUSADO`, a linha diz o quê: armazém com dado (volte ao passo 7) ou época já aberta (**pare**: o
 livro nunca é reescrito).
 
-### 6.8 Roteiro de terça (10/11), parte 2: as capturas, o dbt, as *tags* e o caminho quente
+### 6.8 Roteiro de terça (10/11), parte 2: o caminho quente, as capturas, o dbt e as provas
 
 Continua a §6.7, depois da época inicial. Junta o que a porta P3 (§6.2) pede às 18:00: Airbyte →
-BigQuery sem chave (D72), G2.1 real e G2.3 real. O ensaio do Dataflow é o da D83, ~1 h, e o
-taxímetro dele corre do passo 16 ao 19.
+BigQuery sem chave (D72), G2.1 real e G2.3 real. Vale a regra de falha da §6.6.
+
+**A ordem é a das fontes antes dos consumidores** (RV13J-1-02). O zerar da §6.7 levou também o
+`raw.inventory_movements_stream`, que nenhuma sincronização recria: ele é do caminho quente. O
+`dbt build` lê essa tabela (o *staging* dos movimentos, a *view* `skus_below_reorder_point`) e o
+teste `caminhos_de_ingestao_reconciliam` cobra os dois caminhos iguais. Por isso o caminho quente
+nasce e alcança o *snapshot* **antes** das capturas e do *build* (passos 3 a 9), e os movimentos
+novos da prova só nascem **depois** da paridade (passos 21 a 28).
+
+O ensaio do Dataflow é o da D83, em duas partes: o *snapshot* (passos 7 a 9, uns 20 min) e as
+provas de reinício e a latência (passos 22 a 29, uns 40 min).
+
+**O que prova o G2.3** (a lista da §G2.3), passo por passo:
+
+| Prova | Onde |
+|---|---|
+| a escrita da D75 no BigQuery real: lote com duplicata grava uma vez e devolve só o que entrou, o mesmo lote de novo não devolve nada, a mesma chave nova em dois lotes seguidos e em fragmentos paralelos, `NUMERIC` e microssegundos exatos | passo 3 (`tests/test_caminho_quente_nuvem.py`, `GCP_TESTES=1`) |
+| o grafo da nuvem no Pub/Sub e no BigQuery reais: semente, duplicata no transporte, atrasado, **um** alerta com o saldo certo | passo 3 (`gcp.prova_quente`) |
+| *snapshot* e CDC pelo *parser*, contagem física igual à de eventos, nenhum perdido nem indevido | passos 8, 23, 26 e 28: o conferir compara **chave e conteúdo**, e não só a contagem |
+| reinício do *worker*: as mensagens que esperaram na assinatura entram uma vez | passos 21 a 23 |
+| reinício do *pod* do Debezium: os *offsets* do disco retomam sem novo *snapshot* nem duplicata | passos 24 a 26 |
+| alerta observado no caminho do GKE | passos 8, 23, 26 e 28 listam os alertas lidos; o alerta **provado** é o do passo 3 — o do GKE depende de o saldo cruzar o limiar, e não se força |
+
+Sem os passos 3 e 8 verdes, o G2.3 não passa, o caminho quente não entra na quarta e o critério
+fica incompleto (§6.2).
 
 **Passo 1 — a folga do `kubectl`.**
 
@@ -761,16 +819,100 @@ make gcp-gke-versao
 Deve mostrar as duas versões, a uma versão menor uma da outra no máximo. Se recusar, o Claude Code
 troca a versão fixada no `Makefile` antes de qualquer outro passo que use o `kubectl`.
 
-**Passo 2 — a origem principal para o `raw`.**
+**Passo 2 — o Debezium Server.** Ele subiu na §6.7 (passo 5) e fez o *snapshot* para o Pub/Sub.
+
+```
+make gcp-debezium-status
+```
+
+Deve mostrar o *pod* `Running`, o fim do log sem erro e `slot mvp_inventory_movements: ativo`. Se o
+*pod* não estiver `Running` ou o *slot* faltar, **pare o bloco quente** (passos 3 a 9 e 21 a 29): as
+capturas (passos 10 a 20) seguem, mas o `dbt build` vai falhar no teste de reconciliação, e o G2.3
+fica não atendido.
+
+**Passo 3 — as provas do G2.3 no BigQuery e no Pub/Sub reais.** Não usa o GKE nem o Dataflow: cria
+e apaga recursos temporários.
+
+```
+make gcp-quente-prova
+```
+
+Deve terminar com `gcp-quente-prova: as duas provas passaram`, os 11 testes passando (nenhum
+pulado) e o relatório do grafo em `data/medicoes/etapa_13/g23/`. Se falhar, o G2.3 não passa: o
+Claude Code registra o teste que falhou, e o bloco quente para aqui.
+
+**Passo 4 — o destino do caminho quente.** Antes do plano do Dataflow, que dá IAM nela.
+
+```
+make gcp-dataflow-tabela
+```
+
+Deve aparecer `destino pronto: …inventory_movements_stream` (o zerar a levou, e ela nasce de novo).
+Se falhar, pare o bloco quente: sem a tabela, o plano do passo 5 não tem onde dar o IAM.
+
+**Passo 5 — o plano e o `apply` do Dataflow.**
+
+```
+make gcp-plan NOME=11_dataflow VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"
+```
+
+Deve dar `4 a criar, 0 a alterar, 0 a destruir`, o mesmo do Registro §29. Outro número, ou
+`RECUSADO`: **não aplique**; o Claude Code lê o plano e explica a diferença. Lido e certo:
+
+```
+make gcp-apply NOME=11_dataflow
+```
+
+Deve terminar com `Apply complete! Resources: 4 added, 0 changed, 0 destroyed.` Erro no `apply`:
+**não repita**; rode o `gcp-plan` de novo, que mostra o que ficou, e decida pelo plano novo.
+
+**Passo 6 — o *job* montado, sem enviar.**
+
+```
+make gcp-dataflow-validar
+```
+
+Nenhuma divergência. Se houver, **pare**: nada foi enviado.
+
+**Passo 7 — lançar.** O taxímetro do Dataflow começa aqui.
+
+```
+make gcp-dataflow-lancar
+```
+
+Deve aparecer `job enviado: …`. Acompanhe na consola do Dataflow até o *worker* subir, uns minutos.
+
+**Passo 8 — o *snapshot* no BigQuery, por chave e conteúdo.**
+
+```
+make gcp-quente-conferir
+```
+
+Repita até não aparecer `PENDENTE`: o *worker* lê o acumulado da assinatura, guardado por uma
+semana. Deve terminar com `conteúdo: os N movimentos iguais por chave e pelas 16 colunas de
+negócio`. `FALHOU — …` não é espera: é movimento perdido, indevido, repetido ou com valor diferente
+— o G2.3 não passa; siga ao passo 9 e registre. Os alertas lidos aparecem embaixo.
+
+**Passo 9 — parar o Dataflow até as provas de reinício.**
+
+```
+make gcp-dataflow-parar
+```
+
+Deve terminar com `nenhum job ativo`. `ERRO: a listagem … falhou`: repita; não conclua nada da saída
+vazia.
+
+**Passo 10 — a origem principal para o `raw`.**
 
 ```
 make gcp-sync-retail
 ```
 
 Deve terminar com `concluída: … linhas`. O destino escreve sem chave, pela conta `mvp-ingestor` via
-Workload Identity: é a prova da D72.
+Workload Identity: é a prova da D72. Falhou: repita uma vez; falhou de novo, os passos 15 a 18
+param (o *build* não tem o bruto), e as capturas do legado (11 a 13) seguem.
 
-**Passo 3 — a primeira captura do legado.**
+**Passo 11 — a primeira captura do legado.**
 
 ```
 make gcp-sync-legacy
@@ -779,130 +921,148 @@ make gcp-sync-legacy
 Deve aparecer `recuperação: nada devido`, o andamento do *job* (`job …: running · … linhas`) e, no
 fim, o certificado e `concluída`. A tentativa fica registrada no livro do Cloud Storage.
 
-**Passo 4 — uma captura interrompida.** Rode de novo e, na primeira linha `job …: running`, aperte
+**Passo 12 — uma captura interrompida.** Rode de novo e, na primeira linha `job …: running`, aperte
 **Ctrl-C**.
 
 ```
 make gcp-sync-legacy
 ```
 
-O *job* segue no Airbyte e a tentativa fica pendente, que é o que o passo 5 resolve. Espere o *job*
-terminar, uns minutos, como o do passo 3.
+O *job* segue no Airbyte e a tentativa fica pendente, que é o que o passo 13 resolve. Espere o *job*
+terminar, uns minutos, como o do passo 11.
 
-**Passo 5 — a recuperação e a segunda captura.**
+**Passo 13 — a recuperação e a segunda captura.**
 
 ```
 make gcp-sync-legacy
 ```
 
-Deve aparecer `recuperação registrou: gs://…` para a tentativa do passo 4, e depois uma captura nova
-certificada. Se a barreira recusar porque o *job* do passo 4 ainda corre, espere e repita: nada se
-abriu.
+Deve aparecer `recuperação registrou: gs://…` para a tentativa do passo 12, e depois uma captura
+nova certificada. Se a barreira recusar porque o *job* do passo 12 ainda corre, espere e repita:
+nada se abriu.
 
-**Passo 6 — as *tags* nas fontes recém-escritas.**
+**Passo 14 — as *tags* nas fontes recém-escritas.**
 
 ```
 make gcp-tags-convergir
 ```
 
-Deve terminar com `gcp-tags-convergir: fontes convergidas`.
+Deve terminar com `gcp-tags-convergir: fontes convergidas`. `AUSENTE — …`: a fonte não existe — volte
+ao passo que a escreve (10, 11 ou 4) antes de seguir.
 
-**Passo 7 — o `dbt build` sobre o dado real.**
+**Passo 15 — o `dbt build` sobre o dado real.**
 
 ```
 make gcp-dbt-build
 ```
 
-O esperado é o PASS do Registro §22 (909), com 0 erros. Número diferente é achado de paridade:
-anote e siga.
+O esperado é o PASS do Registro §22 (909), com 0 erros. **Teste** que falha (`FAIL`) é achado de
+paridade: o Claude Code o registra, e os passos 16 a 20 seguem. **Erro** de modelo (`ERROR`) deixa
+consumidores sem tabela: os passos 16 a 20 param, e o bloco quente (21 a 29) segue.
 
-**Passo 8 — o inventário das *tags*.**
+**Passo 16 — o tratamento da terça no livro.** Antes de qualquer outro `dbt build`: é o que o T3
+cobra da quarentena da terça quando o tratamento de quarta a substituir.
+
+```
+make gcp-livro-tratamento NOME=terca_tratamento.json
+```
+
+Deve aparecer `registro de tratamento: gs://…/terca_tratamento.json · sha256 …`. Falhou: repita; sem
+ele, o T3 da quarta (§6.9 passo 13) falha.
+
+**Passo 17 — o inventário das *tags*.**
 
 ```
 make gcp-tags-inventario
 ```
 
-Deve dizer `0 divergências`. É a repetição do G4 depois de uma sincronização (Registro §22).
+Deve dizer `0 divergências, nenhuma tabela ausente`. É a repetição do G4 depois de uma
+sincronização (Registro §22). Divergência ou ausente: achado do G4, registrado; siga.
 
-**Passo 9 — a paridade com a fase local.**
+**Passo 18 — a paridade com a fase local.**
 
 ```
 make gcp-oraculos
 ```
 
-A classificação do legado, as contagens por camada e o catálogo contra o local. Ele lê o armazém
-local: o banco dele precisa estar de pé (`make ps`).
+A classificação do legado, as contagens por camada, o **conteúdo** das *views* de `consumption` e o
+catálogo contra o local. Ele lê o armazém local: o banco dele precisa estar de pé (`make ps`). Cada
+comparação diz o seu veredito, e o alvo falha se uma falhar. Medido no estado de desenvolvimento
+(Registro §37): 13 das 16 *views* iguais em conteúdo; diferem as duas de estoque, que leem os
+movimentos ao vivo de cada ambiente, e a de margem do mês corrente. A classificação e as contagens
+casam por `snapshot_id`, que é o *job* de cada Airbyte: entre o local e a nuvem, os *jobs* diferem,
+e a comparação dessas duas é **pendente da decisão do Owner** (RV13J-1-09). O Claude Code registra
+cada diferença; nenhuma bloqueia os passos seguintes.
 
-**Passo 10 — a memória anterior intacta (T3).** Somente leitura; leva minutos, porque mede o
+**Passo 19 — a memória anterior intacta (T3).** Somente leitura; leva minutos, porque mede o
 recebido de cada captura certificada.
 
 ```
 make gcp-memoria-oraculo
 ```
 
-Deve terminar com `T3: memória contida`. `PROBLEMA` listado é achado do G2.1: anote e siga.
+Deve terminar com `T3: memória contida`. `PROBLEMA` listado é achado do G2.1: o Claude Code
+registra, e o G2.1 não passa na P3.
 
-**Passo 11 — nenhum POST indevido.**
+**Passo 20 — nenhum POST indevido.**
 
 ```
 make gcp-jobs-auditoria
 ```
 
 Deve dizer quantos *jobs* da conexão legada nasceram desde a linha de base e quantas tentativas os
-citam no livro — três e três, depois dos passos 3 a 5 — e `nenhum POST indevido`.
+citam no livro — três e três, depois dos passos 11 a 13 — e `nenhum POST indevido`. Outra coisa é
+achado do G2.1.
 
-**Passo 12 — o Debezium Server.** Ele subiu na §6.7 (passo 5) e fez o *snapshot*.
-
-```
-make gcp-debezium-status
-```
-
-Deve mostrar o *pod* `Running`, o fim do log sem erro e `slot mvp_inventory_movements: ativo`.
-
-**Passo 13 — o destino do caminho quente.** Antes do plano do Dataflow, que dá IAM nela.
+**Passo 21 — movimentos com o Dataflow parado.** Esperam na assinatura `beam`.
 
 ```
-make gcp-dataflow-tabela
+make gcp-quente-produzir LIMITE=20
 ```
 
-**Passo 14 — o plano e o `apply` do Dataflow.**
+Deve terminar com `20 eventos emitidos` (ou 21, se o último for um par de transferência).
 
-```
-make gcp-plan NOME=11_dataflow VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"
-```
-
-Deve dar `4 a criar, 0 a alterar, 0 a destruir`, o mesmo do Registro §29. Leia, e então:
-
-```
-make gcp-apply NOME=11_dataflow
-```
-
-**Passo 15 — o *job* montado, sem enviar.**
-
-```
-make gcp-dataflow-validar
-```
-
-Nenhuma divergência. Se houver, **pare**: nada foi enviado.
-
-**Passo 16 — lançar.** O taxímetro do Dataflow começa aqui.
+**Passo 22 — o *worker* de novo: o reinício.**
 
 ```
 make gcp-dataflow-lancar
 ```
 
-Deve aparecer `job enviado: …`. Acompanhe na consola do Dataflow até o *worker* subir, uns minutos.
+Deve aparecer `job enviado: …`; espere o *worker* subir.
 
-**Passo 17 — o *snapshot* chegou ao BigQuery.**
+**Passo 23 — os que esperaram entraram uma vez.**
 
 ```
 make gcp-quente-conferir
 ```
 
-Repita até não aparecer `PENDENTE`: o *worker* lê o acumulado da assinatura, guardado por uma
-semana. Os alertas lidos aparecem embaixo.
+Repita até não aparecer `PENDENTE`; o fim é o `conteúdo: … iguais` do passo 8, agora com os 20.
 
-**Passo 18 — movimentos novos, ao vivo, e a latência.** O alvo emite 200 movimentos e consulta o
+**Passo 24 — o *pod* do Debezium de novo: o reinício.**
+
+```
+make gcp-debezium-reiniciar
+```
+
+Deve mostrar `deployment "debezium-server" successfully rolled out` e o log do *pod* novo sem
+erro, sem novo *snapshot* (os *offsets* estão no disco).
+
+**Passo 25 — movimentos depois do reinício.**
+
+```
+make gcp-quente-produzir LIMITE=20
+```
+
+**Passo 26 — nem perdido, nem repetido.**
+
+```
+make gcp-quente-conferir
+```
+
+Repita até não aparecer `PENDENTE`. `FALHOU — … repetido` aqui é o *snapshot* refeito: o G2.3 não
+passa no reinício do *pod*.
+
+**Passo 27 — movimentos novos, ao vivo, e a latência.** O alvo emite 200 movimentos e consulta o
 destino a cada 5 s até ver todos.
 
 ```
@@ -911,13 +1071,17 @@ make gcp-quente-latencia
 
 Deve imprimir `p50_s`, `p95_s` e `max_s` com `"completo": true`, e guardar o relatório em
 `data/medicoes/etapa_13/g23/`. É a latência que um leitor do destino vê: do `recorded_at` na origem
-até a primeira consulta que mostra o evento, com resolução de 5 s. Depois, uma vez:
+até a primeira consulta que mostra o evento, com resolução de 5 s. `INCOMPLETO — …` diz por quê (o
+produtor falhou, a origem não recebeu os 200, o destino não mostrou todos em 15 min): não é medida;
+o Claude Code registra, e a latência da §7.2 fica não medida na terça.
+
+**Passo 28 — o destino alcançou a origem.**
 
 ```
 make gcp-quente-conferir
 ```
 
-**Passo 19 — parar o Dataflow.**
+**Passo 29 — parar o Dataflow.**
 
 ```
 make gcp-dataflow-parar
@@ -929,7 +1093,8 @@ Deve terminar com `nenhum job ativo`. O Debezium Server e o GKE ficam para a qua
 
 A parte cara (G6). Começa às 07:00, com a porta P4 passada (§6.2) e a terça inteira de pé: o Cloud
 SQL, o GKE com o Airbyte e o Debezium, a época e as capturas da §6.8. Os horários são os da §6.1 e
-do relógio da §6.4. O que não rodar até as 20:00 vira pendência, e a janela não se estende.
+do relógio da §6.4. O que não rodar até as 20:00 vira pendência, e a janela não se estende. Vale a
+regra de falha da §6.6.
 
 **Passo 1 — o projeto certo.**
 
@@ -952,6 +1117,11 @@ Leia o plano.
 make gcp-apply NOME=10_composer
 ```
 
+Deve terminar com `Apply complete! Resources: 14 added, 0 changed, 0 destroyed.` Erro: a regra 3 da
+§6.6. Sem Composer, os passos 4 a 6, 9 e 16 não rodam; a segunda captura pode sair pelo
+`make gcp-sync-legacy` e o `make gcp-dbt-build` desta máquina (passos 11 a 15 seguem), e a
+`fluxo_batch` no Composer fica não atendida.
+
 **Passo 4 — os segredos do Airbyte para o Composer.**
 
 ```
@@ -965,6 +1135,9 @@ Devem aparecer as três linhas `gcp-composer-segredos: mvp-ed1-… gravado`.
 ```
 make gcp-composer-publicar
 ```
+
+Deve terminar com `gcp-composer-publicar: layout em gs://… (dags/ e data/)`. Falhou: repita; o
+`rsync` só põe no *bucket* o layout montado agora. Sem layout, o passo 6 não roda.
 
 **Passo 6 — o *smoke test*.** Nada escreve.
 
@@ -991,8 +1164,13 @@ hoje, as mutações de `src/mvp_ed1/gcp/mutacoes_da_janela.yml`, com o diário. 
 make gcp-legado-mutar
 ```
 
-Devem aparecer as quatro mutações e `4 mutações aplicadas`. Se recusar porque o diário já existe,
-elas já foram aplicadas: siga.
+Devem aparecer as quatro mutações (`remover brands`, `remover customers`, `inserir brands`,
+`alterar brands`, cada uma com o *hash* antes e depois) e `… mutações aplicadas agora; o diário tem
+as 4 da janela`. Rodado de novo com o diário completo, diz `o diário já tem 4 de 4` e não aplica
+nada: siga. Se falhar no meio, as que confirmaram ficam no diário; rode **o mesmo comando** de novo,
+que retoma da que falta (`retomando da seguinte`) sem repetir as feitas. **`RECUSADO`** (o diário
+não é o da declaração, ou a tabela mudou fora dele): **pare as provas das duas capturas** (passos
+12 e 13); o Claude Code lê o diário e o banco, e o passo 9 roda mesmo assim.
 
 **Passo 9 — a `fluxo_batch` de ponta a ponta, com o *streaming* junto.**
 
@@ -1006,11 +1184,25 @@ Enquanto ela roda, num **segundo terminal**, a latência com o *batch* junto:
 make gcp-quente-latencia LIMITE=500
 ```
 
-O primeiro terminal deve terminar com `fluxo_batch: … terminou com sucesso`. O estado e a duração de
-cada tarefa ficam em `data/medicoes/etapa_13/g6/`: são os tempos de sincronização e de `dbt build`
-da §7.2. O teste `caminhos_de_ingestao_reconciliam` roda dentro do `dbt build` dela.
+O primeiro terminal deve terminar com `fluxo_batch: … terminou com sucesso · tarefas em …` e a lista
+das tarefas com o estado e a duração de cada uma, gravada em `data/medicoes/etapa_13/g6/`: são os
+tempos de sincronização e de `dbt build` da §7.2. O teste `caminhos_de_ingestao_reconciliam` roda
+dentro do `dbt build` dela. `… terminou com sucesso, mas os tempos das tarefas NÃO foram coletados`:
+a DAG passou e a medida não existe — rode o comando que a linha mostra
+(`make gcp-composer-tarefas DAG=fluxo_batch RUN=…`). `FALHOU`: a tarefa que falhou diz o quê; o
+Claude Code lê o log dela, e os passos 10 a 15 rodam com o que a DAG deixou. O segundo terminal
+segue a regra do passo 27 da §6.8.
 
-**Passo 10 — o destino quente alcançou a origem.**
+**Passo 10 — o tratamento da quarta no livro.** Depois do `dbt build` da `fluxo_batch`, como na
+terça (§6.8 passo 16).
+
+```
+make gcp-livro-tratamento NOME=quarta_tratamento.json
+```
+
+Deve aparecer `registro de tratamento: gs://…/quarta_tratamento.json · sha256 …`.
+
+**Passo 11 — o destino quente alcançou a origem.**
 
 ```
 make gcp-quente-conferir
@@ -1018,30 +1210,37 @@ make gcp-quente-conferir
 
 Repita até não aparecer `PENDENTE`.
 
-**Passo 11 — a matriz das duas capturas (§7.2).**
+**Passo 12 — a matriz das duas capturas (§7.2).**
 
 ```
 make gcp-legado-matriz
 ```
 
 Deve terminar com `matriz das duas capturas: o intervalo e a memória mostram o efeito líquido do
-diário`.
+diário`. `FALHOU` lista cada chave do diário que o intervalo ou a memória não mostram: é achado do
+ADR-0045, registrado; os passos seguintes rodam. `RECUSADO: … não tem anterior certificada` quer
+dizer que a captura da `fluxo_batch` não certificou: a matriz fica não medida.
 
-**Passo 12 — a primeira captura preservada (T3).**
+**Passo 13 — a primeira captura preservada (T3).**
 
 ```
 make gcp-memoria-oraculo
 ```
 
-**Passo 13 — nenhum POST indevido.**
+Deve terminar com `T3: memória contida`. As remoções aceitas na memória de exclusões são as do
+diário (as três chaves que o passo 8 removeu), e não um número escrito aqui. `PROBLEMA` listado é
+achado do G2.1, registrado; não bloqueia os passos seguintes.
+
+**Passo 14 — nenhum POST indevido.**
 
 ```
 make gcp-jobs-auditoria
 ```
 
 Agora são quatro *jobs* da conexão legada e quatro tentativas: os três da terça e o da `fluxo_batch`.
+Outra contagem, ou `POST indevido`: achado do G2.1, registrado.
 
-**Passo 14 — as *tags*, a paridade e o tamanho.**
+**Passo 15 — as *tags*, a paridade e o tamanho.**
 
 ```
 make gcp-tags-inventario
@@ -1055,28 +1254,40 @@ make gcp-oraculos
 make gcp-armazem-tamanho
 ```
 
-O último imprime, por *dataset*, as tabelas, as linhas e os bytes lógicos, e guarda o relatório em
-`data/medicoes/etapa_13/g6/`. É o "tamanho por *dataset*" da §7.2.
+O primeiro deve dizer `0 divergências, nenhuma tabela ausente`. O segundo repete a comparação da
+terça (§6.8 passo 18) e agora tem diferenças **esperadas** além das de terça: as mutações do passo 8
+existem só na nuvem (a classificação e as contagens do legado) e os movimentos da latência de terça e
+de hoje, só no caminho quente da nuvem (as *views* de estoque). O Claude Code registra cada
+diferença contra esse esperado; uma fora dele é achado de paridade. O último imprime, por *dataset*,
+as tabelas, as linhas e os bytes lógicos, e guarda o relatório em `data/medicoes/etapa_13/g6/`. É o
+"tamanho por *dataset*" da §7.2. Nenhum dos três bloqueia a exportação.
 
 **20:00 — o ponto de decisão.** O Claude Code registra o que passou e o que não rodou, e o que não
 rodou vira pendência.
 
-**Passo 15 — a exportação, antes das 21:30.** O *bucket* do Composer sai no desmonte, e os logs do
+**Passo 16 — a exportação, antes das 21:30.** O *bucket* do Composer sai no desmonte, e os logs do
 Airflow com ele.
 
 ```
 make gcp-composer-exportar
 ```
 
-**Passo 16 — parar quem produz (§6.5, passo 1), até as 22:00.**
+Deve terminar com `gcp-composer-exportar: logs em data/medicoes/etapa_13/g6/logs (N arquivos)`, N
+maior que zero. Falhou: repita — o `rsync` só copia o que falta. Falhou de novo: baixe a pasta
+`logs/` do *bucket* pela consola. **O passo 18 não começa** sem os logs aqui, ou sem você declarar
+que eles se perdem (registrado); o relógio das 22:00 vale sobre isso, e logs perdidos viram limite
+declarado da §7.2.
+
+**Passo 17 — parar quem produz (§6.5, passo 1), até as 22:00.**
 
 ```
 make gcp-desmonte-parar
 ```
 
 Deve terminar com o Dataflow sem *job* ativo, as DAGs pausadas e `MVP_GCP_ATIVO=false`.
+`ERRO: … a listagem … falhou`: repita; uma listagem que falha nunca vale como "nada em curso".
 
-**Passo 17 — o Composer fora (§6.5, passo 2).**
+**Passo 18 — o Composer fora (§6.5, passo 2).**
 
 ```
 make gcp-plan PASSO=2

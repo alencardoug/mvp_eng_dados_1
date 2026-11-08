@@ -1438,3 +1438,70 @@ primeira consulta que o vê, com o relógio do BigQuery. O alvo falha se não vi
 - o passo 14 da quarta mede o tamanho.
 
 **Não medido:** a latência real, que só existe com o Debezium e o Dataflow de pé.
+
+## 37. A rodada 1 da revisão dos roteiros da janela (08/11/2026, tarde)
+
+O Owner mandou o lote "janela" (`4e0dea2..b9e9c04`: o desmonte, as origens, os roteiros de segunda
+a quarta, a latência e o tamanho) à revisão do Codex na conta 2, com esforço `xhigh`. Voltaram 12
+bloqueantes e 2 ajustes (`REVISAO.md`, RV13J-1-01…14). O que eles têm em comum: **verificação que
+anuncia sucesso sem ter provado** e **ordem que não se cumpre executada à letra**. Nenhum se achava
+lendo o diff de um alvo só; todos apareceram percorrendo os roteiros como o Owner vai percorrê-los.
+
+**O que mudou no código** (cada um com teste que falha no código anterior):
+
+- **o T3 na janela** (RV13J-1-03): a época inicial, tirada com o armazém zerado, grava a memória de
+  exclusões como `None`; o primeiro `build` a materializa vazia, e o T3 acusava mudança. Agora a
+  linha de base **sem captura nenhuma** vale como memória vazia — só ela, porque sem captura a
+  memória é provadamente vazia. As remoções aceitas da quarta saem do **diário** de mutações
+  (`--diary`, o efeito líquido que a matriz também usa), e o tratamento de cada dia vai ao livro
+  (`make gcp-livro-tratamento`);
+- **as mutações retomáveis** (RV13J-1-04): o diário é lido como prefixo da declaração; falha no
+  meio retoma da que falta, sem repetir remoção. Antes de cada mutação, o *hash* da tabela no banco
+  tem de ser o do diário (ou o do lote) — mutação confirmada sem registro recusa;
+- **a latência só com produção válida** (RV13J-1-05): o produtor tem de sair com 0, e a origem ter
+  ao menos os `--limite` eventos; antes, produtor que falhava antes de gravar dava
+  `"completo": true` com zero eventos;
+- **o conferir do caminho quente por chave e conteúdo** (RV13J-1-10): as 16 colunas de negócio de
+  cada `movement_id`, e não só contagem e máximo;
+- **tabela ausente reprova** o inventário e a convergência das *tags* (RV13J-1-06);
+- **listagem que falha não é "nada em curso"** no `gcp-dataflow-parar` e no `gcp-desmonte-parar`
+  (RV13J-1-07), e os tempos das tarefas do Composer são conferidos antes de virar evidência
+  (RV13J-1-12) — as duas leituras passaram a um leitor estrito, `mvp_ed1.gcp.composer_cli`;
+- **cada oráculo com o seu veredito** no `gcp-oraculos` (RV13J-1-08), e um quarto, o **conteúdo**
+  das *views* de `consumption` (RV13J-1-09, em parte);
+- **os processos de segundo plano** (RV13J-1-13): o *port-forward* lançado direto (o `$!` de uma
+  função é o do *shell* dela), a porta conferida livre antes, o `wait` na limpeza; e o *token* da
+  ADC num `kubeconfig` da pasta temporária, fora da linha de comando;
+- **o plano salvo** (RV13J-1-01, RV13J-1-11): nasce com `umask 077` e o binário sai depois do
+  `apply`; o da raiz `airbyte/` volta ao rito da §6.3 — plano salvo, lido e aplicado do arquivo —,
+  mas na pasta temporária, e a A45 deixa de valer.
+
+**Nos roteiros:** a terça foi reordenada (RV13J-1-02) — o caminho quente nasce e alcança o
+*snapshot* antes das capturas e do `build`, porque o zerar leva o `raw.inventory_movements_stream`,
+que só ele recria; os movimentos novos só depois da paridade. Entraram as provas do G2.3 que
+faltavam: `make gcp-quente-prova` (os testes reais da escrita e o grafo no Pub/Sub) e os reinícios
+do *worker* e do *pod* (`make gcp-debezium-reiniciar`). A §6.6 ganhou a regra de falha comum
+(RV13J-1-14), e cada passo citado ganhou esperado e conduta.
+
+**Achado ao corrigir, fora da rodada: a declaração das mutações removeria duas marcas, e a geração
+declarada tem uma.** O legado do fator 0,05 tem `brands` com 1 linha apta (medido no manifesto do
+lote local, que o hash do banco confirma igual: `brands`, `carriers` e `customers` batem). O
+`remover brands quantidade 2` cairia com `ValueError` na quarta. Agora é 1, e um teste confere
+cada quantidade contra as aptas do manifesto.
+
+**Medido** (só leitura, o BigQuery de desenvolvimento contra o armazém local,
+`python -m mvp_ed1.gcp.oraculo consumo`): **13 das 16 *views* de `consumption` iguais em
+conteúdo.** Diferem `inventory_turnover_by_sku_and_warehouse` e `skus_below_reorder_point`, que leem
+os movimentos ao vivo de cada ambiente, e `gross_margin_by_category`, cujas 16 linhas do mês
+corrente (`2026-11`) mudam com a data. É o ponto de partida da paridade da janela, não ela.
+
+**Levado ao Owner:**
+
+| # | A pergunta | Recomendação |
+|---|---|---|
+| RV13J-1-01 | O plano salvo leva o estado, com as senhas do Cloud SQL e o *token* da ADC: basta o binário com permissão só do dono e apagado depois do `apply`, ou a raiz troca a autenticação do Kubernetes/Helm por `exec` e as senhas por atributos só de escrita? | a primeira: o mesmo segredo já está no estado remoto, e o *token* vence em uma hora; a segunda muda *providers* às vésperas |
+| RV13J-1-09 | A classificação do legado e as contagens casam por `snapshot_id`, que é o *job* de cada Airbyte: como parear o local com a nuvem? | comparar na janela só o que é estado corrente (o conteúdo das *views*, as contagens das camadas de estado) e declarar a classificação por captura como não comparável entre ambientes; a alternativa é regerar o local com a mesma sequência de capturas, horas de máquina |
+| RV13J-1-11 | O plano da raiz `airbyte/` na pasta temporária, e não em `data/medicoes/etapa_13/planos/`, cumpre o rito? | sim: o texto fica, o binário com as senhas não |
+
+Os sete `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` continuam lá; o `09_politicas`
+tem o *token* de então, vencido. Apagá-los é do Owner.
