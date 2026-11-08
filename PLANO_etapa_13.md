@@ -625,7 +625,9 @@ make gcp-origens-migrar
 
 Deve aparecer `origens: Cloud SQL … pelo proxy em 127.0.0.1:15432` e, no fim, a revisão `(head)`
 das duas cadeias de migração. Se o proxy não abrir, confira se outro processo ocupa a porta 15432
-(um `make gcp-sql-proxy` esquecido noutro terminal serve: o alvo usa o que estiver ali).
+(`ERRO: a porta 15432 já está ocupada`). O alvo abre o **próprio** proxy e não usa o de outro
+terminal: se for um `make gcp-sql-proxy` seu, feche-o (Ctrl-C lá) e repita; se não souber de quem é,
+`ss -ltnp 'sport = :15432'` mostra o processo — pergunte ao Claude Code antes de encerrar.
 
 **Passo 6 — os dados das duas origens.** A geração da fase local, sem parâmetro.
 
@@ -796,19 +798,29 @@ novos da prova só nascem **depois** da paridade (passos 21 a 28).
 O ensaio do Dataflow é o da D83, em duas partes: o *snapshot* (passos 7 a 9, uns 20 min) e as
 provas de reinício e a latência (passos 22 a 29, uns 40 min).
 
-**O que prova o G2.3** (a lista da §G2.3), passo por passo:
+**O que prova o G2.3** — cada item da lista da §G2.3, com o cenário que o exercita e o estado
+dele hoje (RV13J-2-01). *Provado por comando* é o que um passo daqui exercita e confere; *garantido
+pelo desenho* é o que o código impede e nenhum passo força; *não atendido* fica assim escrito.
 
-| Prova | Onde |
-|---|---|
-| a escrita da D75 no BigQuery real: lote com duplicata grava uma vez e devolve só o que entrou, o mesmo lote de novo não devolve nada, a mesma chave nova em dois lotes seguidos e em fragmentos paralelos, `NUMERIC` e microssegundos exatos | passo 3 (`tests/test_caminho_quente_nuvem.py`, `GCP_TESTES=1`) |
-| o grafo da nuvem no Pub/Sub e no BigQuery reais: semente, duplicata no transporte, atrasado, **um** alerta com o saldo certo | passo 3 (`gcp.prova_quente`) |
-| *snapshot* e CDC pelo *parser*, contagem física igual à de eventos, nenhum perdido nem indevido | passos 8, 23, 26 e 28: o conferir compara **chave e conteúdo**, e não só a contagem |
-| reinício do *worker*: as mensagens que esperaram na assinatura entram uma vez | passos 21 a 23 |
-| reinício do *pod* do Debezium: os *offsets* do disco retomam sem novo *snapshot* nem duplicata | passos 24 a 26 |
-| alerta observado no caminho do GKE | passos 8, 23, 26 e 28 listam os alertas lidos; o alerta **provado** é o do passo 3 — o do GKE depende de o saldo cruzar o limiar, e não se força |
+| Item da §G2.3 | Cenário | Estado |
+|---|---|---|
+| *snapshot* e CDC pelo *parser*; contagem física igual à de eventos | passos 8, 23, 26 e 28: o conferir compara cada `movement_id` e as 16 colunas de negócio dos dois lados, e acusa perdido, indevido e repetido | provado por comando |
+| decimal e fuso exatos | passo 3: `NUMERIC` e microssegundos do envelope ao destino (`test_no_bigquery_de_verdade_o_lote_e_idempotente_e_exato`); e o conteúdo dos passos 8 e 23 | provado por comando |
+| duplicata dentro do mesmo lote | passo 3: o lote com `a` duas vezes grava uma e conta a duplicata | provado por comando |
+| o mesmo movimento reenviado **dentro** da janela de deduplicação | passo 3, `gcp.prova_quente`: `m2` publicado duas vezes, barrado, uma linha, o saldo e o alerta certos | provado por comando |
+| o mesmo movimento reenviado **fora** da janela de deduplicação | o lote que repete chaves já gravadas não devolve nada (passo 3, o mesmo lote de novo), e o saldo e o alerta pendem **do que a escrita devolve**, não da leitura (`pipeline.py`, `novos = unicos \| gravar`). Nenhum passo publica um reenvio depois de a janela expirar | a escrita, provada; o saldo e o alerta, garantidos pelo desenho — **não exercitados de ponta a ponta** |
+| depois de **retorno perdido** | passo 3: o `MERGE` roda, a resposta some, o lote acha o *job* pelo id e devolve exatamente o que entrou, e o mesmo lote de novo não devolve nada (`test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala`, novo, **nunca rodado** — roda pela primeira vez no passo 3) | provado por comando, se o passo 3 passar |
+| **dois lotes concorrentes com a mesma chave nova** | não há: a mesma chave cai sempre no mesmo fragmento (`fragmento`, o `crc32` do `movement_id`), e o `GroupIntoBatches` processa uma chave por vez. O passo 3 prova a mesma chave em dois lotes **seguidos** e chaves **diferentes** em lotes concorrentes; um `MERGE` só de inserção concorrente com a mesma chave **não** é o que o BigQuery serializa | garantido pelo desenho — **não atendido como prova** |
+| reinício do *worker* | passos 21 a 23: parar o *job*, produzir com ele parado e lançar outro — é **retomada da assinatura** por um *job* novo, não a recuperação de um *worker* dentro do mesmo *job* | retomada provada por comando; recuperação no mesmo *job* **não atendida** |
+| reinício do *pod* do Debezium | passo 24: o log do *pod* novo tem de dizer que retomou dos *offsets* (`previous offset`) e não pode ter `Snapshot step 1`; o conferir do passo 26 acusa perdido e repetido. A frase do log é a do Debezium 3.x, não conferida na 3.7.1: sem nenhuma das duas, o alvo diz `NÃO CONCLUSIVO` | provado por comando, se o log disser |
+| unicidade física, saldo e quais eventos foram ao alerta | passo 3, `gcp.prova_quente`: cinco linhas, a duplicata barrada, saldo 23, **um** alerta de 29 para 23 | provado por comando |
+| alerta observado no caminho do GKE | passos 8, 23, 26 e 28 listam os alertas lidos; o do GKE depende de o saldo cruzar o limiar, e não se força | observado se acontecer; o provado é o do passo 3 |
 
-Sem os passos 3 e 8 verdes, o G2.3 não passa, o caminho quente não entra na quarta e o critério
-fica incompleto (§6.2).
+**O G2.3 não passa inteiro.** Dois itens da §G2.3 ficam não atendidos como prova — os lotes
+concorrentes com a mesma chave e a recuperação do *worker* dentro do mesmo *job* — e um, o reenvio
+fora da janela, só na escrita. Pela §G2.3, "sem essa prova o caminho quente não entra na janela, e o
+critério fica incompleto". **Entrar com o caminho quente na quarta assim, ou cortá-lo, é decisão do
+Owner até a P3** (Registro §38). Com os passos 3 ou 8 vermelhos, nem isso: o caminho quente não entra.
 
 **Passo 1 — a folga do `kubectl`.**
 
@@ -837,7 +849,7 @@ e apaga recursos temporários.
 make gcp-quente-prova
 ```
 
-Deve terminar com `gcp-quente-prova: as duas provas passaram`, os 11 testes passando (nenhum
+Deve terminar com `gcp-quente-prova: as duas provas passaram`, todos os testes passando (nenhum
 pulado) e o relatório do grafo em `data/medicoes/etapa_13/g23/`. Se falhar, o G2.3 não passa: o
 Claude Code registra o teste que falhou, e o bloco quente para aqui.
 
@@ -1044,8 +1056,11 @@ Repita até não aparecer `PENDENTE`; o fim é o `conteúdo: … iguais` do pass
 make gcp-debezium-reiniciar
 ```
 
-Deve mostrar `deployment "debezium-server" successfully rolled out` e o log do *pod* novo sem
-erro, sem novo *snapshot* (os *offsets* estão no disco).
+Deve mostrar `deployment "debezium-server" successfully rolled out`, o fim do log do *pod* novo e
+`gcp-debezium-reiniciar: o pod novo retomou dos offsets, sem snapshot`; o log inteiro fica em
+`data/medicoes/etapa_13/g23/`. `FALHOU — o pod novo refez o snapshot`: os *offsets* do disco não
+valeram, e o reinício do *pod* não passa no G2.3 — siga, e o passo 26 mostra se houve repetido.
+`NÃO CONCLUSIVO`: o Claude Code lê o log guardado antes de dar o item por provado.
 
 **Passo 25 — movimentos depois do reinício.**
 
@@ -1228,7 +1243,8 @@ make gcp-memoria-oraculo
 ```
 
 Deve terminar com `T3: memória contida`. As remoções aceitas na memória de exclusões são as do
-diário (as três chaves que o passo 8 removeu), e não um número escrito aqui. `PROBLEMA` listado é
+diário (a marca e os três clientes que o passo 8 removeu, `mutacoes_da_janela.yml`), e não um
+número escrito aqui. `PROBLEMA` listado é
 achado do G2.1, registrado; não bloqueia os passos seguintes.
 
 **Passo 14 — nenhum POST indevido.**

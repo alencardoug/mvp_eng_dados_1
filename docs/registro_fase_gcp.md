@@ -1505,3 +1505,46 @@ corrente (`2026-11`) mudam com a data. É o ponto de partida da paridade da jane
 
 Os sete `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` continuam lá; o `09_politicas`
 tem o *token* de então, vencido. Apagá-los é do Owner.
+
+## 38. A rodada 2 da revisão dos roteiros da janela (08/11/2026, tarde)
+
+A rodada 2 (`xhigh`) deu os 14 da rodada 1 como resolvidos ou parcialmente resolvidos, e achou 1
+bloqueante, 2 ajustes e 1 observação (RV13J-2-01…04).
+
+**O bloqueante é o mesmo defeito que a rodada 1 achou no código, agora no texto:** a tabela do G2.3
+que escrevi no §37 dava como provados itens que nenhum comando exercita — a mesma chave em lotes
+**concorrentes** (o teste é de chaves diferentes), o reenvio **fora** da janela de deduplicação, a
+resposta perdida **na escrita quente** (a contraprova que existe é a da abertura da captura, G2.1) e
+a recuperação de um *worker* **dentro do mesmo** *job* (parar e lançar outro é retomada da
+assinatura). A tabela agora diz, item por item, *provado por comando*, *garantido pelo desenho* ou
+*não atendido* (PLANO §6.8). O que nasceu para provar mais:
+
+- **a resposta perdida na escrita quente**, no BigQuery real
+  (`test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala`). **Nunca rodou**:
+  roda pela primeira vez no passo 3 da terça, dentro do `make gcp-quente-prova`;
+- **o reinício do *pod* do Debezium conferido pelo log**: o `gcp-debezium-reiniciar` guarda o log
+  do *pod* novo e falha se ele refez o *snapshot* (`Snapshot step 1`); sem `previous offset` nem
+  snapshot, diz `NÃO CONCLUSIVO`. As frases são as do Debezium 3.x, **não conferidas** na 3.7.1 da
+  imagem fixada.
+
+**Levado ao Owner:**
+
+| # | A pergunta | Recomendação |
+|---|---|---|
+| RV13J-2-01 | O G2.3 fica com dois itens não atendidos como prova (lotes concorrentes com a mesma chave nova; recuperação do *worker* no mesmo *job*) e um só na escrita (reenvio fora da janela). A §G2.3 diz que sem a prova o caminho quente não entra na janela. Entra assim, declarado incompleto, ou sai? | entrar declarado incompleto: os dois não atendidos são impedidos pelo desenho (o fragmento fixo; a fronteira da escrita), e cortar o caminho quente tira da quarta a reconciliação com *streaming* simultâneo da §7.2, que é medida. A alternativa que prova a recuperação no mesmo *job* é apagar a VM do *worker* na janela (`gcloud compute instances delete`), uma ação destrutiva que só o Owner autoriza |
+
+**Os números de passo deste registro que a §6.8 e a §6.9 mudaram** (RV13J-2-03). Os parágrafos
+acima ficam como foram escritos; os números valiam então. Os de hoje:
+
+| Onde aqui | Escrito | Hoje |
+|---|---|---|
+| §34, o T3 da terça | §6.8 passo 10 | §6.8 passo 19 |
+| §35, a matriz das duas capturas | §6.9 passo 11 | §6.9 passo 12 |
+| §36, o tamanho por *dataset* (duas vezes) | §6.9 passo 14 | §6.9 passo 15 |
+| §36, a latência da terça | §6.8 passo 18 | §6.8 passo 27 |
+
+**Os ajustes:** a §6.6 passo 5 dizia que um `gcp-sql-proxy` de outro terminal servia; desde a
+rodada 1 o alvo recusa porta ocupada, e o passo manda fechar o próprio proxy e identificar o alheio
+antes de encerrar (RV13J-2-02). O esperado do T3 da quarta dizia três chaves removidas; são a marca
+e os três clientes da declaração. E `--limite 0` deixava de ser medida vazia aprovada: a amostra
+mínima é um evento (RV13J-2-04).
