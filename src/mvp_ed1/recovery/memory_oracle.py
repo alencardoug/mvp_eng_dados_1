@@ -52,6 +52,7 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from mvp_ed1.legacy import armazem as dialeto
 from mvp_ed1.recovery import capture_recovery, leitura, ledger, oraculos
 
 #: Campos que nunca mudam, e os que a publicação da fase 2 escreve.
@@ -136,8 +137,22 @@ class Memory:
     expected_deletion_rows: list[dict[str, Any]] | None = None
 
 
+def _bigquery(conexao) -> bool:
+    return isinstance(conexao, dialeto.BigQuery)
+
+
+def _escalar(conexao, sql: str, parametros: dict[str, Any] | None = None) -> Any:
+    if _bigquery(conexao):
+        return conexao.escalar(sql, parametros)
+    return conexao.execute(text(sql), parametros or {}).scalar()
+
+
 def _existe(conexao, relacao: str) -> bool:
     esquema, tabela = relacao.split(".")
+    if _bigquery(conexao):
+        # Tabela **ou** *view*: o `tabelas_do_schema` do BigQuery só lista tabela.
+        dataset = conexao.renomear.get(esquema, esquema)
+        return tabela in {t.table_id for t in conexao.cliente.list_tables(f"{conexao.projeto}.{dataset}")}
     return tabela in leitura.tabelas_do_schema(conexao, esquema) or bool(conexao.execute(
         text("select 1 from information_schema.views where table_schema = :s and table_name = :t"),
         {"s": esquema, "t": tabela},
@@ -168,16 +183,11 @@ def expected_deletion_rows(conexao, certificadas: Iterable[int], selecionada: in
         if tabela not in no_bruto:
             continue
         coluna, tipo = remocao.chave(tabela)
-        sync = "(_airbyte_meta->>'sync_id')::bigint"
         presenca: dict[str, dict[int, list[str]]] = {}
-        for captura_id, valor in conexao.execute(
-            text(f'select {sync}, "{coluna}"::text from {ledger.RAW}."{tabela}" where {sync} = any(:ids)'),
-            {"ids": ids},
-        ):
+        for captura_id, valor in _presenca(conexao, tabela, coluna, ids):
             chave = remocao.canonizar(valor, tipo)
             if chave is not None:  # nulo é linha sem identidade, contada à parte pelo modelo
                 presenca.setdefault(chave, {}).setdefault(int(captura_id), []).append(valor)
-        objeto = ", ".join(f"'{c}', r.\"{c}\"" for c in schema.colunas(tabela))
         for chave, por_captura in sorted(presenca.items()):
             if selecionada in por_captura:
                 continue
@@ -185,11 +195,7 @@ def expected_deletion_rows(conexao, certificadas: Iterable[int], selecionada: in
             if not historico:
                 continue
             ultima = max(historico)
-            payload = [linha for (linha,) in conexao.execute(
-                text(f'select jsonb_build_object({objeto}) from {ledger.RAW}."{tabela}" r '
-                     f'where {sync} = :c and r."{coluna}"::text = any(:v)'),
-                {"c": ultima, "v": sorted(set(por_captura[ultima]))},
-            )]
+            payload = _payload(conexao, tabela, coluna, ultima, sorted(set(por_captura[ultima])))
             if len(payload) != len(por_captura[ultima]):
                 raise ledger.LedgerError(f"{tabela}/{chave}: o payload da captura {ultima} não se releu "
                                          f"({len(payload)} de {len(por_captura[ultima])} linhas)")
@@ -204,20 +210,56 @@ def expected_deletion_rows(conexao, certificadas: Iterable[int], selecionada: in
     return esperadas
 
 
+def _presenca(conexao, tabela: str, coluna: str, ids: list[int]) -> list[tuple[int, str]]:
+    """`(captura, chave como texto)` das linhas do bruto das capturas `ids`."""
+    if _bigquery(conexao):
+        sync = f"cast({dialeto.BigQuery.sync_id()} as int64)"
+        return [(int(r["s"]), r["v"]) for r in conexao.linhas(
+            f"select {sync} as s, cast(`{coluna}` as string) as v from {dialeto.bruto(conexao, ledger.RAW, tabela)} "
+            f"where {sync} in unnest(:ids)", {"ids": ids})]
+    sync = "(_airbyte_meta->>'sync_id')::bigint"
+    return [(int(s), v) for s, v in conexao.execute(
+        text(f'select {sync}, "{coluna}"::text from {ledger.RAW}."{tabela}" where {sync} = any(:ids)'),
+        {"ids": ids},
+    )]
+
+
+def _payload(conexao, tabela: str, coluna: str, captura_id: int, valores: list[str]) -> list[dict[str, Any]]:
+    """As linhas brutas da captura com essas chaves, pelas colunas declaradas, como objeto."""
+    from mvp_ed1.legacy import schema
+
+    colunas = schema.colunas(tabela)
+    if _bigquery(conexao):
+        campos = ", ".join(f"`{c}` as `{c}`" for c in colunas)
+        sync = f"cast({dialeto.BigQuery.sync_id()} as int64)"
+        linhas = [r["p"] for r in conexao.linhas(
+            f"select to_json(struct({campos})) as p from {dialeto.bruto(conexao, ledger.RAW, tabela)} "
+            f"where {sync} = :c and cast(`{coluna}` as string) in unnest(:v)", {"c": captura_id, "v": valores})]
+        # O cliente devolve o JSON já lido; texto, se a versão dele não o ler.
+        return [json.loads(p) if isinstance(p, str) else p for p in linhas]
+    objeto = ", ".join(f"'{c}', r.\"{c}\"" for c in colunas)
+    return [linha for (linha,) in conexao.execute(
+        text(f'select jsonb_build_object({objeto}) from {ledger.RAW}."{tabela}" r '
+             f'where (_airbyte_meta->>\'sync_id\')::bigint = :c and r."{coluna}"::text = any(:v)'),
+        {"c": captura_id, "v": valores},
+    )]
+
+
 def read_memory(engine: Engine) -> Memory:
     from mvp_ed1.legacy import captura
 
     with ledger._read_only(engine) as conexao:
         certificado = capture_recovery._by_attempt(
-            ledger.canonical_rows(leitura._linhas(conexao, f"select * from {ledger.CERTIFICATE}"))
+            ledger.canonical_rows(leitura._linhas(conexao, f"select * from {dialeto.nome(conexao, ledger.CERTIFICATE)}"))
         )
         capturas = ledger.measure_captures(conexao)
-        selecionada = (conexao.execute(text("select max(snapshot_id) from staging.legacy_selected_capture")).scalar()
+        selecionada = (_escalar(conexao, "select max(snapshot_id) from "
+                                         f"{dialeto.nome(conexao, 'staging.legacy_selected_capture')}")
                        if _existe(conexao, "staging.legacy_selected_capture") else None)
         tem_quarentena = _existe(conexao, leitura.TABELA_DA_QUARENTENA)
         por_tabela: dict[str, dict[str, list[dict[str, Any]]]] = {}
         if tem_quarentena:
-            for linha in leitura._linhas(conexao, f"select * from {leitura.TABELA_DA_QUARENTENA}"):
+            for linha in leitura._linhas(conexao, f"select * from {dialeto.nome(conexao, leitura.TABELA_DA_QUARENTENA)}"):
                 fatia = oraculos.nome_da_fatia(linha, leitura.CHAVE_DA_QUARENTENA)
                 por_tabela.setdefault(fatia, {}).setdefault(linha["source_table"], []).append(linha)
     certificadas = captura.certificadas(engine)
@@ -551,13 +593,16 @@ def main(argv: list[str] | None = None) -> int:
 
     from sqlalchemy import create_engine
 
-    from mvp_ed1.db import WAREHOUSE, database_url
+    from mvp_ed1.db import LEGACY, database_url
     from mvp_ed1.recovery.sources import _write, provenance
 
     epoca = ledger.current_epoch(ledger.root())
     do_livro = (json.loads(args.capture_ledger.read_text(encoding="utf-8"))["certified"]
                 if args.capture_ledger else None)
-    armazem = create_engine(database_url(WAREHOUSE))
+    # O armazém que o ambiente declara (`LEGACY_WAREHOUSE`), como a captura e o livro: o PostgreSQL
+    # local, ou o BigQuery na nuvem. O legado só é o coordenador dos locks, que o oráculo não toma.
+    legado = create_engine(database_url(LEGACY))
+    armazem = dialeto.do_ambiente(legado)
     try:
         aceitas = (accepted_removals(json.loads(args.accepted_removals.read_text(encoding="utf-8")))
                    if args.accepted_removals else None)
@@ -567,6 +612,7 @@ def main(argv: list[str] | None = None) -> int:
         problemas = check(ledger.records(epoca), read_memory(armazem), do_livro, aceitas, reaparecidas, notas)
     finally:
         armazem.dispose()
+        legado.dispose()
     relatorio = {"format": 1, "kind": "memory_oracle", "provenance": provenance(), "epoch": str(epoca),
                  "capture_ledger": None if args.capture_ledger is None else str(args.capture_ledger),
                  "accepted_removals": None if args.accepted_removals is None else str(args.accepted_removals),
