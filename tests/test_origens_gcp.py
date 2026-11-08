@@ -45,7 +45,8 @@ def test_os_alvos_do_cloud_sql_passam_pelo_proxy_e_nao_recarregam_o_env():
     alvos = [a for a in re.findall(r"^(gcp-[a-z0-9-]+):", MAKEFILE, re.M) if "$(GCP_ORIGENS)" in _receita(a)]
     assert set(alvos) == {"gcp-origens-migrar", "gcp-origens-povoar", "gcp-origens-oraculo",
                           "gcp-origens-replicacao", "gcp-g21-prova", "gcp-desmonte-slot", "gcp-livro-epoca",
-                          "gcp-sync-legacy", "gcp-debezium-status", "gcp-quente-produzir", "gcp-quente-conferir"}
+                          "gcp-sync-legacy", "gcp-debezium-status", "gcp-quente-produzir", "gcp-quente-conferir",
+                          "gcp-legado-mutar"}
     for alvo in alvos:
         receita = _receita(alvo)
         assert receita.split("$(GCP_ORIGENS)")[0].count("$(GCP_LIMPEZA)") == 1, alvo

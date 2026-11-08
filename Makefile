@@ -162,6 +162,7 @@ endef
         gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
         gcp-sync-retail gcp-sync-legacy gcp-tags-convergir gcp-tags-inventario gcp-gke-versao gcp-debezium-status \
         gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria \
+        gcp-composer-fluxo gcp-composer-exportar gcp-legado-mutar gcp-legado-matriz \
         gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
@@ -1193,24 +1194,53 @@ gcp-composer-smoke: gcp-preflight ## Janela: as DAGs importam e a diagnostico_co
 	@# Depois do `gcp-composer-segredos` e do `gcp-composer-publicar`, e antes da `fluxo_batch`.
 	@# A CLI do Airflow pelo `gcloud` (grupo `dags`, aceito até o Airflow 3.3.0). A DAG nasce
 	@# pausada: o `unpause` é dela só, e ela não tem agendamento.
-	@$(GCP_ENV); \
-	nome=$$($(call COMPOSER_SAIDA,nome)); \
-	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
-	g() { gcloud composer environments run "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" "$$@"; }; \
+	@$(GCP_ENV); $(COMPOSER_G); \
 	erros=$$(g dags list-import-errors -- -o json 2>/dev/null) || exit 1; \
 	printf '%s' "$$erros" | .venv/bin/python -c 'import json,sys; t=sys.stdin.read().strip(); e=[] if not t or "No data found" in t else json.loads(t); print("importação:", "sem erro" if not e else e); sys.exit(1 if e else 0)' || exit 1; \
-	g dags unpause -- diagnostico_composer -y > /dev/null || exit 1; \
-	run="smoke_$$(date -u +%Y%m%dT%H%M%S)"; \
-	g dags trigger -- diagnostico_composer --run-id "$$run" > /dev/null || exit 1; \
-	for _ in $$(seq 60); do \
+	$(call COMPOSER_RODAR,diagnostico_composer,60)
+
+# ── Quarta: a fluxo_batch, as duas capturas da §7.2 e a exportação ────────────────────────────────
+COMPOSER_EVIDENCIA := data/medicoes/etapa_13/g6
+# A CLI do Airflow pelo `gcloud` (grupos `dags` e `tasks`, aceitos até o Airflow 3.3.0).
+COMPOSER_G = nome=$$($(call COMPOSER_SAIDA,nome)); \
+	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	g() { gcloud composer environments run "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" "$$@"; }
+# Dispara a DAG $(1) e espera até $(2) voltas de 15 s. As DAGs nascem pausadas e não têm agendamento:
+# o `unpause` não dispara nada sozinho. No fim, sucesso ou não, o estado e a duração de cada tarefa
+# vão para `COMPOSER_EVIDENCIA` — é de lá que saem os tempos da §7.2.
+COMPOSER_RODAR = g dags unpause -- $(1) -y > /dev/null || exit 1; \
+	run="$(1)_$$(date -u +%Y%m%dT%H%M%S)"; estado=; \
+	g dags trigger -- $(1) --run-id "$$run" > /dev/null || exit 1; \
+	echo "$(1): $$run disparado"; \
+	for _ in $$(seq $(2)); do \
 		sleep 15; \
-		estado=$$(g dags list-runs -- diagnostico_composer -o json 2>/dev/null | RUN="$$run" .venv/bin/python -c 'import json,os,sys; r=[x for x in json.load(sys.stdin) if x.get("run_id")==os.environ["RUN"]]; print(r[0]["state"] if r else "")'); \
-		case "$$estado" in \
-			success) echo "gcp-composer-smoke: $$run terminou com sucesso"; exit 0 ;; \
-			failed) echo "gcp-composer-smoke: $$run FALHOU — a tarefa que falhou diz o quê, no log dela"; exit 1 ;; \
-		esac; \
+		estado=$$(g dags list-runs -- $(1) -o json 2>/dev/null | RUN="$$run" .venv/bin/python -c 'import json,os,sys; r=[x for x in json.load(sys.stdin) if x.get("run_id")==os.environ["RUN"]]; print(r[0]["state"] if r else "")'); \
+		case "$$estado" in success|failed) break ;; esac; \
 	done; \
-	echo "gcp-composer-smoke: $$run não terminou em 15 min (último estado: $$estado)"; exit 1
+	mkdir -p $(COMPOSER_EVIDENCIA); \
+	g tasks states-for-dag-run -- $(1) "$$run" -o json > "$(COMPOSER_EVIDENCIA)/$$run.json" 2>/dev/null; \
+	case "$$estado" in \
+		success) echo "$(1): $$run terminou com sucesso · tarefas em $(COMPOSER_EVIDENCIA)/$$run.json"; exit 0 ;; \
+		failed) echo "$(1): $$run FALHOU — a tarefa que falhou diz o quê, no log dela ($(COMPOSER_EVIDENCIA)/$$run.json)"; exit 1 ;; \
+	esac; \
+	echo "$(1): $$run não terminou no prazo (último estado: $$estado)"; exit 1
+
+gcp-composer-fluxo: gcp-preflight ## Quarta: dispara a fluxo_batch no Composer e espera (até 2 h); guarda o estado e a duração de cada tarefa
+	@$(GCP_ENV); $(COMPOSER_G); $(call COMPOSER_RODAR,fluxo_batch,480)
+
+gcp-composer-exportar: gcp-preflight ## Quarta, antes das 21:30: copia os logs do Airflow do bucket do Composer para data/medicoes/etapa_13/g6/ (o bucket sai no desmonte)
+	@$(GCP_ENV); \
+	bucket=$$($(call COMPOSER_SAIDA,bucket)); \
+	test -n "$$bucket" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	mkdir -p $(COMPOSER_EVIDENCIA)/logs; \
+	gcloud storage rsync --recursive "gs://$$bucket/logs" $(COMPOSER_EVIDENCIA)/logs || exit 1; \
+	echo "gcp-composer-exportar: logs em $(COMPOSER_EVIDENCIA)/logs ($$(find $(COMPOSER_EVIDENCIA)/logs -type f | wc -l) arquivos)"
+
+gcp-legado-mutar: gcp-preflight require-cloud-sql-proxy ## Quarta, entre as duas capturas: aplica no legado do Cloud SQL as mutações de src/mvp_ed1/gcp/mutacoes_da_janela.yml, com diário (ADR-0045); uma vez só
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.mutacoes_janela
+
+gcp-legado-matriz: gcp-preflight ## Quarta, depois da captura seguinte e do dbt: o efeito líquido do diário contra o intervalo e a memória no BigQuery (§7.2); somente leitura
+	@$(GCP_ENV); export LEGACY_WAREHOUSE=bigquery MVP_REGISTROS_DIR="$(GCP_REGISTROS)"; .venv/bin/python -m mvp_ed1.legacy.diario
 
 # ── Dataflow: o caminho quente gerenciado (ensaio na terça, D83; parte cara na quarta) ──────────
 # A saída `dataflow` do Terraform diz conta, sub-rede, bucket e região; o pacote do worker é o
