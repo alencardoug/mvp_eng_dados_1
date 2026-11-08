@@ -79,7 +79,13 @@ def test_listagem_que_falha_no_dataflow_nao_e_nenhum_job():
 
 def test_cada_oraculo_tem_o_seu_veredito():
     oraculos = _receita("gcp-oraculos")
-    assert "&& \\" not in oraculos and oraculos.count("rc=1; }") == 4 and "exit $$rc" in oraculos
+    assert "&& \\" not in oraculos and oraculos.count("rc=1; }") == 3 and "exit $$rc" in oraculos
+
+
+def test_a_classificacao_por_captura_nao_e_comparada_entre_ambientes():
+    """D85: a classificação casa por `snapshot_id`, que é o job de cada Airbyte."""
+    oraculos = _receita("gcp-oraculos")
+    assert "legacy_classifications" not in oraculos and "não é comparável entre ambientes (D85)" in oraculos
 
 
 def test_o_port_forward_e_o_proxy_sao_o_proprio_processo_e_o_token_nao_vai_na_linha():

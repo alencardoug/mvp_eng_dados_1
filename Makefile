@@ -1095,18 +1095,16 @@ gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e l
 		cd dbt && set -a && . ../.env && set +a && MVP_POLICY_TAGS="$$tags" \
 		../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
 
-gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do legado, contagens das camadas e catálogo
+gcp-oraculos: gcp-preflight ## Paridade local × BigQuery do estado corrente: contagens das camadas, views de consumption e catálogo
 	@# As comparações rodam todas, cada uma com o seu veredito, e o alvo falha se qualquer uma falhar:
-	@# o retorno da última não encobre as outras (RV13J-1-08).
+	@# o retorno da última não encobre as outras (RV13J-1-08). A classificação do legado casa por
+	@# `snapshot_id`, que é o *job* de cada Airbyte, e não se compara entre ambientes (D85).
 	@$(GCP_ENV); rc=0; \
-	.venv/bin/python -m mvp_ed1.gcp.oraculo trusted.legacy_classifications \
-		--chave source_system,snapshot_id,source_table,legacy_row_id \
-		--colunas classification,rejection_origin,catalog_version,treatment_fingerprint \
-		--json findings:code,column || { echo "gcp-oraculos: FALHOU a classificação do legado"; rc=1; }; \
+	echo "gcp-oraculos: a classificação do legado por captura não é comparável entre ambientes (D85); não comparada"; \
 	.venv/bin/python -m mvp_ed1.gcp.oraculo contagens || { echo "gcp-oraculos: FALHARAM as contagens"; rc=1; }; \
 	.venv/bin/python -m mvp_ed1.gcp.oraculo consumo || { echo "gcp-oraculos: FALHOU o conteúdo das views de consumption"; rc=1; }; \
 	.venv/bin/python -m mvp_ed1.gcp.catalogo || { echo "gcp-oraculos: FALHOU o catálogo"; rc=1; }; \
-	test $$rc = 0 && echo "gcp-oraculos: as quatro comparações passaram"; exit $$rc
+	test $$rc = 0 && echo "gcp-oraculos: as três comparações passaram"; exit $$rc
 
 # A imagem do Composer da D73, pelo *digest* — a de que o ambiente nasce na janela. A prova do G2.4
 # roda nela, não numa parecida: a lista de pacotes é a da imagem, não a de uma reconstrução.

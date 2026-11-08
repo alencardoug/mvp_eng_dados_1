@@ -37,3 +37,13 @@ def test_view_ou_coluna_de_um_lado_so_reprova():
 def test_as_colunas_de_execucao_saem_declaradas():
     comparadas, excluidas, _ = oraculo.conteudo([_linha()])
     assert excluidas == ["_loaded_at"] and "_loaded_at" not in comparadas
+
+
+def test_contagem_diferente_so_reprova_nas_camadas_de_estado(capsys):
+    """D85: raw_legacy, governance e snapshots guardam a história de cada ambiente."""
+    local = {("raw_legacy", "a"): 9, ("governance", "b"): 4, ("snapshots", "c"): 7, ("trusted", "d"): 3}
+    nuvem = {("raw_legacy", "a"): 3, ("governance", "b"): 2, ("trusted", "d"): 3}
+    assert oraculo.comparar_contagens(local, nuvem) == 0
+    assert "3 nas de história (não comparáveis, D85)" in capsys.readouterr().out
+    assert oraculo.comparar_contagens(local, {**nuvem, ("trusted", "d"): 2}) == 1
+    assert oraculo.comparar_contagens({("staging", "e"): 1}, {}) == 1

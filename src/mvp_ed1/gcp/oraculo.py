@@ -14,7 +14,8 @@ veredito.
         --chave source_system,snapshot_id,source_table,legacy_row_id \\
         --colunas classification,rejection_origin --json findings:code,column
 
-    python -m mvp_ed1.gcp.oraculo contagens   # linhas de toda tabela e view, nas nove camadas
+    python -m mvp_ed1.gcp.oraculo contagens   # linhas de toda tabela e view, nas nove camadas;
+                                              # só as camadas de estado reprovam (D85)
     python -m mvp_ed1.gcp.oraculo consumo     # o conteúdo de cada view de consumption
 
 `contagens` sozinha não prova as *views* de consumo: duas com as mesmas quantidades e valores
@@ -69,6 +70,15 @@ CAMADAS = ("raw", "raw_legacy", "governance", "staging", "trusted", "analytics",
            "consumption", "quarantine", "snapshots")
 
 
+#: As camadas que guardam a história de cada ambiente, e não o estado corrente (D85): o
+#: `raw_legacy` acumula uma cópia por captura (`full_refresh_append`, ADR-0037), a `governance`
+#: registra cada captura e certificado, e os `snapshots` guardam uma versão por execução do
+#: dbt. Entre o local e a nuvem as capturas e as execuções são outras, e a contagem delas não
+#: diz nada sobre a paridade. A classificação por captura é não comparável pelo mesmo motivo,
+#: e o `gcp-oraculos` não a compara.
+HISTORIA = frozenset({"raw_legacy", "governance", "snapshots"})
+
+
 #: A quarentena é destino permanente (ADR-0037): o armazém local guarda as auditorias de
 #: todas as capturas e tratamentos, e o BigQuery só as que rodaram lá. O que tem de ser igual
 #: é o recorte da captura e do tratamento correntes — os de `legacy_classifications`.
@@ -99,16 +109,30 @@ def contagens(cliente, projeto: str) -> int:
                 classificacoes=f"`{projeto}.trusted.legacy_classifications`")
             nuvem[(camada, t.table_id)] = next(iter(cliente.query(
                 f"select count(*) from `{projeto}.{camada}.{t.table_id}` q {recorte}").result()))[0]
-    iguais = divergem = 0
+    return 1 if comparar_contagens(local, nuvem) else 0
+
+
+def comparar_contagens(local: dict[tuple, int], nuvem: dict[tuple, int]) -> int:
+    """Imprime cada diferença e devolve quantas são de camada de estado — as que reprovam (D85).
+
+    A diferença numa camada de `HISTORIA` sai no relatório, marcada, e não reprova: o que ela
+    conta é a sequência de capturas e de execuções de cada ambiente, que não é a mesma.
+    """
+    iguais = estado = historia = 0
     for k in sorted(set(local) | set(nuvem)):
         a, b = local.get(k), nuvem.get(k)
         if a == b:
             iguais += 1
             continue
-        divergem += 1
+        if k[0] in HISTORIA:
+            historia += 1
+            print(f"  {k[0]}.{k[1]}: local {a}, BigQuery {b} (história do ambiente, não comparável — D85)")
+            continue
+        estado += 1
         print(f"  {k[0]}.{k[1]}: local {a}, BigQuery {b}")
-    print(f"contagens: {iguais} iguais, {divergem} diferentes ou de um lado só")
-    return 1 if divergem else 0
+    print(f"contagens: {iguais} iguais, {estado} diferentes ou de um lado só nas camadas de estado, "
+          f"{historia} nas de história (não comparáveis, D85)")
+    return estado
 
 
 #: Casas decimais da comparação de números entre os dois dialetos.
