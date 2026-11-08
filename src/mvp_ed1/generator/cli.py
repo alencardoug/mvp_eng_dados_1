@@ -39,6 +39,14 @@ RAIZ = pathlib.Path(__file__).resolve().parents[3]
 REGISTRO_DA_GERACAO = RAIZ / "data" / "source" / "geracao.json"
 
 
+def _registro_da_geracao() -> pathlib.Path:
+    """`source/geracao.json` sob `MVP_REGISTROS_DIR`, quando a carga é de outras origens."""
+    from mvp_ed1 import registros
+
+    outra = registros.raiz()
+    return REGISTRO_DA_GERACAO if outra is None else outra / "source" / "geracao.json"
+
+
 def _argumentos() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m mvp_ed1.generator.cli",
@@ -126,8 +134,9 @@ def registrar_geracao(motor: Motor, fator, linhas: int, forcado: bool) -> pathli
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         commit = None
-    REGISTRO_DA_GERACAO.parent.mkdir(parents=True, exist_ok=True)
-    REGISTRO_DA_GERACAO.write_text(
+    destino = _registro_da_geracao()
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(
         json.dumps(
             {
                 "semente": motor.seed,
@@ -142,7 +151,7 @@ def registrar_geracao(motor: Motor, fator, linhas: int, forcado: bool) -> pathli
         ) + "\n",
         encoding="utf-8",
     )
-    return REGISTRO_DA_GERACAO
+    return destino
 
 
 def size_report(args, config: Config) -> int:

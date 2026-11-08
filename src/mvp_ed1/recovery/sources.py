@@ -670,12 +670,17 @@ def main(argv: list[str] | None = None) -> int:
             raiz = os.environ.get("RECOVERY_DIR")
             approved = pathlib.Path(raiz) / "aprovado" / "manifesto.json" if raiz else APPROVED_MANIFEST
         calibration_up_to = int(_load(str(approved))["max_event_sequence"])
+    from mvp_ed1 import registros
+
+    # O manifesto do lote que está **neste** legado: o local, ou o da carga de outras origens.
+    outra = registros.raiz()
+    legacy_manifest = LEGACY_MANIFEST if outra is None else outra / "legacy" / "manifesto.json"
     source = create_engine(database_url(), future=True)
     legacy = create_engine(database_url(LEGACY), future=True)
     try:
         report = oracle(
             _load(args.measure), source=source, legacy=legacy,
-            legacy_manifest=_load(str(LEGACY_MANIFEST)), calibration_up_to=calibration_up_to,
+            legacy_manifest=_load(str(legacy_manifest)), calibration_up_to=calibration_up_to,
         )
     except Refused as erro:
         print(f"RECUSADO: {erro}", file=sys.stderr)

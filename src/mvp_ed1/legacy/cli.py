@@ -35,6 +35,14 @@ MANIFESTOS = pathlib.Path("data/legacy")
 MANIFESTO = MANIFESTOS / "manifesto.json"
 
 
+def _manifestos() -> pathlib.Path:
+    """`legacy/` sob `MVP_REGISTROS_DIR`, quando a carga é de outras origens (`mvp_ed1.registros`)."""
+    from mvp_ed1 import registros
+
+    outra = registros.raiz()
+    return MANIFESTOS if outra is None else outra / "legacy"
+
+
 def _promessas() -> frozenset[str]:
     return frozenset(yaml.safe_load(CAMINHO.read_text(encoding="utf-8"))["promessas"])
 
@@ -187,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.comando == "manifesto":
-        caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS, carga=False)
+        caminho = writer.gravar_manifesto(catalogo, resultado, parametros, _manifestos(), carga=False)
         print(f"\nmanifesto: {caminho} (nenhum banco foi tocado)")
         return 0
 
@@ -201,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     except writer.DestinoNaoVazio as erro:
         print(f"\n{erro}", file=sys.stderr)
         return 1
-    caminho = writer.gravar_manifesto(catalogo, resultado, parametros, MANIFESTOS, carga=True)
+    caminho = writer.gravar_manifesto(catalogo, resultado, parametros, _manifestos(), carga=True)
     medida = writer.escrever(engine, resultado, forcar=args.force)
     print(
         f"\ncarregado: {medida['linhas']:,} linhas em {medida['segundos']} s; "
