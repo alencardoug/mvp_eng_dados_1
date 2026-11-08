@@ -1585,3 +1585,6 @@ A rodada 4 (`high`) deu o RV13J-3-02 como resolvido e achou dois restos das corr
   enumerou 3.600 ordens e partições de painel pelo acumulador real e achou seis travessias; elas
   são as de mesma paridade (o -1 é o único delta ímpar), e a §39, que dizia "de 25–30 para 23 ou
   24", fica corrigida por esta. `prova_quente.TRAVESSIAS` é exatamente essas seis, com teste.
+
+A rodada 5 (`high`) não achou nada e deu o lote como fechável, pendente das decisões do Owner. As
+quatro perguntas dos §37 e §38 viraram as [D84 a D87](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-antes-da-p3-levantadas-em-08112026), para antes da P3.
