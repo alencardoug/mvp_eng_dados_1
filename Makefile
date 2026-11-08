@@ -161,7 +161,7 @@ endef
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-origens-migrar gcp-origens-povoar gcp-origens-oraculo \
         gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
         gcp-sync-retail gcp-sync-legacy gcp-tags-convergir gcp-tags-inventario gcp-gke-versao gcp-debezium-status \
-        gcp-quente-produzir gcp-quente-conferir \
+        gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria \
         gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
@@ -1344,6 +1344,16 @@ gcp-quente-produzir: gcp-preflight require-cloud-sql-proxy ## Terça: emite movi
 
 gcp-quente-conferir: gcp-preflight require-cloud-sql-proxy ## Terça: o livro da origem no Cloud SQL contra o destino no BigQuery, e os alertas da assinatura de observação; falha enquanto o destino não alcança
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.quente conferir
+
+gcp-memoria-oraculo: gcp-preflight ## Terça, depois das capturas e do gcp-dbt-build: o oráculo da memória (T3) contra o livro do Cloud Storage e o BigQuery, somente leitura
+	@# O `memory-oracle` da fase local com o armazém e o livro da nuvem. O legado do `.env` só nomeia o
+	@# coordenador dos locks, que o oráculo não toma: nada se conecta a ele.
+	@$(GCP_ENV); $(GCP_LIVRO); mkdir -p data/medicoes/etapa_13/g2_1; \
+	.venv/bin/python -m mvp_ed1.recovery.memory_oracle --out "data/medicoes/etapa_13/g2_1/t3_$$(date -u +%Y%m%dT%H%M%SZ).json"
+
+gcp-jobs-auditoria: gcp-preflight require-kubectl ## Terça, depois das capturas: nenhum POST indevido — os jobs da conexão legada no Airbyte do GKE contra os registros do livro
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_LIVRO); \
+	.venv/bin/python -m mvp_ed1.recovery.job_audit
 
 # ── Desmonte (PLANO_etapa_13 §6.5; quinta, 12/11) ──────────────────────────────────────────────
 # A ordem é a da §6.5. Os planos saem de `make gcp-plan PASSO=n` — o VARS vem do

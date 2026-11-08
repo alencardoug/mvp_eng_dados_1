@@ -150,3 +150,10 @@ def test_o_destino_quente_confere_contra_a_origem():
     assert len(atrasado) == 1 and "7 de 10" in atrasado[0]
     repetido = quente.comparar(origem, {"movimentos": 10, "linhas": 12, "max_event_sequence": 10})
     assert repetido == ["destino com 2 linhas repetidas por movement_id"]
+
+
+def test_a_memoria_e_os_jobs_leem_o_livro_da_nuvem():
+    memoria = _receita("gcp-memoria-oraculo")
+    assert "$(GCP_ENV); $(GCP_LIVRO);" in memoria and "mvp_ed1.recovery.memory_oracle --out" in memoria
+    jobs = _receita("gcp-jobs-auditoria")
+    assert jobs.index("$(GKE_AIRBYTE)") < jobs.index("$(GCP_LIVRO)") < jobs.index("mvp_ed1.recovery.job_audit")
