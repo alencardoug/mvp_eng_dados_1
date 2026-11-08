@@ -39,6 +39,9 @@ resource "google_sql_database_instance" "origens" {
     disk_autoresize = false
 
     deletion_protection_enabled = false
+    # Explícito, para não depender do padrão: com ele ligado os *backups* sobrevivem à instância. A
+    # prova de que nenhum ficou é o `make gcp-desmonte-sql` (§6.5 passo 7).
+    retain_backups_on_delete = false
 
     backup_configuration {
       enabled                        = false

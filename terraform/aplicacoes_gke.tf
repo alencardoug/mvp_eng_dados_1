@@ -3,7 +3,9 @@
 # **Interruptor próprio** porque o provider do Helm se conecta ao *cluster* para planejar: com o
 # *cluster* nascendo no mesmo `apply`, o endereço dele ainda não existe na hora do plano. A ordem
 # é o rito duas vezes — `enable_gke`, depois `enable_gke_apps` —, e o desmonte é a ordem inversa
-# (§6.5 passos 3–5): os *releases* saem primeiro, levando PVCs e discos.
+# (§6.5 passos 3–5): os *releases* saem primeiro. O PVC do Debezium Server é do *release* e sai com
+# ele; os do banco interno e do MinIO do Airbyte nascem de `volumeClaimTemplates` e ficam — quem os
+# leva é o `make gcp-desmonte-kubernetes`, antes do `destroy` do *cluster*.
 
 locals {
   aplicacoes = var.enable_gke && var.enable_gke_apps && var.enable_cloud_sql

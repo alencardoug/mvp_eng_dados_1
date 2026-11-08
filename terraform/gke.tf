@@ -6,9 +6,10 @@
 # o plano de controle com endpoint público, autenticado pelo IAM (é por ele que o Helm e o
 # `kubectl` desta máquina chegam).
 #
-# **Desmonte** (§6.5 passos 4–5): `deletion_protection = false`; antes do `destroy` deste degrau,
-# os *releases* do Helm saem (`enable_gke_apps = false`) — os PVCs, e com eles os discos, vão
-# junto —, porque o GKE **retém** disco persistente ao apagar o *cluster*.
+# **Desmonte** (§6.5 passos 3–5): `deletion_protection = false`; antes do `destroy` deste degrau,
+# os *releases* do Helm saem (`enable_gke_apps = false`, plano 21) e o `make gcp-desmonte-kubernetes`
+# apaga os *namespaces* — o `helm uninstall` não leva os PVCs dos StatefulSets do Airbyte —, porque o
+# GKE **retém** disco persistente ao apagar o *cluster*.
 
 locals {
   # As contas do Kubernetes que agem como contas de papel (Workload Identity): o Airbyte roda os

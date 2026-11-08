@@ -56,4 +56,10 @@ resource "google_service_networking_connection" "this" {
   network                 = google_compute_network.this[0].id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.servicos_privados[0].name]
+
+  # Desmonte (§6.5, plano 24): a API recusa apagar a conexão enquanto acha que o Cloud SQL ainda a
+  # usa, o que dura além da exclusão da instância, e o peering que sobra impede apagar a rede. Com
+  # REMOVE_PEERING (provider 8.10), recusada a exclusão, o peering sai da rede no lugar dela. O
+  # Cloud SQL já saiu no plano 23, que é a condição que a documentação do provider pede.
+  deletion_policy = "REMOVE_PEERING"
 }

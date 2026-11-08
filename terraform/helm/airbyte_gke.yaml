@@ -12,7 +12,8 @@ global:
   # Composer, pelo Service interno (G2.4); não há Ingress.
   airbyteUrl: http://localhost:8000
   # O `local` do `abctl` monta um disco compartilhado por pods de nós diferentes, o que dois nós
-  # não dão; fica o MinIO do chart, num disco próprio, apagado com o release.
+  # não dão; fica o MinIO do chart, num disco próprio. O disco **não** sai com o release (PVC de
+  # StatefulSet): sai com o namespace, no `make gcp-desmonte-kubernetes` (§6.5 passo 4).
   storage:
     type: minio
 # A API pública para o Composer (G2.4): o `airbyte-server` a serve em `/api/public` na porta 8001
