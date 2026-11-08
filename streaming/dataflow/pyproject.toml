@@ -1,0 +1,27 @@
+# O pacote que vai para o *worker* do Dataflow (Etapa 13, D82): o mesmo código `mvp_ed1` do
+# repositório, **sem dependência nenhuma declarada**.
+#
+# Por quê: o `--extra_package` do Beam 2.76 instala o pacote duas vezes, a segunda resolvendo as
+# dependências (`sdks/python/container/piputil.go`, `pipInstallPackage`). Com o `pyproject.toml` da
+# raiz, isso levaria dbt, Faker, Kafka e psycopg ao *worker* — pelo PyPI, que ele não alcança sem IP
+# público, e por cima dos pacotes da imagem do Beam. O caminho quente na nuvem só importa o que a
+# imagem `apache/beam_python3.11_sdk` já traz (SQLAlchemy, PyYAML, os clientes do BigQuery e do
+# Pub/Sub — `base_image_requirements.txt` da 2.76.0); o teste confere a lista.
+#
+#     uv build --wheel streaming/dataflow --out-dir <pasta>     (o `make gcp-dataflow-*` faz)
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mvp-ed1-worker"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"../../src/mvp_ed1" = "mvp_ed1"

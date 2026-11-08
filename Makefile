@@ -160,6 +160,7 @@ endef
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
+        gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
         require-env require-venv require-abctl require-terraform require-cloud-sql-proxy require-kubectl
 
 help: ## Lista os alvos disponíveis
@@ -1102,6 +1103,44 @@ gcp-composer-smoke: gcp-preflight ## Janela: as DAGs importam e a diagnostico_co
 		esac; \
 	done; \
 	echo "gcp-composer-smoke: $$run não terminou em 15 min (último estado: $$estado)"; exit 1
+
+# ── Dataflow: o caminho quente gerenciado (ensaio na terça, D83; parte cara na quarta) ──────────
+# A saída `dataflow` do Terraform diz conta, sub-rede, bucket e região; o pacote do worker é o
+# `mvp_ed1` sem dependências (`streaming/dataflow/pyproject.toml`), montado a cada chamada.
+DATAFLOW_JOB := mvp-ed1-caminho-quente
+DATAFLOW_EVIDENCIA := data/medicoes/etapa_13/g23
+DATAFLOW_PREPARAR = base=$$(mktemp -d) && trap 'rm -rf "$$base"' EXIT; \
+	$(GCP_TF) output -json dataflow > "$$base/tf.json" 2>/dev/null \
+		|| { echo "ERRO: sem a saída dataflow no estado (o próximo apply a grava)."; exit 1; }; \
+	uv build -q --wheel streaming/dataflow --out-dir "$$base/pacote" > /dev/null || exit 1; \
+	pacote=$$(ls "$$base"/pacote/*.whl)
+
+gcp-dataflow-tabela: gcp-preflight ## Cria o destino do caminho quente no BigQuery com a ADC do Owner, se não existe (antes do apply com enable_dataflow)
+	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.streaming.dataflow tabela
+
+gcp-dataflow-validar: gcp-preflight ## Monta o job do Dataflow inteiro sem enviar (dry run, custo zero) e confere conta, máquina, rede e IP
+	@set -a; . ./.env; set +a; $(DATAFLOW_PREPARAR); \
+	mkdir -p $(DATAFLOW_EVIDENCIA); \
+	.venv/bin/python -m mvp_ed1.streaming.dataflow validar --terraform "$$base/tf.json" --pacote "$$pacote" \
+		--saida "$(DATAFLOW_EVIDENCIA)/dataflow_job_$$(date -u +%Y%m%dT%H%M%SZ).json"
+
+gcp-dataflow-lancar: gcp-dataflow-validar ## Janela: lança o caminho quente no Dataflow (1 worker, como mvp-streamer); cobra até o gcp-dataflow-parar
+	@set -a; . ./.env; set +a; $(DATAFLOW_PREPARAR); \
+	.venv/bin/python -m mvp_ed1.streaming.dataflow lancar --terraform "$$base/tf.json" --pacote "$$pacote"
+
+gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min), cancela se não terminar, e prova que nenhum ficou ativo (§6.5 passo 1)
+	@set -a; . ./.env; set +a; \
+	regiao=$$($(GCP_TF) output -json dataflow | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["regiao"])') || exit 1; \
+	ativos() { gcloud dataflow jobs list --project "$$GCP_PROJECT_ID" --region "$$regiao" --status=active \
+		--filter="name=$(DATAFLOW_JOB)" --format="value(id)"; }; \
+	ids=$$(ativos) || exit 1; \
+	test -n "$$ids" || { echo "gcp-dataflow-parar: nenhum job ativo"; exit 0; }; \
+	for id in $$ids; do gcloud dataflow jobs drain "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
+	for _ in $$(seq 60); do sleep 15; test -z "$$(ativos)" && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; done; \
+	echo "gcp-dataflow-parar: a drenagem não terminou em 15 min; cancelando"; \
+	for id in $$(ativos); do gcloud dataflow jobs cancel "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
+	for _ in $$(seq 20); do sleep 15; test -z "$$(ativos)" && { echo "gcp-dataflow-parar: cancelado; nenhum job ativo"; exit 0; }; done; \
+	echo "ERRO: ainda há job ativo; o relógio da §6.4 manda escalar"; exit 1
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
 	@set -a; . ./.env; set +a; .venv/bin/python -m mvp_ed1.gcp.carga_dev $(if $(APAGAR),--apagar)
