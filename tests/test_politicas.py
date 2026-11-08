@@ -126,3 +126,31 @@ def test_o_repositorio_do_fluxo_no_terraform_e_este():
     tf = pathlib.Path("terraform/politicas.tf").read_text(encoding="utf-8")
     assert 'repositorio_do_fluxo = "alencardoug/mvp_eng_dados_1"' in tf
     assert "assertion.ref == 'refs/heads/main'" in tf
+
+
+@pytest.mark.parametrize("comando", ["inventario", "convergir"])
+@pytest.mark.parametrize("presentes", [{}, {"analytics.dim_customer": _Tabela([_campo("email", TAGS["personal"])])}])
+def test_tabela_declarada_ausente_falha_nos_dois_comandos(comando, presentes, monkeypatch, tmp_path, capsys):
+    """RV13J-1-06: `0 divergências` sobre tabelas que faltam seria aprovar o vazio."""
+    from google.cloud import bigquery
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps(MANIFEST), encoding="utf-8")
+    monkeypatch.setenv("GCP_PROJECT_ID", "p")
+    monkeypatch.setenv("MVP_POLICY_TAGS", json.dumps(TAGS))
+    monkeypatch.setattr(bigquery, "Client", lambda **_: _Cliente(dict(presentes)))
+    assert politicas.main([comando, "--manifest", str(manifest)]) == 1
+    assert "AUSENTE — raw.customers" in capsys.readouterr().err
+
+
+def test_sem_ausente_nem_divergencia_o_inventario_passa(monkeypatch, tmp_path):
+    from google.cloud import bigquery
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps(MANIFEST), encoding="utf-8")
+    monkeypatch.setenv("GCP_PROJECT_ID", "p")
+    monkeypatch.setenv("MVP_POLICY_TAGS", json.dumps(TAGS))
+    tabelas = {"raw.customers": _Tabela([_campo("customer_id"), _campo("email", TAGS["personal"])]),
+               "analytics.dim_customer": _Tabela([_campo("email", TAGS["personal"])])}
+    monkeypatch.setattr(bigquery, "Client", lambda **_: _Cliente(tabelas))
+    assert politicas.main(["inventario", "--manifest", str(manifest)]) == 0

@@ -1,15 +1,18 @@
 # As mutações da origem legada entre as duas capturas da janela (PLANO_etapa_13 §7.2, RV13-1-10;
-# ADR-0045): o que o `make gcp-legado-mutar` aplica no Cloud SQL, na ordem, uma vez. O diário que
+# ADR-0045): o que o `make gcp-legado-mutar` aplica no Cloud SQL, na ordem, uma vez (retomável do
+# ponto em que parou, se uma falhar no meio). O diário que
 # cada uma grava no manifesto do lote do Cloud SQL é o esperado que o `make gcp-legado-matriz`
 # cobra do intervalo e da memória depois da captura seguinte.
 #
 # Cobre os três destinos de uma chave entre duas certificadas:
-#   - remoção física: duas marcas e três clientes, escolhidos pelo oráculo entre as ocorrências
-#     aptas do manifesto (`--quantidade`), e não à mão — remover uma rejeitada não provaria nada;
+#   - remoção física: uma marca e três clientes, escolhidos pelo oráculo entre as ocorrências
+#     aptas do manifesto (`--quantidade`), e não à mão — remover uma rejeitada não provaria nada.
+#     A geração declarada (fator 0,05) tem **uma** marca apta e 74 clientes aptos: a quantidade
+#     não passa das aptas (o teste confere contra o manifesto do lote);
 #   - inserção: uma marca nova, que entra no intervalo como `adicionada`;
 #   - alteração de conteúdo: o nome da marca nova, que segue presente.
 mutacoes:
-  - remover: {tabela: brands, quantidade: 2}
+  - remover: {tabela: brands, quantidade: 1}
   - remover: {tabela: customers, quantidade: 3}
   - inserir: {tabela: brands, valores: {id: "90001", code: "b90001", name: "Marca da janela"}}
   - alterar: {tabela: brands, chave: "90001", coluna: name, valor: "Marca da janela, alterada"}

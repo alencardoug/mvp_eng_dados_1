@@ -161,7 +161,8 @@ endef
         gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-origens-migrar gcp-origens-povoar gcp-origens-oraculo \
         gcp-origens-replicacao gcp-g21-prova gcp-airbyte-config gcp-armazem-zerar gcp-armazem-governanca gcp-livro-epoca \
         gcp-sync-retail gcp-sync-legacy gcp-tags-convergir gcp-tags-inventario gcp-gke-versao gcp-debezium-status \
-        gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria \
+        gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria gcp-livro-tratamento \
+        gcp-quente-prova gcp-debezium-reiniciar gcp-composer-tarefas \
         gcp-composer-fluxo gcp-composer-exportar gcp-legado-mutar gcp-legado-matriz gcp-quente-latencia gcp-armazem-tamanho \
         gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
@@ -999,7 +1000,7 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 	fi; \
 	args=; for v in $$vars; do args="$$args -var $$v"; done; \
 	echo "gcp-plan: $$nome ($$modo) $$destruir $$vars"; \
-	$(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
+	umask 077; $(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
 	rc=$$?; grep -E "Plan:|No changes" "$(GCP_PLANOS)/$$nome.txt"; test $$rc = 0 || exit $$rc; \
 	$(GCP_TF) show -json "../$(GCP_PLANOS)/$$nome.tfplan" \
 		| .venv/bin/python -m mvp_ed1.gcp.desmonte conferir-plano --modo "$$modo" $(if $(DESTROI),--destroi $(DESTROI)) \
@@ -1015,7 +1016,9 @@ gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=06_clo
 	test -n "$$nome" && test -f "$(GCP_PLANOS)/$$nome.tfplan" || { echo "ERRO: plano '$$nome' não existe; rode gcp-plan."; exit 1; }; \
 	cp terraform/terraform.tfstate "$(GCP_PLANOS)/tfstate_$$nome.bak"; \
 	$(GCP_TF) apply -no-color "../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$${nome}_apply.txt" 2>&1; \
-	rc=$$?; tail -3 "$(GCP_PLANOS)/$${nome}_apply.txt"; exit $$rc
+	rc=$$?; grep -E "^Apply complete!|Error:" "$(GCP_PLANOS)/$${nome}_apply.txt" || tail -3 "$(GCP_PLANOS)/$${nome}_apply.txt"; \
+	test $$rc = 0 && rm -f "$(GCP_PLANOS)/$$nome.tfplan" && echo "gcp-apply: o binário do plano saiu (leva o estado, com segredos); o texto fica em $(GCP_PLANOS)/$$nome.txt"; \
+	exit $$rc
 
 gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.0.0.1:15432 (GCP_SQL_PORTA=) pelo Auth Proxy; primeiro plano, Ctrl-C fecha
 	@# Sem rede autorizada no Cloud SQL: só o proxy entra, com a ADC do Owner (cloudsql.client).
@@ -1034,13 +1037,19 @@ GCP_REGISTROS := $(abspath data/medicoes/etapa_13/origens_cloud_sql)
 # Uma limpeza só por receita: a pasta temporária `base` e os processos de segundo plano que os
 # macros abrem (o proxy, o `port-forward`), cada um somado a `pids`. Um `trap` por macro
 # substituiria o do anterior, e um deles ficaria aberto.
-GCP_LIMPEZA = base=$$(mktemp -d) && pids= && trap 'kill $$pids 2>/dev/null; rm -rf "$$base"' EXIT
+# O `kill` vai ao PID do próprio processo (o proxy, o `kubectl`, lançados direto, nunca por função:
+# o `$$!` de uma função em segundo plano é o do *shell* dela, e o filho sobreviveria, RV13J-1-13), e o
+# `wait` espera que saiam antes de a pasta sumir.
+GCP_LIMPEZA = base=$$(mktemp -d) && pids= && trap 'kill $$pids 2>/dev/null; wait $$pids 2>/dev/null; rm -rf "$$base"' EXIT
+# A porta tem de estar livre antes: um *listener* que já estava lá passaria pelo nosso.
+GCP_PORTA_LIVRE = (exec 3<>/dev/tcp/127.0.0.1/$(1)) 2>/dev/null && { echo "ERRO: a porta $(1) já está ocupada (outro proxy ou port-forward aberto?); feche-o e repita."; exit 1; }
 GCP_ORIGENS = conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) \
 		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
+	$(call GCP_PORTA_LIVRE,$(GCP_SQL_PORTA)); \
 	.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao" > /dev/null 2>&1 & proxy=$$!; \
 	pids="$$pids $$proxy"; \
 	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null && break; kill -0 $$proxy 2>/dev/null || break; sleep 1; done; \
-	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
+	kill -0 $$proxy 2>/dev/null && (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
 	for origem in source legacy; do \
 		senha=$$(gcloud secrets versions access latest --secret "mvp-ed1-$$origem-db-password" --project "$$GCP_PROJECT_ID") || exit 1; \
 		prefixo=$$(echo "$$origem" | tr a-z A-Z)_DB; \
@@ -1087,13 +1096,17 @@ gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e l
 		../.venv/bin/dbt build --target gcp --target-path target_gcp $(ARGS)
 
 gcp-oraculos: gcp-preflight ## Paridade local × BigQuery: classificação do legado, contagens das camadas e catálogo
-	@$(GCP_ENV); \
+	@# As comparações rodam todas, cada uma com o seu veredito, e o alvo falha se qualquer uma falhar:
+	@# o retorno da última não encobre as outras (RV13J-1-08).
+	@$(GCP_ENV); rc=0; \
 	.venv/bin/python -m mvp_ed1.gcp.oraculo trusted.legacy_classifications \
 		--chave source_system,snapshot_id,source_table,legacy_row_id \
 		--colunas classification,rejection_origin,catalog_version,treatment_fingerprint \
-		--json findings:code,column && \
-	.venv/bin/python -m mvp_ed1.gcp.oraculo contagens; \
-	.venv/bin/python -m mvp_ed1.gcp.catalogo
+		--json findings:code,column || { echo "gcp-oraculos: FALHOU a classificação do legado"; rc=1; }; \
+	.venv/bin/python -m mvp_ed1.gcp.oraculo contagens || { echo "gcp-oraculos: FALHARAM as contagens"; rc=1; }; \
+	.venv/bin/python -m mvp_ed1.gcp.oraculo consumo || { echo "gcp-oraculos: FALHOU o conteúdo das views de consumption"; rc=1; }; \
+	.venv/bin/python -m mvp_ed1.gcp.catalogo || { echo "gcp-oraculos: FALHOU o catálogo"; rc=1; }; \
+	test $$rc = 0 && echo "gcp-oraculos: as quatro comparações passaram"; exit $$rc
 
 # A imagem do Composer da D73, pelo *digest* — a de que o ambiente nasce na janela. A prova do G2.4
 # roda nela, não numa parecida: a lista de pacotes é a da imagem, não a de uma reconstrução.
@@ -1133,21 +1146,26 @@ gcp-composer-prova: gcp-preflight ## G2.4: a DAG importa e uma tarefa de dbt (TA
 # ── Composer na janela (quarta): segredos, layout e smoke test, nesta ordem ──────────────────────
 # O nome do ambiente e o bucket vêm do `output composer`; vazio é "o degrau não está aplicado".
 COMPOSER_SAIDA = $(GCP_TF) output -json composer | .venv/bin/python -c 'import json,sys; print((json.load(sys.stdin) or {}).get("$(1)", ""))'
-# O `kubectl` contra o GKE, sem `kubeconfig`: o endereço e a CA da saída do Terraform, o *token* da
-# ADC. Pede `base` (uma pasta temporária) já criada; define a função `k`.
+# O `kubectl` contra o GKE: o endereço e a CA da saída do Terraform, o *token* da ADC num
+# `kubeconfig` da pasta temporária (700, some no fim) — não em `--token`, que qualquer processo da
+# máquina leria na linha de comando. Pede `base` já criada; define `KUBECTL` e a função `k`.
 GKE_KUBECTL = ep=$$($(GCP_TF) output -raw gke_endpoint 2>/dev/null); \
 	test -n "$$ep" || { echo "ERRO: sem GKE no estado (degrau 08)."; exit 1; }; \
-	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt"; \
+	$(GCP_TF) output -raw gke_ca | base64 -d > "$$base/ca.crt" || exit 1; \
 	token=$$(gcloud auth application-default print-access-token) || exit 1; \
-	k() { .tools/kubectl --server="https://$$ep" --certificate-authority="$$base/ca.crt" --token="$$token" "$$@"; }
+	(umask 077; EP="$$ep" CA="$$base/ca.crt" TOKEN="$$token" .venv/bin/python -c 'import json,os; print(json.dumps({"apiVersion": "v1", "kind": "Config", "current-context": "gke", "clusters": [{"name": "gke", "cluster": {"server": "https://" + os.environ["EP"], "certificate-authority": os.environ["CA"]}}], "users": [{"name": "adc", "user": {"token": os.environ["TOKEN"]}}], "contexts": [{"name": "gke", "context": {"cluster": "gke", "user": "adc"}}]}))' > "$$base/kubeconfig") || exit 1; \
+	unset token; KUBECTL=".tools/kubectl --kubeconfig=$$base/kubeconfig"; \
+	k() { $$KUBECTL "$$@"; }
 # A API do Airbyte do GKE nesta máquina: um `port-forward` para o Service do `airbyte-server` (o
 # load balancer é interno e daqui não se alcança) e as credenciais do Secret `airbyte-auth-secrets`
 # no ambiente, sem passar pela tela. Pede `GCP_LIMPEZA` e `GKE_KUBECTL` antes.
 GCP_AIRBYTE_PORTA ?= 18001
 GKE_AIRBYTE = remota=$$(k -n airbyte get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
-	k -n airbyte port-forward service/airbyte-airbyte-server-svc "$(GCP_AIRBYTE_PORTA):$$remota" > "$$base/port-forward.log" 2>&1 & pids="$$pids $$!"; \
-	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null && break; sleep 1; done; \
-	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null || { echo "ERRO: o port-forward do Airbyte não abriu:"; cat "$$base/port-forward.log"; exit 1; }; \
+	$(call GCP_PORTA_LIVRE,$(GCP_AIRBYTE_PORTA)); \
+	$$KUBECTL -n airbyte port-forward service/airbyte-airbyte-server-svc "$(GCP_AIRBYTE_PORTA):$$remota" > "$$base/port-forward.log" 2>&1 & encaminhamento=$$!; \
+	pids="$$pids $$encaminhamento"; \
+	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null && break; kill -0 $$encaminhamento 2>/dev/null || break; sleep 1; done; \
+	kill -0 $$encaminhamento 2>/dev/null && (exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_PORTA)) 2>/dev/null || { echo "ERRO: o port-forward do Airbyte não abriu:"; cat "$$base/port-forward.log"; exit 1; }; \
 	AIRBYTE_CLIENT_ID=$$(k -n airbyte get secret airbyte-auth-secrets -o jsonpath='{.data.instance-admin-client-id}' | base64 -d) || exit 1; \
 	AIRBYTE_CLIENT_SECRET=$$(k -n airbyte get secret airbyte-auth-secrets -o jsonpath='{.data.instance-admin-client-secret}' | base64 -d) || exit 1; \
 	test -n "$$AIRBYTE_CLIENT_ID" && test -n "$$AIRBYTE_CLIENT_SECRET" || { echo "ERRO: credenciais do Airbyte vazias no cluster."; exit 1; }; \
@@ -1214,19 +1232,31 @@ COMPOSER_RODAR = g dags unpause -- $(1) -y > /dev/null || exit 1; \
 	echo "$(1): $$run disparado"; \
 	for _ in $$(seq $(2)); do \
 		sleep 15; \
-		estado=$$(g dags list-runs -- $(1) -o json 2>/dev/null | RUN="$$run" .venv/bin/python -c 'import json,os,sys; r=[x for x in json.load(sys.stdin) if x.get("run_id")==os.environ["RUN"]]; print(r[0]["state"] if r else "")'); \
+		estado=$$(g dags list-runs -- $(1) -o json 2>/dev/null | .venv/bin/python -m mvp_ed1.gcp.composer_cli estado --run "$$run" 2>/dev/null); \
 		case "$$estado" in success|failed) break ;; esac; \
 	done; \
-	mkdir -p $(COMPOSER_EVIDENCIA); \
-	g tasks states-for-dag-run -- $(1) "$$run" -o json > "$(COMPOSER_EVIDENCIA)/$$run.json" 2>/dev/null; \
+	terminada=; case "$$estado" in success|failed) terminada=--terminada ;; esac; \
+	$(call COMPOSER_TAREFAS,$(1),"$$run",$$terminada) \
 	case "$$estado" in \
-		success) echo "$(1): $$run terminou com sucesso · tarefas em $(COMPOSER_EVIDENCIA)/$$run.json"; exit 0 ;; \
-		failed) echo "$(1): $$run FALHOU — a tarefa que falhou diz o quê, no log dela ($(COMPOSER_EVIDENCIA)/$$run.json)"; exit 1 ;; \
+		success) test -n "$$tarefas" || { echo "$(1): $$run terminou com sucesso, mas os tempos das tarefas NÃO foram coletados: a medida da §7.2 não existe. Repita: make gcp-composer-tarefas DAG=$(1) RUN=$$run"; exit 1; }; \
+			echo "$(1): $$run terminou com sucesso · tarefas em $$tarefas"; exit 0 ;; \
+		failed) echo "$(1): $$run FALHOU — a tarefa que falhou diz o quê, no log dela ($${tarefas:-tarefas não coletadas})"; exit 1 ;; \
 	esac; \
 	echo "$(1): $$run não terminou no prazo (último estado: $$estado)"; exit 1
+# O estado e a duração de cada tarefa da execução $(2) da DAG $(1), conferidos antes de gravar
+# (`mvp_ed1.gcp.composer_cli tarefas`): resposta vazia ou inválida não vira arquivo de evidência.
+# Deixa em `tarefas` o caminho gravado, ou vazio se a coleta falhou.
+COMPOSER_TAREFAS = mkdir -p $(COMPOSER_EVIDENCIA); tarefas="$(COMPOSER_EVIDENCIA)/$(2).json"; \
+	set -o pipefail; g tasks states-for-dag-run -- $(1) $(2) -o json 2>/dev/null \
+		| .venv/bin/python -m mvp_ed1.gcp.composer_cli tarefas --saida "$$tarefas" $(3) || tarefas=; set +o pipefail;
 
 gcp-composer-fluxo: gcp-preflight ## Quarta: dispara a fluxo_batch no Composer e espera (até 2 h); guarda o estado e a duração de cada tarefa
 	@$(GCP_ENV); $(COMPOSER_G); $(call COMPOSER_RODAR,fluxo_batch,480)
+
+gcp-composer-tarefas: gcp-preflight ## Quarta: coleta de novo o estado e a duração das tarefas de uma execução; DAG= RUN=
+	@test -n '$(DAG)' && test -n '$(RUN)' || { echo 'ERRO: use make gcp-composer-tarefas DAG=fluxo_batch RUN=<run_id>'; exit 1; }
+	@$(GCP_ENV); $(COMPOSER_G); $(call COMPOSER_TAREFAS,$(DAG),"$(RUN)",--terminada) \
+	test -n "$$tarefas" || { echo "ERRO: a coleta das tarefas de $(RUN) falhou de novo"; exit 1; }; echo "tarefas em $$tarefas"
 
 gcp-composer-exportar: gcp-preflight ## Quarta, antes das 21:30: copia os logs do Airflow do bucket do Composer para data/medicoes/etapa_13/g6/ (o bucket sai no desmonte)
 	@$(GCP_ENV); \
@@ -1271,13 +1301,14 @@ gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min)
 	regiao=$$($(GCP_TF) output -json dataflow | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["regiao"])') || exit 1; \
 	ativos() { gcloud dataflow jobs list --project "$$GCP_PROJECT_ID" --region "$$regiao" --status=active \
 		--filter="name=$(DATAFLOW_JOB)" --format="value(id)"; }; \
-	ids=$$(ativos) || exit 1; \
-	test -n "$$ids" || { echo "gcp-dataflow-parar: nenhum job ativo"; exit 0; }; \
+	vazio() { ids=$$(ativos) || { echo "ERRO: a listagem dos jobs ativos falhou; nada se conclui — repita (ou o relógio da §6.4)"; exit 1; }; test -z "$$ids"; }; \
+	vazio && { echo "gcp-dataflow-parar: nenhum job ativo"; exit 0; }; \
 	for id in $$ids; do gcloud dataflow jobs drain "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
-	for _ in $$(seq 60); do sleep 15; test -z "$$(ativos)" && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; done; \
+	for _ in $$(seq 60); do sleep 15; vazio && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; done; \
 	echo "gcp-dataflow-parar: a drenagem não terminou em 15 min; cancelando"; \
-	for id in $$(ativos); do gcloud dataflow jobs cancel "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
-	for _ in $$(seq 20); do sleep 15; test -z "$$(ativos)" && { echo "gcp-dataflow-parar: cancelado; nenhum job ativo"; exit 0; }; done; \
+	vazio && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; \
+	for id in $$ids; do gcloud dataflow jobs cancel "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
+	for _ in $$(seq 20); do sleep 15; vazio && { echo "gcp-dataflow-parar: cancelado; nenhum job ativo"; exit 0; }; done; \
 	echo "ERRO: ainda há job ativo; o relógio da §6.4 manda escalar"; exit 1
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
@@ -1287,11 +1318,13 @@ gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvim
 # Na ordem: gcp-airbyte-config → gcp-armazem-zerar → gcp-armazem-governanca → gcp-livro-epoca, e
 # só então a primeira sincronização. Depois do zerar, o `gcp-dbt-build` de ensaio não tem o que ler.
 
-gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a raiz airbyte/ no Airbyte do GKE (workspace gcp do Terraform), pelo port-forward; o apply mostra o plano e só aplica com yes
-	@# O plano salvo da §6.3 levaria para um arquivo as senhas do Cloud SQL e o segredo do Airbyte,
-	@# que entram como variáveis. O `apply` interativo mostra o plano inteiro e só aplica com o `yes`
-	@# do Owner, como no `airbyte-config` local, sem arquivo (A45). O workspace vai por
-	@# `TF_WORKSPACE`, que não muda o selecionado: o `airbyte-config` local segue no `default`.
+gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a raiz airbyte/ no Airbyte do GKE (workspace gcp do Terraform), pelo port-forward; plano salvo, lido e aplicado do arquivo com o id do projeto digitado
+	@# O rito da §6.3: plano salvo, lido inteiro, aprovado pelo Owner e aplicado **do arquivo**. O
+	@# binário do plano leva as senhas do Cloud SQL e o segredo do Airbyte, que entram como
+	@# variáveis; por isso ele nasce na pasta temporária (700) e some no fim da receita, e o que fica
+	@# em `data/medicoes/etapa_13/planos/` é o texto, com os sensíveis mascarados pelo Terraform
+	@# (RV13J-1-11, no lugar da A45). O workspace vai por `TF_WORKSPACE`, que não muda o
+	@# selecionado: o `airbyte-config` local segue no `default`.
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
 	ip=$$($(GCP_TF) output -raw cloud_sql_ip_privado 2>/dev/null) && test -n "$$ip" \
 		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
@@ -1310,7 +1343,13 @@ gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a
 	$(TERRAFORM) init -input=false -no-color > /dev/null || exit 1; \
 	$(TERRAFORM) workspace list | grep -qw gcp || $(TERRAFORM) workspace new gcp > /dev/null || exit 1; \
 	$(TERRAFORM) workspace select default > /dev/null || exit 1; \
-	TF_WORKSPACE=gcp $(TERRAFORM) apply -parallelism=1; rc=$$?; \
+	texto="$(GCP_PLANOS)/airbyte_gcp_$$(date -u +%Y%m%dT%H%M%SZ).txt"; \
+	TF_WORKSPACE=gcp $(TERRAFORM) plan -input=false -no-color -parallelism=1 -out="$$base/airbyte.tfplan" > "$$texto" 2>&1 \
+		|| { cat "$$texto"; echo "ERRO: o plano da raiz airbyte/ falhou"; exit 1; }; \
+	cat "$$texto"; echo; echo "plano em $$texto"; \
+	read -r -p "Aplicar exatamente este plano? Digite o id do projeto ($$GCP_PROJECT_ID) para aplicar, qualquer outra coisa para sair: " resposta; \
+	test "$$resposta" = "$$GCP_PROJECT_ID" || { echo "gcp-airbyte-config: nada aplicado"; exit 1; }; \
+	TF_WORKSPACE=gcp $(TERRAFORM) apply -input=false -no-color -parallelism=1 "$$base/airbyte.tfplan"; rc=$$?; \
 	test "$$($(TERRAFORM) workspace show)" = default || echo "AVISO: a raiz airbyte/ não está no workspace default; rode: .tools/terraform -chdir=airbyte workspace select default"; \
 	exit $$rc
 
@@ -1362,7 +1401,7 @@ gcp-tags-inventario: gcp-preflight ## Terça, depois do gcp-dbt-build: o invent�
 	@$(GCP_ENV); export MVP_POLICY_TAGS="$$($(GCP_TF) output -json policy_tags)"; mkdir -p data/medicoes/etapa_13/g4; \
 	.venv/bin/python -m mvp_ed1.gcp.politicas inventario --manifest dbt/target_gcp/manifest.json \
 		--saida "data/medicoes/etapa_13/g4/inventario_$$(date -u +%Y%m%dT%H%M%SZ).json" > /dev/null; \
-	rc=$$?; test $$rc = 0 && echo "gcp-tags-inventario: 0 divergências" || echo "gcp-tags-inventario: DIVERGÊNCIA (relatório em data/medicoes/etapa_13/g4/)"; exit $$rc
+	rc=$$?; test $$rc = 0 && echo "gcp-tags-inventario: 0 divergências, nenhuma tabela ausente" || echo "gcp-tags-inventario: DIVERGÊNCIA ou TABELA AUSENTE (as linhas AUSENTE acima; relatório em data/medicoes/etapa_13/g4/)"; exit $$rc
 
 gcp-gke-versao: gcp-preflight require-kubectl ## Terça, depois do apply do cluster: as versões do plano de controle e do kubectl, dentro da folga de uma versão menor
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
@@ -1389,8 +1428,35 @@ gcp-quente-latencia: gcp-preflight require-cloud-sql-proxy ## Terça e quarta: e
 gcp-memoria-oraculo: gcp-preflight ## Terça, depois das capturas e do gcp-dbt-build: o oráculo da memória (T3) contra o livro do Cloud Storage e o BigQuery, somente leitura
 	@# O `memory-oracle` da fase local com o armazém e o livro da nuvem. O legado do `.env` só nomeia o
 	@# coordenador dos locks, que o oráculo não toma: nada se conecta a ele.
+	@# As mudanças aceitas na memória de exclusões são o efeito líquido do diário de mutações do
+	@# legado do Cloud SQL (`--diary`): vazio na terça, as da quarta depois do `gcp-legado-mutar`.
 	@$(GCP_ENV); $(GCP_LIVRO); mkdir -p data/medicoes/etapa_13/g2_1; \
-	.venv/bin/python -m mvp_ed1.recovery.memory_oracle --out "data/medicoes/etapa_13/g2_1/t3_$$(date -u +%Y%m%dT%H%M%SZ).json"
+	diario="$(GCP_REGISTROS)/legacy/manifesto.json"; \
+	test -f "$$diario" || { echo "ERRO: $$diario não existe — o legado do Cloud SQL não foi povoado (segunda)."; exit 1; }; \
+	.venv/bin/python -m mvp_ed1.recovery.memory_oracle --diary "$$diario" --out "data/medicoes/etapa_13/g2_1/t3_$$(date -u +%Y%m%dT%H%M%SZ).json"
+
+gcp-livro-tratamento: gcp-preflight ## Terça e quarta, depois de cada gcp-dbt-build: registra no livro da nuvem o tratamento corrente e as rejeitadas dele (T4); NOME=<dia>_tratamento.json
+	@# O `ledger-treatment` da fase local com o armazém e o livro da nuvem. Sem ele, a fatia da
+	@# quarentena que um tratamento posterior deixa para trás não tem quem a explique no T3.
+	@test -n '$(NOME)' || { echo 'ERRO: use make gcp-livro-tratamento NOME=<terca_tratamento.json>'; exit 1; }
+	@$(GCP_ENV); $(GCP_LIVRO); .venv/bin/python -m mvp_ed1.recovery.ledger treatment --name '$(NOME)'
+
+gcp-quente-prova: gcp-preflight ## Terça: as provas do G2.3 no Pub/Sub e no BigQuery reais (a escrita da D75 e o grafo de ponta a ponta em recursos temporários), com a saída guardada
+	@# A idempotência por lote, a mesma chave em lotes seguidos e em fragmentos paralelos, o
+	@# NUMERIC e o fuso exatos (tests/test_caminho_quente_nuvem.py, GCP_TESTES=1), e o grafo da
+	@# nuvem com a semente, a duplicata no transporte, o atrasado e o alerta (`gcp.prova_quente`).
+	@$(GCP_ENV); mkdir -p $(DATAFLOW_EVIDENCIA); quando=$$(date -u +%Y%m%dT%H%M%SZ); \
+	GCP_TESTES=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_caminho_quente_nuvem.py 2>&1 \
+		| tee "$(DATAFLOW_EVIDENCIA)/prova_testes_$$quando.txt"; rc=$${PIPESTATUS[0]}; \
+	grep -q " skipped" "$(DATAFLOW_EVIDENCIA)/prova_testes_$$quando.txt" && { echo "ERRO: teste pulado — a prova real não rodou inteira"; rc=1; }; \
+	.venv/bin/python -m mvp_ed1.gcp.prova_quente --saida "$(DATAFLOW_EVIDENCIA)/prova_quente_$$quando.json" || rc=1; \
+	test $$rc = 0 && echo "gcp-quente-prova: as duas provas passaram ($(DATAFLOW_EVIDENCIA)/*_$$quando.*)"; exit $$rc
+
+gcp-debezium-reiniciar: gcp-preflight require-kubectl ## Terça: reinicia o pod do Debezium Server e espera o novo ficar pronto (a prova de reinício do G2.3; os offsets ficam no disco)
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
+	k -n debezium rollout restart deployment/debezium-server || exit 1; \
+	k -n debezium rollout status deployment/debezium-server --timeout=300s || exit 1; \
+	k -n debezium logs deployment/debezium-server --tail=15
 
 gcp-jobs-auditoria: gcp-preflight require-kubectl ## Terça, depois das capturas: nenhum POST indevido — os jobs da conexão legada no Airbyte do GKE contra os registros do livro
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_LIVRO); \
@@ -1413,7 +1479,10 @@ gcp-desmonte-parar: gcp-preflight gcp-dataflow-parar ## Desmonte, passo 1: Dataf
 		for dag in fluxo_batch diagnostico_composer; do g dags pause -- "$$dag" -y > /dev/null || exit 1; done; \
 		for dag in fluxo_batch diagnostico_composer; do \
 			for estado in running queued; do \
-				n=$$(g dags list-runs -- "$$dag" --state "$$estado" -o json 2>/dev/null | .venv/bin/python -c 'import json,sys; t=sys.stdin.read().strip(); print(0 if not t or "No data found" in t else len(json.loads(t)))') || exit 1; \
+				resposta=$$(g dags list-runs -- "$$dag" --state "$$estado" -o json 2>/dev/null) \
+					|| { echo "ERRO: a listagem das execuções $$estado de $$dag falhou; nada se conclui — repita"; exit 1; }; \
+				n=$$(printf '%s' "$$resposta" | .venv/bin/python -m mvp_ed1.gcp.composer_cli execucoes) \
+					|| { echo "ERRO: resposta inválida da listagem das execuções $$estado de $$dag; nada se conclui — repita"; exit 1; }; \
 				test "$$n" = 0 || { echo "ERRO: $$dag com $$n execução(ões) $$estado; espere terminar (ou marque falha na interface) e repita."; exit 1; }; \
 			done; \
 		done; \

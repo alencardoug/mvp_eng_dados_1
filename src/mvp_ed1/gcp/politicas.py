@@ -174,7 +174,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.saida:
         args.saida.parent.mkdir(parents=True, exist_ok=True)
         args.saida.write_text(texto + "\n", encoding="utf-8")
-    # O inventário falha com qualquer divergência: é prova, não relatório.
+    # O inventário falha com qualquer divergência: é prova, não relatório. Tabela declarada que não
+    # existe falha nos dois: não se inventaria nem se converge o que não está lá, e "0 divergências"
+    # sobre tabelas que faltam seria aprovação do vazio (RV13J-1-06).
+    for ausente in rel.ausentes:
+        print(f"AUSENTE — {ausente}: declarada no manifest e inexistente no BigQuery", file=sys.stderr)
+    if rel.ausentes:
+        return 1
     return 1 if (not convergir and (rel.divergentes or rel.sem_classificacao)) else 0
 
 

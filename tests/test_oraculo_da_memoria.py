@@ -467,3 +467,58 @@ def test_chave_repetida_no_recalculado_tambem_e_acusada() -> None:
     """O recalculado tem uma linha por chave por construção; se não tiver, o oráculo não se usa calado."""
     problemas = mo.deletion_content_problems(_so_exclusoes([ANTIGA], [ANTIGA, dict(ANTIGA)]))
     assert problemas and "no recalculado do bruto: chave(s) em mais de uma linha" in problemas[0]
+
+
+# ── A janela da Etapa 13: a época do armazém vazio e as mudanças do diário (RV13J-1-03) ────────
+def _base_do_armazem_vazio(**extra) -> dict:
+    return {"captures": {}, "deletions": None, "deletion_keys": None, **extra}
+
+
+def _memoria_de(linhas):
+    return _com_exclusoes([], linhas)[1]
+
+
+def test_a_epoca_do_armazem_vazio_aceita_a_memoria_que_nasce_vazia() -> None:
+    assert mo._deletion_problems(_base_do_armazem_vazio(), _memoria_de([]), None) == []
+    assert mo._deletion_problems(_base_do_armazem_vazio(), _memoria_de([ANTIGA]), None) == [
+        "a memória de exclusões mudou desde a linha de base"]
+
+
+def test_sem_memoria_na_base_e_com_captura_nao_se_normaliza() -> None:
+    base = _base_do_armazem_vazio(captures={"7": {}})
+    assert mo._deletion_problems(base, _memoria_de([]), None) == ["a memória de exclusões mudou desde a linha de base"]
+    assert mo._deletion_problems(base, _memoria_de([]), set()) == [
+        "mudanças aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]
+
+
+DIARIO = [{"tipo": "remover", "tabela": "brands", "presenca_apos_commit": {"2": 0, "3": 0}},
+          {"tipo": "inserir", "tabela": "brands", "presenca_apos_commit": {"90001": 1}},
+          {"tipo": "alterar", "tabela": "brands", "presenca_apos_commit": {"90001": 1}}]
+
+
+def test_as_mudancas_aceitas_saem_do_efeito_liquido_do_diario() -> None:
+    assert mo.accepted_from_diary([]) is None
+    assert mo.accepted_from_diary(DIARIO) == ({("brands", "2"), ("brands", "3")}, {("brands", "90001")})
+
+
+def test_o_ciclo_da_janela_cobra_exatamente_as_removidas_do_diario() -> None:
+    aceitas, reaparecidas = mo.accepted_from_diary(DIARIO)
+    certas = [_remocao("brands", "2"), _remocao("brands", "3")]
+    assert mo._deletion_problems(_base_do_armazem_vazio(), _memoria_de(certas), aceitas, reaparecidas) == []
+    assert any("faltam [('brands', '3')]" in p for p in mo._deletion_problems(
+        _base_do_armazem_vazio(), _memoria_de(certas[:1]), aceitas, reaparecidas))
+    assert any("sobram [('customers', '1')]" in p for p in mo._deletion_problems(
+        _base_do_armazem_vazio(), _memoria_de([*certas, ANTIGA]), aceitas, reaparecidas))
+
+
+def test_diary_exclui_as_aceitas_do_h2(tmp_path) -> None:
+    with pytest.raises(SystemExit):
+        mo.main(["--diary", str(tmp_path / "m.json"), "--accepted-removals", str(tmp_path / "c.json")])
+
+
+def test_a_epoca_do_armazem_vazio_aceita_a_memoria_ainda_sem_tabela() -> None:
+    memoria = _memoria_de([])
+    memoria.deletions, memoria.deletion_rows = None, None
+    assert mo._deletion_problems(_base_do_armazem_vazio(), memoria, None) == []
+    assert mo._deletion_problems(_base_do_armazem_vazio(), memoria, {("brands", "2")}) == [
+        "mudanças aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]

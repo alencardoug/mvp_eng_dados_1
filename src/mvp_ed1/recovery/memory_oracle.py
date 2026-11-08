@@ -53,6 +53,7 @@ from typing import Any
 from sqlalchemy import Engine, text
 
 from mvp_ed1.legacy import armazem as dialeto
+from mvp_ed1.legacy import mutacoes
 from mvp_ed1.recovery import capture_recovery, leitura, ledger, oraculos
 
 #: Campos que nunca mudam, e os que a publicação da fase 2 escreve.
@@ -351,6 +352,35 @@ def accepted_reappearances(comparacao: Mapping[str, Any]) -> set[tuple[str, str]
     }
 
 
+def accepted_from_diary(diario: list[Mapping[str, Any]]) -> tuple[set[tuple[str, str]], set[tuple[str, str]]] | None:
+    """As mudanças aceitas que o diário de mutações da origem legada prova: `(remoções, reaparições)`.
+
+    É o esperado **independente** do SQL dos modelos que a matriz das duas capturas usa
+    (`legacy.diario`, ADR-0045): o efeito líquido do que o banco confirmou depois de cada *commit*.
+    Chave ausente no fim entra na memória; chave presente sai dela, se a linha de base a guardava.
+    Diário vazio é `None` — nenhuma mudança aceita, e a memória tem de ser a da linha de base.
+    """
+    if not diario:
+        return None
+    efeito = mutacoes.efeito_liquido(list(diario))
+    return ({k for k, presente in efeito.items() if not presente},
+            {k for k, presente in efeito.items() if presente})
+
+
+def _base_vazia(base: Mapping[str, Any]) -> Mapping[str, Any]:
+    """A linha de base de um armazém **sem captura nenhuma** tem a memória de exclusões vazia.
+
+    A época inicial da nuvem é tirada com o armazém zerado (`gcp.armazem_janela pronto`): a tabela
+    da memória não existe, e o retrato grava `None`. A memória deriva das capturas certificadas;
+    sem nenhuma, ela é provadamente vazia, e o primeiro `dbt build` que a materializa vazia não é
+    mudança. Só esse caso se normaliza — com captura na linha de base, `None` continua sendo
+    "não se sabe", e mudança aceita sem a memória por chave continua recusada.
+    """
+    if base.get("captures") or base.get("deletions") is not None or base.get("deletion_keys") is not None:
+        return base
+    return {**base, "deletions": {"linhas": 0, "digest": oraculos.digest([])}, "deletion_keys": []}
+
+
 def _chave_da_exclusao(linha: Mapping[str, Any]) -> tuple[str, str]:
     return (str(linha["source_table"]), str(linha["business_key"]))
 
@@ -370,9 +400,13 @@ def _repetidas(linhas: Iterable[Mapping[str, Any]]) -> list[tuple[str, str]]:
 def _deletion_problems(base: Mapping[str, Any], memoria: Memory, aceitas: set[tuple[str, str]] | None,
                        reaparecidas: set[tuple[str, str]] | None = None,
                        notas: list[str] | None = None) -> list[str]:
+    normalizada = _base_vazia(base)
     if aceitas is None and reaparecidas is None:
-        return ([] if "deletions" not in base or memoria.deletions == base["deletions"]
+        # Base de armazém sem captura: a memória ainda sem tabela (nenhum `build`) também é vazia.
+        vazias = normalizada is not base and memoria.deletions is None
+        return ([] if "deletions" not in base or vazias or memoria.deletions == normalizada["deletions"]
                 else ["a memória de exclusões mudou desde a linha de base"])
+    base = normalizada
     if base.get("deletion_keys") is None or memoria.deletion_rows is None:
         return ["mudanças aceitas dadas, e a linha de base ou o armazém não tem a memória de exclusões por chave"]
     aceitas, reaparecidas = aceitas or set(), reaparecidas or set()
@@ -588,8 +622,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--accepted-reappearances", type=pathlib.Path, default=None,
                         help="a comparação do H2 sobre o estado real (`MANIFESTO_ANTES=`): as chaves que voltam à "
                              "origem e saem da memória de exclusões, que o Owner aceitou (N56)")
+    parser.add_argument("--diary", type=pathlib.Path, default=None,
+                        help="o manifesto do legado com o diário de mutações: as remoções e reaparições aceitas "
+                             "são o efeito líquido dele (a janela da Etapa 13); exclusivo com os dois acima")
     parser.add_argument("--out", type=pathlib.Path, default=None)
     args = parser.parse_args(argv)
+    if args.diary and (args.accepted_removals or args.accepted_reappearances):
+        parser.error("--diary já diz as mudanças aceitas; não passe --accepted-removals nem --accepted-reappearances")
 
     from sqlalchemy import create_engine
 
@@ -608,6 +647,9 @@ def main(argv: list[str] | None = None) -> int:
                    if args.accepted_removals else None)
         reaparecidas = (accepted_reappearances(json.loads(args.accepted_reappearances.read_text(encoding="utf-8")))
                         if args.accepted_reappearances else None)
+        if args.diary:
+            do_diario = accepted_from_diary(json.loads(args.diary.read_text(encoding="utf-8")).get("mutacoes") or [])
+            aceitas, reaparecidas = do_diario if do_diario is not None else (None, None)
         notas: list[str] = []
         problemas = check(ledger.records(epoca), read_memory(armazem), do_livro, aceitas, reaparecidas, notas)
     finally:
@@ -618,6 +660,7 @@ def main(argv: list[str] | None = None) -> int:
                  "accepted_removals": None if args.accepted_removals is None else str(args.accepted_removals),
                  "accepted_reappearances": (None if args.accepted_reappearances is None
                                             else str(args.accepted_reappearances)),
+                 "diary": None if args.diary is None else str(args.diary),
                  "ok": not problemas, "problems": problemas, "notes": notas}
     for problema in problemas:
         print(f"  PROBLEMA {problema}")

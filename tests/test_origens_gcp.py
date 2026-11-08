@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import pathlib
 import re
 
@@ -107,7 +109,7 @@ def test_uma_limpeza_so_por_receita():
     limpeza = MAKEFILE.split("\nGCP_LIMPEZA = ", 1)[1].split("\n", 1)[0]
     assert "kill $$pids" in limpeza and 'rm -rf "$$base"' in limpeza
     airbyte = MAKEFILE.split("\nGKE_AIRBYTE = ", 1)[1].split("\n\n", 1)[0]
-    assert 'pids="$$pids $$!"' in airbyte and "trap" not in airbyte
+    assert 'pids="$$pids $$encaminhamento"' in airbyte and "trap" not in airbyte
     for alvo in ("gcp-airbyte-config", "gcp-livro-epoca"):
         receita = _receita(alvo)
         assert receita.index("$(GCP_LIMPEZA)") < receita.index("$(GKE_KUBECTL)") < receita.index("$(GKE_AIRBYTE)"), alvo
@@ -115,7 +117,10 @@ def test_uma_limpeza_so_por_receita():
 
 def test_o_airbyte_da_nuvem_nao_muda_o_workspace_do_local():
     receita = _receita("gcp-airbyte-config")
-    assert "TF_WORKSPACE=gcp $(TERRAFORM) apply -parallelism=1" in receita
+    assert 'TF_WORKSPACE=gcp $(TERRAFORM) plan -input=false -no-color -parallelism=1 -out="$$base/airbyte.tfplan"' in receita
+    assert 'TF_WORKSPACE=gcp $(TERRAFORM) apply -input=false -no-color -parallelism=1 "$$base/airbyte.tfplan"' in receita
+    assert receita.index('test "$$resposta" = "$$GCP_PROJECT_ID"') < receita.index("apply -input=false"), \
+        "o apply só depois de o Owner ler o plano e digitar o id (RV13J-1-11)"
     assert "workspace select gcp" not in receita and "-auto-approve" not in receita
     assert "TF_VAR_armazem=bigquery" in receita and "cloud_sql_ip_privado" in receita
 
@@ -155,7 +160,9 @@ def test_o_destino_quente_confere_contra_a_origem():
 
 def test_a_memoria_e_os_jobs_leem_o_livro_da_nuvem():
     memoria = _receita("gcp-memoria-oraculo")
-    assert "$(GCP_ENV); $(GCP_LIVRO);" in memoria and "mvp_ed1.recovery.memory_oracle --out" in memoria
+    assert "$(GCP_ENV); $(GCP_LIVRO);" in memoria and 'mvp_ed1.recovery.memory_oracle --diary "$$diario" --out' in memoria
+    assert 'diario="$(GCP_REGISTROS)/legacy/manifesto.json"' in memoria
+    assert "$(GCP_ENV); $(GCP_LIVRO); .venv/bin/python -m mvp_ed1.recovery.ledger treatment" in _receita("gcp-livro-tratamento")
     jobs = _receita("gcp-jobs-auditoria")
     assert jobs.index("$(GKE_AIRBYTE)") < jobs.index("$(GCP_LIVRO)") < jobs.index("mvp_ed1.recovery.job_audit")
 
@@ -182,12 +189,70 @@ def test_a_latencia_e_a_primeira_vez_que_o_destino_mostra_o_evento():
                 for s, r, a in linhas])
 
     relogio = iter(range(0, 10_000, 5))
-    produtor = iter([True, False])
-    relatorio = quente.latencia(Cliente(), "p", "raw.t", 10, produtor=lambda: next(produtor, False),
-                                esperados=lambda: 3, prazo=900, intervalo=5,
+    produtor = iter([None, 0])
+    relatorio = quente.latencia(Cliente(), "p", "raw.t", 10, produtor=lambda: next(produtor, 0),
+                                esperados=lambda: 3, prazo=900, intervalo=5, minimo=3,
                                 relogio=lambda: next(relogio), pausa=lambda s: None)
     assert relatorio["completo"] and relatorio["vistos"] == 3 and relatorio["esperados"] == 3
     assert (relatorio["min_s"], relatorio["max_s"]) == (4.0, 12.0)
+
+
+def _latencia_com(linhas, saidas, esperados, minimo=200):
+    import types
+
+    from mvp_ed1.gcp import quente
+
+    class Cliente:
+        def query(self, sql):
+            return types.SimpleNamespace(result=lambda: list(linhas))
+
+    relogio = iter(range(0, 10_000, 5))
+    saidas = iter(saidas)
+    return quente.latencia(Cliente(), "p", "raw.t", 10, produtor=lambda: next(saidas, None),
+                           esperados=lambda: esperados, prazo=60, intervalo=5, minimo=minimo,
+                           relogio=lambda: next(relogio), pausa=lambda s: None)
+
+
+@pytest.mark.parametrize("saidas, esperados, motivo", [
+    ([1], 0, "o produtor saiu com 1"),                   # falhou antes de gravar
+    ([None, 1], 40, "o produtor saiu com 1"),            # falhou depois de uma rajada
+    ([0], 0, "menos que os 200 pedidos"),                # terminou bem e nada chegou à origem
+    ([0], 120, "menos que os 200 pedidos"),
+    ([None] * 100, 0, "ainda rodava no fim do prazo"),
+])
+def test_a_latencia_sem_producao_valida_nao_e_completa(saidas, esperados, motivo):
+    """RV13J-1-05: zero esperados e zero vistos não aprovam; o desfecho do produtor conta."""
+    relatorio = _latencia_com([], saidas, esperados)
+    assert not relatorio["completo"] and motivo in relatorio["motivo"]
+
+
+def test_conferir_compara_chave_e_conteudo_e_nao_so_a_contagem():
+    """RV13J-1-10: um perdido e um indevido não mudam contagem nem máximo; o conteúdo os vê."""
+    import datetime as dt
+    import decimal
+
+    from mvp_ed1.gcp import quente
+
+    def mov(i, **troca):
+        linha = {c: None for c in quente.COLUNAS}
+        linha.update(movement_id=f"m{i}", event_sequence=i, quantity_delta=-2,
+                     unit_cost=decimal.Decimal("10.50"),
+                     occurred_at=dt.datetime(2026, 11, 10, 9, 0, i, tzinfo=dt.timezone(dt.timedelta(hours=-3))))
+        linha.update(troca)
+        return linha
+
+    origem = [mov(1), mov(2), mov(3)]
+    igual = [mov(1, unit_cost=decimal.Decimal("10.5000"),
+                 occurred_at=dt.datetime(2026, 11, 10, 12, 0, 1, tzinfo=dt.timezone.utc)), mov(2), mov(3)]
+    assert quente.comparar_conteudo(origem, igual) == []
+    trocado = [mov(1), mov(2), mov(4, event_sequence=3)]
+    assert quente.comparar({"movimentos": 3, "max_event_sequence": 3},
+                           {"movimentos": 3, "linhas": 3, "max_event_sequence": 3}) == []
+    problemas = quente.comparar_conteudo(origem, trocado)
+    assert any("sem 1 movimento(s) da origem: ['m3']" in p for p in problemas)
+    assert any("que a origem não tem: ['m4']" in p for p in problemas)
+    assert any("em ['unit_cost']" in p for p in quente.comparar_conteudo(origem, [mov(1, unit_cost=decimal.Decimal("10.51")), mov(2), mov(3)]))
+    assert any("repetido" in p for p in quente.comparar_conteudo(origem, [mov(1), mov(1), mov(2), mov(3)]))
 
 
 def test_o_tamanho_e_por_dataset_e_os_alvos_novos():

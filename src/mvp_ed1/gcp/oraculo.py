@@ -15,6 +15,14 @@ veredito.
         --colunas classification,rejection_origin --json findings:code,column
 
     python -m mvp_ed1.gcp.oraculo contagens   # linhas de toda tabela e view, nas nove camadas
+    python -m mvp_ed1.gcp.oraculo consumo     # o conteúdo de cada view de consumption
+
+`contagens` sozinha não prova as *views* de consumo: duas com as mesmas quantidades e valores
+diferentes passariam (RV13J-1-09). `consumo` compara o **conteúdo** de cada uma — o multiconjunto
+das linhas, coluna por coluna e pelo nome, depois de normalizado: número pelo valor com 6 casas
+(o `NUMERIC`/`FLOAT64` do BigQuery e o `numeric` do PostgreSQL arredondam a última casa de uma
+média de jeitos diferentes), instante em UTC, data em ISO. As colunas de metadado de execução (as
+que começam com `_`) saem, **declaradas** no relatório. Coluna de um lado só é divergência.
 
 Sai com código 1 se alguma linha falta num lado ou diverge.
 """
@@ -103,6 +111,73 @@ def contagens(cliente, projeto: str) -> int:
     return 1 if divergem else 0
 
 
+#: Casas decimais da comparação de números entre os dois dialetos.
+CASAS = 6
+
+
+def _valor_normal(valor: object) -> object:
+    import datetime as dt
+    import decimal
+
+    if isinstance(valor, bool) or valor is None:
+        return valor
+    if isinstance(valor, (int, float, decimal.Decimal)):
+        return str(round(decimal.Decimal(str(valor)), CASAS).normalize() + 0)
+    if isinstance(valor, dt.datetime):
+        if valor.tzinfo is None:
+            raise SystemExit(f"instante sem fuso na comparação: {valor!r}; a view tem de expor timestamptz")
+        return valor.astimezone(dt.timezone.utc).isoformat(timespec="microseconds")
+    if isinstance(valor, dt.date):
+        return valor.isoformat()
+    return str(valor)
+
+
+def conteudo(linhas: list[dict]) -> tuple[list[str], list[str], Counter]:
+    """As colunas comparadas, as excluídas (metadado de execução) e o multiconjunto das linhas normalizadas."""
+    colunas = sorted({c for linha in linhas for c in linha}) if linhas else []
+    excluidas = [c for c in colunas if c.startswith("_")]
+    comparadas = [c for c in colunas if not c.startswith("_")]
+    return comparadas, excluidas, Counter(tuple(_valor_normal(linha.get(c)) for c in comparadas) for linha in linhas)
+
+
+def comparar_views(local: dict[str, list[dict]], nuvem: dict[str, list[dict]], exemplos: int = 3) -> list[str]:
+    problemas = []
+    for view in sorted(set(local) | set(nuvem)):
+        if view not in local or view not in nuvem:
+            problemas.append(f"{view}: só {'no local' if view in local else 'no BigQuery'}")
+            continue
+        cl, el, a = conteudo(local[view])
+        cn, en, b = conteudo(nuvem[view])
+        if local[view] and nuvem[view] and cl != cn:
+            problemas.append(f"{view}: colunas diferentes — só local {sorted(set(cl) - set(cn))}, "
+                             f"só BigQuery {sorted(set(cn) - set(cl))}")
+            continue
+        if a != b:
+            so_local, so_nuvem = a - b, b - a
+            problemas.append(f"{view}: {sum(so_local.values())} linha(s) só no local e {sum(so_nuvem.values())} só no "
+                             f"BigQuery; ex. local {list(so_local)[:exemplos]}, BigQuery {list(so_nuvem)[:exemplos]}")
+        elif el or en:
+            print(f"  {view}: igual, sem as colunas de execução {sorted(set(el) | set(en))}")
+    return problemas
+
+
+def consumo(cliente, projeto: str) -> int:
+    """O conteúdo de cada view de `consumption` nos dois alvos (a soma de controle da §7.2)."""
+    engine = create_engine(database_url(WAREHOUSE))
+    with engine.connect() as conn:
+        nomes = [r[0] for r in conn.execute(text(
+            "select table_name from information_schema.tables where table_schema = 'consumption' order by 1")).all()]
+        local = {n: [dict(r) for r in conn.execute(text(f'select * from consumption."{n}"')).mappings()] for n in nomes}
+    nuvem = {t.table_id: [dict(r.items()) for r in cliente.query(f"select * from `{projeto}.consumption.{t.table_id}`").result()]
+             for t in cliente.list_tables(f"{projeto}.consumption")}
+    problemas = comparar_views(local, nuvem)
+    for problema in problemas:
+        print(f"  {problema}")
+    iguais = len((set(local) & set(nuvem)) - {p.split(":", 1)[0] for p in problemas})
+    print(f"consumo: {iguais} views iguais em conteúdo, {len(problemas)} diferentes ou de um lado só")
+    return 1 if problemas or not local else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     from google.cloud import bigquery
 
@@ -120,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     cliente = bigquery.Client(project=projeto, location=os.environ.get("GCP_BQ_LOCATION", "us-central1"))
     if args.modelo == "contagens":
         return contagens(cliente, projeto)
+    if args.modelo == "consumo":
+        return consumo(cliente, projeto)
     if not args.chave:
         raise SystemExit("--chave é obrigatória para comparar um modelo")
 
