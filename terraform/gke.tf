@@ -137,3 +137,15 @@ resource "google_service_account_iam_member" "identidade_do_cluster" {
 
   depends_on = [google_container_cluster.this]
 }
+
+# O acesso do `kubectl` desta máquina (A30), sem kubeconfig gravado: o `make` monta a chamada com o
+# endpoint, a CA e um token da ADC do Owner — o mesmo que o provider do Helm usa.
+output "gke_endpoint" {
+  description = "O endpoint público do plano de controle, autenticado pelo IAM."
+  value       = var.enable_gke ? google_container_cluster.this[0].endpoint : ""
+}
+
+output "gke_ca" {
+  description = "A CA do plano de controle, em base64."
+  value       = var.enable_gke ? google_container_cluster.this[0].master_auth[0].cluster_ca_certificate : ""
+}

@@ -15,3 +15,13 @@ global:
   # não dão; fica o MinIO do chart, num disco próprio, apagado com o release.
   storage:
     type: minio
+# A API pública para o Composer (G2.4): o `airbyte-server` a serve em `/api/public` na porta 8001
+# (chart 2.3.0, `airbyte.common.api.host` na edição *community*). Um *load balancer* **interno**
+# do GKE a põe num IP privado da sub-rede, alcançável pelo *network attachment* do Composer e por
+# nada de fora da VPC; o endereço só existe depois de o Service nascer, e o `make
+# gcp-composer-segredos` o grava no Secret Manager para a DAG. A autenticação continua a do chart.
+server:
+  service:
+    type: LoadBalancer
+    annotations:
+      networking.gke.io/load-balancer-type: "Internal"
