@@ -570,7 +570,7 @@ na [Origem Legada §4.3](origem_legada.md#43-o-livro-retido-da-memória-v110).
 ### 2.14 A estimativa da janela da Etapa 13 — 07/11/2026
 
 **[estimado]** antes do primeiro `apply` cobrável, como pede o critério da Etapa 13 e o plano
-transitório (§6.3). Os preços foram **lidos** em 07/11/2026 — Compute pela Cloud Billing Catalog API,
+transitório (§6.3). **Aprovada pelo Owner em 08/11/2026**, como está abaixo (US$ 40–70). Os preços foram **lidos** em 07/11/2026 — Compute pela Cloud Billing Catalog API,
 os demais nas páginas oficiais —, e a história da leitura está no
 [Registro da fase GCP §6](registro_fase_gcp.md#6-preços-lidos-para-a-estimativa-07112026). As
 durações são as do cronograma do plano, não medidas. O real é registrado depois, ao lado.

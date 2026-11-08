@@ -1619,6 +1619,10 @@ aqui, o que mudou por causa delas:
 - **D87 muda só o texto**: a §6.8 do plano diz que o caminho quente entra na quarta declarado
   incompleto nos três itens da tabela do G2.3; a regra dos passos 3 e 8 vermelhos continua.
 
+**A estimativa da janela foi aprovada pelo Owner no mesmo dia** (Capacidade §2.14, US$ 40–70): a
+aprovação que o G0 e a P4 pedem antes do `apply` cobrável não estava registrada, e o `apply` do
+Cloud SQL, na segunda, é o primeiro de valor.
+
 Não medido: a D85 ainda não rodou contra o armazém, porque o local e a nuvem estão no estado de
 desenvolvimento, em que as capturas são as mesmas (a `carga_dev` copia uma na outra). A primeira
 execução que a exercita é o passo 18 da terça.
