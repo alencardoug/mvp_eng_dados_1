@@ -34,6 +34,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 
 from mvp_ed1.db import LEGACY, WAREHOUSE, database_url
+from mvp_ed1.legacy import diario as diario_mod
 from mvp_ed1.legacy import mutacoes, remocao, schema
 from mvp_ed1.legacy.dbt import captura_selecionada
 
@@ -318,67 +319,14 @@ def test_a_macro_real_devolve_o_que_o_cast_do_postgresql_devolve_ou_nulo(bancos,
 # ── O consumidor do diário: o que o intervalo e a memória têm de mostrar ─────
 
 def _ler_intervalo_e_memoria(conexao) -> tuple[dict, dict]:
-    """Por `(tabela, chave)`: `(transição, rows_after)` do intervalo, e `(last_seen, removed_in)` da memória."""
-    intervalo = {
-        (t, k): (tr, depois)
-        for t, k, tr, depois in conexao.execute(
-            text("select source_table, business_key, transition, rows_after from trusted.legacy_capture_transitions "
-                 "where business_key is not null")
-        )
-    }
-    memoria = {
-        (t, k): (ls, ri)
-        for t, k, ls, ri in conexao.execute(
-            text("select source_table, business_key, last_seen_snapshot_id, removed_in_snapshot_id "
-                 "from trusted.legacy_removed_records")
-        )
-    }
-    return intervalo, memoria
+    return diario_mod.intervalo_e_memoria(conexao)
 
 
 def _anterior_certificada(conexao, selecionada: int) -> int | None:
-    """A certificada mais recente antes da selecionada — a mesma regra do `anterior` de `remocao.transicoes()`.
-
-    Sai dos certificados, não da tabela auditada: intervalo vazio não prova que
-    não há anterior — com anterior certificada, vazio é perda (RV10-5-01).
-    """
-    return conexao.execute(text(
-        "select max(snapshot_id) from ("
-        "  select snapshot_id from governance.legacy_captures"
-        "  where status = 'complete' and snapshot_id < :selecionada"
-        "  group by snapshot_id having count(distinct source_table) = :tabelas"
-        ") certificadas"
-    ), {"selecionada": selecionada, "tabelas": len(schema.tabelas())}).scalar_one()
+    return diario_mod.anterior_certificada(conexao, selecionada)
 
 
-def _faltas(efeito: dict[tuple[str, str], bool], intervalo: dict, memoria: dict) -> list[tuple]:
-    """O que o efeito líquido do diário exige e os modelos não mostram.
-
-    Chave presente: fora da memória, e **no intervalo** com `rows_after > 0` —
-    em qualquer transição de multiplicidade (`mantida`, `adicionada`,
-    `reduzida`, `aumentada`), porque apagar um alias com outro sobrevivente
-    **é** redução (RV10-3-04). O intervalo publica também as `mantida`: chave
-    presente na selecionada sempre tem linha nele, e a falta dessa linha é
-    perda — não tolerância (RV10-4-01). Chave ausente: na memória, e no
-    intervalo só como `removida`; fora do intervalo (`None`) é chave removida
-    antes das duas últimas certificadas, e a memória sozinha responde.
-    """
-    faltas = []
-    for (tabela, chave), presente in efeito.items():
-        transicao, depois = intervalo.get((tabela, chave), (None, None))
-        if presente:
-            if (tabela, chave) in memoria:
-                faltas.append(("presente mas na memória", tabela, chave))
-            if transicao is None:
-                faltas.append(("presente mas fora do intervalo", tabela, chave))
-            elif not depois > 0:
-                faltas.append(("presente mas removida no intervalo", tabela, chave, transicao))
-        else:
-            if (tabela, chave) not in memoria:
-                faltas.append(("ausente e fora da memória", tabela, chave))
-            if transicao is not None and transicao != "removida":
-                faltas.append(("ausente mas presente no intervalo", tabela, chave, transicao))
-    return faltas
+_faltas = diario_mod.faltas
 
 
 def test_o_consumidor_aceita_reducao_e_aumento_e_recusa_o_que_contradiz_o_diario() -> None:
@@ -600,45 +548,16 @@ def _tabela_existe(conexao, esquema, nome) -> bool:
 
 
 def _conferir_diario(conexao, diario: list[dict], record_property=lambda nome, valor: None) -> None:
-    """O teste completo do diário: elegibilidade e validação, num lugar só.
-
-    O ciclo efêmero passa por aqui com as suas contraprovas (RV10-5-01), então
-    o desvio que decide pular fica coberto: a anterior sai dos certificados, e
-    só a sua falta real justifica o `skip` — nunca o intervalo vazio.
-    """
-    selecionada = conexao.execute(text("select snapshot_id from staging.legacy_selected_capture")).scalar_one()
-    anterior = _anterior_certificada(conexao, selecionada)
-    intervalo, memoria = _ler_intervalo_e_memoria(conexao)
-    limites = conexao.execute(
-        text("select distinct previous_snapshot_id, selected_snapshot_id from trusted.legacy_capture_transitions")
-    ).all()
-    if anterior is None:
-        pytest.skip(f"sem intervalo: a captura {selecionada} não tem anterior certificada")
-    assert limites in ([], [(anterior, selecionada)]), f"o intervalo materializado não é o certificado: {limites}"
-
-    record_property("interval", f"{anterior}->{selecionada}")
-    efeito = mutacoes.efeito_liquido(diario)
-    faltas = _faltas(efeito, intervalo, memoria)
-    record_property("diary_entries", len(diario))
-    record_property("net_absent_keys", sum(not p for p in efeito.values()))
-    if faltas:
-        raise AssertionError(faltas, f"efeito líquido do diário sem correspondência: {faltas[:10]}")
+    """O teste completo do diário (`mvp_ed1.legacy.diario.veredito`): salto vira `skip`, falha vira asserção."""
+    resultado = diario_mod.veredito(conexao, diario, record_property)
+    if resultado[0] == "salto":
+        pytest.skip(resultado[1])
+    if resultado[0] == "falha":
+        raise AssertionError(resultado[1], f"efeito líquido do diário sem correspondência: {resultado[1]}")
 
 
 def _veredito_do_diario(conexao, diario: list[dict]) -> tuple:
-    """`_conferir_diario` como oráculo: `("passa",)`, `("salto", motivo)` ou `("falha", faltas)`.
-
-    Um `skip` que escapasse das contraprovas do ciclo efêmero pularia o teste
-    inteiro em silêncio — o defeito de RV10-5-01 de novo, agora no teste que o
-    cobre. Aqui o salto é um valor, e o que se espera dele é asserção.
-    """
-    try:
-        _conferir_diario(conexao, diario)
-    except pytest.skip.Exception as salto:
-        return ("salto", str(salto))
-    except AssertionError as falha:
-        return ("falha", falha.args[0])
-    return ("passa",)
+    return diario_mod.veredito(conexao, diario)
 
 
 def test_as_mutacoes_do_diario_aparecem_nas_transicoes_e_na_memoria(armazem, diario, record_property) -> None:
