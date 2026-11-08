@@ -138,15 +138,19 @@ def main(argv: list[str] | None = None) -> int:
         from mvp_ed1.legacy import mutacoes
 
         engine = create_engine(database_url(LEGACY))
+        # O diário vai para o manifesto do lote **deste** legado: o local, ou o da carga de outras
+        # origens (`MVP_REGISTROS_DIR`) — mutar o Cloud SQL não escreve no manifesto local.
+        manifesto = _manifestos() / "manifesto.json"
         if args.comando == "remover":
-            registro = mutacoes.remover(engine, args.tabela, chaves=args.chaves, quantidade=args.quantidade)
+            registro = mutacoes.remover(engine, args.tabela, chaves=args.chaves, quantidade=args.quantidade,
+                                        manifesto=manifesto)
             print(f"removidas {registro['linhas_apagadas']} linhas de {args.tabela} ({registro['chave']} in {registro['chaves']}); "
                   f"restantes após commit: {registro['restantes_apos_commit']}")
         elif args.comando == "inserir":
-            registro = mutacoes.inserir(engine, args.tabela, json.loads(args.valores))
+            registro = mutacoes.inserir(engine, args.tabela, json.loads(args.valores), manifesto=manifesto)
             print(f"inserida em {args.tabela}: legacy_row_id {registro['devolvida']['legacy_row_id']}")
         else:
-            registro = mutacoes.alterar(engine, args.tabela, args.chave, args.coluna, args.valor)
+            registro = mutacoes.alterar(engine, args.tabela, args.chave, args.coluna, args.valor, manifesto=manifesto)
             print(f"alteradas {len(registro['devolvidas'])} linhas de {args.tabela}.{args.coluna} onde {registro['chave']} = {args.chave}")
         print(f"hash de {args.tabela}: {registro['hash_antes']['hash'][:12]} → {registro['hash_depois']['hash'][:12]}; diário atualizado")
         return 0 if "erro" not in registro else 1
