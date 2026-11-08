@@ -16,9 +16,23 @@ def _abertura(**troca):
     return alerta
 
 
-@pytest.mark.parametrize("antes, depois", [(29, 23), (25, 23), (30, 24), (26, 24), (30, 23)])
+#: As travessias que o `AcumularSaldoEAlertar` real produz em todas as ordens e partições de painel
+#: dos quatro movimentos (enumeração da rodada 4 da revisão, RV13J-4-02: 3.600 ordens conferidas).
+POSSIVEIS = [(25, 23), (26, 24), (27, 23), (28, 24), (29, 23), (30, 24)]
+
+
+def test_as_travessias_aceitas_sao_exatamente_as_possiveis():
+    assert sorted(prova_quente.TRAVESSIAS) == POSSIVEIS
+
+
+@pytest.mark.parametrize("antes, depois", POSSIVEIS)
 def test_as_travessias_que_a_ordem_dos_paineis_permite_passam(antes, depois):
     assert prova_quente.conferir(LINHAS, 23, [_abertura(quantity_before=antes, quantity_on_hand=depois)]) == []
+
+
+@pytest.mark.parametrize("antes, depois", [(25, 24), (26, 23), (27, 24), (28, 23), (29, 24), (30, 23)])
+def test_as_travessias_impossiveis_reprovam(antes, depois):
+    assert prova_quente.conferir(LINHAS, 23, [_abertura(quantity_before=antes, quantity_on_hand=depois)])
 
 
 @pytest.mark.parametrize("alerta", [

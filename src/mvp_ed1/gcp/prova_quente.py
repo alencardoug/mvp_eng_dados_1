@@ -50,16 +50,21 @@ def _mensagem(movement_id: str, ocorreu: dt.datetime, delta: int, *, op: str = "
 
 #: O par armazém/SKU dos movimentos publicados e o limiar do `fluxo.yml` que eles cruzam.
 PAR, LIMIAR = (1, 2), 25
+#: As aberturas que os quatro movimentos publicados podem dar, em qualquer ordem de painel.
+TRAVESSIAS = frozenset((antes, depois) for antes in range(LIMIAR, 31) for depois in (23, 24)
+                       if antes % 2 == depois % 2)
 
 
 def conferir(linhas: list[str], saldo, alertas: list[dict]) -> list[str]:
     """O que a prova cobra do destino, do saldo e do alerta.
 
     A ordem dos painéis decide em que movimento a travessia acontece: o atrasado (-1) antes ou
-    depois dos três ao vivo, e os ao vivo num painel só ou em vários. Saldos de partida possíveis
-    da abertura: de 30 (tudo num painel) a 25; de chegada, 24 (o atrasado depois) ou 23. O que
-    não muda: **uma** abertura, no par publicado, com o limiar de 25 cruzado para baixo, e o
-    saldo durável terminando em 23 (RV13J-3-03).
+    depois dos três ao vivo (-2 cada), e os ao vivo num painel só ou em vários. O -1 é o único
+    delta ímpar, e sai de 30: saldo **ímpar** quer dizer que ele já entrou. Por isso a abertura
+    vai de um saldo de 25 a 30 para 23 ou 24 **com a mesma paridade** — de 25, 27 ou 29 para 23;
+    de 26, 28 ou 30 para 24 —, as seis travessias que a enumeração das ordens e partições de
+    painel pelo acumulador real produz (RV13J-4-02). O que não muda: **uma** abertura, no par
+    publicado, com o limiar de 25 cruzado para baixo, e o saldo durável terminando em 23.
     """
     esperado_linhas = ["m1", "m2", "m3", "semente", "tarde"]
     falhas = []
@@ -73,9 +78,9 @@ def conferir(linhas: list[str], saldo, alertas: list[dict]) -> list[str]:
             falhas.append(f"alerta: no par {(a.get('warehouse_id'), a.get('product_variant_id'))}, e não no {PAR}")
         if a.get("limiar") != LIMIAR:
             falhas.append(f"alerta: limiar {a.get('limiar')}, e não {LIMIAR}")
-        if a.get("quantity_on_hand") not in (23, 24) or not (LIMIAR <= (a.get("quantity_before") or -1) <= 30):
+        if (a.get("quantity_before"), a.get("quantity_on_hand")) not in TRAVESSIAS:
             falhas.append(f"alerta: de {a.get('quantity_before')} para {a.get('quantity_on_hand')}, fora das "
-                          "travessias possíveis (de 25–30 para 23 ou 24)")
+                          f"travessias possíveis {sorted(TRAVESSIAS)}")
     if saldo != 23:
         falhas.append(f"saldo: esperado 23, veio {saldo}")
     return falhas

@@ -98,6 +98,8 @@ def test_o_reinicio_do_debezium_e_conferido_pelo_log_e_nao_so_pelo_rollout():
     assert receita.index("rollout status") < receita.index("--sort-by=.metadata.creationTimestamp") \
         < receita.index("mvp_ed1.gcp.debezium_log")
     assert "test $$rc = 3 || break" in receita and "grep" not in receita
+    # RV13J-4-01: a listagem que falha com saída parcial não escolhe pod nenhum.
+    assert "-o name | tail" not in receita and "-o name) \\\n\t\t|| { echo \"ERRO: a listagem dos pods" in receita
     assert '0) echo "gcp-debezium-reiniciar' in receita and "exit 2 ;;" in receita
 
 

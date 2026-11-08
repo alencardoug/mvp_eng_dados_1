@@ -1458,7 +1458,9 @@ gcp-debezium-reiniciar: gcp-preflight require-kubectl ## Terça: reinicia o pod 
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
 	k -n debezium rollout restart deployment/debezium-server || exit 1; \
 	k -n debezium rollout status deployment/debezium-server --timeout=300s || exit 1; \
-	pod=$$(k -n debezium get pods -l app=debezium-server --sort-by=.metadata.creationTimestamp -o name | tail -1); \
+	pods=$$(k -n debezium get pods -l app=debezium-server --sort-by=.metadata.creationTimestamp -o name) \
+		|| { echo "ERRO: a listagem dos pods do debezium-server falhou; nada se conclui — repita"; exit 1; }; \
+	pod=$$(printf '%s\n' "$$pods" | tail -1); \
 	test -n "$$pod" || { echo "ERRO: nenhum pod do debezium-server depois do rollout"; exit 1; }; \
 	mkdir -p $(DATAFLOW_EVIDENCIA); log="$(DATAFLOW_EVIDENCIA)/debezium_reinicio_$$(date -u +%Y%m%dT%H%M%SZ).log"; \
 	for _ in $$(seq 36); do \
