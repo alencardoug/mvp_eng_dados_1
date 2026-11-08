@@ -922,6 +922,173 @@ make gcp-dataflow-parar
 
 Deve terminar com `nenhum job ativo`. O Debezium Server e o GKE ficam para a quarta.
 
+### 6.9 Roteiro de quarta (11/11): o Composer, a segunda captura e a saída até as 22:00
+
+A parte cara (G6). Começa às 07:00, com a porta P4 passada (§6.2) e a terça inteira de pé: o Cloud
+SQL, o GKE com o Airbyte e o Debezium, a época e as capturas da §6.8. Os horários são os da §6.1 e
+do relógio da §6.4. O que não rodar até as 20:00 vira pendência, e a janela não se estende.
+
+**Passo 1 — o projeto certo.**
+
+```
+make gcp-preflight
+```
+
+**Passo 2 — o plano do Composer.**
+
+```
+make gcp-plan NOME=10_composer VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true enable_composer=true"
+```
+
+Deve dar `14 a criar, 0 a alterar, 0 a destruir`: os 14 do Composer dentro dos 36 do Registro §28.
+Leia o plano.
+
+**Passo 3 — aplicar.** O ambiente leva uns 25 minutos para nascer, e a parte cara começa aqui.
+
+```
+make gcp-apply NOME=10_composer
+```
+
+**Passo 4 — os segredos do Airbyte para o Composer.**
+
+```
+make gcp-composer-segredos
+```
+
+Devem aparecer as três linhas `gcp-composer-segredos: mvp-ed1-… gravado`.
+
+**Passo 5 — o layout no *bucket*.**
+
+```
+make gcp-composer-publicar
+```
+
+**Passo 6 — o *smoke test*.** Nada escreve.
+
+```
+make gcp-composer-smoke
+```
+
+Deve terminar com `diagnostico_composer: … terminou com sucesso`. Se a tarefa `rede` falhar, o
+Composer não chega ao Cloud SQL pelo *peering* dos serviços privados, a hipótese aberta do Registro
+§28. **Pare**: a saída é o Cloud SQL por Private Service Connect, e a decisão é sua.
+
+**Passo 7 — o caminho quente ligado.** O `lancar` valida antes de enviar.
+
+```
+make gcp-dataflow-lancar
+```
+
+Repita `make gcp-quente-conferir` até não aparecer `PENDENTE`.
+
+**Passo 8 — a mudança controlada na origem legada.** Entre a captura certificada da terça e a de
+hoje, as mutações de `src/mvp_ed1/gcp/mutacoes_da_janela.yml`, com o diário. Uma vez só.
+
+```
+make gcp-legado-mutar
+```
+
+Devem aparecer as quatro mutações e `4 mutações aplicadas`. Se recusar porque o diário já existe,
+elas já foram aplicadas: siga.
+
+**Passo 9 — a `fluxo_batch` de ponta a ponta, com o *streaming* junto.**
+
+```
+make gcp-composer-fluxo
+```
+
+Enquanto ela roda, num **segundo terminal**:
+
+```
+make gcp-quente-produzir LIMITE=500
+```
+
+O primeiro terminal deve terminar com `fluxo_batch: … terminou com sucesso`. O estado e a duração de
+cada tarefa ficam em `data/medicoes/etapa_13/g6/`: são os tempos de sincronização e de `dbt build`
+da §7.2. O teste `caminhos_de_ingestao_reconciliam` roda dentro do `dbt build` dela.
+
+**Passo 10 — o destino quente alcançou a origem.**
+
+```
+make gcp-quente-conferir
+```
+
+Repita até não aparecer `PENDENTE`.
+
+**Passo 11 — a matriz das duas capturas (§7.2).**
+
+```
+make gcp-legado-matriz
+```
+
+Deve terminar com `matriz das duas capturas: o intervalo e a memória mostram o efeito líquido do
+diário`.
+
+**Passo 12 — a primeira captura preservada (T3).**
+
+```
+make gcp-memoria-oraculo
+```
+
+**Passo 13 — nenhum POST indevido.**
+
+```
+make gcp-jobs-auditoria
+```
+
+Agora são quatro *jobs* da conexão legada e quatro tentativas: os três da terça e o da `fluxo_batch`.
+
+**Passo 14 — as *tags* e a paridade.**
+
+```
+make gcp-tags-inventario
+```
+
+```
+make gcp-oraculos
+```
+
+**20:00 — o ponto de decisão.** O Claude Code registra o que passou e o que não rodou, e o que não
+rodou vira pendência.
+
+**Passo 15 — a exportação, antes das 21:30.** O *bucket* do Composer sai no desmonte, e os logs do
+Airflow com ele.
+
+```
+make gcp-composer-exportar
+```
+
+**Passo 16 — parar quem produz (§6.5, passo 1), até as 22:00.**
+
+```
+make gcp-desmonte-parar
+```
+
+Deve terminar com o Dataflow sem *job* ativo, as DAGs pausadas e `MVP_GCP_ATIVO=false`.
+
+**Passo 17 — o Composer fora (§6.5, passo 2).**
+
+```
+make gcp-plan PASSO=2
+```
+
+Leia o plano: só destruições, o Composer e o IAM do Dataflow. Então:
+
+```
+make gcp-apply PASSO=2
+```
+
+Se às 22:00 o Composer ou o Dataflow ainda estiverem de pé, vale o relógio da §6.4: uma hora para
+removê-los pelo `gcloud`, e depois a consola, por você.
+
+**O que este roteiro não mede:**
+
+- a latência do caminho quente: o `gcp-quente-conferir` diz se o destino alcançou a origem, e não
+  em quanto tempo;
+- o tamanho por *dataset*.
+
+As duas linhas da §7.2 ficam **não medidas**, salvo leitura na consola durante a janela.
+
 ---
 
 ## 7. Paridade funcional — o que se mede na janela

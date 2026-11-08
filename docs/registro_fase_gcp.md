@@ -1344,3 +1344,50 @@ Somente leitura, e vale também para a fase local.
 
 **Não medido:** o T3 inteiro sobre capturas reais no BigQuery, que é o passo 10 da §6.8. Lá ele mede
 o recebido de cada captura certificada, ~2 min por captura pelo §17.
+
+## 35. O roteiro de quarta e a matriz das duas capturas (08/11/2026, manhã)
+
+O dia caro foi escrito comando por comando (PLANO §6.9): o Composer, a mudança controlada na origem
+legada, a `fluxo_batch` com o *streaming* junto, as provas da §7.2, a exportação e a saída até as
+22:00. Escrevê-lo assim mostrou três lacunas:
+
+1. **A matriz das duas capturas só existia como teste.** A §7.2 pede três coisas: a primeira
+   captura preservada, a transição exercitada e a exclusão física detectada. O esperado delas, o
+   efeito líquido do diário contra o intervalo e a memória, morava em *helpers* de
+   `tests/test_legado_remocao.py`, só no PostgreSQL. Agora é `mvp_ed1.legacy.diario`, nos dois
+   dialetos, e os testes o usam daqui: uma regra, um lugar.
+2. **As mutações gravariam o diário no manifesto local.** O `legacy.cli remover|inserir|alterar` não
+   passava manifesto, e o padrão do `mutacoes` é `data/legacy/manifesto.json`. Mutar o Cloud SQL
+   escreveria no manifesto do `legacy_db` local. Agora vai para o manifesto do lote do legado do
+   ambiente (`MVP_REGISTROS_DIR`, §31).
+3. **Nada disparava a `fluxo_batch` nem guardava os tempos dela.** O *smoke* só sabia a
+   `diagnostico_composer`. O laço de disparar e esperar virou o macro `COMPOSER_RODAR`, com o
+   `tasks states-for-dag-run` no fim. É de lá que saem os tempos de sincronização e de `dbt build`.
+   Os logs do Airflow somem com o *bucket* do Composer no desmonte; o `gcp-composer-exportar` os
+   copia antes.
+
+**O que nasceu:**
+
+- **`mutacoes_da_janela.yml`**, declarado e revisável, com o `mvp_ed1.gcp.mutacoes_janela`:
+  - duas marcas e três clientes removidos, escolhidos pelo oráculo entre as ocorrências aptas;
+  - uma marca inserida;
+  - o nome dela alterado.
+
+  Recusa aplicar com o diário já preenchido.
+- **Os alvos:** `gcp-composer-fluxo`, `gcp-composer-exportar`, `gcp-legado-mutar` e
+  `gcp-legado-matriz`.
+
+**Medido:**
+
+- **o `diario` no PostgreSQL:** os testes da remoção, com os de integração em bancos efêmeros
+  (55 passaram), agora pelo módulo;
+- **o `diario` no BigQuery:** o veredito por um BigQuery simulado, todo nome qualificado pelo
+  projeto;
+- **as mutações declaradas:** só tabelas e colunas do legado, e cada uma no manifesto dado;
+- **sem Composer nem manifesto da nuvem:** os alvos novos recusam limpo.
+
+**Não medido:**
+
+- a matriz sobre a captura real, que é o passo 11 da §6.9;
+- a latência do caminho quente e o tamanho por *dataset* da §7.2. Nenhum alvo os mede, e o roteiro
+  os declara não medidos, salvo leitura na consola.
