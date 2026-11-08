@@ -21,7 +21,14 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
-BASE = os.environ.get("AIRBYTE_URL", "http://localhost:8000/api/public/v1")
+#: A API pública do Airbyte local. Lida **na hora da chamada**, como as credenciais: no Composer
+#: o endereço vem do Secret Manager para o ambiente da tarefa depois de o módulo já poder estar
+#: importado (`mvp_ed1.orquestracao.segredos`, Etapa 13).
+PADRAO = "http://localhost:8000/api/public/v1"
+
+
+def _base() -> str:
+    return os.environ.get("AIRBYTE_URL") or PADRAO
 
 #: Estados terminais de um job de sincronização.
 CONCLUIDOS = {"succeeded", "failed", "cancelled", "incomplete"}
@@ -33,7 +40,7 @@ class AirbyteIndisponivel(Exception):
 
 def _chamar(caminho: str, token: str | None = None, corpo: dict | None = None) -> Any:
     dados = json.dumps(corpo).encode() if corpo is not None else None
-    req = urllib.request.Request(f"{BASE}{caminho}", data=dados, method="POST" if dados else "GET")
+    req = urllib.request.Request(f"{_base()}{caminho}", data=dados, method="POST" if dados else "GET")
     req.add_header("content-type", "application/json")
     if token:
         req.add_header("authorization", f"Bearer {token}")
@@ -45,7 +52,7 @@ def _chamar(caminho: str, token: str | None = None, corpo: dict | None = None) -
         raise AirbyteIndisponivel(f"{erro.code} em {caminho}: {detalhe}") from erro
     except urllib.error.URLError as erro:
         raise AirbyteIndisponivel(
-            f"Airbyte não respondeu em {BASE}. Rode `make airbyte-up`. ({erro.reason})"
+            f"Airbyte não respondeu em {_base()}. Rode `make airbyte-up`. ({erro.reason})"
         ) from erro
 
 
