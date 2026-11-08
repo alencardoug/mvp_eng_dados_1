@@ -22,10 +22,13 @@ mvp_ed1:
     # Etapa 13 (PLANO_etapa_13 G1): o mesmo projeto no BigQuery. Credencial pela
     # ADC — a do Owner na máquina, a da conta de serviço do ambiente no Composer —,
     # nunca por arquivo de chave (ADR-0025). Os nove schemas viram nove datasets
-    # com o mesmo nome (generate_schema_name).
+    # com o mesmo nome (generate_schema_name). No Composer a conta do ambiente não
+    # escreve nada: ela personifica a `mvp-transformer` (D81), que é quem tem as
+    # concessões das camadas; vazio, como nesta máquina, é a própria ADC.
     gcp:
       type: bigquery
       method: oauth
+      impersonate_service_account: "{{ env_var('MVP_DBT_IMPERSONATE_SA', '') }}"
       project: "{{ env_var('GCP_PROJECT_ID') }}"
       dataset: analytics
       location: "{{ env_var('GCP_BQ_LOCATION', 'us-central1') }}"

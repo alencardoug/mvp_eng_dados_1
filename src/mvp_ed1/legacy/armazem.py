@@ -261,9 +261,13 @@ def do_ambiente(legado: Engine, environ: Mapping[str, str] | None = None) -> Eng
         raise RuntimeError(f"{CHAVE}=bigquery sem {', '.join(ausentes)} no ambiente")
     from google.cloud import bigquery
 
+    from mvp_ed1.gcp.credenciais import personificada
+
     projeto = env["GCP_PROJECT_ID"]
-    return BigQuery(bigquery.Client(project=projeto, location=env["GCP_BQ_LOCATION"]), projeto,
-                    coordenador=legado, local=env["GCP_BQ_LOCATION"])
+    # No Composer, a conta do `ingestor` personificada pela do ambiente (D81); aqui, a ADC.
+    cliente = bigquery.Client(project=projeto, location=env["GCP_BQ_LOCATION"],
+                              credentials=personificada(env))
+    return BigQuery(cliente, projeto, coordenador=legado, local=env["GCP_BQ_LOCATION"])
 
 
 # ── nomes, nos dois armazéns ─────────────────────────────────────────────────

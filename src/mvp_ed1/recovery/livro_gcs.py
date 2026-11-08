@@ -67,9 +67,18 @@ class Lugar:
 
 @lru_cache(maxsize=1)
 def _cliente():
+    import os
+
     from google.cloud import storage
 
-    return storage.Client()
+    from mvp_ed1.gcp.credenciais import personificada
+
+    # No Composer, a conta do `ingestor` personificada pela do ambiente (D81); aqui, a ADC. O
+    # projeto vai explícito porque a credencial personificada não traz um.
+    cred = personificada()
+    if cred is None:
+        return storage.Client()
+    return storage.Client(project=os.environ.get("GCP_PROJECT_ID"), credentials=cred)
 
 
 def _bucket(lugar: Lugar, cliente=None):
