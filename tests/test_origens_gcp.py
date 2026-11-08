@@ -271,3 +271,13 @@ def test_o_tamanho_e_por_dataset_e_os_alvos_novos():
     }
     assert "quente latencia --limite $(or $(LIMITE),200)" in _receita("gcp-quente-latencia")
     assert "armazem_janela tamanho" in _receita("gcp-armazem-tamanho")
+
+
+def test_a_amostra_minima_e_de_ao_menos_um_evento():
+    """RV13J-2-04: com `--limite 0`, zero esperados e zero vistos davam `completo`."""
+    from mvp_ed1.gcp import quente
+
+    with pytest.raises(ValueError, match="ao menos um evento"):
+        _latencia_com([], [0], 0, minimo=0)
+    with pytest.raises(SystemExit):
+        quente.main(["latencia", "--limite", "0"])

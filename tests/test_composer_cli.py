@@ -90,3 +90,10 @@ def test_o_port_forward_e_o_proxy_sao_o_proprio_processo_e_o_token_nao_vai_na_li
     assert "$(call GCP_PORTA_LIVRE,$(GCP_AIRBYTE_PORTA))" in airbyte
     assert "$(call GCP_PORTA_LIVRE,$(GCP_SQL_PORTA))" in _variavel("GCP_ORIGENS")
     assert "wait $$pids" in MAKEFILE.split("\nGCP_LIMPEZA = ", 1)[1].split("\n", 1)[0]
+
+
+def test_o_reinicio_do_debezium_e_conferido_pelo_log_e_nao_so_pelo_rollout():
+    """RV13J-2-01: o MERGE suprime um snapshot refeito, e só o log do pod novo o mostra."""
+    receita = _receita("gcp-debezium-reiniciar")
+    assert receita.index("rollout status") < receita.index('grep -qi "Snapshot step 1"') < receita.index('grep -qi "previous offset"')
+    assert "refez o snapshot" in receita and "exit 1" in receita and "NÃO CONCLUSIVO" in receita and "exit 2" in receita

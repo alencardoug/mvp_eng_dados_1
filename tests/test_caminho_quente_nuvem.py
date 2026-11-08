@@ -198,3 +198,32 @@ def test_no_bigquery_de_verdade_a_semente_ve_so_o_que_veio_antes_do_inicio(real)
     inicio = dt.datetime.now(dt.timezone.utc)
     nuvem.escrever_lote(real, DESTINO, _tipados("depois"))
     assert nuvem.semente(real, DESTINO, inicio) == [(1, 2, -3)]
+
+
+def test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala(real):
+    """D75 (iii), no destino quente: o `MERGE` roda, a resposta some; o lote acha o *job* pelo id,
+    não reenvia, e devolve exatamente o que entrou — nem a mais (o saldo somaria duas vezes),
+    nem a menos (o alerta se calaria). RV13J-2-01."""
+    cliente = real.cliente
+    original = cliente.query
+    perdidas = []
+
+    def perde_a_resposta(sql, job_config=None, job_id=None, **k):
+        job = original(sql, job_config=job_config, job_id=job_id, **k)
+        if job_id and job_id.startswith("mvp_caminho_quente_") and not perdidas:
+            job.result()
+            perdidas.append(job_id)
+            raise ConnectionError("a resposta se perdeu")
+        return job
+
+    cliente.query = perde_a_resposta
+    try:
+        entraram, duplicados = nuvem.escrever_lote(real, DESTINO, _tipados("r1", "r2"))
+    finally:
+        cliente.query = original
+    assert perdidas, "a resposta do MERGE não foi interceptada: a prova não exercitou o caso"
+    assert sorted(e["movement_id"] for e in entraram) == ["r1", "r2"] and duplicados == 0
+    ((n,),) = [tuple(l.values()) for l in real.linhas(
+        f"select count(*) from {real.tabela(DESTINO.qualificado)} where movement_id in ('r1', 'r2')")]
+    assert n == 2
+    assert nuvem.escrever_lote(real, DESTINO, _tipados("r1", "r2")) == ([], 2)

@@ -1456,7 +1456,13 @@ gcp-debezium-reiniciar: gcp-preflight require-kubectl ## Terça: reinicia o pod 
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
 	k -n debezium rollout restart deployment/debezium-server || exit 1; \
 	k -n debezium rollout status deployment/debezium-server --timeout=300s || exit 1; \
-	k -n debezium logs deployment/debezium-server --tail=15
+	mkdir -p $(DATAFLOW_EVIDENCIA); log="$(DATAFLOW_EVIDENCIA)/debezium_reinicio_$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	for _ in $$(seq 24); do k -n debezium logs deployment/debezium-server > "$$log" 2>&1 || exit 1; \
+		grep -qiE "previous offset|streaming changes|Starting streaming|Snapshot step 1" "$$log" && break; sleep 5; done; \
+	tail -15 "$$log"; \
+	if grep -qi "Snapshot step 1" "$$log"; then echo "FALHOU — o pod novo refez o snapshot: os offsets do disco não valeram (G2.3, reinício do pod) · $$log"; exit 1; fi; \
+	if grep -qi "previous offset" "$$log"; then echo "gcp-debezium-reiniciar: o pod novo retomou dos offsets, sem snapshot · $$log"; exit 0; fi; \
+	echo "NÃO CONCLUSIVO — o log não diz nem retomada nem snapshot; leia $$log antes de dar o reinício por provado"; exit 2
 
 gcp-jobs-auditoria: gcp-preflight require-kubectl ## Terça, depois das capturas: nenhum POST indevido — os jobs da conexão legada no Airbyte do GKE contra os registros do livro
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_LIVRO); \

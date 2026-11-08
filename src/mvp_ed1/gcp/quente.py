@@ -183,6 +183,8 @@ def latencia(cliente, projeto: str, qualificado: str, desde: int, *, produtor, e
     """
     import time
 
+    if minimo < 1:
+        raise ValueError(f"a amostra mínima é de ao menos um evento, e não {minimo}: amostra vazia não é medida")
     relogio = relogio or time.monotonic
     pausa = pausa or time.sleep
     vistos: dict[int, float] = {}
@@ -205,6 +207,7 @@ def latencia(cliente, projeto: str, qualificado: str, desde: int, *, produtor, e
               else f"o produtor saiu com {saida}" if saida != 0
               else f"a origem tem {total} eventos novos, menos que os {minimo} pedidos" if total < minimo
               else f"o destino mostrou {len(vistos)} de {total}" if len(vistos) < total
+              else "nenhum evento visto" if not vistos
               else None)
     return {"desde": desde, "esperados": total, "vistos": len(vistos), "intervalo_s": intervalo,
             "produtor_saiu_com": saida, "minimo": minimo, "completo": motivo is None, "motivo": motivo,
@@ -234,7 +237,13 @@ def slot() -> dict[str, Any] | None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mvp_ed1.gcp.quente", description=__doc__.split("\n")[0])
     ap.add_argument("comando", choices=["conferir", "slot", "latencia"])
-    ap.add_argument("--limite", type=int, default=200, help="latencia: quantos eventos o produtor emite")
+    def positivo(texto: str) -> int:
+        valor = int(texto)
+        if valor < 1:
+            raise argparse.ArgumentTypeError("tem de ser ao menos 1")
+        return valor
+
+    ap.add_argument("--limite", type=positivo, default=200, help="latencia: quantos eventos o produtor emite (≥ 1)")
     ap.add_argument("--prazo", type=float, default=900, help="latencia: segundos até desistir")
     ap.add_argument("--intervalo", type=float, default=5, help="latencia: segundos entre consultas")
     ap.add_argument("--saida", type=str, help="latencia: o relatório em JSON")
