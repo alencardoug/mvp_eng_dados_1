@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
 | Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5 e a D81 no G2.4 (§2) |
-| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4 |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4 e a D82 e a D83 no G2.3 (§2) |
+| Última revisão | 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
 
 ---
 
@@ -261,6 +261,21 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D83 — o Dataflow tem um ensaio de ~1 h na terça (decidida em 08/11/2026)
+
+**Decisão**, a opção recomendada: o primeiro *job* do Dataflow sobe na terça, ~1 h, depois da prova
+do caminho quente com o Debezium no GKE, e não na manhã da parte cara — o que só o Dataflow mostra
+(instalação no *worker*, rede sem IP público, *watermark* pelo atributo) aparece na véspera. Resolve
+a divergência entre o plano ("só na janela") e a Capacidade §2.14 ("~6 h de ensaio"), que foram
+alinhados. Como ficou: [Registro §29](registro_fase_gcp.md#29-g23-e-g6-o-lançamento-no-dataflow-08112026-madrugada).
+
+### D82 — os *workers* do Dataflow rodam como `mvp-streamer` (decidida em 08/11/2026)
+
+**Decisão**, a opção recomendada: a conta do papel do caminho quente é a dos *workers*, e ganha
+`roles/dataflow.worker` só enquanto o degrau do Dataflow está ligado. Descartada: uma conta própria
+do Dataflow, que precisaria receber as concessões do `streamer` — o Beam não personifica dentro do
+*worker*, como o Composer faz (D81). Como ficou: [Registro §29](registro_fase_gcp.md#29-g23-e-g6-o-lançamento-no-dataflow-08112026-madrugada).
 
 ### D81 — o Composer roda com conta própria, que personifica as contas de papel (decidida em 07/11/2026)
 

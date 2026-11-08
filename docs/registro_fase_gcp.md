@@ -1014,3 +1014,67 @@ sempre como `prova_composer.json`, e a rodada desta noite sobrescreveu o da prov
 conteúdo foi **restaurado** do log daquela rodada, que tinha o JSON inteiro (`dbt_staging`,
 PASS=455, falhas vazias); o alvo agora grava `prova_composer_<tarefa>_<instante UTC>.json` e não
 sobrescreve mais nada.
+
+## 29. G2.3 e G6: o lançamento no Dataflow (08/11/2026, madrugada)
+
+**O que a leitura do código achou antes de qualquer *job*:** no Dataflow, três peças leem o projeto
+e a região do **ambiente do *worker*** — a gravação no BigQuery, a semente e a publicação do alerta
+(`nuvem.armazem()` e `PublicarAlerta.setup`). O *worker* não tem o `.env`, e o *pipeline* cairia no
+primeiro evento. A prova do §19 não podia mostrar isso: o executor local roda no processo que tem o
+ambiente. E o pacote: o `--extra_package` do Beam 2.76 instala o pacote duas vezes, a segunda
+**resolvendo as dependências** (`piputil.go`, `pipInstallPackage` com `force`) — o `pyproject.toml`
+do projeto levaria dbt, Faker, Kafka e psycopg ao *worker*.
+
+| Decisão | O que é | Por quê | Como reverter |
+|---|---|---|---|
+| D82 (Owner, 08/11) | Os *workers* do Dataflow rodam como **`mvp-streamer`**, que ganha `roles/dataflow.worker` só enquanto o degrau do Dataflow está ligado | uma identidade para o caminho quente, como no local, e o que o `iam.tf` já anunciava ("pela conta do ambiente"); uma conta própria precisaria receber as concessões do `streamer`, porque o Beam não personifica dentro do *worker* | conta `mvp-dataflow` com as concessões do `streamer` somadas |
+| D83 (Owner, 08/11) | **Ensaio curto** do Dataflow na terça, ~1 h, depois da prova do caminho quente com o Debezium no GKE | o que só o Dataflow mostra — instalação no *worker*, rede sem IP público, *watermark* pelo atributo — aparece na véspera, e não na manhã da parte cara; resolve a divergência entre o plano ("só na janela") e a Capacidade §2.14 ("~6 h de ensaio na terça") | só na quarta |
+
+**O que nasceu**, sem *job* enviado:
+
+- **As peças da nuvem levam o projeto e a região dentro delas** (`nuvem.Projeto`, lido no lançador
+  por `pipeline.construir`): a gravação, a semente e o alerta não leem mais o ambiente do *worker*.
+- **O pacote do *worker*** (`streaming/dataflow/pyproject.toml`): o mesmo `mvp_ed1`, como *wheel*
+  **sem dependência declarada**; o teste confere que o caminho quente só importa, no nível de módulo,
+  o que a imagem `beam_python3.11_sdk:2.76.0` traz (Beam, SQLAlchemy, PyYAML).
+- **A tabela do destino com IAM de tabela:** fecha a pendência que o `acesso.py` deixava para o G2.3
+  (`pendentes_por_tabela`). O `terraform/dataflow.tf` lê a declaração do dbt e concede no
+  `raw.inventory_movements_stream` — `insert` → `dataEditor` ao `streamer`, `select` → `dataViewer`
+  ao `streamer` e ao `transformer`. O `streamer` não ganha nada no *dataset*; por isso a tabela é
+  criada antes, pela ADC do Owner (`make gcp-dataflow-tabela`), e o *worker* só a cria se ela não
+  existir (`garantir_tabela` pergunta primeiro).
+- **`enable_dataflow`**: `dataflow.worker` para o `streamer` (D82) e o IAM da tabela. O *job* não é
+  recurso do Terraform — sobe pelo `make gcp-dataflow-lancar` e sai pelo `make gcp-dataflow-parar`,
+  que drena, cancela se a drenagem passar de 15 min, e só termina com nenhum *job* ativo (§6.5 passo
+  1). Nenhuma regra de *firewall*: com o Streaming Engine, os *workers* só precisam das APIs do
+  Google, que a sub-rede alcança pelo Private Google Access (página `routes-firewall` do Dataflow).
+- **`make gcp-dataflow-validar`**: monta o *job* inteiro com o `--dry_run` do Beam — o grafo
+  traduzido e cada peça serializada — e o ambiente dos *workers* pelo mesmo `apiclient.Environment`
+  do Beam, sem enviar nada nem copiar para o *bucket*; falha se conta, máquina, número de *workers*,
+  sub-rede ou IP diferem do pedido.
+- **Uma dica de tipo** na chave do passo com estado do saldo (`AnotarJanela`): o `validar` mostrou
+  o aviso do Beam de chave "talvez não determinística" — o mesmo que a deduplicação já evitava com a
+  dica; chave instável em passo com estado é estado procurado no lugar errado.
+
+**Medido:**
+
+- o **`validar`** contra o estado real: 24 transformações; `mvp-streamer`, `n1-standard-2`, 1
+  *worker*, a sub-rede do projeto, `WORKER_IP_PRIVATE`, Streaming Engine e Runner v2, imagem
+  `gcr.io/cloud-dataflow/v1beta3/beam_python3.11_sdk:2.76.0`; nenhuma divergência; o aviso da chave
+  sumiu com a dica;
+- a **prova de ponta a ponta do §19 refeita** com as peças novas (`python -m mvp_ed1.gcp.prova_quente`,
+  executor local contra Pub/Sub e BigQuery reais, recursos temporários): o mesmo resultado — 5 linhas
+  no destino, a duplicata barrada, saldo 23, **exatamente um alerta, abertura de 29 para 23**, nada
+  sobrando [medido, `data/medicoes/etapa_13/g23/prova_quente_projeto_nas_pecas.json`];
+- **`plan` `11_dataflow`** (`enable_dataflow=true`): **4 / 0 / 0** — o `dataflow.worker` e as três
+  concessões da tabela —, e a saída `dataflow` que o lançador lê; guardado só como texto (A17). A
+  saída só existe no estado depois do próximo `apply`; a prova de hoje montou o mesmo JSON pelo
+  `terraform console`, que só lê o estado.
+
+**A ordem na terça (D83):** `gcp-dataflow-tabela` → `apply` com `enable_dataflow` → `gcp-dataflow-validar`
+→ `gcp-dataflow-lancar` → o caminho quente com o Debezium → `gcp-dataflow-parar`. O que o ensaio
+confere e nada antes dele pode: a instalação do *wheel* no *worker* sem IP público, a semente pelo
+`streamer` com IAM só da tabela, e o *watermark* pelo atributo.
+
+**Um aviso que fica:** o lançador roda `pip freeze` para registrar o ambiente de submissão, e o venv
+do `uv` não tem `pip` — o Beam avisa e segue; é registro, não instalação.

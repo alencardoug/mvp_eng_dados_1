@@ -49,7 +49,8 @@ As regras que se sobrepõem a qualquer outra coisa neste plano:
    o M6 incompleto: sem aceite e sem *tag* `v2.0.0`** — o desmonte acontece do mesmo jeito.
 4. **O taxímetro sobe por degrau de preço.** BigQuery, Cloud Storage, Pub/Sub, IAM e taxonomias
    (centavos) nascem no sábado; Cloud SQL (barato) na segunda; GKE com Airbyte e Debezium
-   (médio) na terça, para integração; **Composer e Dataflow só na janela**, quarta.
+   (médio) na terça, para integração; **Composer e Dataflow na janela**, quarta — o Dataflow com um
+   ensaio de ~1 h na terça, depois da prova do caminho quente (D83, 08/11/2026).
 
 O que a Free Trial muda **[medido, 06/11/2026]**:
 
@@ -449,7 +450,7 @@ contra o real. E, se houver, o que **não** deu certo, dito como é.
 | sáb 07 | revisão 2 do plano e rodada 2 do Codex; ADR-0051; G0; G1 e G2 começam; BigQuery, GCS e Pub/Sub de desenvolvimento | centavos |
 | dom 08 | **revisão do plano encerrada**; G1, G2, G3 e G4 em curso | centavos |
 | seg 09 | Cloud SQL de pé (`apply` barato); G2.1 contra Cloud SQL e BigQuery reais; G1 em curso | barato |
-| ter 10 | GKE + Airbyte + Debezium de pé; portas de integração (§6.2); rodada do Codex no `plan` caro | médio |
+| ter 10 | GKE + Airbyte + Debezium de pé; portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
 | **ter 10, 20:00** | **porta da janela** (§6.2) | |
 | **qua 11, 07:00** | Composer (~25 min para nascer, [create-environments](https://docs.cloud.google.com/composer/docs/composer-3/create-environments)) e Dataflow; *smoke test*; `fluxo_batch` de ponta a ponta; *streaming* simultâneo; as duas capturas da §7.2 | caro |
 | **qua 11, 20:00** | **ponto de decisão**: o que não rodou vira pendência; a janela não se estende | |

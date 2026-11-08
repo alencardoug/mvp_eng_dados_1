@@ -582,9 +582,9 @@ durações são as do cronograma do plano, não medidas. O real é registrado de
 | GKE — *cluster* | taxa de gerenciamento | 0,10 (o crédito de US$ 74,40/mês por conta cobre um zonal; contado aqui como custo, no pior caso) | ~49 h | ~5 | pendente |
 | GKE — discos, LB interno, NAT | 2 × 50 GB `pd-balanced`; 1 *forwarding rule*; NAT de 2 VMs | ≈ 0,014 + 0,025 + 0,003 | ~49 h | ~2 | pendente |
 | Composer 3 | *small*; o exemplo oficial usa 12 DCUs, 15 com mais *workers* | 12–15 × 0,06 = 0,72–0,90 | qua 11 07:00 → 22:00, ~15 h, mais ~0,5 h para nascer | ~11–14 | pendente |
-| Dataflow | 1 *worker* `n1-standard-2` (2 vCPU, 7,5 GB), Streaming Engine | 2 × 0,069 + 7,5 × 0,003557 ≈ 0,165 | ~15 h na janela + ~6 h de ensaio na terça | ~4 | pendente |
+| Dataflow | 1 *worker* `n1-standard-2` (2 vCPU, 7,5 GB), Streaming Engine | 2 × 0,069 + 7,5 × 0,003557 ≈ 0,165 | ~15 h na janela + ~1 h de ensaio na terça (D83) | ~3 | pendente |
 | BigQuery, Pub/Sub, Cloud Storage, Secret Manager | volume `dev` (D68) | dentro do nível gratuito (1 TiB de consulta, 10 GiB de armazenamento, 10 GiB de Pub/Sub por mês) | toda a semana | ~0–2 | pendente |
-| **Total** | | | | **~45–50**, com margem para reexecução: **US$ 40–70** | pendente |
+| **Total** | | | | **~44–49**, com margem para reexecução: **US$ 40–70** | pendente |
 
 O crédito da conta era de R$ 1.740,37 em 06/11/2026; a estimativa usa uma fração dele, à taxa de
 câmbio da fatura (não medida aqui). O orçamento do projeto (Terraform, `fundacao.tf`) alerta em
