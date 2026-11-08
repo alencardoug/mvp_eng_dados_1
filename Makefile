@@ -158,7 +158,8 @@ endef
         docs-check secrets-history dbt-rebuild check-offline \
         recovery-pack recovery-verify recovery-rebase recovery-airbyte-jobs recovery-restore recovery-promote \
         generation-measure generation-compare generation-realism ledger-baseline ledger-attempt ledger-treatment memory-oracle source-oracle \
-        gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
+        gcp-preflight gcp-plan gcp-apply gcp-sql-proxy gcp-origens-migrar gcp-origens-povoar gcp-origens-oraculo \
+        gcp-origens-replicacao gcp-g21-prova gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
         gcp-desmonte-parar gcp-desmonte-slot gcp-desmonte-kubernetes gcp-desmonte-orfaos gcp-desmonte-sql gcp-desmonte-linhagem \
@@ -1017,6 +1018,59 @@ gcp-sql-proxy: gcp-preflight require-cloud-sql-proxy ## Abre o Cloud SQL em 127.
 	@conexao=$$($(GCP_TF) output -raw cloud_sql_conexao) || { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
 		.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao"
 
+# As duas origens no Cloud SQL para os comandos locais: o proxy em segundo plano (fecha no fim da
+# receita), as senhas do Secret Manager e `SOURCE_DB_*`/`LEGACY_DB_*` apontando para ele, **por cima**
+# do `.env`, que segue apontando para os bancos locais. Usuário e banco são os do `.env`, os mesmos
+# do `cloud_sql_origens` (cloud_sql.tf). Os alvos chamam o `alembic` e as CLIs direto, sem as
+# macros locais (`ALEMBIC`, `GERADOR`): elas recarregam o `.env` e desfariam o que está aqui.
+# Os registros da carga (o `geracao.json` e o manifesto do legado) vão para `GCP_REGISTROS`
+# (`mvp_ed1.registros`): da raiz, a carga do Cloud SQL encerraria o diário de mutações aberto do
+# manifesto local, que descreve o `legacy_db` local.
+GCP_REGISTROS := $(abspath data/medicoes/etapa_13/origens_cloud_sql)
+GCP_ORIGENS = conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) \
+		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
+	.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao" > /dev/null 2>&1 & proxy=$$!; \
+	trap 'kill $$proxy 2>/dev/null' EXIT; \
+	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null && break; kill -0 $$proxy 2>/dev/null || break; sleep 1; done; \
+	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
+	for origem in source legacy; do \
+		senha=$$(gcloud secrets versions access latest --secret "mvp-ed1-$$origem-db-password" --project "$$GCP_PROJECT_ID") || exit 1; \
+		prefixo=$$(echo "$$origem" | tr a-z A-Z)_DB; \
+		export "$${prefixo}_HOST=127.0.0.1" "$${prefixo}_PORT=$(GCP_SQL_PORTA)" "$${prefixo}_PASSWORD=$$senha"; \
+	done; \
+	export MVP_REGISTROS_DIR="$(GCP_REGISTROS)"; \
+	echo "origens: Cloud SQL $$conexao pelo proxy em 127.0.0.1:$(GCP_SQL_PORTA); registros em $(GCP_REGISTROS)"
+
+gcp-origens-migrar: gcp-preflight require-cloud-sql-proxy ## Segunda: aplica as migrações das duas origens no Cloud SQL (source_db e legacy_db), do zero
+	@$(GCP_ENV); $(GCP_ORIGENS); \
+	.venv/bin/alembic upgrade head && .venv/bin/alembic -n legacy upgrade head \
+	&& .venv/bin/alembic current && .venv/bin/alembic -n legacy current
+
+gcp-origens-povoar: gcp-preflight require-cloud-sql-proxy ## Segunda: gera as duas origens no Cloud SQL com a semente, o fator e a data declarados (os da fase local)
+	@# Sem SCALE, SEED nem AS_OF: a paridade da §7.2 pede a mesma geração da fase local, e o padrão
+	@# é a declaração. O gerador recusa banco com dados; aqui não há FORCE.
+	@$(GCP_ENV); $(GCP_ORIGENS); \
+	.venv/bin/python -m mvp_ed1.generator.cli seed && .venv/bin/python -m mvp_ed1.legacy.cli seed
+
+gcp-origens-oraculo: gcp-preflight require-cloud-sql-proxy ## Segunda: o oráculo das origens contra o Cloud SQL, somente leitura; MEDIDA= de `make generation-measure`
+	@test -n '$(MEDIDA)' || { echo 'ERRO: use make gcp-origens-oraculo MEDIDA=<medida da geração>'; exit 1; }
+	@$(GCP_ENV); $(GCP_ORIGENS); \
+	RECOVERY_DIR="$(RECOVERY_DIR)" .venv/bin/python -m mvp_ed1.recovery.sources oracle '$(MEDIDA)'
+
+gcp-origens-replicacao: gcp-preflight require-cloud-sql-proxy ## Segunda: concede REPLICATION ao usuário da origem no Cloud SQL (o do Debezium Server) e confere em pg_roles
+	@$(GCP_ENV); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.origens replicacao
+
+gcp-g21-prova: gcp-preflight require-cloud-sql-proxy ## Segunda: as provas do G2.1 contra o BigQuery real com os locks no Cloud SQL (o banco legado é o coordenador, A21)
+	@# Os testes de `GCP_TESTES=1` criam e apagam um *dataset* temporário; o coordenador deles é o
+	@# `WAREHOUSE_DB_*`, que aqui aponta para o legado no Cloud SQL, como no ambiente da nuvem.
+	@$(GCP_ENV); $(GCP_ORIGENS); mkdir -p data/medicoes/etapa_13/g2_1; \
+	export WAREHOUSE_DB_HOST=127.0.0.1 WAREHOUSE_DB_PORT=$(GCP_SQL_PORTA) WAREHOUSE_DB_NAME="$$LEGACY_DB_NAME" \
+		WAREHOUSE_DB_USER="$$LEGACY_DB_USER" WAREHOUSE_DB_PASSWORD="$$LEGACY_DB_PASSWORD"; \
+	saida="data/medicoes/etapa_13/g2_1/cloud_sql_$$(date -u +%Y%m%dT%H%M%SZ).txt"; \
+	GCP_TESTES=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_armazem_bigquery.py \
+		tests/test_livro_gcs.py tests/test_governanca_bigquery.py 2>&1 | tee "$$saida"; \
+	rc=$${PIPESTATUS[0]}; echo "gcp-g21-prova: $$saida"; exit $$rc
+
 gcp-dbt-build: gcp-preflight ## dbt build no alvo gcp (BigQuery), com target e logs separados do local
 	@# O mapa nível → policy tag do Terraform (G4, D71): o dbt marca as colunas das tabelas que
 	@# materializa. Sem a taxonomia aplicada a saída não existe, e nada é marcado.
@@ -1210,16 +1264,9 @@ gcp-desmonte-slot: gcp-preflight require-cloud-sql-proxy ## Desmonte, passo 3: d
 	@# Sem o Debezium Server (plano 21) o slot fica inativo e segura WAL até a instância sair, e o
 	@# disco não cresce sozinho (`disk_autoresize = false`). A remoção recusa slot ativo: com o
 	@# Debezium de pé, nada sai. O proxy abre e fecha aqui; a senha vai do Secret Manager para o
-	@# ambiente do processo, não para a tela. Usuário e banco são os do `.env` (cloud_sql.tf).
-	@$(GCP_ENV); \
-	conexao=$$($(GCP_TF) output -raw cloud_sql_conexao 2>/dev/null) || { echo "ERRO: sem Cloud SQL no estado."; exit 1; }; \
-	.tools/cloud-sql-proxy --address 127.0.0.1 --port $(GCP_SQL_PORTA) "$$conexao" > /dev/null 2>&1 & proxy=$$!; \
-	trap 'kill $$proxy 2>/dev/null' EXIT; \
-	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null && break; kill -0 $$proxy 2>/dev/null || break; sleep 1; done; \
-	(exec 3<>/dev/tcp/127.0.0.1/$(GCP_SQL_PORTA)) 2>/dev/null || { echo "ERRO: o proxy do Cloud SQL não abriu."; exit 1; }; \
-	senha=$$(gcloud secrets versions access latest --secret mvp-ed1-source-db-password --project "$$GCP_PROJECT_ID") || exit 1; \
-	SOURCE_DB_HOST=127.0.0.1 SOURCE_DB_PORT=$(GCP_SQL_PORTA) SOURCE_DB_PASSWORD="$$senha" \
-		.venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force
+	@# ambiente do processo, não para a tela (`GCP_ORIGENS`).
+	@$(GCP_ENV); $(GCP_ORIGENS); \
+	.venv/bin/python -m mvp_ed1.streaming.maintenance drop-slots --force
 
 gcp-desmonte-kubernetes: gcp-preflight require-kubectl ## Desmonte, passo 4: depois do plano 21, apaga os namespaces do Airbyte e do Debezium e prova que nenhum PV nem load balancer ficou
 	@# O `helm uninstall` do plano 21 não leva os PVCs dos StatefulSets do chart do Airbyte — o banco
