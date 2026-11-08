@@ -265,7 +265,7 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ### D84 a D87 — da revisão dos roteiros da janela da Etapa 13 (decididas em 08/11/2026)
 
 Levantadas pela revisão dos roteiros (Registro §37 e §38) e decididas antes da P3, todas pela opção
-recomendada. Como ficou: [Registro §41](registro_fase_gcp.md#41-as-decisões-d84-a-d87-e-a-p1-08112026-tarde).
+recomendada. Como ficou: [Registro §41](registro_fase_gcp.md#41-as-decisões-d84-a-d87-08112026-tarde).
 
 - **D84 — o segredo no plano salvo** (RV13J-1-01): o binário do plano nasce só do dono (`umask 077`)
   e sai depois do `apply` que o consumiu; o texto, com os sensíveis mascarados, é a evidência. Os

@@ -1589,11 +1589,12 @@ A rodada 4 (`high`) deu o RV13J-3-02 como resolvido e achou dois restos das corr
 A rodada 5 (`high`) não achou nada e deu o lote como fechável, pendente das decisões do Owner. As
 quatro perguntas dos §37 e §38 viraram as [D84 a D87](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-decididas-em-08112026), para antes da P3.
 
-## 41. As decisões D84 a D87 e a P1 (08/11/2026, tarde)
+## 41. As decisões D84 a D87 (08/11/2026, tarde)
 
-**A P1 passou às 13:30, antes das 20:00.** O critério dela (§6.2 do plano) é "revisão encerrada, sem
-bloqueante aberto": a revisão do plano fechou em 07/11 (§3), a dos roteiros da janela fechou de
-madrugada sem achado (§40), e o que ela deixou eram quatro perguntas, não bloqueantes.
+A P1 já tinha passado em 07/11, com a revisão do plano (§3; plano §10). A revisão dos roteiros da
+janela, que veio depois, fechou de madrugada sem achado (§40) e deixou quatro perguntas, não
+bloqueantes. Das revisões do Codex que o plano prevê, falta a do `plan` caro, na terça, que é
+pré-requisito da P4 (plano §6.2).
 
 O Owner decidiu as quatro (D84 a D87) pela opção recomendada, em uma rodada de perguntas com as
 alternativas explicadas. O que cada uma decide está nas [Pendências §2](pendencias.md#d84-a-d87--da-revisão-dos-roteiros-da-janela-da-etapa-13-decididas-em-08112026);
