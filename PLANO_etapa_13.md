@@ -1417,3 +1417,11 @@ resposta entra em `CONVERSAS_COM_CHAT/gemini/` com o trecho citado; o Codex tem 
 2 ajustes), 5 (1 bloqueante, 3 ajustes, 1 observação) e 0 — todos corrigidos no plano. O parecer
 inteiro, com a *Situação* de cada achado, está no `REVISAO.md` do *commit* `62541b2`, removido no
 *commit* seguinte. "Resolvido no plano" é correção documental: as provas continuam por executar.
+
+**O `plan` caro — revisado em 09/11/2026, com um complemento devido na terça.** Quatro rodadas do
+Codex sobre `08_gke_revisao`, `11_dataflow_revisao` e `10_composer_revisao` (Registro §45): 4
+achados (1 bloqueante, 2 ajustes, 1 observação), 1 bloqueante, 1 ajuste e 0. O parecer inteiro, com
+a *Situação* de cada achado, está no `REVISAO.md` do *commit* `bddf8b1`, removido no
+*commit* de fechamento. Para a P4, o GKE, o Dataflow e o Composer estão com o `plan` revisado; os
+*releases* do Helm (`09_aplicacoes`) **não**: o parecer sobre o plano real é o passo 4a da §6.7,
+antes do `apply` deles (RVPC-1-01).

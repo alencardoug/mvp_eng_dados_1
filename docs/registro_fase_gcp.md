@@ -1876,9 +1876,18 @@ oficial não é um valor válido para outra versão. O *triggerer* passou a 2 GB
 cada componente contra a tabela oficial (falhou só no *triggerer* com o 0,5 GB de volta); o
 `10_composer_revisao` regerado às 13:02 deu `29 a criar, 0 a alterar, 0 a destruir`.
 
-**A rodada 3, estreita (13:05 → 13:09)** [medido]: os valores do `workloads_config` e o plano
+**A rodada 3, estreita (13:07 → 13:09)** [medido]: os valores do `workloads_config` e o plano
 regerado cabem na tabela oficial, sem bloqueante; um ajuste (RVPC-3-01) na **guarda**, que só
 conferia faixas: uma sonda do Codex mostrou seis valores inválidos que passavam (CPU fora do passo,
 *scheduler* acima do teto de 8 GB, memória e armazenamento fora do passo, armazenamento negativo —
 o extrator descartava o sinal —, quantidade fracionária). A guarda passou a ter a tabela inteira, e
 os seis casos, com o *triggerer* da rodada 2, viraram testes negativos: todos recusados.
+
+**A rodada 4, estreita (13:15 → 13:17)** [medido]: RVPC-3-01 resolvido, nenhum achado novo. A sonda
+independente do Codex recusou os sete casos pelas razões esperadas e aceitou os valores válidos nas
+bordas (45/45 de CPU, 35/35 de memória, armazenamento e quantidades); o *hash* do
+`10_composer_revisao.txt` é o da rodada 3 (`eed095db…`).
+
+**A revisão do `plan` caro fechou às 13:20**, quatro rodadas em 43 minutos. Para a P4 (ter 20:00):
+GKE, Dataflow e Composer com o `plan` revisado; os *releases* do Helm ficam para o passo 4a da
+§6.7, sobre o plano real, antes do `apply` deles. O `REVISAO.md` saiu no *commit* de fechamento.
