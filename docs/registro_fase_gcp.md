@@ -1866,3 +1866,12 @@ connection is transitive", página de interfaces PSC); os pacotes têm prova ant
 
 O `10_composer_revisao` foi regerado depois do `apply` do `12`: `29 a criar, 0 a alterar, 0 a
 destruir`.
+
+**A rodada 2, de regressão (12:53 → 13:00)** [medido]: "Mudanças necessárias" — RVPC-1-01 e -02
+resolvidos, RVPC-1-04 mantido sem erro de fato, e **um bloqueante novo nascido da correção do
+RVPC-1-03** (RVPC-2-01): o exemplo oficial copiado traz um *triggerer* de 0,5 GB, e a tabela de
+limites do Composer 3 pede no mínimo `2 in Airflow 3`. O plano aceitava o valor (o *provider* não
+confere limites do serviço), e a guarda só olhava os nomes dos componentes. A lição: um exemplo
+oficial não é um valor válido para outra versão. O *triggerer* passou a 2 GB; a guarda nova confere
+cada componente contra a tabela oficial (falhou só no *triggerer* com o 0,5 GB de volta); o
+`10_composer_revisao` regerado às 13:02 deu `29 a criar, 0 a alterar, 0 a destruir`.

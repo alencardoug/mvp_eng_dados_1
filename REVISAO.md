@@ -650,10 +650,149 @@ Composer, propagação de IAM, defaults efetivos de workloads, limites/portas do
 pods e ausência real de resíduos continuam não medidos. Os planos de desmonte 20–22 ainda não
 existem para os recursos criados. O rito §6.3 e o relógio §6.4 permanecem condições de execução.
 
+## Rodada 2
+
+### 1. Conclusão
+
+**Mudanças necessárias.** Um achado novo, **RVPC-2-01 (alta, bloqueante)**: a correção de
+RVPC-1-03 declara 0,5 GB de memória para o triggerer, abaixo do mínimo documentado para a imagem
+Airflow 3 escolhida. O bloqueio é do degrau Composer, antes do seu `apply`; não impede os
+degraus independentes já revisados. Os testes locais passam sem detectar esse valor inválido.
+
+### 2. Escopo
+
+Revisão **somente de regressões e itens pendentes**, em 09/11/2026, sobre
+`b092841..886e942` (HEAD `886e94269b83f206941df833a07531a14303c4ae`): `6c593b0`,
+`e590c64` e `886e942`. Foram confrontados os diffs, as respostas da coluna Situação, os textos
+locais de planos/aplicação indicados pelo Owner e a medição literal fornecida na conversa.
+As decisões do Owner e a estimativa aprovada não foram reabertas.
+
+- **RVPC-1-01:** a correção documental atende ao achado. O passo 4a fica entre planejar e
+  aplicar os releases, exige o texto real e preserva as contagens e a revisão das divergências
+  dos planos seguintes. Cabe na terça da §6.1: a integração continua devida às 18:00 (P3), e
+  a P4 das 20:00 não autoriza antecipar um apply sem revisão. A §6.3 mantém leitura integral
+  e aprovação do Owner; a regra de falha da §6.6 mantém dependências suspensas e o relógio
+  inalterado. **A revisão efetiva de `09_aplicacoes` continua pendente para terça**, antes do
+  passo 5, com resolução de eventuais bloqueantes; esta rodada não a substitui.
+- **RVPC-1-02:** correção da política confirmada pelas evidências fornecidas. O plano barato
+  altera somente soft delete de 604800 para 0 nos buckets `beam` e `livro`, sem recriação;
+  seu log registra `0 added, 2 changed, 0 destroyed`. A medição do autor informa 0 nos dois,
+  e o plano regenerado declara 0 no bucket novo do Composer. A `retention_policy` do livro
+  permanece separada, condicional e sem trava, com `ledger_retention_seconds` padrão 604800;
+  o passo 7 de `desmonte.py` continua removendo-a com valor 0 antes do passo 8. Portanto,
+  desligar soft delete não elimina a proteção D70 nem quebra a §6.5 passo 6. A guarda alcança
+  os dois blocos de buckets atuais, incluindo o `for_each` de livro/Beam. Cópias anteriormente
+  retidas permanecem uma limitação, descrita abaixo.
+- **RVPC-1-03:** o bloco deixou de depender de defaults e o plano mostra os cinco componentes,
+  suas quantidades e workers de 2 a 4. Porém, a solução introduziu a configuração inválida
+  detalhada em RVPC-2-01; o item não pode ser considerado tecnicamente encerrado.
+- **RVPC-1-04:** não encontrei erro factual que obrigue mudar a decisão de manter. As linhas
+  do GKE e o hash do plano são os mesmos da rodada 1; a resposta conserva o comportamento
+  transitório já descrito. Esta rodada não transforma a escolha em prova de apply, nem
+  reabre a observação por preferência por outra configuração.
+
+### 3. Evidência de cada achado novo
+
+**RVPC-2-01 — triggerer com memória abaixo do mínimo do Airflow 3 (alta).**
+O commit `e590c64` acrescenta `triggerer { cpu = 0.5, memory_gb = 0.5, count = 1 }`
+em `terraform/composer.tf:172–175`. A imagem continua sendo
+`composer-3-airflow-3.2.2-build.9` (`composer.tf:36`), conforme D73. O texto regenerado
+`10_composer_revisao.txt:256` confirma a imagem e `:286–289` confirma o triggerer com 0,5 GB.
+
+A [tabela oficial de limites do Composer 3](https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits)
+estabelece memória mínima de **2 GB para triggerers no Airflow 3**. Assim, copiar 0,5 GB do
+exemplo usado como referência não produz uma declaração válida para a imagem escolhida.
+Os demais componentes declarados atendem aos pisos, passos e proporções de CPU/memória e aos
+limites de armazenamento/quantidade da tabela; o problema identificado é o triggerer.
+
+O plano com `29/0/0`, produzido com o provider travado em 8.10.0, evidencia que o bloco foi
+aceito no planejamento; não comprova validade perante os limites do serviço. A criação do
+Composer fica exposta à rejeição no apply. Não foi executada uma chamada à API para observar
+essa rejeição. É erro no declarativo de um recurso cobrável e deve ser resolvido antes de
+criá-lo.
+
+A guarda `test_o_composer_declara_os_componentes_da_estimativa`
+(`tests/test_composer_ambiente.py:152–157`) só exige os nomes dos componentes e os limites
+2/4 dos workers: não confere CPU, memória, armazenamento nem as demais quantidades. Por isso,
+passa com a memória inválida. Essa lacuna faz parte do mesmo achado, não de uma segunda causa.
+
+**Ajuste proposto:** declarar pelo menos 2 GB para esse triggerer, preservando a imagem D73;
+conferir os valores efetivos de cada componente na guarda, incluindo os limites aplicáveis
+ao Airflow 3, e regerar/revisar o texto do plano. Corrigir a correspondência documental do
+dimensionamento onde necessário, sem apresentar DCUs ou custo real como medidos nem reabrir
+a aprovação da estimativa nesta revisão.
+
+### 4. Verificações executadas
+
+Leituras locais de Git, declarativo, testes, runbook, decisões e evidências textuais; nenhuma
+operação de infraestrutura. O único comando de testes executado foi o autorizado:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_composer_ambiente.py tests/test_desmonte.py tests/test_origens_gcp.py tests/test_makefile.py
+136 passed in 11.15s
+```
+
+Um script Python somente de leitura calculou hashes, extraiu os blocos de ações dos planos e
+comparou os recursos comuns. Saída:
+
+```text
+08_gke_revisao.txt       Plan: 11 to add, 0 to change, 0 to destroy.
+11_dataflow_revisao.txt  Plan: 15 to add, 0 to change, 0 to destroy.
+10_composer_revisao.txt  Plan: 29 to add, 0 to change, 0 to destroy.
+12_soft_delete.txt      Plan: 0 to add, 2 to change, 0 to destroy.
+12_soft_delete_apply.txt Apply complete! Resources: 0 added, 2 changed, 0 destroyed.
+Incrementos: 11 4 14
+Blocos GKE que mudam no Dataflow: []
+Blocos Dataflow que mudam no Composer: []
+```
+
+Os hashes de `08_gke_revisao.txt` e `11_dataflow_revisao.txt` conferem com a rodada 1.
+Identificação dos textos novos ou regenerados, em `data/medicoes/etapa_13/planos/`:
+
+| Arquivo | SHA-256 |
+|---|---|
+| `10_composer_revisao.txt` | `a95d486257420619b528feea37a0fcdd3c6316143eb96d988bdec2a2488efca6` |
+| `12_soft_delete.txt` | `871553a3e89b26df322d8b86d044747cf5a45b3c84e67da1627a1d3676f4eeaf` |
+| `12_soft_delete_apply.txt` | `9af815fe2f96ce59ca2363fd7fc17d1c64515a5f46b336e50ae6efe8d01e206e` |
+
+Outro script somente de leitura conferiu que a guarda de soft delete alcança
+`armazenamento.tf/this` e `composer.tf/composer`, ambos com política 0, e comparou a memória
+dos cinco componentes com os mínimos documentados para Airflow 3: só o triggerer ficou abaixo.
+
+### 5. Limites
+
+O apply barato e a leitura das políticas efetivas são evidências do autor/Owner, não operações
+repetidas pelo revisor. A medição recebida na conversa foi:
+
+```text
+mvp-ed1-gcp-livro  0
+mvp-ed1-gcp-beam   0
+```
+
+Não foi fornecido inventário das cópias já soft-deleted, nem foi medido seu volume ou custo;
+não certifico a expressão “centavos” da Situação. Segundo a
+[documentação de soft delete](https://docs.cloud.google.com/storage/docs/soft-delete), a mudança
+vale para exclusões posteriores à vigência da política; as anteriores conservam o prazo
+original. Política 0 e listagem comum vazia não comprovam eliminação dessas cópias. A resposta
+do autor reconhece essa permanência; ausência real de resíduos segue não provada, e o relógio
+de faturamento permanece obrigatório.
+
+Foram feitas quatro tentativas de leitura de páginas oficiais: três tiveram conteúdo
+(limites do Composer 3, soft delete e documentação do GKE no provider v8.10.0); a página de
+`composer_environment` nessa tag falhou com `Cache miss`. A aceitação do bloco pelo provider
+foi avaliada pela evidência do plano, sem executar Terraform nem certificar todos os caminhos
+do schema. Não houve consultas adicionais de rede.
+
+Não foram lidos `.env`, estados Terraform ou bancos. Não foram executados comandos de
+infraestrutura, serviços, novo plan/apply ou desmonte. As limitações operacionais da rodada 1
+continuam válidas fora das correções aqui verificadas. Não há aceite formal do Owner nem
+autorização de execução decorrente deste parecer.
+
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RVPC-1-01 | PLANO §6.2 e §6.7 passos 4–5; `aplicacoes_gke.tf:25` | **Alta — falta revisão do plano real das aplicações.** Exigir complemento de terça sobre `09_aplicacoes` antes do apply dos releases. Revisão de código antecipada não encerra esse pré-requisito. Os planos reais seguintes devem manter os releases sem alteração e os incrementos previstos. | bloqueante || **Aceito.** `PLANO_etapa_13.md` §6.7 ganhou o **passo 4a**: o texto real de `09_aplicacoes.txt` vai ao Codex antes do passo 5 (contagem `2/0/0`, valores, versões dos *charts*, sensíveis), e sem o parecer o passo 5 não roda; os planos reais da §6.8 e §6.9 seguem as contagens incrementais, e divergência dos `_revisao` volta ao Codex. |
 | RVPC-1-02 | `composer.tf:97`; `armazenamento.tf:17`; plano Composer `:836` | **Média — soft delete não declarado pode reter e cobrar objetos após destroy.** `force_destroy` não desativa a política padrão de sete dias. Explicitar a política no Composer e tratar os buckets existentes e cópias já retidas antes de afirmar eliminação completa. | ajuste || **Corrigido e medido.** Reproduzido: o `12_soft_delete.txt` mostrou `retention_duration_seconds = 604800 -> 0` nos dois *buckets* existentes. `soft_delete_policy { retention_duration_seconds = 0 }` em `armazenamento.tf` e no *bucket* do Composer; guarda `test_todo_bucket_sai_sem_soft_delete` (que recusou o `composer.tf` sem a política: `google_storage_bucket.composer sem soft_delete_policy de 0 s`). Aplicado com o Owner às 12:50 (`0 added, 2 changed, 0 destroyed`); `gcloud storage buckets describe` deu `0` no `livro` e no `beam`. O `10_composer_revisao` regerado mostra `retention_duration_seconds = 0` no *bucket* novo. Objetos apagados antes (provas `GCP_TESTES` no livro) seguem a política antiga até 7 dias: centavos, e o faturamento sai na quinta às 12:00. |
 | RVPC-1-03 | `composer.tf:153`; plano Composer `:273`; Capacidade §2.14 | **Média — `ENVIRONMENT_SIZE_SMALL` não declara o preset usado na estimativa.** Fixar workloads e limites correspondentes ou demonstrar equivalência dos defaults da API; o plano atual não prova essa correspondência. | ajuste || **Corrigido.** As páginas oficiais não publicam os valores por componente dos *presets* (`environment-scaling` e `scale-environments` só dão DAGs e tarefas por *preset*); a estimativa se apoia no exemplo oficial de `create-environments` (Registro §6). `workloads_config` declarado com esses valores (*scheduler* 0,5/2,5/2, *triggerer* 0,5/0,5, *DAG processor* 1/2/1, *web server* 1/2,5/2, *workers* 1/2/2 de 2 a 4); guarda `test_o_composer_declara_os_componentes_da_estimativa`. `10_composer_revisao` regerado: `29 a criar, 0 a alterar, 0 a destruir`, com o bloco no plano. |
 | RVPC-1-04 | `gke.tf:56–57`; plano GKE `:200`, `:214`, `:471` | **Baixa — criação/remoção transitória de pool padrão evitável.** O argumento depreciado continua documentado como funcional. Na versão informada, omitir ambas as atribuições ou usar contagem zero sem o argumento; não deixar contagem um ao retirar só a flag. | observação || **Mantido, por recomendação do autor.** O argumento segue documentado como funcional no *provider* 8.10.0 (travado no `.terraform.lock.hcl`); o custo é um nó transitório por minutos na criação. Trocar agora levaria o `apply` de terça para um caminho não ensaiado (sem *pool* padrão, dependente da versão do canal). Nota no Registro §45. |
+| RVPC-2-01 | `terraform/composer.tf:172–175`; `10_composer_revisao.txt:256`, `:286–289`; `tests/test_composer_ambiente.py:152–157` | **Alta — memória do triggerer inválida para Airflow 3.** A correção de RVPC-1-03 fixa 0,5 GB, mas o serviço exige no mínimo 2 GB nessa versão. O plano incorpora o valor e a guarda não o verifica. Corrigir a memória, proteger os valores por componente e regerar/revisar o plano antes do apply do Composer. | bloqueante || **Corrigido.** Confirmado na tabela oficial (scale-environments#resource-limits): *Triggerers* `1 (2 in Airflow 3)` GB de memória mínima, o mesmo piso de *schedulers*, *workers* e *DAG processors*. O exemplo oficial copiado traz 0,5 GB; o `composer.tf` passou a 2 GB, com a exceção comentada. A guarda nova `test_cada_componente_cabe_nos_limites_do_airflow_3` confere, por componente, vCPU, memória mínima do Airflow 3, memória por vCPU (1–8), armazenamento (≤100) e quantidades; com o 0,5 GB de volta ela falhou só em `[triggerer]`. `10_composer_revisao` regerado (13:02): `29 a criar, 0 a alterar, 0 a destruir`, `triggerer` com `memory_gb = 2`. Efeito no custo: +1,5 GB num componente; não calculado em DCU, fica para a fatura. |
 
