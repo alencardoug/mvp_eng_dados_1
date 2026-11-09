@@ -893,6 +893,82 @@ asserções, sem afirmar que todos esses valores também passariam pelo provider
 assuntos das rodadas anteriores estão fora do escopo. Este parecer não encerra formalmente
 pendências nem substitui o aceite do Owner ou autoriza execução.
 
+## Rodada 4
+
+### 1. Conclusão
+
+**Sem novos achados no escopo desta rodada. RVPC-3-01 resolvido.** A guarda representa
+corretamente os limites da tabela para Airflow 3 e aceita os valores atuais do declarativo.
+As seis sondas da rodada 3 e o controle de RVPC-2-01 são recusados pelas razões esperadas.
+Não encontrei regressão nos dois commits revisados. Nenhuma linha RVPC-4 foi acrescentada.
+
+### 2. Escopo
+
+Revisão independente **somente de regressões**, em 09/11/2026, de `5f955ec..947f5f8`:
+`7aeaef1` e `947f5f8` (HEAD `947f5f826e7d6712e718d9ed170a3d21f85b03b3`). Conferidos
+os diffs integrais, a resposta a RVPC-3-01, a guarda e os testes negativos em
+`tests/test_composer_ambiente.py`, a documentação da resposta e os valores atuais de
+`terraform/composer.tf`. A correção local de horário em `docs/registro_fase_gcp.md` foi
+ignorada, conforme solicitado. Declarativo sem alteração no intervalo; o hash do texto do
+plano Composer coincide com o registrado na rodada 3. Os demais assuntos não foram reabertos.
+
+### 3. Evidência de cada achado novo
+
+**Nenhum achado novo.** A resolução de RVPC-3-01 foi conferida em
+`tests/test_composer_ambiente.py:158–210`, contra a
+[tabela oficial de limites](https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits):
+faixas e valores permitidos de CPU por componente; memória mínima do Airflow 3, tetos,
+passo e proporção por vCPU; armazenamento somente onde aplicável, com piso, teto e passo;
+faixas e integralidade das quantidades. O extrator `:167–173` preserva o sinal negativo.
+Os sete testes negativos `:236–250` exercitam os casos apontados, e uma mutação independente
+do texto HCL, somente em memória, confirmou tanto os valores extraídos quanto sua recusa.
+
+### 4. Verificações executadas
+
+Leituras locais de Git, convenções, skill `revisao`, histórico do parecer, teste e declarativo;
+uma única leitura de rede, restrita à página oficial autorizada para conferir a tabela.
+O único comando pytest executado foi o permitido, com escrita de bytecode desativada:
+
+```text
+$ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_composer_ambiente.py
+.......................                                                  [100%]
+23 passed in 0.15s
+```
+
+A sonda independente extraiu por AST somente a tabela e as funções necessárias, retirou os
+decoradores e executou-as sem imports do projeto. Não usou o helper `_com` nem a lista
+`INVALIDOS` do autor para gerar as mutações. Saída literal:
+
+```text
+Declarativo atual: 5/5 componentes aceitos; guarda da estimativa aceita
+scheduler.cpu=0.75: RECUSADO ['cpu 0.75 não é múltiplo de 0,5']
+scheduler.cpu=2/memory_gb=9: RECUSADO ['memória 9.0 fora de (2, 8)']
+worker.memory_gb=2.1: RECUSADO ['memória 2.1 fora do passo de 0,25']
+worker.storage_gb=1.5: RECUSADO ['armazenamento 1.5']
+worker.storage_gb=-1: RECUSADO ['armazenamento -1.0']
+scheduler.count=1.5: RECUSADO ['quantidades [1.5]']
+triggerer.memory_gb=0.5: RECUSADO ['memória 0.5 fora de (2, 8)']
+CPUs permitidas com memoria compativel: 45/45 aceitas
+Memoria, armazenamento e quantidades validos nas bordas/passos: 35/35 aceitos
+Extracao de storage_gb=-1: sinal preservado
+eed095db54bceda749f3b222fe062b8cd2de8e0ca7d831891d399753b4ea0824  data/medicoes/etapa_13/planos/10_composer_revisao.txt
+```
+
+As 45 combinações cobrem todos os valores permitidos de CPU dos cinco componentes, com
+memória compatível. As outras 35 cobrem pisos, tetos e passos válidos de memória, armazenamento
+e quantidades. Essas sondas positivas não executam a guarda de estimativa sobre valores
+alternativos: ela fixa workers em 2–4 por intenção do projeto e foi conferida no texto atual.
+
+### 5. Limites
+
+Somente `REVISAO.md` foi editado nesta rodada; a alteração local de horário foi preservada.
+Não foram executados comandos de infraestrutura, serviços ou bancos, nem lidos `.env` ou
+estados Terraform. O plano foi apenas identificado por hash; não houve novo plan/apply,
+consulta à API do Composer ou repetição da revisão integral dos planos. Os testes e as sondas
+comprovam a proteção estática examinada, não criação efetiva, desempenho ou custo real.
+Este parecer se limita à resposta a RVPC-3-01 e às regressões dos dois commits; não substitui
+o aceite formal do Owner nem encerra os pré-requisitos operacionais das rodadas anteriores.
+
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RVPC-1-01 | PLANO §6.2 e §6.7 passos 4–5; `aplicacoes_gke.tf:25` | **Alta — falta revisão do plano real das aplicações.** Exigir complemento de terça sobre `09_aplicacoes` antes do apply dos releases. Revisão de código antecipada não encerra esse pré-requisito. Os planos reais seguintes devem manter os releases sem alteração e os incrementos previstos. | bloqueante || **Aceito.** `PLANO_etapa_13.md` §6.7 ganhou o **passo 4a**: o texto real de `09_aplicacoes.txt` vai ao Codex antes do passo 5 (contagem `2/0/0`, valores, versões dos *charts*, sensíveis), e sem o parecer o passo 5 não roda; os planos reais da §6.8 e §6.9 seguem as contagens incrementais, e divergência dos `_revisao` volta ao Codex. |
