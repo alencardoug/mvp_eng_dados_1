@@ -450,7 +450,7 @@ contra o real. E, se houver, o que **não** deu certo, dito como é.
 | sáb 07 | revisão 2 do plano e rodada 2 do Codex; ADR-0051; G0; G1 e G2 começam; BigQuery, GCS e Pub/Sub de desenvolvimento | centavos |
 | dom 08 | **revisão do plano encerrada**; G1, G2, G3 e G4 em curso | centavos |
 | seg 09 | Cloud SQL de pé (`apply` barato), povoado e provado; G2.1 contra Cloud SQL e BigQuery reais — o roteiro da §6.6; G1 em curso | barato |
-| ter 10 | GKE + Airbyte + Debezium de pé; o armazém zerado e a época inicial do livro, depois do Airbyte (§6.7); portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); rodada do Codex no `plan` caro | médio |
+| ter 10 | GKE + Airbyte + Debezium de pé; o armazém zerado e a época inicial do livro, depois do Airbyte (§6.7); portas de integração (§6.2); ensaio do Dataflow, ~1 h (D83); parecer do Codex no `09_aplicacoes` real (§6.7, passo 4a) | médio |
 | **ter 10, 20:00** | **porta da janela** (§6.2) | |
 | **qua 11, 07:00** | Composer (~25 min para nascer, [create-environments](https://docs.cloud.google.com/composer/docs/composer-3/create-environments)) e Dataflow; *smoke test*; `fluxo_batch` de ponta a ponta; *streaming* simultâneo; as duas capturas da §7.2 | caro |
 | **qua 11, 20:00** | **ponto de decisão**: o que não rodou vira pendência; a janela não se estende | |
