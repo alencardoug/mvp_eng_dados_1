@@ -1651,3 +1651,20 @@ regras do desmonte: o inventário de quinta reprova todo recurso fora de `residu
   0,5 GiB; `fhir_synthea`, 17 tabelas, 307,4 GiB (a maior, `explanation_of_benefit`, 126,8 GiB);
   `cms_synthetic_patient_data_omop`, 24 tabelas, 142,5 GiB; `cms_medicare`, 12,9 GiB.
 - **O relógio**: o projeto sai na mesma hora que o da janela, à mão (plano §6.4).
+
+**O laboratório (08–09/11, madrugada).** Cada exercício da página de estudo do Owner rodou no
+`mvp-ed1-estudo` antes de entrar nela: 78 consultas, 3,29 GiB faturados, cerca de US$ 0,02 de
+BigQuery [medido, `INFORMATION_SCHEMA.JOBS_BY_PROJECT`]; um lote PySpark no Dataproc Serverless em
+2 min 50 s e 0,32 DCU-hora; uma sessão interativa de Spark; um lote do Gemini em 7 min. Três
+achados valem também para a fase GCP:
+
+- **Os Gemini atuais só respondem pelo endpoint `global`.** Pelo `us-central1`, todos dão "not
+  found"; o `gemini-2.5-flash` já não existe para projeto novo. No BigQuery, o `AI.GENERATE` aceita
+  a URL inteira do endpoint global.
+- **`AI.GENERATE` dentro de um `UNNEST` no `FROM` roda antes do `LIMIT`**: a consulta chamou o
+  modelo para cerca de 13 mil produtos por 10 min, até ser cancelada. O limite vai numa subconsulta.
+- **O mascaramento de coluna exige organização** (`needs to belong to an organization to manage
+  DataPolicies`); a *policy tag* com controle de acesso, a da D79, funciona sem ela.
+
+O projeto voltou ao estado de partida: o *dataset* vazio, a conexão, o *bucket*, a rede, o
+orçamento e a cota. As fontes da página ficam em `data/medicoes/estudo_gcp/`.
