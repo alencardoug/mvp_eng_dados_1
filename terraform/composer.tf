@@ -103,6 +103,11 @@ resource "google_storage_bucket" "composer" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = true
+
+  # Sem *soft delete*, como os do degrau barato (`armazenamento.tf`, RVPC-1-02).
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
 }
 
 resource "google_storage_bucket_iam_member" "composer" {

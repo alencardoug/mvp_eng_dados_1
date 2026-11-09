@@ -135,3 +135,15 @@ def test_com_a_variavel_a_credencial_e_da_conta_do_papel(monkeypatch):
     assert cred._target_principal == "mvp-ingestor@p.iam.gserviceaccount.com"
     assert isinstance(cred._source_credentials, AnonymousCredentials)
     assert cred._lifetime == credenciais.VIDA_EM_SEGUNDOS
+
+
+def test_todo_bucket_sai_sem_soft_delete():
+    """`force_destroy` esvazia o bucket, mas o *soft delete* padrão guarda o apagado por 7 dias, cobrando (RVPC-1-02)."""
+    for arquivo in sorted((RAIZ / "terraform").glob("*.tf")):
+        texto = arquivo.read_text(encoding="utf-8")
+        blocos = re.split(r'\nresource "', texto)[1:]
+        for bloco in blocos:
+            if bloco.startswith('google_storage_bucket" '):
+                nome = bloco.split('"')[2]
+                assert re.search(r"soft_delete_policy \{\s*retention_duration_seconds = 0\s*\}", bloco), \
+                    f"{arquivo.name}: google_storage_bucket.{nome} sem soft_delete_policy de 0 s"

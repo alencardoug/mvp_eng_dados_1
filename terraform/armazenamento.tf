@@ -1,7 +1,10 @@
 # Degrau barato: os buckets e os tópicos (G3). Centavos; nascem no sábado (PLANO_etapa_13 §0).
 #
 # Todo bucket com `force_destroy`: o desmonte (§6.5 passo 6) apaga com o conteúdo. Nenhum
-# público: acesso uniforme e prevenção de acesso público forçada.
+# público: acesso uniforme e prevenção de acesso público forçada. E sem *soft delete*
+# (`retention_duration_seconds = 0`, RVPC-1-02): o padrão do Cloud Storage guarda por 7 dias o
+# objeto apagado, cobrando armazenamento, e o `force_destroy` esvazia o bucket sem desligar isso
+# (https://docs.cloud.google.com/storage/docs/soft-delete). A retenção da D70 é outra política.
 
 locals {
   buckets = {
@@ -23,6 +26,10 @@ resource "google_storage_bucket" "this" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = true
+
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
 
   # D70: retenção **sem trava** só no livro. Travar é irreversível e põe um *lien* que
   # impede apagar o projeto; a trava fica como contrapartida de produção, não medida
