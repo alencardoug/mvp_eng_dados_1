@@ -39,11 +39,20 @@ def test_as_colunas_de_execucao_saem_declaradas():
     assert excluidas == ["_loaded_at"] and "_loaded_at" not in comparadas
 
 
-def test_contagem_diferente_so_reprova_nas_camadas_de_estado(capsys):
-    """D85: raw_legacy, governance e snapshots guardam a história de cada ambiente."""
-    local = {("raw_legacy", "a"): 9, ("governance", "b"): 4, ("snapshots", "c"): 7, ("trusted", "d"): 3}
-    nuvem = {("raw_legacy", "a"): 3, ("governance", "b"): 2, ("trusted", "d"): 3}
+def test_contagem_diferente_so_reprova_fora_da_historia(capsys):
+    """D85: a contagem da história de cada ambiente não reprova; a do estado, sim."""
+    local = {("raw_legacy", "a"): 9, ("governance", "legacy_captures"): 4, ("snapshots", "c"): 7,
+             ("trusted", "legacy_presence_by_capture"): 20, ("trusted", "d"): 3}
+    nuvem = {("raw_legacy", "a"): 3, ("governance", "legacy_captures"): 2, ("snapshots", "c"): 1,
+             ("trusted", "legacy_presence_by_capture"): 10, ("trusted", "d"): 3}
     assert oraculo.comparar_contagens(local, nuvem) == 0
-    assert "3 nas de história (não comparáveis, D85)" in capsys.readouterr().out
+    assert "4 só na contagem da história (não comparáveis, D85)" in capsys.readouterr().out
     assert oraculo.comparar_contagens(local, {**nuvem, ("trusted", "d"): 2}) == 1
+
+
+def test_migracoes_e_objeto_de_um_lado_so_reprovam_mesmo_na_historia():
+    """RV0811-1-01: `_versions` é estado, e a presença não depende do número de capturas."""
+    assert oraculo.comparar_contagens({("governance", "_versions"): 2}, {("governance", "_versions"): 1}) == 1
+    assert oraculo.comparar_contagens({("snapshots", "scd_product"): 7}, {}) == 1
+    assert oraculo.comparar_contagens({}, {("raw_legacy", "brands"): 3}) == 1
     assert oraculo.comparar_contagens({("staging", "e"): 1}, {}) == 1

@@ -274,8 +274,8 @@ recomendada. Como ficou: [Registro §41](registro_fase_gcp.md#41-as-decisões-d8
 - **D85 — a paridade local × nuvem é do estado corrente** (RV13J-1-09): o `gcp-oraculos` compara as
   contagens das camadas de estado, o conteúdo das *views* de `consumption` e o catálogo. A
   classificação do legado por captura, que casa por `snapshot_id` (o *job* de cada Airbyte), é
-  declarada não comparável entre ambientes, e as contagens de `raw_legacy`, `governance` e
-  `snapshots` saem no relatório sem reprovar. Descartada: regerar o local com a mesma sequência de
+  declarada não comparável entre ambientes, e a contagem da história de cada ambiente — os schemas `raw_legacy` e `snapshots`, o `governance.legacy_captures` e os três modelos do legado que leem capturas anteriores (`legacy_presence_by_capture`, `legacy_capture_transitions`, `legacy_removed_records`) — sai no relatório sem reprovar; objeto de
+  um lado só e as migrações (`governance._versions`) reprovam sempre (RV0811-1-01, -02). Descartada: regerar o local com a mesma sequência de
   capturas, horas de máquina.
 - **D86 — o plano da raiz `airbyte/` não chega a `data/`** (RV13J-1-11): nasce e é aplicado na pasta
   temporária do `gcp-airbyte-config`, e só o texto fica (§6.3 do plano). Descartada: guardá-lo em

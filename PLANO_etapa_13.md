@@ -1011,9 +1011,9 @@ comparação diz o seu veredito, e o alvo falha se uma falhar. Medido no estado 
 (Registro §37): 13 das 16 *views* iguais em conteúdo; diferem as duas de estoque, que leem os
 movimentos ao vivo de cada ambiente, e a de margem do mês corrente. A classificação do legado casa
 por `snapshot_id`, que é o *job* de cada Airbyte, e os *jobs* diferem entre o local e a nuvem: o
-alvo diz que ela **não é comparável entre ambientes** e não a compara (D85). Pelo mesmo motivo, a
-contagem de `raw_legacy`, `governance` e `snapshots`, que guardam a história de cada ambiente, sai
-marcada como não comparável e não reprova; só as camadas de estado reprovam. O Claude Code registra
+alvo diz que ela **não é comparável entre ambientes** e não a compara (D85). Pelo mesmo motivo,
+a contagem da história de cada ambiente — os schemas `raw_legacy` e `snapshots`, o `governance.legacy_captures` e os três modelos do legado que leem capturas anteriores (`legacy_presence_by_capture`, `legacy_capture_transitions`, `legacy_removed_records`) — sai marcada como não comparável e não reprova; o resto reprova, e objeto que existe num
+lado só reprova sempre (RV0811-1-01). O Claude Code registra
 cada diferença; nenhuma bloqueia os passos seguintes.
 
 **Passo 19 — a memória anterior intacta (T3).** Somente leitura; leva minutos, porque mede o
@@ -1343,8 +1343,8 @@ com o mapa corrigido em 07/11 (D69, D70 e o destino quente idempotente da D75): 
 ### 7.2 Dados e memória
 
 - Contagens por camada e reconciliações entre camadas no BigQuery iguais às da fase local na mesma
-  geração, nas camadas de estado: a classificação por captura e as camadas de história
-  (`raw_legacy`, `governance`, `snapshots`) não são comparáveis entre ambientes (D85); os testes do
+  geração, no estado: a classificação por captura e a contagem da história de cada ambiente
+  (`oraculo.e_historia`) não são comparáveis entre ambientes (D85); os testes do
   dbt nos dois alvos (PASS comparado); as views de `consumption` com a mesma soma de controle por
   view — comparação de dados normalizados, **com os metadados de execução excluídos
   explicitamente**.

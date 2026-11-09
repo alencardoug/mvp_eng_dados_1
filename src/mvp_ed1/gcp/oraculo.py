@@ -15,7 +15,7 @@ veredito.
         --colunas classification,rejection_origin --json findings:code,column
 
     python -m mvp_ed1.gcp.oraculo contagens   # linhas de toda tabela e view, nas nove camadas;
-                                              # só as camadas de estado reprovam (D85)
+                                              # a contagem da história não reprova (D85)
     python -m mvp_ed1.gcp.oraculo consumo     # o conteúdo de cada view de consumption
 
 `contagens` sozinha não prova as *views* de consumo: duas com as mesmas quantidades e valores
@@ -70,13 +70,24 @@ CAMADAS = ("raw", "raw_legacy", "governance", "staging", "trusted", "analytics",
            "consumption", "quarantine", "snapshots")
 
 
-#: As camadas que guardam a história de cada ambiente, e não o estado corrente (D85): o
-#: `raw_legacy` acumula uma cópia por captura (`full_refresh_append`, ADR-0037), a `governance`
-#: registra cada captura e certificado, e os `snapshots` guardam uma versão por execução do
-#: dbt. Entre o local e a nuvem as capturas e as execuções são outras, e a contagem delas não
-#: diz nada sobre a paridade. A classificação por captura é não comparável pelo mesmo motivo,
-#: e o `gcp-oraculos` não a compara.
-HISTORIA = frozenset({"raw_legacy", "governance", "snapshots"})
+#: O que guarda a história de cada ambiente, e não o estado corrente (D85), declarado por objeto
+#: (RV0811-1-02): entre o local e a nuvem as capturas e as execuções são outras, e a contagem disto
+#: não diz nada sobre a paridade. Schemas inteiros: o `raw_legacy`, uma cópia por captura
+#: (`full_refresh_append`, ADR-0037), e os `snapshots`, uma versão por execução do dbt. Objetos:
+#: o registro de capturas e os três modelos do legado que leem as capturas anteriores, além da
+#: selecionada. O `governance._versions` (as migrações aplicadas) é estado, e reprova.
+HISTORIA_SCHEMAS = frozenset({"raw_legacy", "snapshots"})
+HISTORIA_OBJETOS = frozenset({
+    ("governance", "legacy_captures"),
+    ("trusted", "legacy_presence_by_capture"),
+    ("trusted", "legacy_capture_transitions"),
+    ("trusted", "legacy_removed_records"),
+})
+
+
+def e_historia(chave: tuple[str, str]) -> bool:
+    """A contagem deste objeto é história do ambiente (D85)?"""
+    return chave[0] in HISTORIA_SCHEMAS or chave in HISTORIA_OBJETOS
 
 
 #: A quarentena é destino permanente (ADR-0037): o armazém local guarda as auditorias de
@@ -113,10 +124,12 @@ def contagens(cliente, projeto: str) -> int:
 
 
 def comparar_contagens(local: dict[tuple, int], nuvem: dict[tuple, int]) -> int:
-    """Imprime cada diferença e devolve quantas são de camada de estado — as que reprovam (D85).
+    """Imprime cada diferença e devolve quantas reprovam (D85).
 
-    A diferença numa camada de `HISTORIA` sai no relatório, marcada, e não reprova: o que ela
-    conta é a sequência de capturas e de execuções de cada ambiente, que não é a mesma.
+    A diferença de contagem num objeto de história (`e_historia`) sai no relatório, marcada, e não
+    reprova: o que ela conta é a sequência de capturas e de execuções de cada ambiente. Objeto que
+    existe num lado só reprova sempre, de história ou não (RV0811-1-01): a presença não depende do
+    número de capturas.
     """
     iguais = estado = historia = 0
     for k in sorted(set(local) | set(nuvem)):
@@ -124,14 +137,14 @@ def comparar_contagens(local: dict[tuple, int], nuvem: dict[tuple, int]) -> int:
         if a == b:
             iguais += 1
             continue
-        if k[0] in HISTORIA:
+        if a is not None and b is not None and e_historia(k):
             historia += 1
             print(f"  {k[0]}.{k[1]}: local {a}, BigQuery {b} (história do ambiente, não comparável — D85)")
             continue
         estado += 1
         print(f"  {k[0]}.{k[1]}: local {a}, BigQuery {b}")
-    print(f"contagens: {iguais} iguais, {estado} diferentes ou de um lado só nas camadas de estado, "
-          f"{historia} nas de história (não comparáveis, D85)")
+    print(f"contagens: {iguais} iguais, {estado} diferentes no estado ou de um lado só, "
+          f"{historia} só na contagem da história (não comparáveis, D85)")
     return estado
 
 
