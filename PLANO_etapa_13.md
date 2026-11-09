@@ -483,6 +483,9 @@ que o consumiu; o que fica como evidência é o texto do plano, onde o Terraform
 O plano da raiz `airbyte/` nem chega a `data/`: nasce e é aplicado na pasta temporária do
 `gcp-airbyte-config`. É a forma de conciliar o rito com o segredo no plano que o Owner decidiu
 (D84, D86): os `.tfplan` já aplicados de `data/medicoes/etapa_13/planos/` saem também.
+O estado local, que guarda as mesmas senhas, nasce e fica só com o dono: `umask 077` e
+`chmod 600` no `gcp-apply` (o `terraform.tfstate`, a cópia dele e os `tfstate_*.bak`) e no
+`gcp-airbyte-config` (o estado do workspace `gcp`).
 
 ### 6.4 O relógio de emergência (RV13-1-01)
 

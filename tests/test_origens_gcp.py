@@ -125,6 +125,16 @@ def test_o_airbyte_da_nuvem_nao_muda_o_workspace_do_local():
     assert "TF_VAR_armazem=bigquery" in receita and "cloud_sql_ip_privado" in receita
 
 
+
+def test_o_estado_com_as_senhas_fica_so_com_o_dono():
+    """O estado local guarda as senhas do Cloud SQL: nasce com `umask 077` e sai do `apply` com 600."""
+    aplicar = MAKEFILE.split("\ngcp-apply:", 1)[1].split("\n\n", 1)[0]
+    assert aplicar.index("umask 077") < aplicar.index('cp terraform/terraform.tfstate')
+    assert aplicar.index("rc=$$?") < aplicar.index('chmod 600 terraform/terraform.tfstate* "$(GCP_PLANOS)"/tfstate_*.bak')
+    receita = _receita("gcp-airbyte-config")
+    assert receita.index("umask 077") < receita.index("$(TERRAFORM) init")
+    assert receita.index("rc=$$?") < receita.index("chmod -f 600 airbyte/terraform.tfstate.d/gcp/terraform.tfstate*")
+
 def test_a_epoca_inicial_confere_antes_de_abrir():
     receita = _receita("gcp-livro-epoca")
     assert receita.index("armazem_janela pronto") < receita.index("mvp_ed1.recovery.ledger baseline")

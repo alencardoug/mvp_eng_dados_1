@@ -1007,7 +1007,10 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 		|| { mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit 1; }
 
 gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=06_cloud_sql (ou PASSO=n no desmonte); guarda o estado antes
-	@$(GCP_ENV); \
+	@# O estado e as cópias dele levam as senhas do Cloud SQL (o estado é local, D74): nascem e ficam
+	@# só com o dono, como o binário do plano (§6.3). O `umask` cobre o arquivo novo; o `chmod`, o que
+	@# já existia com outra permissão.
+	@$(GCP_ENV); umask 077; \
 	nome="$(NOME)"; \
 	if test -n "$(PASSO)"; then \
 		atribuicoes=$$(.venv/bin/python -m mvp_ed1.gcp.desmonte plano --passo "$(PASSO)") || exit 1; \
@@ -1016,7 +1019,8 @@ gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=06_clo
 	test -n "$$nome" && test -f "$(GCP_PLANOS)/$$nome.tfplan" || { echo "ERRO: plano '$$nome' não existe; rode gcp-plan."; exit 1; }; \
 	cp terraform/terraform.tfstate "$(GCP_PLANOS)/tfstate_$$nome.bak"; \
 	$(GCP_TF) apply -no-color "../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$${nome}_apply.txt" 2>&1; \
-	rc=$$?; grep -E "^Apply complete!|Error:" "$(GCP_PLANOS)/$${nome}_apply.txt" || tail -3 "$(GCP_PLANOS)/$${nome}_apply.txt"; \
+	rc=$$?; chmod 600 terraform/terraform.tfstate* "$(GCP_PLANOS)"/tfstate_*.bak; \
+	grep -E "^Apply complete!|Error:" "$(GCP_PLANOS)/$${nome}_apply.txt" || tail -3 "$(GCP_PLANOS)/$${nome}_apply.txt"; \
 	test $$rc = 0 && rm -f "$(GCP_PLANOS)/$$nome.tfplan" && echo "gcp-apply: o binário do plano saiu (leva o estado, com segredos); o texto fica em $(GCP_PLANOS)/$$nome.txt"; \
 	exit $$rc
 
@@ -1322,8 +1326,10 @@ gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a
 	@# variáveis; por isso ele nasce na pasta temporária (700) e some no fim da receita, e o que fica
 	@# em `data/medicoes/etapa_13/planos/` é o texto, com os sensíveis mascarados pelo Terraform
 	@# (RV13J-1-11, no lugar da A45). O workspace vai por `TF_WORKSPACE`, que não muda o
-	@# selecionado: o `airbyte-config` local segue no `default`.
-	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
+	@# selecionado: o `airbyte-config` local segue no `default`. O estado do workspace `gcp` guarda
+	@# as mesmas senhas: nasce só com o dono (`umask`) e fica assim (`chmod`), como no `gcp-apply`;
+	@# o `-f` porque um `apply` que falha antes de gravar não deixa estado a restringir.
+	@$(GCP_ENV); umask 077; $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
 	ip=$$($(GCP_TF) output -raw cloud_sql_ip_privado 2>/dev/null) && test -n "$$ip" \
 		|| { echo "ERRO: sem Cloud SQL no estado (degrau 06)."; exit 1; }; \
 	for origem in source legacy; do \
@@ -1348,6 +1354,7 @@ gcp-airbyte-config: gcp-preflight require-kubectl require-terraform ## Terça: a
 	read -r -p "Aplicar exatamente este plano? Digite o id do projeto ($$GCP_PROJECT_ID) para aplicar, qualquer outra coisa para sair: " resposta; \
 	test "$$resposta" = "$$GCP_PROJECT_ID" || { echo "gcp-airbyte-config: nada aplicado"; exit 1; }; \
 	TF_WORKSPACE=gcp $(TERRAFORM) apply -input=false -no-color -parallelism=1 "$$base/airbyte.tfplan"; rc=$$?; \
+	chmod -f 600 airbyte/terraform.tfstate.d/gcp/terraform.tfstate*; \
 	test "$$($(TERRAFORM) workspace show)" = default || echo "AVISO: a raiz airbyte/ não está no workspace default; rode: .tools/terraform -chdir=airbyte workspace select default"; \
 	exit $$rc
 
