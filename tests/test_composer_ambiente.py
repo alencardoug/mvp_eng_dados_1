@@ -147,3 +147,11 @@ def test_todo_bucket_sai_sem_soft_delete():
                 nome = bloco.split('"')[2]
                 assert re.search(r"soft_delete_policy \{\s*retention_duration_seconds = 0\s*\}", bloco), \
                     f"{arquivo.name}: google_storage_bucket.{nome} sem soft_delete_policy de 0 s"
+
+
+def test_o_composer_declara_os_componentes_da_estimativa():
+    """O tamanho do ambiente não fixa os componentes (RVPC-1-03): o plano tem de mostrar o que a Capacidade §2.14 estimou."""
+    carga = TF[TF.index("workloads_config {"):TF.index("node_config {")]
+    for componente in ("scheduler", "triggerer", "dag_processor", "web_server", "worker"):
+        assert f"{componente} {{" in carga, componente
+    assert re.search(r"min_count\s*=\s*2", carga) and re.search(r"max_count\s*=\s*4", carga)

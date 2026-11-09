@@ -157,6 +157,43 @@ resource "google_composer_environment" "this" {
   config {
     environment_size = "ENVIRONMENT_SIZE_SMALL"
 
+    # Os componentes declarados, não deixados ao padrão da API (RVPC-1-03): o tamanho do ambiente
+    # é só a infraestrutura gerenciada, e os recursos de cada componente são outra coisa
+    # (https://docs.cloud.google.com/composer/docs/composer-3/environment-scaling). Os valores são
+    # os do exemplo oficial de criação (create-environments), os mesmos em que a estimativa da
+    # Capacidade §2.14 se apoia (Registro §6): 12 DCUs, até 15 com os quatro *workers*.
+    workloads_config {
+      scheduler {
+        cpu        = 0.5
+        memory_gb  = 2.5
+        storage_gb = 2
+        count      = 1
+      }
+      triggerer {
+        cpu       = 0.5
+        memory_gb = 0.5
+        count     = 1
+      }
+      dag_processor {
+        cpu        = 1
+        memory_gb  = 2
+        storage_gb = 1
+        count      = 1
+      }
+      web_server {
+        cpu        = 1
+        memory_gb  = 2.5
+        storage_gb = 2
+      }
+      worker {
+        cpu        = 1
+        memory_gb  = 2
+        storage_gb = 2
+        min_count  = 2
+        max_count  = 4
+      }
+    }
+
     node_config {
       service_account = google_service_account.composer[0].email
       network         = google_compute_network.this[0].id
