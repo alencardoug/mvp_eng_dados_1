@@ -20,7 +20,7 @@
 |---|---|
 | Versão | 1.0 |
 | Abertura | 06/11/2026 |
-| Última revisão | 07/11/2026 — G1, primeira metade: staging inteiro no BigQuery |
+| Última revisão | 09/11/2026 — o roteiro de segunda: o Cloud SQL de pé, povoado e provado (§44) |
 
 ---
 
@@ -1711,3 +1711,110 @@ republicada (versão 2):
 (RV0811-2-01): as medidas refeitas em 09/11 ainda levavam o selo "medido em 08/11". Corrigida no
 gerador, a página foi republicada (versão 3), e a revisão foi fechada sem rodada 3, por ser a única
 pendência uma observação documental já tratada.
+
+## 44. O roteiro de segunda: o Cloud SQL de pé, povoado e provado (09/11/2026)
+
+O Owner executa o roteiro do `PLANO_etapa_13.md` §6.6, um comando por passo, no prompt do Claude
+Code; o Claude Code anota cada saída aqui, no momento em que ela aparece.
+
+**Antes do passo 1 (11:12).** O primeiro `docker ps` depois do *boot* ativou o *socket* e subiu o
+Airbyte e o Airflow locais juntos (R11, o mesmo de outros dias); o Airbyte voltou a ser pausado com
+`make airbyte-pause`. Memória livre: 9 GB; a porta 15432 do proxy, livre. Os seis *commits* de
+08/11 já estavam publicados (`origin/main` = `adcc657`).
+
+**Passo 1 — `make gcp-preflight`** [medido]: `gcp-preflight: projeto mvp-ed1-gcp nos três lugares`.
+A ADC da véspera continuava válida.
+
+**Passo 2 — `make gcp-plan NOME=06_cloud_sql VARS="enable_cloud_sql=true"`** (11:21) [medido]:
+`Plan: 11 to add, 1 to change, 0 to destroy.` e `conferir-plano: construção: 11 a criar, 1 a
+alterar, 0 a destruir` — os números do roteiro. O `.tfplan` nasceu com `-rw-------` (§6.3).
+
+**Passo 3 — a leitura do plano** (`data/medicoes/etapa_13/planos/06_cloud_sql.txt`) [medido]:
+
+- as 11 criações são as do roteiro: `google_sql_database_instance.origens[0]`, dois
+  `google_sql_database` (`source_db`, `legacy_db`), dois `google_sql_user` (`mvp_source`,
+  `mvp_legacy`), dois `random_password`, dois `google_secret_manager_secret` e duas versões;
+- a única alteração é `google_service_networking_connection.this[0]`, `deletion_policy` de
+  `"DELETE"` para `"REMOVE_PEERING"`;
+- a instância é a da linha da Capacidade §2.14: `POSTGRES_16`, `ENTERPRISE`, `db-custom-2-7680`,
+  `ZONAL` em `us-central1-a`, `PD_SSD` de 20 GB, `cloudsql.logical_decoding = on` (para o Debezium
+  de terça), *backup* e PITR desligados, `retain_backups_on_delete = false` e
+  `deletion_protection = false` (o desmonte de quinta não esbarra em trava). Rede: IP privado na
+  `mvp-ed1` e IP público sem rede autorizada, com `ssl_mode = ENCRYPTED_ONLY` — o acesso de fora é
+  só pelo proxy, que autentica pelo IAM.
+
+A estimativa contava o taxímetro desde as 08:00 (~73 h, ~US$ 10); o `apply` sai mais de três horas
+depois, e a conta encurta na mesma proporção [estimado].
+
+**Passo 4 — `make gcp-apply NOME=06_cloud_sql`** (11:24 → 11:30) [medido]: aprovado pelo Owner
+depois da leitura do passo 3. `Apply complete! Resources: 11 added, 1 changed, 0 destroyed.` A
+instância `mvp-ed1-origens` levou **5 min 1 s** para nascer; o resto, segundos (a conexão de
+serviços privados, 3 s; os segredos `mvp-ed1-source-db-password` e `mvp-ed1-legacy-db-password`,
+versão 1). O alvo apagou o `.tfplan` e deixou o texto; o estado anterior ficou em
+`tfstate_06_cloud_sql.bak`. **O taxímetro do Cloud SQL corre desde as 11:30.**
+
+O comando passou dos 120 s do prompt do Claude Code e seguiu em segundo plano até o fim, sem
+interferência — o `!` não interrompe o processo.
+
+Observação, sem bloqueio: o `terraform.tfstate` agora guarda as senhas do Cloud SQL (o estado é
+local, D74) e, como os `tfstate_*.bak`, tem permissão `rw-rw-r--`. Fora do Git (`.gitignore`), numa
+máquina de um usuário só; a §6.3 restringia só o binário do plano. O Owner aprovou a proposta, e
+ela entrou no código: `umask 077` e `chmod 600` no `gcp-apply` e no `gcp-airbyte-config` (o estado
+do workspace `gcp` da raiz `airbyte/` vai guardar as mesmas senhas na terça), com teste em
+`tests/test_origens_gcp.py` e a regra na §6.3 do plano. A primeira versão foi recusada pelo Owner
+para revisão; a revisão trocou o `chmod` do `gcp-airbyte-config` por `chmod -f`, porque um `apply`
+que falha antes de gravar não deixa estado e o padrão sem casamento imprimiria um erro enganoso. Os
+arquivos que já existiam foram restringidos à mão uma vez (~11:40), com o mesmo padrão.
+
+**Passo 5 — `make gcp-origens-migrar`** (11:45) [medido]: `origens: Cloud SQL
+mvp-ed1-gcp:us-central1:mvp-ed1-origens pelo proxy em 127.0.0.1:15432; registros em
+…/data/medicoes/etapa_13/origens_cloud_sql`. As duas cadeias subiram do zero, uma migração cada:
+`deae0e5943e0` (o schema `oltp` com as 40 tabelas transacionais) e `f558a05ce90e` (o schema
+`legacy` com as 40 tabelas frouxas), e o `alembic current` de cada uma respondeu `(head)`. É a
+primeira vez que as migrações da fase local rodam fora da máquina — o "migrações aplicáveis do
+zero" da Definição de Pronto, num PostgreSQL gerenciado, sem alteração.
+
+**Passo 6 — `make gcp-origens-povoar`** (11:46 → 11:48) [medido]. As duas cargas da fase local,
+sem parâmetro:
+
+- **gerador** (semente 20260904, `as_of` 2026-09-01, fator `dev`): `geradas 252,987 linhas em
+  3.8s`, `carregadas 252,987 linhas em 51.3s (4,930 linhas/s)`. O `geracao.json` foi para
+  `origens_cloud_sql/source/`, com `forcado: false` e o *commit* `cfd529e`;
+- **legado** (catálogo v9, semente 20260906, fator 0.05): 40 tabelas, 12.741 linhas, 108 achados
+  em 89 ocorrências (32 `corrected`, 57 `rejected`), cobertura 24/24 códigos injetáveis;
+  `carregado: 12.741 linhas em 33.75 s; conteúdo conferido por hash`.
+
+O comando passou dos 120 s do prompt e terminou em segundo plano com código 0.
+
+**Passo 7 — o lote do legado** [medido]: `origens_cloud_sql/legacy/` tem
+`manifesto-060c3fc983fb71984764e6d3074e8e6e.json` (e o `manifesto.json` apontando para ele) — o
+mesmo *hash* para o qual aponta o `data/legacy/manifesto.json` da fase local. Paridade do lote
+conferida, sem achado.
+
+**Passo 8 — `make generation-measure`** (11:54) [medido]: em memória, no *commit* `cfd529e`: `oltp`
+semente 20260904, `as_of` 2026-09-01, `dev`, 40 tabelas, 252.987 linhas (o mesmo número da carga do
+passo 6); `legacy` semente 20260906, fator 0.05, catálogo v9, lote
+`060c3fc983fb71984764e6d3074e8e6e` (o do passo 7). Medida em
+`data/medicoes/v1_1_0/20261109T145417Z_geracao_cfd529e.json`.
+
+**Passo 9 — `make gcp-origens-oraculo MEDIDA=…20261109T145417Z_geracao_cfd529e.json`** (11:58)
+[medido]: `oltp: 40 equal`, `legacy: 40 equal`, `oráculo: conteúdo igual ao da medida`. As 80
+tabelas do Cloud SQL têm, tabela a tabela, o conteúdo que a geração em memória produz — sem achado
+de paridade das origens (§7.2). Saída em `data/medicoes/v1_1_0/20261109T145826Z_oraculo_cfd529e.json`.
+
+**Passo 10 — `make gcp-origens-replicacao`** (12:00) [medido]: `replicação: concedida agora;
+conferida em pg_roles`. O Cloud SQL aceitou o `ALTER ROLE … REPLICATION` no usuário da origem, e o
+atributo apareceu em `pg_roles` na mesma execução: o Debezium de terça pode abrir o *slot* (G2.3).
+
+**Passo 11 — `make gcp-g21-prova`** (12:03 → 12:09) [medido]: `24 passed in 373.12s (0:06:13)`,
+nenhum `failed`. As provas do G2.1 rodaram contra o BigQuery real com os *locks* no Cloud SQL (o
+banco legado como coordenador, A21). Saída em
+`data/medicoes/etapa_13/g2_1/cloud_sql_20261109T150339Z.txt`. Depois, `bq ls` no projeto listou só
+os nove *datasets* do degrau 02 (`analytics`, `consumption`, `governance`, `quarantine`, `raw`,
+`raw_legacy`, `snapshots`, `staging`, `trusted`): o *dataset* temporário dos testes saiu.
+
+**O fim do roteiro (12:10).** Os onze passos rodaram na ordem, nenhum recusou e nenhum precisou de
+repetição; o único desvio foi a permissão do estado (passo 4), corrigida em `cfd529e`. O Cloud SQL
+fica de pé até o desmonte de quinta (§6.5, passo 7), e o proxy de cada alvo fechou com ele. O
+`ledger baseline` não rodou, de propósito: a época inicial é de terça (§6.7). Taxímetro do Cloud
+SQL desde as 11:30 [medido o início; custo a medir na fatura].
