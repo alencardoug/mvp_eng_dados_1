@@ -150,24 +150,64 @@ def test_todo_bucket_sai_sem_soft_delete():
 
 
 # Os limites do Composer 3 para Airflow 3, da tabela oficial
-# (https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits):
-# vCPU mínimo e máximo, memória mínima (2 GB no Airflow 3), quantidade, armazenamento até 100 GB,
-# e de 1 a 8 GB de memória por vCPU. O *web server* não tem quantidade.
+# (https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits).
+# `cpu`: faixa e regra de valores ("0,5": múltiplos de 0,5; "0,5, 1 ou par": 0,5, 1 ou múltiplo de
+# 2). `memoria`: faixa (o mínimo de 2 GB é o do Airflow 3), em passos de 0,25 GB e de 1 a 8 GB por
+# vCPU. `armazenamento`: de 0 a 100 GB em passos de 1 GB (o *triggerer* não tem). `count`: faixa
+# de inteiros (o *web server* não tem quantidade).
 LIMITES_AIRFLOW_3 = {
-    "scheduler": {"cpu": (0.5, 2), "memoria_min": 2, "count": (1, 3)},
-    "triggerer": {"cpu": (0.5, 1), "memoria_min": 2, "count": (0, 10)},
-    "dag_processor": {"cpu": (0.5, 32), "memoria_min": 2, "count": (1, 3)},
-    "web_server": {"cpu": (1, 4), "memoria_min": 2, "count": None},
-    "worker": {"cpu": (0.5, 32), "memoria_min": 2, "count": (1, 100)},
+    "scheduler": {"cpu": (0.5, 2, "0,5"), "memoria": (2, 8), "armazenamento": True, "count": (1, 3)},
+    "triggerer": {"cpu": (0.5, 1, "0,5"), "memoria": (2, 8), "armazenamento": False, "count": (0, 10)},
+    "dag_processor": {"cpu": (0.5, 32, "0,5, 1 ou par"), "memoria": (2, 256), "armazenamento": True, "count": (1, 3)},
+    "web_server": {"cpu": (1, 4, "0,5, 1 ou par"), "memoria": (2, 32), "armazenamento": True, "count": None},
+    "worker": {"cpu": (0.5, 32, "0,5, 1 ou par"), "memoria": (2, 256), "armazenamento": True, "count": (1, 100)},
 }
 
 
-def _componentes() -> dict[str, dict[str, float]]:
-    carga = TF[TF.index("workloads_config {"):TF.index("node_config {")]
-    achados = {}
-    for nome, corpo in re.findall(r"(\w+) \{([^{}]*)\}", carga):
-        achados[nome] = {k: float(v) for k, v in re.findall(r"(\w+)\s*=\s*([\d.]+)", corpo)}
-    return achados
+def _componentes(texto: str = TF) -> dict[str, dict[str, float]]:
+    """Os blocos do `workloads_config`; valor que não é número falha aqui, em vez de sumir."""
+    carga = texto[texto.index("workloads_config {"):texto.index("node_config {")]
+    return {
+        nome: {chave: float(valor) for chave, valor in re.findall(r"(\w+)\s*=\s*(\S+)", corpo)}
+        for nome, corpo in re.findall(r"(\w+) \{([^{}]*)\}", carga)
+    }
+
+
+def _multiplo(valor: float, passo: float) -> bool:
+    return abs(valor / passo - round(valor / passo)) < 1e-9
+
+
+def _violacoes(nome: str, valores: dict[str, float]) -> list[str]:
+    limites, erros = LIMITES_AIRFLOW_3[nome], []
+    cpu, memoria = valores.get("cpu", 0), valores.get("memory_gb", 0)
+    minimo, maximo, regra = limites["cpu"]
+    if not minimo <= cpu <= maximo:
+        erros.append(f"cpu {cpu} fora de {minimo}–{maximo}")
+    if regra == "0,5" and not _multiplo(cpu, 0.5):
+        erros.append(f"cpu {cpu} não é múltiplo de 0,5")
+    if regra == "0,5, 1 ou par" and cpu not in (0.5, 1) and not _multiplo(cpu, 2):
+        erros.append(f"cpu {cpu} não é 0,5, 1 nem par")
+    if not limites["memoria"][0] <= memoria <= limites["memoria"][1]:
+        erros.append(f"memória {memoria} fora de {limites['memoria']}")
+    if not _multiplo(memoria, 0.25):
+        erros.append(f"memória {memoria} fora do passo de 0,25")
+    if cpu and not 1 <= memoria / cpu <= 8:
+        erros.append(f"memória por vCPU {memoria / cpu}")
+    if "storage_gb" in valores:
+        armazenamento = valores["storage_gb"]
+        if not limites["armazenamento"]:
+            erros.append("armazenamento num componente que não tem")
+        elif not (0 <= armazenamento <= 100 and _multiplo(armazenamento, 1)):
+            erros.append(f"armazenamento {armazenamento}")
+    quantidades = [valores[k] for k in ("count", "min_count", "max_count") if k in valores]
+    if limites["count"] is None:
+        if quantidades:
+            erros.append("quantidade num componente que não tem")
+    elif not quantidades or not all(
+        _multiplo(q, 1) and limites["count"][0] <= q <= limites["count"][1] for q in quantidades
+    ):
+        erros.append(f"quantidades {quantidades}")
+    return erros
 
 
 def test_o_composer_declara_os_componentes_da_estimativa():
@@ -180,14 +220,31 @@ def test_o_composer_declara_os_componentes_da_estimativa():
 @pytest.mark.parametrize("nome", sorted(LIMITES_AIRFLOW_3))
 def test_cada_componente_cabe_nos_limites_do_airflow_3(nome):
     """Valor fora da tabela oficial só falha no `apply`, depois de minutos de criação (RVPC-2-01)."""
-    valores, limites = _componentes()[nome], LIMITES_AIRFLOW_3[nome]
-    cpu, memoria = valores["cpu"], valores["memory_gb"]
-    assert limites["cpu"][0] <= cpu <= limites["cpu"][1], (nome, cpu)
-    assert memoria >= limites["memoria_min"], (nome, memoria)
-    assert 1 <= memoria / cpu <= 8, (nome, memoria / cpu)
-    assert valores.get("storage_gb", 0) <= 100, nome
-    quantidades = [valores[k] for k in ("count", "min_count", "max_count") if k in valores]
-    if limites["count"] is None:
-        assert not quantidades, nome
-    else:
-        assert quantidades and all(limites["count"][0] <= q <= limites["count"][1] for q in quantidades), (nome, quantidades)
+    assert _violacoes(nome, _componentes()[nome]) == []
+
+
+def _com(nome: str, **troca: str) -> str:
+    """O `composer.tf` com atributos de um componente trocados."""
+    inicio = TF.index(f"      {nome} {{")
+    fim = TF.index("}", inicio)
+    corpo = TF[inicio:fim]
+    for chave, valor in troca.items():
+        corpo = re.sub(rf"({chave}\s*=\s*)\S+", rf"\g<1>{valor}", corpo)
+    return TF[:inicio] + corpo + TF[fim:]
+
+
+# Os casos da rodada 3 (RVPC-3-01), que a guarda anterior aceitava, e o da rodada 2.
+INVALIDOS = [
+    ("scheduler", {"cpu": "0.75"}),
+    ("scheduler", {"cpu": "2", "memory_gb": "9"}),
+    ("worker", {"memory_gb": "2.1"}),
+    ("worker", {"storage_gb": "1.5"}),
+    ("worker", {"storage_gb": "-1"}),
+    ("scheduler", {"count": "1.5"}),
+    ("triggerer", {"memory_gb": "0.5"}),
+]
+
+
+@pytest.mark.parametrize(("nome", "troca"), INVALIDOS)
+def test_a_guarda_recusa_o_que_a_tabela_recusa(nome, troca):
+    assert _violacoes(nome, _componentes(_com(nome, **troca))[nome])
