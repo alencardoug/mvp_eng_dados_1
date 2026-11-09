@@ -1615,7 +1615,8 @@ aqui, o que mudou por causa delas:
   leem só a captura selecionada (`legacy_selected_capture`), e a quarentena já tinha o recorte da
   captura corrente: ficam como estado. `oraculo.comparar_contagens` saiu de `contagens` para ser
   testável, e ganhou teste (`tests/test_oraculo_consumo.py`); o teste do alvo conta três vereditos
-  e confere a declaração (`tests/test_composer_cli.py`).
+  e confere a declaração (`tests/test_composer_cli.py`). A lista das três camadas estava errada, e a
+  revisão a corrigiu (§43).
 - **D87 muda só o texto**: a §6.8 do plano diz que o caminho quente entra na quarta declarado
   incompleto nos três itens da tabela do G2.3; a regra dos passos 3 e 8 vermelhos continua.
 
@@ -1652,8 +1653,10 @@ regras do desmonte: o inventário de quinta reprova todo recurso fora de `residu
   `cms_synthetic_patient_data_omop`, 24 tabelas, 142,5 GiB; `cms_medicare`, 12,9 GiB.
 - **O relógio**: o projeto sai na mesma hora que o da janela, à mão (plano §6.4).
 
-**O laboratório (08–09/11, madrugada).** Cada exercício da página de estudo do Owner rodou no
-`mvp-ed1-estudo` antes de entrar nela: 78 consultas, 3,29 GiB faturados, cerca de US$ 0,02 de
+**O laboratório (08–09/11, madrugada).** Todo SQL da página de estudo do Owner rodou como está no
+`mvp-ed1-estudo`; os comandos de Cloud Shell rodaram adaptados, com o `gcloud` da máquina, e o
+Python num Python da máquina, e quatro itens de console não rodaram — a página marca cada caso
+(corrigido pela revisão, §43). Ao todo: 78 consultas, 3,29 GiB faturados, cerca de US$ 0,02 de
 BigQuery [medido, `INFORMATION_SCHEMA.JOBS_BY_PROJECT`]; um lote PySpark no Dataproc Serverless em
 2 min 50 s e 0,32 DCU-hora; uma sessão interativa de Spark; um lote do Gemini em 7 min. Três
 achados valem também para a fase GCP:
@@ -1668,3 +1671,38 @@ achados valem também para a fase GCP:
 
 O projeto voltou ao estado de partida: o *dataset* vazio, a conexão, o *bucket*, a rede, o
 orçamento e a cota. As fontes da página ficam em `data/medicoes/estudo_gcp/`.
+
+## 43. A revisão da sessão de 08/11, rodada 1 (09/11/2026, madrugada)
+
+O Owner pediu a revisão do Codex sobre a sessão inteira: os seis *commits* de `79ab2b1..4888126` e o
+laboratório. Dossiê em `1f85574`; conta 2, `xhigh`. Voltaram **3 bloqueantes, 7 ajustes e 1
+observação** (RV0811-1-01…11); a *Situação* de cada um está no `REVISAO.md`. Os que mudaram o que
+está no Git:
+
+- **A D85 calava mais do que devia** (RV0811-1-01, -02). A isenção por camada aprovava uma migração
+  ausente em `governance._versions` e um objeto que só existe num lado, e deixava como estado três
+  modelos do legado que leem as capturas anteriores. A história agora é declarada por objeto
+  (`oraculo.e_historia`: os schemas `raw_legacy` e `snapshots`, o `governance.legacy_captures`,
+  `legacy_presence_by_capture`, `legacy_capture_transitions` e `legacy_removed_records`), e objeto
+  de um lado só reprova sempre. A lista do §41 estava errada.
+
+Os do laboratório mudaram só as fontes em `data/medicoes/estudo_gcp/`, e a página foi regerada e
+republicada (versão 2):
+
+- **O limite antes do Gemini** (RV0811-1-03): a documentação do `AI.GENERATE` avisa que `ORDER BY …
+  LIMIT` na mesma consulta não garante o limite. Os exercícios 7.0 e 7.4 materializam a entrada, e
+  o 7.1, o 7.2 e o 7.4b leem dela: a 7.1 leu 940 bytes de uma tabela de 15 linhas [medido].
+- **Encerrar de verdade** (RV0811-1-04): desconectar um notebook não desliga o *runtime*. O 11.1
+  virou um script que encerra as sessões de Spark ativas pela API e exclui os *runtimes*, e confere.
+  As listagens rodaram, sem nada ativo (`{}`, `Listed 0 items`); encerrar e excluir não foram
+  exercitados. No caminho apareceu um defeito que a revisão não pegou: o `gcloud dataproc sessions`
+  da versão 1 não existe sem o componente `beta` (`Invalid choice: 'sessions'`).
+- **A sessão interativa ganhou `try/finally`** e rodou de novo: duas tentativas nasceram `FAILED`
+  porque a API Cloud Resource Manager estava desligada (`stateMessage` da sessão), coisa que a
+  primeira execução não exigiu. Ligada a API, a sessão subiu em 47 s e terminou `TERMINATING`.
+- **As afirmações ficaram do tamanho da prova** (RV0811-1-05 a -11): o 9.5 sem RDD (o Spark Connect
+  não tem); selos "rodou adaptado" e "rodou fora do notebook"; as saídas literais do Spark, da
+  sessão, do Cloud Run, do Pub/Sub e do Dataplex em `data/medicoes/estudo_gcp/evidencias/`; a 4.9
+  provada pela estatística do *job* (`materializedViewStatistics`: `chosen: true`, 44.896 bytes); o
+  4.4 sem afirmar armazenamento grátis; os "Confira" do BigQuery ML reescritos pelos números; o
+  exercício 4.0 para recomeçar o bloco; 1,24 GiB, não 1,26.
