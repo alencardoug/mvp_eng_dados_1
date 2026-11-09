@@ -739,6 +739,14 @@ make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true ena
 
 Pelo código, `2 a criar`: o `helm_release` do Debezium Server e o do Airbyte. Leia o plano.
 
+**Passo 4a — o complemento da revisão do `plan` caro** (RVPC-1-01). A rodada de 09/11 revisou os
+*releases* só como código, porque o *provider* do Helm não planeja sem o *cluster* (A27). Antes do
+passo 5, o Claude Code passa ao Codex o texto real de
+`data/medicoes/etapa_13/planos/09_aplicacoes.txt`: a contagem `2/0/0`, os valores, as versões dos
+*charts* e os sensíveis mascarados. **Sem o parecer, o passo 5 não roda.** Os planos reais da §6.8 e
+da §6.9 seguem o rito e as contagens incrementais (`4/0/0`, `14/0/0`); divergência substantiva dos
+`_revisao` de 09/11 volta ao Codex antes do `apply`.
+
 **Passo 5 — aplicar.** A instalação do Airbyte leva minutos, até 20 (`timeout` do *release*).
 
 ```

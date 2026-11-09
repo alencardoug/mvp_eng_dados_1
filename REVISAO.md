@@ -436,9 +436,224 @@ Decisões que poderiam ter ido para o outro lado, com o motivo de terem ido para
 
 ## Achados da revisão
 
-Preenchido por quem revisa. Um achado por linha, com veredito.
+### 1. Conclusão
+
+**Mudanças necessárias.** A revisão antecipada dos três planos foi realizada, mas não encerra o
+pré-requisito de revisão do degrau das aplicações: falta o complemento sobre o `09_aplicacoes`
+real, antes do seu `apply` de terça. Esse bloqueio se restringe àquele degrau; não exige esperar
+pelas aplicações para revisar o GKE. Há dois ajustes de declaração a resolver: a exclusão dos
+objetos dos buckets e a correspondência entre o dimensionamento do Composer e a estimativa.
+
+Não encontrei conflito demonstrado nos três pacotes do Composer nem impedimento arquitetural
+de rede para chegar ao IP privado do Cloud SQL.
+Isso não é prova de um `apply` bem-sucedido nem aceite do Owner.
+
+### 2. Escopo e versão revisados
+
+Rodada 1 do `plan` caro, sobre `b092841e153597bda84d7162d6244b776d7ec274`, em 09/11/2026.
+Leitura integral da declaração indicada no pedido: GKE, rede, IAM, papéis, Dataflow, Composer,
+variáveis, providers e lock; aplicações Helm, valores locais e do GKE, chart do Debezium Server
+e suas propriedades. O derivado `acesso.auto.tfvars.json` foi confrontado com o gerador e o
+manifest local. Foram lidos os três textos de revisão completos, comparados com os de 07/11,
+contra Capacidade §2.14, PLANO §6.2–§6.9, Registro §44 e decisões vigentes. Nenhuma delas foi
+reaberta.
+
+Identificação dos textos fora do Git, por SHA-256 calculado nesta revisão:
+
+| Arquivo em `data/medicoes/etapa_13/planos/` | SHA-256 |
+|---|---|
+| `08_gke_revisao.txt` | `17d2fc8e3ae95bc9674897d67f725c452cae011c8b6cfa3abd0701214bde5514` |
+| `11_dataflow_revisao.txt` | `047094476abd7796f22525aa8adb917ffe1c150452fa8b37165fc6290b215128` |
+| `10_composer_revisao.txt` | `e9920d9ea103d57d78d5d7d502fb603e50e652c2f5e7d57bc7557b9ad66f4f3f` |
+
+A declaração examinada não tinha diferenças contra `b092841`. Foi observada uma alteração
+externa em `docs/registro_fase_gcp.md`, acrescentando a §45; não foi feita nem alterada pelo
+revisor e não integra a versão do declarativo aqui identificada.
+
+### 3. Evidências dos achados
+
+**RVPC-1-01 — complemento obrigatório do plano Helm (alta, pré-requisito de execução).**
+`REVISAO.md` §4 declara que `09_aplicacoes` não foi planejado. `terraform/aplicacoes_gke.tf:11`,
+`:25` e `:55` condicionam somente os dois releases a `enable_gke_apps`; a busca
+`rg -n 'enable_gke_apps|helm_release|local\.aplicacoes' terraform -g '*.tf' -g '!**/.terraform/**'`
+não encontrou dependência dessas aplicações em `composer.tf` ou `dataflow.tf`. A inspeção dos
+demais recursos e referências também não revelou dependência indireta que alterasse aqueles
+degraus. Assim, ligar a variável acrescenta os dois releases no declarativo atual; depois de
+aplicados, eles devem estar sem alteração nos planos seguintes. Isso não prova ausência de
+drift ou mudanças de valores que só o provider Helm revelará com o cluster de pé.
+
+O PLANO `:470` exige plano revisado antes de nascer qualquer recurso daquele degrau; `:474`
+exige leitura integral e aprovação do plano salvo. A leitura do código nesta rodada é válida
+como revisão antecipada, mas não substitui o plano. O complemento deve ocorrer entre os passos
+4 e 5 da §6.7, **antes do apply dos releases**, sem esperar a P4 das 20:00: revisar o texto real
+de `09_aplicacoes`, conferir `2/0/0`, valores, versões e sensíveis, e registrar o parecer. Os
+planos reais seguintes continuam sujeitos ao rito e às contagens incrementais `4/0/0` e
+`14/0/0`; divergência substantiva exige revisão antes de aplicar.
+
+**RVPC-1-02 — `force_destroy` deixa a política de soft delete em aberto (média).**
+`terraform/composer.tf:97` declara o bucket com `force_destroy = true`, sem
+`soft_delete_policy`; o plano `10_composer_revisao.txt:836` a deixa como
+`soft_delete_policy (known after apply)`. A mesma omissão está em
+`terraform/armazenamento.tf:17`, dono do bucket `beam` que o Dataflow usa para staging e
+temporários (`src/mvp_ed1/streaming/dataflow.py:50`). O desligamento do Composer leva seu bucket
+no passo 2; o bucket Beam fica até o passo 8 (`src/mvp_ed1/gcp/desmonte.py:62` e `:69`).
+
+A [documentação de soft delete](https://docs.cloud.google.com/storage/docs/soft-delete)
+informa o padrão de sete dias — “default retention duration of 7 days” — e afirma:
+“Soft-deleted objects continue to accrue storage charges until their retention period expires
+and they're permanently deleted.” O `force_destroy` esvazia o bucket, mas não desliga essa
+política. Portanto, a declaração não sustenta a promessa de eliminação dos objetos no destroy;
+listagem comum vazia tampouco prova ausência das cópias retidas. Não foi medido o valor dessa
+cobrança, e não afirmo que ultrapasse US$ 70. O relógio de desvinculação do faturamento continua
+obrigatório, mas não substitui o caminho de exclusão dos objetos.
+
+Proposta: declarar explicitamente `soft_delete_policy { retention_duration_seconds = 0 }` no
+bucket novo do Composer e tratar a mesma política dos buckets existentes antes de suas próximas
+exclusões. Conferir a política efetiva e possíveis versões já retidas no desmonte. Desativar
+agora não reduz o prazo de objetos anteriormente excluídos sob a política antiga. O livro usa
+a mesma declaração de buckets; a retenção da D70 é outra política e permanece regida pela
+decisão existente.
+
+**RVPC-1-03 — tamanho da infraestrutura não declara o preset do Composer (média).**
+`terraform/composer.tf:153` fixa apenas `environment_size = "ENVIRONMENT_SIZE_SMALL"` e não
+declara `workloads_config`; `10_composer_revisao.txt:273` deixa o bloco inteiro conhecido só
+depois do apply. O Registro `:171` fundamenta o custo no preset com scheduler 0,5 vCPU/2,5 GB,
+triggerer 0,5/0,5, DAG processor 1/2, web server 1/2,5 e workers 1/2, entre 2 e 4. Capacidade
+`:584` usa a hipótese de 12–15 DCUs para a estimativa aprovada.
+
+A [documentação de escala](https://docs.cloud.google.com/composer/docs/composer-3/environment-scaling)
+afirma: “Environment size is different from environment presets.” O tamanho controla a
+infraestrutura gerenciada; recursos dos componentes e limites de workers são parâmetros
+distintos. Logo, o plano não demonstra o dimensionamento que o dossiê diz corresponder à
+estimativa. Não há evidência nesta revisão de que os defaults efetivos sejam maiores, nem de
+estouro de custo; a lacuna é depender deles sem identificá-los. Proposta: declarar os recursos,
+quantidades e limites de autoscaling correspondentes à configuração já estimada, ou apresentar
+evidência dos defaults da API para essa imagem que demonstre a equivalência. Não se propõe
+reaprovar o escopo nem substituir a estimativa aceita.
+
+**RVPC-1-04 — pool padrão transitório desnecessário na versão informada (baixa).**
+`terraform/gke.tf:56` combina `remove_default_node_pool = true` com `initial_node_count = 1`;
+o plano GKE `:200` e `:214` confirma ambos. O dossiê §3 informa REGULAR
+`1.36.4-gke.2377000`; essa consulta não foi refeita pelo revisor.
+
+A [documentação do provider na tag v8.10.0](https://github.com/hashicorp/terraform-provider-google/blob/v8.10.0/website/docs/r/container_cluster.html.markdown),
+no argumento `remove_default_node_pool`, mantém: “If `true`, deletes the default node pool upon
+cluster creation.” Para `1.36.4-gke.1469000+`, documenta cluster sem pool padrão ao omitir
+contagem e configuração inline. A leitura é aviso com criação/remoção transitória, não falha
+ou retenção permanente causada pela depreciação. A declaração mínima omite **as duas** linhas
+56–57 (ou omite `remove_default_node_pool` e usa `initial_node_count = 0`), mantendo o pool
+separado. Retirar só a flag mantendo contagem um deixaria um pool adicional. Mudança exige novo
+plano revisado e versão efetiva compatível na terça.
+
+### 4. Verificações executadas
+
+Somente leituras locais, consultas à documentação oficial e o comando de testes expressamente
+autorizado. Os resultados abaixo são desta revisão; as provas anteriores permanecem atribuídas
+ao autor.
+
+```text
+$ git rev-parse HEAD
+b092841e153597bda84d7162d6244b776d7ec274
+
+$ .venv/bin/python -m pytest -q tests/test_desmonte.py tests/test_origens_gcp.py tests/test_makefile.py
+125 passed in 10.95s
+```
+
+Um script Python de leitura extraiu os blocos entre `Terraform will perform` e `Plan:`, comparou
+os endereços e os corpos entre os seis textos e calculou seus hashes. Resultado:
+
+```text
+08_gke_revisao.txt       11 recursos   Plan: 11 to add, 0 to change, 0 to destroy.
+11_dataflow_revisao.txt  15 recursos   Plan: 15 to add, 0 to change, 0 to destroy.
+10_composer_revisao.txt  29 recursos   Plan: 29 to add, 0 to change, 0 to destroy.
+08_gke.txt              11 recursos   Plan: 11 to add, 0 to change, 0 to destroy.
+11_dataflow.txt          4 recursos   Plan: 4 to add, 0 to change, 0 to destroy.
+10_composer.txt         36 recursos   Plan: 36 to add, 0 to change, 0 to destroy.
+```
+
+Os blocos comuns dos planos novos coincidem, salvo linhas em branco; os incrementos são 4 e
+14. As diferenças contra 07/11 correspondem ao estado já aplicado e às variáveis agora
+conhecidas. Não foram encontrados recursos de alteração ou destruição nessas comparações.
+
+Outro script Python carregou `src/mvp_ed1/gcp/acesso.py` sem executar seu `main`, chamou
+`derivar` sobre `dbt/target/manifest.json` e comparou com o JSON existente:
+
+```text
+acesso derivado confere: True
+pendentes_por_tabela: [{"tabela": "raw.inventory_movements_stream", "grants": {"insert": ["streamer"], "select": ["streamer", "transformer"]}}]
+terraform/composer.tf referencias a enable_gke_apps/helm_release/local.aplicacoes: []
+terraform/dataflow.tf referencias a enable_gke_apps/helm_release/local.aplicacoes: []
+```
+
+Conferências sem novo achado, para delimitar o que foi efetivamente examinado:
+
+- **Rede Composer → SQL:** a [página de interfaces PSC](https://docs.cloud.google.com/vpc/docs/about-private-service-connect-interfaces)
+  afirma: “A Private Service Connect interface connection is transitive.” Inclui destinos em
+  redes ligadas ao consumidor por VPC Network Peering. A [página de conexão do Composer 3](https://docs.cloud.google.com/composer/docs/composer-3/connect-vpc-network)
+  descreve o attachment criado por `network`/`subnetwork` e exige: “Make sure that four IP
+  addresses per environment are available in your VPC subnetwork.” A sub-rede `10.10.0.0/20`
+  (`rede.tf:27`) comporta os quatro IPs e não conflita com a faixa interna padrão
+  `100.64.128.0/20`, nem com `10.40.0.0/20` do PSA. O caminho declarado não é uma cadeia de dois
+  peerings. O attachment automático sai com o ambiente segundo essa mesma documentação.
+  Conectividade TCP efetiva fica para a tarefa `rede`; sua falha, isoladamente, não demonstra
+  necessidade de trocar a arquitetura para PSC no Cloud SQL.
+- **Pacotes Composer:** foram lidos `airflow/requirements-composer.txt`,
+  `g2_4/resolucao_com_a_imagem.txt` e os dois relatórios de prova em `g2_4/`. O relatório
+  `prova_composer_dbt_seed_20261108T003051Z.json` registra as três versões exatas,
+  `falhas: []`, importação sem erro e dbt `codigo: 0`, `PASS=4`; a prova anterior registra
+  `PASS=455`. São evidências anteriores de instalação e execução na imagem, não uma nova prova
+  do serviço gerenciado. Não há base para condenar essas versões por serem diferentes das
+  pré-instaladas. Havendo conflito no builder gerenciado, a falha será na instalação de
+  dependências da criação, não no plan; o limite de criação de 90 minutos não é falha barata.
+- **Identidades e segredos:** namespaces e nomes do Workload Identity coincidem com
+  `debezium/debezium-server` do chart e `airbyte/airbyte-admin` da declaração e da renderização
+  registrada na §21. O chart remoto não foi baixado/renderizado novamente. Prefixo `mvp-ed1`,
+  separador `-`, quatro nomes em `orquestracao.SEGREDOS`, IAM por segredo e preenchimento no
+  runbook coincidem. A conta do Composer personifica somente ingestor/transformer, como D81.
+  Não foi encontrado valor de credencial no declarativo versionado examinado; senhas e token
+  são referências sensíveis. Isso não equivale a varredura de todo o histórico do Git.
+- **IAM Dataflow:** os quatro recursos são incrementais sobre concessões existentes:
+  `papeis.tf:43` já dá `bigquery.jobUser`; `armazenamento.tf:58`, acesso aos objetos do bucket
+  Beam; `:119` e `:127`, publicação e consumo Pub/Sub. A tabela é criada antes do IAM pelo
+  roteiro §6.8. O job usa `mvp-streamer`, uma VM privada `n1-standard-2`, Streaming Engine e
+  um worker fixo (`streaming/dataflow.py:45`). Não identifiquei concessão faltante no caminho
+  lido. A [documentação de permissões do Dataflow](https://docs.cloud.google.com/dataflow/docs/concepts/security-and-permissions)
+  exige worker com `dataflow.worker` e acesso aos recursos usados; a tabela pode receber
+  `dataEditor` no próprio objeto. Não é preciso conceder `dataflow.admin` ao worker só para
+  consumir e escrever; o lançador é o Owner. A execução e os service agents não foram sondados.
+- **Custo e desmonte:** LB interno e NAT estão previstos na estimativa. Nenhum LB externo foi
+  declarado. NAT automático atende as faixas primária e secundárias; não há limite explícito
+  de um IP/porta a impedir os dois nós, mas carga e portas não foram medidas. Os discos de boot
+  são os dois de 50 GB previstos; os PVCs das aplicações são adicionais, com saída pelos passos
+  3–4. Passo 2 desliga Composer e IAM Dataflow; passo 3 leva releases; passo 5 leva cluster,
+  pool, IAM dos nós, router e NAT. Namespace/PVs/LB são conferidos antes do cluster, e discos,
+  instâncias, forwarding rules e attachment depois (`Makefile:1526` e `:1541`). O bucket Beam
+  fica até o passo 8. Há caminhos declarados para esses recursos; a ressalva sobre retenção de
+  objetos é RVPC-1-02. Os valores reais de DCUs, logs, tráfego, discos PVC e Streaming Engine
+  não foram medidos, portanto não se certifica consumo dentro de US$ 40–70 por estes planos.
+
+### 5. Limites
+
+Nenhum comando de infraestrutura, serviço, banco ou aplicação foi executado. Não foram lidos
+`.env`, estados Terraform ou backups de estado. Não foram feitos apply, novo plan, renderização
+Helm, instalação de pacotes, acesso ao Cloud SQL, consulta de IAM/cota/preço na API nem ensaio de
+desmonte. Os testes autorizados verificam comportamento local e guardas; não certificam APIs GCP.
+
+Foram lidas oito páginas oficiais distintas com conteúdo disponível; três outras tentativas
+de abertura falharam. As consultas não foram usadas para reabrir decisões do Owner. A
+[página de contas do GKE](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/service-accounts)
+exige o mínimo de `roles/container.defaultNodeServiceAccount`; a declaração
+usa quatro papéis de logging/monitoring/metadata. Não foi comparada a expansão atual de todas
+essas permissões, portanto não se afirma aqui que falte uma permissão específica nem se
+certifica equivalência integral. Capacidade zonal no instante do apply, cotas do tenant do
+Composer, propagação de IAM, defaults efetivos de workloads, limites/portas do NAT, saúde dos
+pods e ausência real de resíduos continuam não medidos. Os planos de desmonte 20–22 ainda não
+existem para os recursos criados. O rito §6.3 e o relógio §6.4 permanecem condições de execução.
 
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
-| | | | `bloqueante` · `ajuste` · `observação` | |
+| RVPC-1-01 | PLANO §6.2 e §6.7 passos 4–5; `aplicacoes_gke.tf:25` | **Alta — falta revisão do plano real das aplicações.** Exigir complemento de terça sobre `09_aplicacoes` antes do apply dos releases. Revisão de código antecipada não encerra esse pré-requisito. Os planos reais seguintes devem manter os releases sem alteração e os incrementos previstos. | bloqueante || **Aceito.** `PLANO_etapa_13.md` §6.7 ganhou o **passo 4a**: o texto real de `09_aplicacoes.txt` vai ao Codex antes do passo 5 (contagem `2/0/0`, valores, versões dos *charts*, sensíveis), e sem o parecer o passo 5 não roda; os planos reais da §6.8 e §6.9 seguem as contagens incrementais, e divergência dos `_revisao` volta ao Codex. |
+| RVPC-1-02 | `composer.tf:97`; `armazenamento.tf:17`; plano Composer `:836` | **Média — soft delete não declarado pode reter e cobrar objetos após destroy.** `force_destroy` não desativa a política padrão de sete dias. Explicitar a política no Composer e tratar os buckets existentes e cópias já retidas antes de afirmar eliminação completa. | ajuste || **Corrigido e medido.** Reproduzido: o `12_soft_delete.txt` mostrou `retention_duration_seconds = 604800 -> 0` nos dois *buckets* existentes. `soft_delete_policy { retention_duration_seconds = 0 }` em `armazenamento.tf` e no *bucket* do Composer; guarda `test_todo_bucket_sai_sem_soft_delete` (que recusou o `composer.tf` sem a política: `google_storage_bucket.composer sem soft_delete_policy de 0 s`). Aplicado com o Owner às 12:50 (`0 added, 2 changed, 0 destroyed`); `gcloud storage buckets describe` deu `0` no `livro` e no `beam`. O `10_composer_revisao` regerado mostra `retention_duration_seconds = 0` no *bucket* novo. Objetos apagados antes (provas `GCP_TESTES` no livro) seguem a política antiga até 7 dias: centavos, e o faturamento sai na quinta às 12:00. |
+| RVPC-1-03 | `composer.tf:153`; plano Composer `:273`; Capacidade §2.14 | **Média — `ENVIRONMENT_SIZE_SMALL` não declara o preset usado na estimativa.** Fixar workloads e limites correspondentes ou demonstrar equivalência dos defaults da API; o plano atual não prova essa correspondência. | ajuste || **Corrigido.** As páginas oficiais não publicam os valores por componente dos *presets* (`environment-scaling` e `scale-environments` só dão DAGs e tarefas por *preset*); a estimativa se apoia no exemplo oficial de `create-environments` (Registro §6). `workloads_config` declarado com esses valores (*scheduler* 0,5/2,5/2, *triggerer* 0,5/0,5, *DAG processor* 1/2/1, *web server* 1/2,5/2, *workers* 1/2/2 de 2 a 4); guarda `test_o_composer_declara_os_componentes_da_estimativa`. `10_composer_revisao` regerado: `29 a criar, 0 a alterar, 0 a destruir`, com o bloco no plano. |
+| RVPC-1-04 | `gke.tf:56–57`; plano GKE `:200`, `:214`, `:471` | **Baixa — criação/remoção transitória de pool padrão evitável.** O argumento depreciado continua documentado como funcional. Na versão informada, omitir ambas as atribuições ou usar contagem zero sem o argumento; não deixar contagem um ao retirar só a flag. | observação || **Mantido, por recomendação do autor.** O argumento segue documentado como funcional no *provider* 8.10.0 (travado no `.terraform.lock.hcl`); o custo é um nó transitório por minutos na criação. Trocar agora levaria o `apply` de terça para um caminho não ensaiado (sem *pool* padrão, dependente da versão do canal). Nota no Registro §45. |
 

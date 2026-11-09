@@ -1818,3 +1818,51 @@ repetição; o único desvio foi a permissão do estado (passo 4), corrigida em 
 fica de pé até o desmonte de quinta (§6.5, passo 7), e o proxy de cada alvo fechou com ele. O
 `ledger baseline` não rodou, de propósito: a época inicial é de terça (§6.7). Taxímetro do Cloud
 SQL desde as 11:30 [medido o início; custo a medir na fatura].
+
+## 45. A rodada do Codex no `plan` caro (09/11/2026, tarde)
+
+A rodada estava marcada para terça, com o GKE de pé; o Claude Code recomendou adiantá-la para a
+tarde de segunda, para que um bloqueante tenha a terça inteira para ser corrigido antes da P4
+(ter 20:00), e o Owner aprovou ("pode publicar e seguir com o Codex no `plan` caro"). Os *commits*
+`cfd529e` e `339f09b` foram publicados antes.
+
+**Os planos (12:20)** [medido]: três, regerados do estado vivo **sem `apply`**, com sufixo
+`_revisao` para que nenhum `gcp-apply` os aplique — `08_gke_revisao` (11 a criar),
+`11_dataflow_revisao` (15) e `10_composer_revisao` (29), todos com 0 a alterar e 0 a destruir. Por
+degrau: 11, 4 e 14, os números dos roteiros §6.7–§6.9. Os binários foram apagados (levam o estado,
+com as senhas do Cloud SQL); fica o texto. O `09_aplicacoes` (os dois *releases* do Helm) não se
+planeja sem o *cluster* (A27) e foi passado como código.
+
+**O que a passagem já mediu** [medido]: as cotas de `us-central1` (0 de 24 CPUs E2; o GKE pede 8);
+a imagem `composer-3-airflow-3.2.2-build.9` disponível na região (pela API REST — o
+`gcloud composer image-versions` não existe nesta versão: `Invalid choice`); e a versão que o canal
+`REGULAR` entregaria hoje, `1.36.4-gke.2377000`, já acima da que o aviso de depreciação do
+`remove_default_node_pool` (`gke.tf:56`, nos três planos) nomeia. Ficaram para o Codex: esse aviso,
+o caminho de rede do Composer 3 até o IP privado do Cloud SQL pelo *peering*, e os `pypi_packages`
+contra a imagem.
+
+**O envio (12:37):** dossiê `REVISAO.md` em `b092841`; Codex conta 1, `gpt-6.1-sol`, `high`;
+prompt e log em `data/medicoes/etapa_13/revisao/*plancaro_r1*`.
+
+**A rodada 1 (12:37 → 12:46)** [medido]: "Mudanças necessárias" — 1 bloqueante, 2 ajustes, 1
+observação (RVPC-1-01…04); 125 testes autorizados passaram; só o `REVISAO.md` mudou. Sobre as três
+dúvidas do autor, o Codex não achou impedimento: o Composer 3 entra na VPC por uma interface Private
+Service Connect, que é transitiva até o *peering* do Cloud SQL ("A Private Service Connect interface
+connection is transitive", página de interfaces PSC); os pacotes têm prova anterior na imagem
+(`g2_4/`, `falhas: []`); e o `remove_default_node_pool` é aviso, não falha.
+
+- **RVPC-1-01, bloqueante:** revisar código não basta para os *releases* do Helm. O roteiro de
+  terça ganhou o passo 4a: o `09_aplicacoes` real vai ao Codex antes do `apply`.
+- **RVPC-1-02, ajuste:** `force_destroy` esvazia o *bucket*, mas não desliga o *soft delete*, que
+  guarda o objeto apagado por 7 dias cobrando armazenamento. Reproduzido no plano barato
+  `12_soft_delete` (12:48): `retention_duration_seconds = 604800 -> 0` no `livro` e no `beam`,
+  `0 to add, 2 to change, 0 to destroy`. Aprovado e aplicado pelo Owner às 12:50; o
+  `gcloud storage buckets describe` deu `0` nos dois. O *bucket* do Composer nasce com 0.
+- **RVPC-1-03, ajuste:** `ENVIRONMENT_SIZE_SMALL` não fixa os componentes. As páginas oficiais não
+  publicam os valores dos *presets*; a declaração passou a trazer os do exemplo oficial em que a
+  estimativa se apoia (§6), e o plano mostra o bloco.
+- **RVPC-1-04, observação, mantida:** o nó transitório do *pool* padrão custa minutos; mexer agora
+  levaria o `apply` de terça a um caminho não ensaiado.
+
+O `10_composer_revisao` foi regerado depois do `apply` do `12`: `29 a criar, 0 a alterar, 0 a
+destruir`.
