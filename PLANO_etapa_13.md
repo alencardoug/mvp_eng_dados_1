@@ -497,6 +497,12 @@ Independe do sucesso de qualquer passo da §6.5. Responsável: o Owner, com o Cl
 | **qui 12, 15:00** | `gcloud projects delete`, com o Owner; guardar o estado retornado (`DELETE_REQUESTED`) — é pedido de exclusão, não eliminação física instantânea | — |
 | qui 12, 18:00 | limite duro | — |
 
+O projeto de estudo `mvp-ed1-estudo` (exploração do Owner, fora do M6; Registro §42) segue o mesmo
+relógio, à mão, porque os alvos do `make` só operam o projeto do `.env`: até quarta 22:00 nada dele
+fica rodando; às 12:00 de quinta, `gcloud billing projects unlink mvp-ed1-estudo` e
+`gcloud billing projects describe mvp-ed1-estudo`, que deve dizer `billingEnabled: false`; às 15:00,
+`gcloud projects delete mvp-ed1-estudo`.
+
 ### 6.5 A ordem do desmonte (RV13-1-02)
 
 Cada passo tem ação e prova; a rede, o IAM e as APIs ficam de pé até o último. Os planos saem de

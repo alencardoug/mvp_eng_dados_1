@@ -1626,3 +1626,28 @@ Cloud SQL, na segunda, é o primeiro de valor.
 Não medido: a D85 ainda não rodou contra o armazém, porque o local e a nuvem estão no estado de
 desenvolvimento, em que as capturas são as mesmas (a `carga_dev` copia uma na outra). A primeira
 execução que a exercita é o passo 18 da terça.
+
+## 42. O projeto de estudo `mvp-ed1-estudo` (08/11/2026, tarde)
+
+O Owner quis explorar o BigQuery, o Vertex AI e serviços próximos antes de o crédito acabar, fora
+do M6. A exploração ganhou **projeto próprio**, e não um *dataset* no `mvp-ed1-gcp`, por duas
+regras do desmonte: o inventário de quinta reprova todo recurso fora de `residuos_esperados.yml`
+(§30), e o `armazem_janela pronto` de terça exige os nove *datasets* sem dado.
+
+- **A cota de projetos da conta de faturamento.** O `gcloud billing projects link` recusou:
+  `Cloud billing quota exceeded` — a conta tinha cinco projetos ligados, o limite dela. O Owner
+  escolheu tirar o faturamento de um projeto parado, o "My First Project" que a conta criou em
+  17/08/2026; antes do `unlink`, conferido vazio (sem *dataset*, sem *bucket*, só as APIs padrão).
+- **Proteções**: orçamento de R$ 180 (~US$ 30) só deste projeto, alertas em 50, 90 e 100%, com os
+  créditos excluídos, como o da janela; cota `QueryUsagePerDay` do BigQuery reduzida de 200 TiB para
+  200 GiB por dia (204.800 MiB) pela API da Cloud Quotas. A redução de mais de 10% é recusada sem
+  confirmação (`decreases effective quota unsafely`) e passou com
+  `ignoreSafetyChecks=QUOTA_DECREASE_PERCENTAGE_TOO_HIGH`; o `gcloud beta quotas` pedia instalar o
+  componente `beta`, e a API REST evitou mexer no SDK.
+- **APIs** ligadas: BigQuery (conexões, políticas de dados, Storage), Vertex AI, Dataproc, Pub/Sub,
+  Cloud Run, Scheduler, Artifact Registry, Cloud Build, Dataplex, Data Catalog, Storage, orçamentos,
+  cotas, Compute, Notebooks e Dataform.
+- **Os *datasets* públicos medidos** [medido, metadado do BigQuery]: `thelook_ecommerce`, 7 tabelas,
+  0,5 GiB; `fhir_synthea`, 17 tabelas, 307,4 GiB (a maior, `explanation_of_benefit`, 126,8 GiB);
+  `cms_synthetic_patient_data_omop`, 24 tabelas, 142,5 GiB; `cms_medicare`, 12,9 GiB.
+- **O relógio**: o projeto sai na mesma hora que o da janela, à mão (plano §6.4).
