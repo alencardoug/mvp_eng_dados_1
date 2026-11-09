@@ -1860,7 +1860,8 @@ connection is transitive", página de interfaces PSC); os pacotes têm prova ant
   `gcloud storage buckets describe` deu `0` nos dois. O *bucket* do Composer nasce com 0.
 - **RVPC-1-03, ajuste:** `ENVIRONMENT_SIZE_SMALL` não fixa os componentes. As páginas oficiais não
   publicam os valores dos *presets*; a declaração passou a trazer os do exemplo oficial em que a
-  estimativa se apoia (§6), e o plano mostra o bloco.
+  estimativa se apoia (§6), e o plano mostra o bloco. Essa ligação com a estimativa estava errada:
+  ver §46.
 - **RVPC-1-04, observação, mantida:** o nó transitório do *pool* padrão custa minutos; mexer agora
   levaria o `apply` de terça a um caminho não ensaiado.
 
@@ -1891,3 +1892,27 @@ bordas (45/45 de CPU, 35/35 de memória, armazenamento e quantidades); o *hash* 
 **A revisão do `plan` caro fechou às 13:20**, quatro rodadas em 43 minutos. Para a P4 (ter 20:00):
 GKE, Dataflow e Composer com o `plan` revisado; os *releases* do Helm ficam para o passo 4a da
 §6.7, sobre o plano real, antes do `apply` deles. O `REVISAO.md` saiu no *commit* de fechamento.
+
+## 46. A revisão do Owner: os DCUs do Composer eram hipótese (09/11/2026, tarde)
+
+Na preparação da revisão do declarativo do dia (CLAUDE.md §5), o Claude Code conferiu uma frase que
+as quatro rodadas não contestaram como achado: o comentário do `workloads_config` dizia que os
+valores eram "os mesmos em que a estimativa da Capacidade §2.14 se apoia: 12 DCUs". **Não são**
+[medido, nas páginas oficiais]:
+
+- o exemplo de 12 e 15 DCUs está na página de preços (cópia de 07/11 em
+  `data/medicoes/etapa_13/precos/raw/composer.html`) e não traz componentes, tamanho do ambiente
+  nem a conversão de vCPU, memória e armazenamento em DCU;
+- os valores vieram de outra página, a `create-environments`, cujos exemplos divergem entre si: o
+  `gcloud` tem `scheduler.cpu` 0,5 e `dag_processor.cpu` 0,5; o Terraform, 2,5 (acima do teto de 2
+  da tabela de limites) e 1. O `composer.tf` usa 0,5 e 1, uma mistura dos dois, além do *triggerer*
+  de 2 GB do RVPC-2-01.
+
+Os valores continuam válidos, e o `plan` não muda: só comentários e a docstring da guarda foram
+corrigidos, e o teste perdeu o "da estimativa" do nome. A linha do Composer na Capacidade §2.14
+continua verdadeira como está escrita: cita o exemplo e tem o medido pendente. O que muda é o rótulo
+da ligação: **12–15 DCUs é hipótese para estes valores**, e o número real sai da fatura da janela de
+quarta [a medir]. Como a mudança não toca recurso, o Owner decidiu não abrir nova rodada do Codex.
+
+O cronograma do PLANO §6.1 também foi acertado: a rodada do `plan` caro já aconteceu na segunda, e
+o que resta na terça é o parecer sobre o `09_aplicacoes` real (§6.7, passo 4a).

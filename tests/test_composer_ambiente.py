@@ -210,8 +210,8 @@ def _violacoes(nome: str, valores: dict[str, float]) -> list[str]:
     return erros
 
 
-def test_o_composer_declara_os_componentes_da_estimativa():
-    """O tamanho do ambiente não fixa os componentes (RVPC-1-03): o plano tem de mostrar o que a Capacidade §2.14 estimou."""
+def test_o_composer_declara_os_componentes():
+    """O tamanho do ambiente não fixa os componentes (RVPC-1-03): o plano tem de mostrar os valores escolhidos."""
     componentes = _componentes()
     assert set(componentes) == set(LIMITES_AIRFLOW_3)
     assert componentes["worker"]["min_count"] == 2 and componentes["worker"]["max_count"] == 4

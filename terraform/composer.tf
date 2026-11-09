@@ -160,10 +160,13 @@ resource "google_composer_environment" "this" {
     # Os componentes declarados, não deixados ao padrão da API (RVPC-1-03): o tamanho do ambiente
     # é só a infraestrutura gerenciada, e os recursos de cada componente são outra coisa
     # (https://docs.cloud.google.com/composer/docs/composer-3/environment-scaling). Os valores são
-    # os do exemplo oficial de criação (create-environments), os mesmos em que a estimativa da
-    # Capacidade §2.14 se apoia (Registro §6): 12 DCUs, até 15 com os quatro *workers*. Uma
-    # exceção: o *triggerer* do exemplo tem 0,5 GB, abaixo do mínimo de 2 GB que o Airflow 3 exige
-    # (tabela de limites em scale-environments#resource-limits, RVPC-2-01); aqui tem 2 GB.
+    # escolha deste projeto, a partir dos exemplos de criação (create-environments), que divergem
+    # entre si, conferidos contra a tabela de limites do Airflow 3
+    # (scale-environments#resource-limits, RVPC-2-01): `scheduler.cpu` é o do exemplo `gcloud`
+    # (o do Terraform, 2,5, passa do teto de 2), `dag_processor.cpu` é o do exemplo Terraform, e o
+    # *triggerer* tem 2 GB porque o dos exemplos, 0,5 GB, fica abaixo do mínimo. O exemplo de preços
+    # não dá a configuração por componente dos seus 12–15 DCUs, nem a página publica a conversão:
+    # os DCUs da Capacidade §2.14 são hipótese para estes valores, a medir na quarta (Registro §46).
     workloads_config {
       scheduler {
         cpu        = 0.5
