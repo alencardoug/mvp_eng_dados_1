@@ -149,9 +149,45 @@ def test_todo_bucket_sai_sem_soft_delete():
                     f"{arquivo.name}: google_storage_bucket.{nome} sem soft_delete_policy de 0 s"
 
 
+# Os limites do Composer 3 para Airflow 3, da tabela oficial
+# (https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits):
+# vCPU mínimo e máximo, memória mínima (2 GB no Airflow 3), quantidade, armazenamento até 100 GB,
+# e de 1 a 8 GB de memória por vCPU. O *web server* não tem quantidade.
+LIMITES_AIRFLOW_3 = {
+    "scheduler": {"cpu": (0.5, 2), "memoria_min": 2, "count": (1, 3)},
+    "triggerer": {"cpu": (0.5, 1), "memoria_min": 2, "count": (0, 10)},
+    "dag_processor": {"cpu": (0.5, 32), "memoria_min": 2, "count": (1, 3)},
+    "web_server": {"cpu": (1, 4), "memoria_min": 2, "count": None},
+    "worker": {"cpu": (0.5, 32), "memoria_min": 2, "count": (1, 100)},
+}
+
+
+def _componentes() -> dict[str, dict[str, float]]:
+    carga = TF[TF.index("workloads_config {"):TF.index("node_config {")]
+    achados = {}
+    for nome, corpo in re.findall(r"(\w+) \{([^{}]*)\}", carga):
+        achados[nome] = {k: float(v) for k, v in re.findall(r"(\w+)\s*=\s*([\d.]+)", corpo)}
+    return achados
+
+
 def test_o_composer_declara_os_componentes_da_estimativa():
     """O tamanho do ambiente não fixa os componentes (RVPC-1-03): o plano tem de mostrar o que a Capacidade §2.14 estimou."""
-    carga = TF[TF.index("workloads_config {"):TF.index("node_config {")]
-    for componente in ("scheduler", "triggerer", "dag_processor", "web_server", "worker"):
-        assert f"{componente} {{" in carga, componente
-    assert re.search(r"min_count\s*=\s*2", carga) and re.search(r"max_count\s*=\s*4", carga)
+    componentes = _componentes()
+    assert set(componentes) == set(LIMITES_AIRFLOW_3)
+    assert componentes["worker"]["min_count"] == 2 and componentes["worker"]["max_count"] == 4
+
+
+@pytest.mark.parametrize("nome", sorted(LIMITES_AIRFLOW_3))
+def test_cada_componente_cabe_nos_limites_do_airflow_3(nome):
+    """Valor fora da tabela oficial só falha no `apply`, depois de minutos de criação (RVPC-2-01)."""
+    valores, limites = _componentes()[nome], LIMITES_AIRFLOW_3[nome]
+    cpu, memoria = valores["cpu"], valores["memory_gb"]
+    assert limites["cpu"][0] <= cpu <= limites["cpu"][1], (nome, cpu)
+    assert memoria >= limites["memoria_min"], (nome, memoria)
+    assert 1 <= memoria / cpu <= 8, (nome, memoria / cpu)
+    assert valores.get("storage_gb", 0) <= 100, nome
+    quantidades = [valores[k] for k in ("count", "min_count", "max_count") if k in valores]
+    if limites["count"] is None:
+        assert not quantidades, nome
+    else:
+        assert quantidades and all(limites["count"][0] <= q <= limites["count"][1] for q in quantidades), (nome, quantidades)
