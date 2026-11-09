@@ -788,6 +788,111 @@ infraestrutura, serviços, novo plan/apply ou desmonte. As limitações operacio
 continuam válidas fora das correções aqui verificadas. Não há aceite formal do Owner nem
 autorização de execução decorrente deste parecer.
 
+## Rodada 3
+
+### 1. Conclusão
+
+**Mudanças necessárias.** Um achado novo, **RVPC-3-01 (média, ajuste)**: a guarda acrescentada
+não representa todos os limites da tabela oficial. **Não há bloqueante nos valores atuais de
+`workloads_config`**: a memória do triggerer foi corrigida, e o declarativo e o plano regenerado
+atendem aos limites conferidos. RVPC-2-01 está resolvido quanto ao dimensionamento e ao texto do
+plano; sua proteção por teste ainda precisa do ajuste abaixo. Não encontrei outra regressão nos
+dois commits revisados.
+
+### 2. Escopo
+
+Revisão independente **somente de regressões**, em 09/11/2026, de `886e942..5f955ec`:
+`972be68` e `5f955ec` (HEAD `5f955eca7212f6d8649af6327024f8fa0ff67320`). Foram confrontados
+o diff integral desses commits, a resposta a RVPC-2-01, `terraform/composer.tf`, a guarda nova,
+o acréscimo ao Registro §45 e o texto externo ao Git
+`data/medicoes/etapa_13/planos/10_composer_revisao.txt`, modificado às 13:02:30 -0300.
+A correção local do horário da rodada 2 foi ignorada, conforme solicitado. As decisões do Owner
+permanecem em vigor e não foram reabertas.
+
+A conferência manual de todos os valores declarados contra a
+[tabela oficial do Composer 3](https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits)
+resultou em:
+
+| Componente | vCPU | Memória (GB) | Memória/vCPU (GB) | Storage (GB) | Quantidade |
+|---|---|---|---|---|---|
+| scheduler | 0,5 | 2,5 | 5 | 2 | 1 |
+| triggerer | 0,5 | 2 | 4 | não aplicável | 1 |
+| dag_processor | 1 | 2 | 2 | 1 | 1 |
+| web_server | 1 | 2,5 | 2,5 | 2 | não aplicável |
+| worker | 1 | 2 | 2 | 2 | mínimo 2, máximo 4 |
+
+Todos atendem às faixas e aos valores permitidos de CPU, aos mínimos/máximos e ao passo de
+memória, à proporção memória/vCPU, ao armazenamento e às quantidades. O plano `:273–302`
+reproduz esses valores; `:256` mantém a imagem Airflow 3 escolhida e `:885` registra
+`Plan: 29 to add, 0 to change, 0 to destroy.`
+
+### 3. Evidência de cada achado novo
+
+**RVPC-3-01 — guarda incompleta dos limites do Composer 3 (média, ajuste).**
+`tests/test_composer_ambiente.py:156–161` codifica corretamente as faixas de CPU, os pisos de
+memória e as faixas de quantidade, mas não declara passos nem tetos de memória. As asserções
+`:185–193` não verificam os valores permitidos de CPU, o passo de memória de 0,25 GB, o teto
+próprio de 8 GB do scheduler, o piso 0 e o passo de 1 GB do armazenamento ou quantidades
+inteiras. O teto de memória dos demais componentes já decorre de CPU máxima × 8; o do scheduler
+não: 2 vCPUs × 8 permite 16 GB, enquanto a tabela limita esse componente a 8 GB.
+
+Na [tabela oficial](https://docs.cloud.google.com/composer/docs/composer-3/scale-environments#resource-limits),
+schedulers/triggerers usam passo de CPU 0,5; web server/workers/DAG processors têm a regra de
+valores 0,5, 1 ou múltiplos de 2, respeitado o mínimo próprio. A guarda só confere intervalos.
+Além disso, o extrator `:169` lê apenas números sem sinal: `storage_gb = -1` desaparece do
+dicionário e `:188` o substitui por 0, aceitando a declaração inválida.
+
+Uma sonda somente em memória executou as duas funções de guarda extraídas por AST, sem seus
+decoradores, contra cópias do texto HCL com alterações isoladas. **Todos os seis casos inválidos
+abaixo passaram pelas duas guardas**; o controle com o triggerer antigo falhou como esperado:
+
+```text
+scheduler.cpu=0.75 (passo invalido): PASSOU
+scheduler.cpu=2/memory_gb=9 (teto 8 GB): PASSOU
+worker.memory_gb=2.1 (passo invalido): PASSOU
+worker.storage_gb=1.5 (passo invalido): PASSOU
+worker.storage_gb=-1 (abaixo de zero): PASSOU
+scheduler.count=1.5 (quantidade fracionaria): PASSOU
+triggerer.memory_gb=0.5 (controle RVPC-2-01): FALHOU ["triggerer: ('triggerer', 0.5)"]
+```
+
+**Ajuste proposto:** completar a declaração e as verificações dos limites aplicáveis, incluindo
+os passos/valores permitidos, o teto próprio do scheduler, armazenamento e integralidade das
+quantidades; fazer o extrator preservar ou rejeitar explicitamente valores que hoje omite.
+Usar os casos acima para conferir a guarda. Não é necessário alterar o dimensionamento atual.
+O impacto encontrado é proteção incompleta contra regressões futuras, não rejeição demonstrada
+da configuração atual pelo serviço; por isso o veredito é ajuste, não bloqueante.
+
+### 4. Verificações executadas
+
+Leituras locais de Git, documentos, declarativo e evidência textual; uma única leitura de rede,
+restrita à página oficial autorizada. O único comando pytest executado foi:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_composer_ambiente.py
+................                                                         [100%]
+16 passed in 0.12s
+```
+
+A sonda Python descrita acima leu somente o teste e o HCL e alterou strings em memória; não
+reescreveu arquivos nem executou imports do projeto. A conferência do texto do plano produziu:
+
+```text
+885:Plan: 29 to add, 0 to change, 0 to destroy.
+eed095db54bceda749f3b222fe062b8cd2de8e0ca7d831891d399753b4ea0824  data/medicoes/etapa_13/planos/10_composer_revisao.txt
+```
+
+### 5. Limites
+
+Somente `REVISAO.md` foi editado nesta rodada. Não houve execução de infraestrutura, serviços,
+novo plan/apply ou consulta à API do Composer. Não foram lidos `.env`, estados Terraform ou
+bancos. O plano regenerado é evidência fornecida pelo autor, conferida como texto, não gerada
+pelo revisor. A validade aqui concluída se limita aos parâmetros de workloads perante a tabela;
+não comprova criação efetiva, desempenho, DCUs ou custo real. A sonda demonstra lacunas nas
+asserções, sem afirmar que todos esses valores também passariam pelo provider. Os demais
+assuntos das rodadas anteriores estão fora do escopo. Este parecer não encerra formalmente
+pendências nem substitui o aceite do Owner ou autoriza execução.
+
 | # | Onde | Achado | Veredito | Situação |
 |---|---|---|---|---|
 | RVPC-1-01 | PLANO §6.2 e §6.7 passos 4–5; `aplicacoes_gke.tf:25` | **Alta — falta revisão do plano real das aplicações.** Exigir complemento de terça sobre `09_aplicacoes` antes do apply dos releases. Revisão de código antecipada não encerra esse pré-requisito. Os planos reais seguintes devem manter os releases sem alteração e os incrementos previstos. | bloqueante || **Aceito.** `PLANO_etapa_13.md` §6.7 ganhou o **passo 4a**: o texto real de `09_aplicacoes.txt` vai ao Codex antes do passo 5 (contagem `2/0/0`, valores, versões dos *charts*, sensíveis), e sem o parecer o passo 5 não roda; os planos reais da §6.8 e §6.9 seguem as contagens incrementais, e divergência dos `_revisao` volta ao Codex. |
@@ -795,4 +900,5 @@ autorização de execução decorrente deste parecer.
 | RVPC-1-03 | `composer.tf:153`; plano Composer `:273`; Capacidade §2.14 | **Média — `ENVIRONMENT_SIZE_SMALL` não declara o preset usado na estimativa.** Fixar workloads e limites correspondentes ou demonstrar equivalência dos defaults da API; o plano atual não prova essa correspondência. | ajuste || **Corrigido.** As páginas oficiais não publicam os valores por componente dos *presets* (`environment-scaling` e `scale-environments` só dão DAGs e tarefas por *preset*); a estimativa se apoia no exemplo oficial de `create-environments` (Registro §6). `workloads_config` declarado com esses valores (*scheduler* 0,5/2,5/2, *triggerer* 0,5/0,5, *DAG processor* 1/2/1, *web server* 1/2,5/2, *workers* 1/2/2 de 2 a 4); guarda `test_o_composer_declara_os_componentes_da_estimativa`. `10_composer_revisao` regerado: `29 a criar, 0 a alterar, 0 a destruir`, com o bloco no plano. |
 | RVPC-1-04 | `gke.tf:56–57`; plano GKE `:200`, `:214`, `:471` | **Baixa — criação/remoção transitória de pool padrão evitável.** O argumento depreciado continua documentado como funcional. Na versão informada, omitir ambas as atribuições ou usar contagem zero sem o argumento; não deixar contagem um ao retirar só a flag. | observação || **Mantido, por recomendação do autor.** O argumento segue documentado como funcional no *provider* 8.10.0 (travado no `.terraform.lock.hcl`); o custo é um nó transitório por minutos na criação. Trocar agora levaria o `apply` de terça para um caminho não ensaiado (sem *pool* padrão, dependente da versão do canal). Nota no Registro §45. |
 | RVPC-2-01 | `terraform/composer.tf:172–175`; `10_composer_revisao.txt:256`, `:286–289`; `tests/test_composer_ambiente.py:152–157` | **Alta — memória do triggerer inválida para Airflow 3.** A correção de RVPC-1-03 fixa 0,5 GB, mas o serviço exige no mínimo 2 GB nessa versão. O plano incorpora o valor e a guarda não o verifica. Corrigir a memória, proteger os valores por componente e regerar/revisar o plano antes do apply do Composer. | bloqueante || **Corrigido.** Confirmado na tabela oficial (scale-environments#resource-limits): *Triggerers* `1 (2 in Airflow 3)` GB de memória mínima, o mesmo piso de *schedulers*, *workers* e *DAG processors*. O exemplo oficial copiado traz 0,5 GB; o `composer.tf` passou a 2 GB, com a exceção comentada. A guarda nova `test_cada_componente_cabe_nos_limites_do_airflow_3` confere, por componente, vCPU, memória mínima do Airflow 3, memória por vCPU (1–8), armazenamento (≤100) e quantidades; com o 0,5 GB de volta ela falhou só em `[triggerer]`. `10_composer_revisao` regerado (13:02): `29 a criar, 0 a alterar, 0 a destruir`, `triggerer` com `memory_gb = 2`. Efeito no custo: +1,5 GB num componente; não calculado em DCU, fica para a fatura. |
+| RVPC-3-01 | `tests/test_composer_ambiente.py:156–193` | **Média — guarda não cobre todos os limites oficiais.** Aceita CPU/memória fora dos passos, scheduler acima de 8 GB, storage fracionário/negativo e quantidade fracionária. Completar os limites e impedir que o extrator descarte sinais. Declarativo e plano atuais válidos na conferência da tabela; lacuna na proteção contra regressão. | ajuste || **Corrigido.** `LIMITES_AIRFLOW_3` passou a ter a tabela inteira: regra de valores de CPU (múltiplo de 0,5 no *scheduler* e no *triggerer*; 0,5, 1 ou par nos demais), faixa de memória com teto próprio (8 GB no *scheduler*), passo de 0,25 GB, 1–8 GB por vCPU, armazenamento de 0 a 100 em passos de 1 (e só onde existe), quantidades inteiras. O extrator lê qualquer valor (`\S+`) e falha em `float` em vez de descartar o sinal. Os seis casos da sonda e o controle da rodada 2 viraram `test_a_guarda_recusa_o_que_a_tabela_recusa` (7 casos, todos recusados); `tests/test_composer_ambiente.py`: 23 passed. Declarativo e plano sem mudança. |
 

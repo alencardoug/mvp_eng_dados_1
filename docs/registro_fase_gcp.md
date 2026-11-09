@@ -1867,7 +1867,7 @@ connection is transitive", página de interfaces PSC); os pacotes têm prova ant
 O `10_composer_revisao` foi regerado depois do `apply` do `12`: `29 a criar, 0 a alterar, 0 a
 destruir`.
 
-**A rodada 2, de regressão (12:53 → 13:00)** [medido]: "Mudanças necessárias" — RVPC-1-01 e -02
+**A rodada 2, de regressão (12:57 → 13:00)** [medido]: "Mudanças necessárias" — RVPC-1-01 e -02
 resolvidos, RVPC-1-04 mantido sem erro de fato, e **um bloqueante novo nascido da correção do
 RVPC-1-03** (RVPC-2-01): o exemplo oficial copiado traz um *triggerer* de 0,5 GB, e a tabela de
 limites do Composer 3 pede no mínimo `2 in Airflow 3`. O plano aceitava o valor (o *provider* não
@@ -1875,3 +1875,10 @@ confere limites do serviço), e a guarda só olhava os nomes dos componentes. A 
 oficial não é um valor válido para outra versão. O *triggerer* passou a 2 GB; a guarda nova confere
 cada componente contra a tabela oficial (falhou só no *triggerer* com o 0,5 GB de volta); o
 `10_composer_revisao` regerado às 13:02 deu `29 a criar, 0 a alterar, 0 a destruir`.
+
+**A rodada 3, estreita (13:05 → 13:09)** [medido]: os valores do `workloads_config` e o plano
+regerado cabem na tabela oficial, sem bloqueante; um ajuste (RVPC-3-01) na **guarda**, que só
+conferia faixas: uma sonda do Codex mostrou seis valores inválidos que passavam (CPU fora do passo,
+*scheduler* acima do teto de 8 GB, memória e armazenamento fora do passo, armazenamento negativo —
+o extrator descartava o sinal —, quantidade fracionária). A guarda passou a ter a tabela inteira, e
+os seis casos, com o *triggerer* da rodada 2, viraram testes negativos: todos recusados.
