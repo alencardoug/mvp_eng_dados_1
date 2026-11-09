@@ -1706,3 +1706,8 @@ republicada (versão 2):
   provada pela estatística do *job* (`materializedViewStatistics`: `chosen: true`, 44.896 bytes); o
   4.4 sem afirmar armazenamento grátis; os "Confira" do BigQuery ML reescritos pelos números; o
   exercício 4.0 para recomeçar o bloco; 1,24 GiB, não 1,26.
+
+**Rodada 2, de regressão (`high`)**: os onze achados resolvidos, nenhum reaberto, e uma observação
+(RV0811-2-01): as medidas refeitas em 09/11 ainda levavam o selo "medido em 08/11". Corrigida no
+gerador, a página foi republicada (versão 3), e a revisão foi fechada sem rodada 3, por ser a única
+pendência uma observação documental já tratada.

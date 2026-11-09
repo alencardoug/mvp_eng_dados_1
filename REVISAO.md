@@ -568,3 +568,131 @@ regeneração; este parecer não alterou essas fontes nem o HTML.
 | RV0811-1-10 | `data/medicoes/estudo_gcp/consultas.py:154`–`:175` | **Média.** A repetição recria base/clone mas conserva o snapshot anterior por `IF NOT EXISTS`; o resultado prometido em 4.6 deixa de ser garantido. Explicitar preparo/reset e a repetição de 4.4/4.7. | ajuste || Corrigido. Exercício 4.0 (DROP da view, do snapshot, do clone e da restaurada) para recomeçar o bloco, reexecutado: 4.6 voltou a mostrar original e retrato iguais. |
 | RV0811-1-11 | `data/medicoes/estudo_gcp/gerar_pagina.py:72` | **Baixa.** 1.264,9 MiB são aproximadamente 1,24 GiB, não 1,26 GiB. Corrigir a conversão no texto gerador. | observação || Corrigido no gerador: 1,24 GiB. |
 
+## Rodada 2 — regressão
+
+### 1. Conclusão
+
+**Nenhum bloqueante no escopo revisado.** Os onze achados da rodada 1 estão **resolvidos**
+no alcance desta revisão. As correções não reabriram achado anterior. Resta **uma observação
+documental**, RV0811-2-01, sobre a data atribuída às medidas reexecutadas: **0 bloqueantes,
+0 ajustes e 1 observação**. Essa observação ainda está aberta; este parecer não registra o
+encerramento da revisão.
+
+A conclusão é sobre as correções e suas regressões. Não equivale a aceite do M6, prova da
+paridade dos armazéns ou validação operacional dos comandos de nuvem. D84–D87, opção (a),
+escopo integral, projeto de estudo separado e Spark na nuvem foram mantidos como decisões
+vigentes.
+
+### 2. Escopo e versão
+
+- **A — Git:** `1f85574..8fc7185`, exclusivamente os commits `31676ad` e `8fc7185`.
+  `HEAD` conferido: `8fc718559287fe9a063459161d7aced636964e5e`; árvore inicialmente limpa.
+  Leitura integral do diff, incluindo a resposta do autor na tabela da rodada 1, e confronto
+  entre comparador, testes, D85, Plano §6.8 passo 18/§7.2 e Registro §41–§43.
+- **B — ignorado pelo Git:** os **16 arquivos** atualmente em `data/medicoes/estudo_gcp/`,
+  incluindo os quatro de `evidencias/`. Hash SHA-256 do conjunto:
+  `f3bdde25efa2ddf54f55a60058d6ee1a2a4909c5c2abcc8b914c2bd96446c150`.
+  Mesmo método da rodada 1: nomes relativos à pasta, ordenados; concatenação de
+  `nome`, TAB, SHA-256 hexadecimal do arquivo, LF, codificada em UTF-8. Em particular:
+  `resultados.json` = `f4fbb03a185dec2a2d067a6836edcc370a3900c836e588ab77e4e2bcb039afa7`;
+  `laboratorio_gcp.html` = `1cb9bc747c540ca4f665465fec61186ee01386a48d6e80c14f4a8b4331f19b64`;
+  `gerar_pagina.py` = `419f741c6b36143487fb6c1bca1cab9b3f69dc2f11b75360634e8eec691838ad`;
+  `limpeza.sh` = `e1db3a86d867a56f044481a4ec0ad41e23f66d12700566bbcce1cb8bddadf0ee`.
+  O HTML local foi confrontado com as fontes; a publicação privada como versão 2 é
+  informação do autor, não uma publicação acessada nesta revisão.
+- Revisão em **09/11/2026**, restrita à resolução dos achados anteriores e às regressões
+  das correções. Somente `REVISAO.md` foi editado no projeto. A geração autorizada ocorreu
+  numa cópia em `/tmp/rv0811-2-_fw0o983/estudo_gcp/`.
+
+### 3. Estado de RV0811-1-01…11
+
+Os caminhos abreviados do laboratório abaixo são relativos a `data/medicoes/estudo_gcp/`.
+
+| Achado anterior | Estado | Evidência e alcance |
+|---|---|---|
+| RV0811-1-01 | resolvido | `src/mvp_ed1/gcp/oraculo.py:79`, `:126`, `:140`; `tests/test_oraculo_consumo.py:53`. `_versions` ficou fora da isenção; a contagem histórica só é isenta quando o objeto existe nos dois lados. Os testes reprovam migrações 2×1, snapshot só local e `raw_legacy` só na nuvem. D85 em `docs/pendencias.md:277` declara a mesma regra. |
+| RV0811-1-02 | resolvido | `src/mvp_ed1/gcp/oraculo.py:80` lista os três objetos históricos de `trusted`, sem isentar o schema inteiro; teste em `tests/test_oraculo_consumo.py:42`. Lista alinhada com `PLANO_etapa_13.md:1015`/`:1345`, `docs/pendencias.md:277` e Registro em `docs/registro_fase_gcp.md:1682`. A narrativa original do §41 recebe ressalva explícita em `:1618`. A prova própria da memória permanece no passo 19 (`PLANO_etapa_13.md:1019`), sem ter sido executada nesta rodada. |
+| RV0811-1-03 | resolvido | `consultas.py:289`, `:299`, `:309`, `:328`, `:333`: materialização prévia das amostras, sem inferência durante a seleção limitada; 7.1/7.2 leem `amostra_produtos`, 7.4b lê `produtos_texto`. `gerar_pagina.py:200` distingue cobrança Vertex dos bytes SQL. O JSON registra 940 bytes/10 saídas em 7.1 e 1.060 bytes/5 saídas em 7.2; esses números não foram tratados como medição de tokens ou contagem de chamadas. |
+| RV0811-1-04 | resolvido | `limpeza.sh:5`, `:14`, `:19` inclui encerramento, exclusão e conferência; `spark_interativo.py:24`/`:31` protege a consulta com `try/finally`. `gerar_pagina.py:366`–`:372` informa expressamente que terminate/delete não foram exercitados. `evidencias/saidas_do_terminal.md:124` registra a reexecução com sessão pronta em 47 s, total 64 s e estado `TERMINATING`, sem confundi-lo com prova de estado final `TERMINATED`. A ausência de execução dos caminhos declarados não exercitados não é achado nesta rodada, conforme o limite solicitado. |
+| RV0811-1-05 | resolvido | `gerar_pagina.py:287`–`:297` troca RDD por `F.spark_partition_id()` e mantém o exercício como não executado. A API escolhida suporta Spark Connect; não houve execução de Spark local ou remoto por este revisor. |
+| RV0811-1-06 | resolvido | `modelo.html:114`, `gerar_pagina.py:379`/`:394` e `docs/registro_fase_gcp.md:1656` distinguem SQL, comandos adaptados e Python fora do notebook. O HTML contém seis selos de adaptação, três de execução fora do notebook e quatro de não execução; 5.5 informa teste pela API (`gerar_pagina.py:165`) e 11.1 explicita sua prova parcial (`:371`). A nova divergência de data das medidas é registrada separadamente em RV0811-2-01. |
+| RV0811-1-07 | resolvido | `evidencias/spark_lote_gcloud.txt:37`/`:62`: 2.211 linhas/2m50,962s; `evidencias/spark_lote_driveroutput.txt:22`/`:47`: plano e seis líderes mensais pedidos pelo exercício. `evidencias/saidas_do_terminal.md:18`, `:56`, `:68`, `:124`: uso do lote, Cloud Run/Scheduler, Dataplex e sessão refeita. `gerar_pagina.py:282` agora cita 47 s/64 s, não os 126 s da execução anterior. As medidas antes sem fonte têm saídas consultáveis. |
+| RV0811-1-08 | resolvido | `rodar.py:39`–`:45` preserva bytes exatos e estatística da view. `resultados.json:771` registra 44.896 bytes e `chosen: true`; 4.8 registra `NO_DATA` e 2,4 MiB. `gerar_pagina.py:131`–`:144` separa consulta de armazenamento não medido e explica a diferença das duas leituras. O zero arredondado deixou de ser a prova da reescrita. |
+| RV0811-1-09 | resolvido | `gerar_pagina.py:177`–`:192` descreve a divergência das previsões e a separação entre pesos categóricos/numéricos, limitando a interpretação ao modelo e às variáveis avaliadas. Recontagem das amostras: diferenças de 3,55% e 0,55% nos dois primeiros dias, máximo de 78,96%; pesos categóricos 0,1147–0,1149 e numéricos 0,0001–0,0012. |
+| RV0811-1-10 | resolvido | `consultas.py:154`–`:157` remove view, snapshot, clone e restaurada; `gerar_pagina.py:122` manda executar esse preparo antes de repetir o bloco. O JSON contém 4.0 com sucesso e 4.6 com original/retrato 9.231.974 e clone 18.463.947, compatíveis com o dobro antes do arredondamento. A sequência agora declara o reset necessário; o SQL não foi reexecutado pelo revisor. |
+| RV0811-1-11 | resolvido | `gerar_pagina.py:73`: 1,24 GiB. A medida continua em 1.264,9 MiB; divisão por 1.024 = 1,23525390625 GiB. O HTML reproduz a correção. |
+
+### 4. Achados
+
+| # | Onde | Achado | Veredito | Situação |
+|---|---|---|---|---|
+| RV0811-2-01 | `data/medicoes/estudo_gcp/gerar_pagina.py:421`, `:127`; artigo 4.2 de `laboratorio_gcp.html` | **Baixa.** As medidas reexecutadas em 09/11 continuam recebendo o selo fixo **“medido em 08/11”**. No próprio 4.2, o selo atribui 26 MiB/28 MiB/7,3 s a 08/11 e o “Confira” atribui as 154.487/181.798 linhas da mesma entrada a **09/11**. A reexecução dos blocos 4 e 7 introduziu essa divergência de rastreabilidade. Ajustar a data exibida às medições correspondentes nas fontes e regenerar o HTML. Não há divergência dos valores numéricos conferidos. | observação || Corrigido. `gerar_pagina.py` data cada medida pela execução que a produziu (`data_da_medida`: as entradas refeitas em 09/11 são as que gravaram `bytes_proc`); regenerado: 1.4 diz 08/11, e 4.2, 4.9, 7.1 e 7.4b dizem 09/11, com o selo e o "Confira" do 4.2 concordando. Página republicada (versão 3). |
+
+Evidência de RV0811-2-01: leitura do gerador e extração do texto dos artigos do HTML por
+`html.parser.HTMLParser`, sem executar os comandos publicados:
+
+```text
+4.2 data 08/11: True data 09/11: True
+4.9 data 08/11: True data 09/11: False
+7.0 data 08/11: True data 09/11: False
+7.1 data 08/11: True data 09/11: False
+7.2 data 08/11: True data 09/11: False
+7.4b data 08/11: True data 09/11: False
+```
+
+O primeiro caso demonstra a contradição no mesmo exercício; os demais exemplificam o selo
+fixo aplicado aos blocos reexecutados. Nenhum outro achado foi reaberto.
+
+### 5. Verificações executadas
+
+- Leitura das regras de `CLAUDE.md`, do mapa no README e da skill local
+  `.claude/skills/revisao/SKILL.md`; preservação integral do parecer da rodada 1 e das
+  respostas do autor. Leitura do diff dos dois commits e das declarações/evidências
+  relacionadas aos onze achados, com os confrontos indicados na tabela acima.
+- Comando autorizado:
+
+  ```text
+  .venv/bin/python -m pytest -q tests/test_oraculo_consumo.py tests/test_composer_cli.py
+  ................................                                         [100%]
+  32 passed in 0.10s
+  ```
+
+  São testes locais; não demonstram paridade real nem execução do `gcp-oraculos` na janela.
+- `bash -n data/medicoes/estudo_gcp/limpeza.sh` e
+  `git diff --check 1f85574..8fc7185`: sem saída, código 0.
+- SHA-256 dos 16 arquivos originais antes da reprodução; cópia para o diretório temporário
+  indicado na §2 e execução de `python3 -I gerar_pagina.py` **somente nessa cópia**:
+
+  ```text
+  exercícios: 68 · bytes: 87766
+  HTML reproduzido idêntico: True
+  exercícios HTML: 68
+  11.1 igual ao fonte: True
+  IDs CONSULTAS = JSON: True
+  selos: {'não rodado por mim': 4, 'rodou adaptado, fora do Cloud Shell': 6, 'rodou fora do notebook': 3}
+  ```
+
+  A identidade foi comparada em bytes; o texto “bytes” da primeira linha é a saída literal
+  do gerador. O original não foi regenerado.
+- Análise de sintaxe em memória dos sete fontes Python e dos quatro snippets Python
+  publicados, retirando apenas as linhas mágicas `%pip` para analisar os snippets.
+  Confronto das **51 entradas**, todas com `ok: true`, com os IDs declarados; verificação
+  dos bytes exatos, estatísticas da materialized view, amostras dos blocos 4/7 e das
+  interpretações alteradas de ML. Conferência das saídas literais adicionadas em
+  `evidencias/`, inclusive 1.137.600 milli-DCU-segundos = 0,316 DCU-hora, arredondados
+  para 0,32 na página. Esses são exames dos registros recebidos, não medições remotas
+  novas.
+- **Duas páginas oficiais consultadas**, sem outras páginas externas: a referência de
+  [AI.GENERATE, controle de custo](https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-generate#manage_inference_costs),
+  que recomenda materializar a entrada para limitar as linhas inferidas; e a referência de
+  [spark_partition_id](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.spark_partition_id.html),
+  que documenta suporte a Spark Connect desde 3.4.0. Não foram revalidados preços,
+  disponibilidade dos modelos nem outros comportamentos dos serviços.
+
+Não foram executados `make`, Docker, gcloud, bq, Terraform, dbt, `uv sync`, serviços,
+consultas a banco ou comandos da página contra GCP; não foi lido conteúdo de `.env`.
+Terminate/delete de 11.1, itens de console, notebook/Cloud Shell, estado final dos recursos,
+faturamento e publicação privada permanecem não exercitados por este revisor. A página
+declara os limites operacionais pertinentes; sua falta de execução não foi convertida
+em achado. O parecer não altera a infraestrutura nem encerra pendências do Owner.
+
