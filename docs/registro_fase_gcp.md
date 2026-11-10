@@ -1941,3 +1941,47 @@ as correções aos arquivos, com a sugestão de quando fazer cada parte.
   O Artifact anterior pertence à outra conta, que esta sessão não enxerga; a versão nova saiu num
   Artifact separado, apagado no mesmo dia a pedido do Owner — vale o da outra conta, e a fonte em
   `data/medicoes/estudo_gcp/laboratorio_gcp.html` republica em link novo se preciso.
+
+## 48. O roteiro de terça parado pela conta de faturamento fechada (10/11/2026)
+
+O roteiro da §6.7 do `PLANO_etapa_13.md` começou às 11:29, com o Claude Code rodando os passos que só
+leem e o `apply` reservado ao Owner, depois da leitura do plano.
+
+**Antes do passo 1 (11:27)** [medido]: Docker parado (só o *socket* ativo), 8 GB de memória
+disponível, portas 18001 e 15432 livres. O material de estudo de 09/11 (§47) foi publicado antes, em
+`2903bef`, com o Owner autorizando.
+
+**Passo 1 — `make gcp-preflight`** (11:29) [medido]: `gcp-preflight: projeto mvp-ed1-gcp nos três
+lugares`.
+
+**Passo 2 — `make gcp-plan NOME=08_gke VARS="enable_cloud_sql=true enable_gke=true"`** (11:29 →
+11:30) [medido]: a linha `Plan: 11 to add, 0 to change, 0 to destroy.` apareceu, a contagem do
+roteiro, mas o alvo terminou em `Erro 1`. O texto do plano mostra dois `Error 403` do Secret Manager
+ao ler `mvp-ed1-source-db-password` e `mvp-ed1-legacy-db-password`: `This API method requires
+billing to be enabled`, `reason: BILLING_DISABLED`. Pela regra 2 da §6.6, nada foi aplicado e o
+passo 3 não roda.
+
+**O diagnóstico** (11:31–11:35) [medido, só leituras]:
+
+- `gcloud billing projects describe mvp-ed1-gcp`: `billingEnabled: true`, conta `0199D3-…`;
+- `gcloud billing accounts describe 0199D3-…`: **`open: false`** — a conta de faturamento está
+  fechada. O vínculo do projeto continua de pé, mas as APIs pagas já recusam;
+- `gcloud secrets describe` repetido: o mesmo `BILLING_DISABLED`;
+- projeto `ACTIVE`; Cloud SQL `mvp-ed1-origens` ainda `RUNNABLE`;
+- nenhuma entrada de auditoria de faturamento no projeto nos últimos 3 dias. O motivo do fechamento
+  não aparece pelo projeto: só a consola da conta de faturamento o mostra [a medir];
+- ruído, sem relação: um `429` da `cloudbilling.googleapis.com` com o consumidor `32555940559`,
+  que não é projeto da conta — é a cota compartilhada do cliente do `gcloud`. Com
+  `--billing-project=mvp-ed1-gcp`, a mesma consulta respondeu.
+
+**O plano que falhou foi isolado.** O `terraform plan` escreveu o `08_gke.tfplan` mesmo terminando em
+erro, e o `gcp-plan` só renomeia para `.recusado` quando a guarda recusa, não quando o próprio `plan`
+falha. Um `gcp-apply NOME=08_gke` aplicaria o plano de uma leitura incompleta. O binário virou
+`08_gke.tfplan.recusado`, e o texto, `08_gke_falhou_faturamento.txt`. **Achado no declarativo,
+corrigido com o Owner autorizando:** o `gcp-plan` agora trata a falha do `plan` como trata a recusa
+da guarda, e `test_o_plan_que_falha_tambem_vira_recusado` roda a receita com um Terraform falso que
+grava o binário e sai com erro (falha na receita antiga, passa na nova).
+
+**Estado às 11:35:** roteiro parado no passo 2; nada criado hoje. O Cloud SQL de segunda continua de
+pé. Se a conta continuar fechada, o que o Google faz com os recursos do projeto e em que prazo não foi
+verificado [a medir]. Depende do Owner: abrir a conta na consola, ver o motivo e reabrir.
