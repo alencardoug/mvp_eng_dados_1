@@ -31,6 +31,10 @@ resource "helm_release" "debezium" {
   create_namespace = true
 
   values = [yamlencode({
+    # A imagem lida do `values.yaml` do *chart* e passada aqui (RVT-2-01): o *chart* local não muda de
+    # versão, e sem isso trocar só o *digest* no arquivo daria `No changes` — o `helm_release` não lê
+    # os padrões do *chart*. Assim a renovação da D88 aparece no plano como 1 a alterar.
+    imagem       = yamldecode(file("${path.module}/charts/debezium-server/values.yaml")).imagem
     contaDePapel = google_service_account.role["streamer"].email
     # Gerado de streaming/connectors/inventory_movements.yml; o teste confere que está em dia.
     propriedades = file("${path.module}/../streaming/debezium_server/application.properties")
@@ -76,7 +80,15 @@ resource "helm_release" "airbyte" {
     }),
   ]
 
-  depends_on = [google_container_node_pool.this, google_service_account_iam_member.identidade_do_cluster]
+  # O destino escreve no `airbyte_internal` com o papel de criar *dataset* (abaixo): com a dependência,
+  # o desmonte desinstala o Airbyte **antes** de apagar o armazenamento e tirar a permissão dele, e
+  # não em paralelo (RVT-2-02).
+  depends_on = [
+    google_container_node_pool.this,
+    google_service_account_iam_member.identidade_do_cluster,
+    google_bigquery_dataset.airbyte_internal,
+    google_project_iam_member.ingestor_criar_dataset,
+  ]
 }
 
 # ── O destino BigQuery do Airbyte (D72; Registro §49) ────────────────────────────────────

@@ -138,3 +138,17 @@ def test_o_ingestor_tem_o_post_de_dataset_e_o_airbyte_internal_e_declarado():
     assert re.search(r"removed \{\n  from = google_bigquery_dataset_access\.airbyte_internal\n\n  lifecycle \{\n    destroy = false", tf)
     for nome in ("criar_dataset", "ingestor_criar_dataset", "airbyte_internal"):
         assert re.search(rf'"{nome}" \{{\n  count = local\.aplicacoes \? 1 : 0', tf)
+
+
+def test_a_imagem_do_debezium_e_entrada_do_release_e_o_airbyte_sai_antes_do_seu_dataset():
+    """RVT-2-01: o digest trocado no values.yaml chega ao plano; RVT-2-02: a ordem do desmonte."""
+    import pathlib
+    import re
+
+    tf = (pathlib.Path(__file__).resolve().parent.parent / "terraform" / "aplicacoes_gke.tf").read_text(encoding="utf-8")
+    debezium = tf.split('resource "helm_release" "debezium" {', 1)[1].split("\n}\n", 1)[0]
+    assert re.search(r'imagem += yamldecode\(file\("\$\{path\.module\}/charts/debezium-server/values\.yaml"\)\)\.imagem', debezium)
+    airbyte = tf.split('resource "helm_release" "airbyte" {', 1)[1].split("\n}\n", 1)[0]
+    dependencias = airbyte.split("depends_on = [", 1)[1].split("]", 1)[0]
+    assert "google_bigquery_dataset.airbyte_internal" in dependencias
+    assert "google_project_iam_member.ingestor_criar_dataset" in dependencias

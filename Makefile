@@ -1459,7 +1459,10 @@ gcp-evidencias: gcp-preflight ## Antes do desmonte: o que só a nuvem tem, em da
 	item() { nome="$$1"; shift; if "$$@" > "$$d/$$nome" 2> "$$d/$$nome.erro"; then rm -f "$$d/$$nome.erro"; echo "ok $$nome" >> "$$d/manifesto.txt"; \
 		else rc=1; echo "FALHOU $$nome" >> "$$d/manifesto.txt"; fi; }; \
 	{ echo "commit $$(git rev-parse HEAD)"; echo "instante $$quando"; echo "projeto $$GCP_PROJECT_ID"; } > "$$d/manifesto.txt"; \
-	for ds in $$($(GCP_TF) output -json datasets | .venv/bin/python -c 'import json,sys; print(" ".join(json.load(sys.stdin)))') airbyte_internal; do \
+	lista=$$($(GCP_TF) output -json datasets | .venv/bin/python -c 'import json,sys; print(" ".join(json.load(sys.stdin)))') && test -n "$$lista" \
+		&& echo "ok enumeracao_datasets: $$lista" >> "$$d/manifesto.txt" \
+		|| { echo "FALHOU enumeracao_datasets (sem ela, só o airbyte_internal; RVT-2-03)" >> "$$d/manifesto.txt"; lista=; }; \
+	for ds in $$lista airbyte_internal; do \
 		for vista in TABLES COLUMNS; do \
 			item "bq_$${ds}_$$vista.json" bq query --project_id="$$GCP_PROJECT_ID" --use_legacy_sql=false --format=json --max_rows=100000 \
 				"select * from \`$$GCP_PROJECT_ID.$$ds.INFORMATION_SCHEMA.$$vista\`"; \
@@ -1472,7 +1475,7 @@ gcp-evidencias: gcp-preflight ## Antes do desmonte: o que só a nuvem tem, em da
 	cat "$$d/manifesto.txt"; grep -q '^FALHOU' "$$d/manifesto.txt" && rc=1 || rc=0; \
 	test $$rc = 0 && echo "gcp-evidencias: $$d" || echo "ERRO: item que falhou acima (o .erro ao lado diz por quê)"; exit $$rc
 
-gcp-debezium-digest: ## Quarta, 07:00, antes de tudo: o digest do Debezium no values.yaml contra o vigente no quay.io (RVT-1-01); só lê; sai 3 se for preciso trocar
+gcp-debezium-digest: ## Quarta, 07:00, antes de tudo: o digest do Debezium no values.yaml contra o vigente no quay.io (RVT-1-01); só lê; guie-se pela mensagem (vigente, TROCAR ou ERRO): o make devolve 2 a qualquer falha
 	@.venv/bin/python -m mvp_ed1.gcp.imagem_debezium
 
 gcp-gke-versao: gcp-preflight require-kubectl ## Terça, depois do apply do cluster: as versões do plano de controle e do kubectl, dentro da folga de uma versão menor

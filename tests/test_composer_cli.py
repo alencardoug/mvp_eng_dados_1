@@ -212,3 +212,11 @@ def test_o_digest_do_debezium_e_lido_do_values_e_comparado_com_a_tag_ativa():
     for ruim in ({"tags": []}, {"tags": [{"name": tag, "manifest_digest": a, "end_ts": None}] * 2}):
         with pytest.raises(ValueError):
             im.vigente(ruim, tag)
+
+
+def test_a_exportacao_acusa_a_enumeracao_dos_datasets_que_falha():
+    """RVT-2-03: sem a lista das camadas, o manifesto diz FALHOU e o alvo não sai com sucesso."""
+    receita = MAKEFILE.split("\ngcp-evidencias:", 1)[1].split("\n\n", 1)[0]
+    assert "for ds in $$lista airbyte_internal; do" in receita
+    assert receita.index('test -n "$$lista"') < receita.index("for ds in $$lista")
+    assert 'echo "FALHOU enumeracao_datasets' in receita and "grep -q '^FALHOU'" in receita
