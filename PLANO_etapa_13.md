@@ -517,16 +517,24 @@ passos sem Terraform são alvos `gcp-desmonte-*`, e cada um falha dizendo o que 
 
 1. **Parar quem produz** — `make gcp-desmonte-parar`:
    - drena o *job* Dataflow pelo `gcp-dataflow-parar` (`gcloud dataflow jobs list --status=active`
-     vazio);
+     vazio), e prova que a assinatura de *watermark* que o Dataflow cria em tempo de execução
+     (`…beam__df_internal…`, fora do Terraform) saiu — drenado, ela sai sozinha (Registro §49);
+     cancelado, o alvo apaga **só** a de prefixo exato e prova (RVT-1-04);
    - pausa as DAGs e recusa seguir com execução em curso;
    - **desliga o fluxo das *policy tags*** (`gh variable set MVP_GCP_ATIVO --body false`, D79). Sem
      isso, o próximo *push* do YAML tentaria autenticar num projeto apagado.
 
    O produtor para no terminal dele.
-2. **Composer** e o *bucket* dele (`force_destroy`), com o IAM do Dataflow:
+2. **Composer** e o *bucket* dele (`force_destroy`), com o IAM do Dataflow — desde 10/11, **7**
+   recursos, não 4: os 4 de antes, o papel próprio `mvpRastreioWatermark`, o vínculo dele e o
+   `subscriber` no tópico de eventos (Registro §49; contagem pela declaração, não por plano medido):
    `make gcp-plan PASSO=2` (`20_desmonte_composer`).
-3. **Debezium Server** e **Airbyte** (`helm uninstall`) com a API do Kubernetes ainda disponível:
-   `make gcp-plan PASSO=3` (`21_desmonte_aplicacoes`). Depois, o *slot* de replicação **removido
+3. **Debezium Server** e **Airbyte** (`helm uninstall`) com a API do Kubernetes ainda disponível.
+   Antes, `make gcp-airbyte-ativos`: nenhum *job* do Airbyte em curso — interromper o cliente não
+   interrompe o *job* remoto (Registro §49, passo 12), e o degrau leva o `airbyte_internal` **com
+   conteúdo** (RVT-1-04). O degrau tem, desde 10/11, **6** recursos: os 2 *releases*, o papel próprio
+   `mvpCriarDatasetAirbyte`, o vínculo dele e o *dataset* `airbyte_internal` com a lista de acesso
+   declarada inteira (pela declaração): `make gcp-plan PASSO=3` (`21_desmonte_aplicacoes`). Depois, o *slot* de replicação **removido
    no Cloud SQL** (`pg_drop_replication_slot`) enquanto o Cloud SQL existe:
    `make gcp-desmonte-slot`.
 4. **PVCs e PVs**: `make gcp-desmonte-kubernetes` apaga os *namespaces* e prova que nenhum PV nem
@@ -544,12 +552,18 @@ passos sem Terraform são alvos `gcp-desmonte-*`, e cada um falha dizendo o que 
    - `make gcp-desmonte-linhagem` apaga os processos da Data Lineage API. Recusa sem a captura de
      tela do G5;
    - em seguida, `make gcp-plan PASSO=8` (`24_desmonte_barato`). O *peering* dos serviços
-     privados sai com `REMOVE_PEERING` (`terraform/rede.tf`).
+     privados sai com `REMOVE_PEERING` (`terraform/rede.tf`). O degrau ganhou, em 10/11, o `viewer`
+     do `streamer` na assinatura `beam` (1 recurso, pela declaração).
 9. **Inventário de resíduos** (`gcloud asset search-all-resources --scope=projects/<id>`) —
    `make gcp-desmonte-inventario`:
    - esperado vazio, salvo a **lista identificada** do que o projeto cria por padrão
      (`src/mvp_ed1/gcp/residuos_esperados.yml`, medida em 08/11);
-   - cada item fora dela tem ação e prova, não só registro.
+   - cada item fora dela tem ação e prova, não só registro;
+   - os dois papéis próprios de 10/11 (`mvpRastreioWatermark`, `mvpCriarDatasetAirbyte`) saem nos
+     passos 2 e 3 como **apagados**, não como sumidos: o GCP os guarda e reserva o `role_id` por um
+     tempo. Se o inventário os devolver, é o nome exato, o estado apagado e nenhum vínculo restante
+     — anotado no Registro, sem alargar a lista do esperado para aceitar todo papel (RVT-1-07). Não
+     foi medido se o `search-all-resources` devolve papel apagado.
 10. **Orçamento** apagado da conta de faturamento (não sai com o projeto):
     `make gcp-plan PASSO=10` (`25_desmonte_raiz`, `-destroy`). Depois,
     `make gcp-desmonte-orcamento`.
@@ -1138,6 +1152,20 @@ regra de falha da §6.6.
 make gcp-preflight
 ```
 
+**Passo 1a — o *digest* do Debezium (D88).** O quay.io republica a *tag* toda noite e apaga o
+manifesto anterior (Registro §48).
+
+```
+make gcp-debezium-digest
+```
+
+`vigente`: siga. `TROCAR` (sai 3): o Claude Code põe o *digest* que a linha mostra no
+`terraform/charts/debezium-server/values.yaml` (*commit*), e o `09_aplicacoes` o leva ao *cluster* —
+`make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"`,
+que deve dar `0 a criar, 1 a alterar, 0 a destruir`, e `make gcp-apply NOME=09_aplicacoes`. O pod é
+recriado e retoma dos *offsets* (provado na terça, §6.8 passo 24); `make gcp-debezium-status` confere.
+O *digest* novo vale até ~21:50; as provas terminam às 21:00, e o desmonte não baixa imagem.
+
 **Passo 2 — o plano do Composer.**
 
 ```
@@ -1145,7 +1173,8 @@ make gcp-plan NOME=10_composer VARS="enable_cloud_sql=true enable_gke=true enabl
 ```
 
 Deve dar `14 a criar, 0 a alterar, 0 a destruir`: os 14 do Composer dentro dos 36 do Registro §28.
-Leia o plano.
+Os 36 são o *baseline* de 07/11; as correções de 10/11 (Registro §49) já estão no estado e **não** se
+somam ao incremental (RVT-1-04). Leia o plano.
 
 **Passo 3 — aplicar.** O ambiente leva uns 25 minutos para nascer, e a parte cara começa aqui.
 
@@ -1277,7 +1306,15 @@ make gcp-jobs-auditoria
 Agora são quatro *jobs* da conexão legada e quatro tentativas: os três da terça e o da `fluxo_batch`.
 Outra contagem, ou `POST indevido`: achado do G2.1, registrado.
 
-**Passo 15 — as *tags*, a paridade e o tamanho.**
+**Passo 15 — as *tags*, a paridade, o tamanho e a área técnica do Airbyte.** Primeiro, o controle da
+exceção do G4 (D89): depois das sincronizações da `fluxo_batch`, o `airbyte_internal` sem tabela.
+
+```
+make gcp-airbyte-interno
+```
+
+Deve dizer `0 tabelas no airbyte_internal`. Tabela listada: a cópia bruta ficou — o Claude Code
+registra, e a D89 volta ao Owner. Depois:
 
 ```
 make gcp-tags-inventario
@@ -1301,6 +1338,19 @@ as tabelas, as linhas e os bytes lógicos, e guarda o relatório em `data/medico
 
 **20:00 — o ponto de decisão.** O Claude Code registra o que passou e o que não rodou, e o que não
 rodou vira pendência.
+
+**Passo 15a — as evidências que só a nuvem tem** (G9 e o portal, V2 das pendências). Só lê.
+
+```
+make gcp-evidencias
+```
+
+Deve terminar com `gcp-evidencias: data/medicoes/etapa_13/evidencias/<instante>`, cada item `ok` no
+manifesto: as `INFORMATION_SCHEMA.TABLES` e `COLUMNS` dos *datasets*, a paridade da linhagem nativa,
+os endereços do estado do Terraform (sem atributo) e o inventário de recursos. `FALHOU` num item:
+repita uma vez (a Data Lineage API respondeu 503 na terça, 18:16); falhou de novo, fica limite
+declarado. Na mesma folga, as capturas de tela do G9 que faltam (02 a 06, da segunda e da terça), se
+o Chrome do Owner estiver ligado a esta sessão; sem ele, o Owner as tira, e o Claude Code anota.
 
 **Passo 16 — a exportação, antes das 21:30.** O *bucket* do Composer sai no desmonte, e os logs do
 Airflow com ele.

@@ -2430,3 +2430,50 @@ assinatura interna saiu de novo (restam as duas declaradas). O segundo trecho do
 **P3 passa.** Os limites do G2.3 continuam os declarados na §6.8 — os lotes concorrentes com a mesma
 chave e a recuperação do *worker* dentro do mesmo *job*, não atendidos como prova; o reenvio fora da
 janela, só na escrita.
+
+## 50. A revisão das correções de terça, pelo codex2 (10/11/2026, fim da tarde)
+
+As quatro correções declarativas da terça (§48 e §49: `5b5e83b`, `daa7ef5`, `8758212`, `44b2d8b`)
+foram aplicadas sem revisão. O Owner pediu que as verificações daqui em diante fossem do codex2
+(`CODEX_HOME=~/.codex_conta2`, `gpt-6.1-sol`, `high`, sessão `01a1c736-18c0-77d2-a7cb-61d8937b2d77`,
+17:46 → 17:55). Pedido e parecer, fora do Git, em
+`data/medicoes/etapa_13/revisao/prompt_codex2_correcoes_terca.txt` e `codex2_correcoes_terca.md`,
+com a *Situação* de cada achado.
+
+**O parecer:** "Mudanças necessárias" — 2 bloqueantes, 4 ajustes, 1 observação; 24 testes passando.
+
+| # | Achado | Como ficou |
+|---|---|---|
+| RVT-1-01 | o *digest* do Debezium some antes da janela de quarta acabar | D88: renovado às 07:00 (`make gcp-debezium-digest`, §6.9 passo 1a) |
+| RVT-1-02 | a cópia bruta do `airbyte_internal` fora da classificação do G4 | D89: exceção com controle (`make gcp-airbyte-interno`, §6.9 passo 15); o permanente na V2 |
+| RVT-1-03 | "só o ingestor" não demonstrado; criar *dataset* é possuí-lo | lista de acesso autoritativa (plano `11e`, 0/1/0) |
+| RVT-1-04 | o desmonte sem prova de nenhum *job* do Airbyte e da assinatura de *watermark* depois de cancelar | `gcp-airbyte-ativos`; o `gcp-dataflow-parar` apaga só a de prefixo exato; §6.5 com as contagens novas |
+| RVT-1-05 | o `subscriptions.get` no projeto sem necessidade demonstrada | D90: mantido, justificado como menor privilégio não provado |
+| RVT-1-06 | o plano interrompido antes da guarda fica aplicável | o binário nasce provisório e só é publicado depois da guarda |
+| RVT-1-07 | papéis apagados e custo a mais | §6.5 passo 9; a Capacidade §2.14 no G8 |
+
+**Medido para decidir** [medido, 18:00–18:10]: o `airbyte_internal` com **0 tabelas** depois das três
+sincronizações (`bq query … __TABLES__`); a lista de acesso dele com 5 entradas (`projectOwners`,
+`projectReaders`, `projectWriters`, o Owner e o `ingestor`); no projeto, `roles/owner` só do Owner e
+`roles/editor` só de duas contas do Google (a do Compute padrão e a dos serviços) — nenhuma conta de
+papel alcançava o *dataset*; o armazém local não tem `airbyte_internal` (o destino PostgreSQL grava
+direto no `raw`), então a cópia bruta é só da nuvem.
+
+**Exercitado** [medido]: `make gcp-airbyte-interno` → `0 tabelas no airbyte_internal`;
+`make gcp-airbyte-ativos` → `airbyte: nenhum job em curso`; `make gcp-debezium-digest` → `vigente —
+sha256:8c4e6c7efc39…`. Os testes novos falham contra as receitas anteriores e passam nas novas.
+
+**A releitura antes da segunda versão do `gcp-dataflow-parar`.** O Owner interrompeu a primeira
+edição e pediu releitura: ela usava uma variável `DATAFLOW_RASTREIO` que não existe no Makefile —
+o filtro sairia vazio e o `case` casaria com qualquer assinatura, inclusive a `beam` declarada. A
+versão aplicada lê o nome de onde o lançador o lê (`streaming/fluxo.yml`), recusa prefixo vazio e
+tem teste que executa a receita com `gcloud` falso.
+
+**Fora da revisão, pela recomendação aceita pelo Owner** (o parecer `REVISAO_GOVERNANCA.md` sobre o
+portal `gdados`): `make gcp-evidencias` guarda, antes do desmonte, o que só a nuvem tem — catálogo
+físico, linhagem nativa, endereços do Terraform e inventário — em dado bruto datado. Primeira rodada
+(18:13:13 → 18:16:40) [medido]: 20 itens do BigQuery, os 151 endereços e o inventário `ok`, 4,5 MB
+em `data/medicoes/etapa_13/evidencias/20261110T211313Z/`; a linhagem `FALHOU` — a Data Lineage API
+respondeu `503 Service Unavailable` em `searchLinks` depois das novas tentativas do módulo. Repete-se
+na quarta (§6.9 passo 15a). As mudanças de governança e documentação que o parecer pede ficam para
+quando não houver mais pendências (V2 das pendências, decisão do Owner).

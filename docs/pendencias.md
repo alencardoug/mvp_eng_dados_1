@@ -12,9 +12,9 @@
 |---|---|
 | Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
 | Aprovações pendentes | 0 |
-| Verificações adiadas | 1 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3 e a D84 a D87 na revisão dos roteiros da janela (§2) |
-| Última revisão | 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
+| Verificações e trabalho adiados | 2 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026; V2, a governança e a documentação para quando não houver mais pendências, registrada em 10/11/2026) |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3 a D84 a D87 na revisão dos roteiros da janela e a D88 a D90 na revisão das correções de terça (§2) |
+| Última revisão | 10/11/2026 — D88 a D90 levantadas pela revisão das correções de terça e decididas; V2 registrada; 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
 
 ---
 
@@ -200,6 +200,41 @@ recusada ou fica fora da guarda, e a lista diz onde olhar.
 
 ---
 
+### V2 — a governança e a documentação para quando não houver mais pendências (registrada em 10/11/2026)
+
+**Pergunta:** quando tratar o que segue? A decisão do Owner, em 10/11/2026, foi **não** tratar
+durante a Etapa 13: entra quando não houver mais pendências, cada item no seu dono documental. Nada
+aqui é bloqueante para o M6, salvo o que a Definição de Pronto já exige no G8 (marcado).
+
+**O tratamento permanente do `airbyte_internal`** (RVT-1-02, a exceção da D89). Hoje é exceção com
+controle: área técnica e transitória do conector, lista de acesso declarada inteira, e o
+`make gcp-airbyte-interno` depois de cada sincronização. O permanente é decidir se a cópia bruta
+(`_airbyte_data`, o registro inteiro em JSON) entra na classificação e na prova do G4 — enumerar o
+*dataset* no `mvp_ed1.gcp.politicas` e dar ao vinculador o IAM dele — ou se a exceção vira regra
+na [Governança](governanca_de_dados.md), com ADR se o Owner julgar.
+
+**A revisão da governança para o portal `gdados`** (parecer `REVISAO_GOVERNANCA.md`, de outra sessão,
+10/11/2026, sobre `8e606d9`; fora do Git, na raiz). Os achados, cada um no seu dono:
+
+- **G01 e G02 — o README** diz que a fase GCP "não começou" e mistura números e versões de entregas
+  diferentes (48 e 51 ADRs; Arquitetura v2.5 e Governança v2.6 contra v2.7 e v2.22). *No G8* (o
+  estado do M6 é Definição de Pronto); tirar do README as contagens mantidas à mão.
+- **G03 — a Arquitetura §1** rotula `analytics` "9 fatos + 17 dimensões"; o modelo tem 10 e 15.
+  *No G8*; melhor tirar o número do desenho e apontar para o [Modelo de Dados](modelo_de_dados.md).
+- **G04 — a Governança §5.2** ainda trata como futura a escolha do catálogo que a D80 fechou. *No G8.*
+- **G05 — o comentário de abertura do `docker/docker-compose.yml`** fala em uma instância Cloud SQL
+  por banco; o Terraform tem uma instância com os dois bancos. Uma linha; não muda o Terraform.
+- **G06 — 141 colunas declaradas sem descrição** (5 em `staging`, 125 em `trusted`, 5 em
+  `quarantine`, 6 em `snapshots`), iguais aos tetos de `tests/test_descricao.py`. Entrega própria
+  depois do M6: declarativo do dbt, revisão integral do Owner, catraca ajustada na mesma entrega.
+- **G07 a G10** são requisitos do portal (a linhagem nativa com exceções por coluna, a D66 exibida
+  como está, a procedência dos artefatos, o pacote de metadados) e vivem no `gdados`, não aqui.
+
+**O alvo de exportação para o portal.** O `gdados` só lê este repositório e não roda comando que
+escreva nele, mas o `dbt/target/` e o `data/` estão fora do Git. O pacote de metadados precisa nascer
+de um alvo **deste** projeto, dono dos dados, que o `gdados` consome (a D03 dele). Entrega nova,
+decisão do Owner sobre formato e gatilho.
+
 ## 1.1 Decididas e implementadas
 
 As três questões que a revisão da Etapa 10 levantou — D33, D34 e D35 — foram decididas em
@@ -261,6 +296,26 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D88 a D90 — da revisão das correções de terça da Etapa 13 (decididas em 10/11/2026)
+
+Levantadas pela revisão do codex2 sobre as quatro correções declarativas feitas durante os roteiros
+de terça (Registro §49), e decididas pela opção recomendada.
+
+- **D88 — o *digest* do Debezium é renovado na quarta, às 07:00** (RVT-1-01): o quay.io republica a
+  *tag* toda noite e apaga o manifesto anterior; a fixação por *digest* fica (P10) e vale um dia. O
+  primeiro passo da quarta é o `make gcp-debezium-digest`, e o *digest* novo entra por *commit* e pelo
+  `09_aplicacoes` (1 a alterar). Descartadas: a *tag* sem *digest*, que perde a fixação; o espelho no
+  Artifact Registry, componente novo com ADR.
+- **D89 — o `airbyte_internal` é exceção do G4, com controle** (RVT-1-02): área técnica e
+  transitória do conector (0 tabelas depois das sincronizações de 10/11), fora da classificação por
+  coluna; os controles são a lista de acesso declarada inteira (os donos do projeto e o `ingestor`) e
+  o `make gcp-airbyte-interno` depois de cada sincronização. O tratamento permanente é a V2 (§1).
+  Descartada nesta etapa: a cobertura completa no G4, que muda o `politicas.py` e o IAM do vinculador
+  às vésperas da janela.
+- **D90 — o `pubsub.subscriptions.get` fica no papel do *watermark*** (RVT-1-05): com ele o *job* leu;
+  tirá-lo só se provaria dentro da janela de quarta. Fica registrado como menor privilégio não
+  demonstrado (`terraform/dataflow.tf`).
 
 ### D84 a D87 — da revisão dos roteiros da janela da Etapa 13 (decididas em 08/11/2026)
 
