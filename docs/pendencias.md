@@ -10,7 +10,7 @@
 
 | Campo | Informação |
 |---|---|
-| Etapa atual | Etapa 12 aceita em 04/10/2026: o **M5** está fechado e a fase local, concluída (`v1.0.0`). A versão de manutenção `v1.1.0` foi aceita em 05/11/2026, com a *tag* `v1.1.0` (§1.1; [plano](plano_de_desenvolvimento.md#versão-de-manutenção-v110)). A Etapa 13 — replicação no GCP com Terraform (M6) — foi **autorizada em 06/11/2026** e está em planejamento, no plano transitório `PLANO_etapa_13.md` |
+| Etapa atual | Etapa 13 — replicação no GCP com Terraform (M6). O estado dela, e o das anteriores, é do [Plano de Desenvolvimento](plano_de_desenvolvimento.md) |
 | Aprovações pendentes | 0 |
 | Verificações e trabalho adiados | 2 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026; V2, a governança e a documentação para quando não houver mais pendências, registrada em 10/11/2026) |
 | Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3 a D84 a D87 na revisão dos roteiros da janela e a D88 a D90 na revisão das correções de terça (§2) |

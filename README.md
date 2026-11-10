@@ -18,7 +18,7 @@ Faker → PostgreSQL → Airbyte → dbt → datamart → consumption     (batch
 
 | | |
 |---|---|
-| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP está planejada e não começou |
+| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP (Etapa 13) foi autorizada em 06/11/2026 e está em execução — o estado é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, do [Registro da fase GCP](docs/registro_fase_gcp.md) |
 | **Stack** | PostgreSQL · Airbyte (em Kubernetes local) · dbt · Airflow · Debezium sobre Kafka Connect · Redpanda · Apache Beam · Terraform · Docker · Python com SQLAlchemy e Alembic |
 | **Escopo** | 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
 | **Qualidade** | `make check` com 905 nós do dbt (700 testes de dados) e 637 testes Python; reconciliação em toda fronteira entre camadas; 4.161 de 4.161 colunas classificadas por sensibilidade |
@@ -42,8 +42,9 @@ cada minuto veio. Também fica fora do mapa abaixo.
 1. **Local (pré-GCP)** — duas origens transacionais, geração determinística de dados, ingestão,
    transformação em camadas, datamart dimensional, um fluxo contínuo restrito ao estoque,
    governança e testes. Tudo reproduzível a partir do repositório.
-2. **GCP** — replicação do fluxo com Cloud SQL, BigQuery, Datastream, Pub/Sub e Dataflow,
-   provisionado por Terraform, com a mesma governança materializada em *policy tags*.
+2. **GCP** — replicação do fluxo na nuvem, provisionada por Terraform, com a mesma governança
+   materializada em *policy tags*. A contrapartida de cada peça local está no
+   [mapa de paridade](docs/arquitetura.md#5-mapa-de-paridade-local--gcp).
 
 ## Mapa da documentação
 
@@ -111,8 +112,9 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 ## Status
 
 **A fase local está concluída: o M5 fechou em 04/10/2026, com a *tag* `v1.0.0`.** A Etapa 13 —
-replicação no GCP com Terraform, o M6 — não começou; o pré-requisito é a autorização explícita do
-Owner.
+replicação no GCP com Terraform, o M6 — foi autorizada pelo Owner em 06/11/2026 e está em execução: o
+estado dela é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, passo a passo, do
+[Registro da fase GCP](docs/registro_fase_gcp.md).
 
 O fechamento (Etapa 12) refez o ciclo inteiro num clone novo do repositório, com `.env` novo, sobre
 bancos, Airbyte e Airflow instalados do zero, cada cenário no seu subconjunto de ambiente — sem

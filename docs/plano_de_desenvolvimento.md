@@ -11,9 +11,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 3.12 |
-| Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, **autorizada pelo Owner em 06/11/2026**, em planejamento no plano transitório `PLANO_etapa_13.md`, com prazo no fim da avaliação gratuita da conta GCP. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos). A [versão de manutenção `v1.1.0`](#versão-de-manutenção-v110) foi aceita em 05/11/2026, com a *tag* `v1.1.0` |
-| Última revisão | 07/11/2026 — o CDC da fase GCP pelo Debezium Server (ADR-0051) e as decisões D69 a D74 |
+| Versão | 3.13 |
+| Etapa atual | **Etapa 13 — Replicação no GCP com Terraform**, **autorizada pelo Owner em 06/11/2026** e **em execução** pelo plano transitório `PLANO_etapa_13.md`, com prazo no fim da avaliação gratuita da conta GCP; o processo, passo a passo, está no [Registro da fase GCP](registro_fase_gcp.md), e o **M6** só fecha no aceite. A Etapa 12 foi aceita em 04/10/2026 e fechou o **M5** — a fase local está concluída, `v1.0.0` (**M0** a **M5** concluídos). A [versão de manutenção `v1.1.0`](#versão-de-manutenção-v110) foi aceita em 05/11/2026, com a *tag* `v1.1.0` |
+| Última revisão | 10/11/2026 — a Etapa 13 em execução (G01 da revisão da governança); 07/11/2026 — o CDC da fase GCP pelo Debezium Server (ADR-0051) e as decisões D69 a D74 |
 
 ---
 
