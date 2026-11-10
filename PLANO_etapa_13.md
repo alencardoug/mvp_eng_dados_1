@@ -525,16 +525,17 @@ passos sem Terraform são alvos `gcp-desmonte-*`, e cada um falha dizendo o que 
      isso, o próximo *push* do YAML tentaria autenticar num projeto apagado.
 
    O produtor para no terminal dele.
-2. **Composer** e o *bucket* dele (`force_destroy`), com o IAM do Dataflow — desde 10/11, **7**
-   recursos, não 4: os 4 de antes, o papel próprio `mvpRastreioWatermark`, o vínculo dele e o
-   `subscriber` no tópico de eventos (Registro §49; contagem pela declaração, não por plano medido):
-   `make gcp-plan PASSO=2` (`20_desmonte_composer`).
+2. **Composer** e o *bucket* dele (`force_destroy`), com o IAM do Dataflow — o subtotal do Dataflow,
+   desde 10/11, é **7**, não 4: os 4 de antes, o papel próprio `mvpRastreioWatermark`, o vínculo dele
+   e o `subscriber` no tópico de eventos (Registro §49); com os **14** do Composer, o plano retira
+   **21** (contagem pela declaração, não por plano medido): `make gcp-plan PASSO=2` (`20_desmonte_composer`).
 3. **Debezium Server** e **Airbyte** (`helm uninstall`) com a API do Kubernetes ainda disponível.
    Antes, `make gcp-airbyte-ativos`: nenhum *job* do Airbyte em curso — interromper o cliente não
    interrompe o *job* remoto (Registro §49, passo 12), e o degrau leva o `airbyte_internal` **com
-   conteúdo** (RVT-1-04). O degrau tem, desde 10/11, **6** recursos: os 2 *releases*, o papel próprio
-   `mvpCriarDatasetAirbyte`, o vínculo dele e o *dataset* `airbyte_internal` com a lista de acesso
-   declarada inteira (pela declaração): `make gcp-plan PASSO=3` (`21_desmonte_aplicacoes`). Depois, o *slot* de replicação **removido
+   conteúdo** (RVT-1-04). O degrau tem, desde 10/11, **5** recursos: os 2 *releases*, o papel próprio
+   `mvpCriarDatasetAirbyte`, o vínculo dele e o *dataset* `airbyte_internal`, com a lista de acesso
+   em blocos do próprio *dataset* (pela declaração; RVT-2-04). O *release* do Airbyte depende do
+   *dataset* e do vínculo, e o `destroy` o desinstala antes deles (RVT-2-02): `make gcp-plan PASSO=3` (`21_desmonte_aplicacoes`). Depois, o *slot* de replicação **removido
    no Cloud SQL** (`pg_drop_replication_slot`) enquanto o Cloud SQL existe:
    `make gcp-desmonte-slot`.
 4. **PVCs e PVs**: `make gcp-desmonte-kubernetes` apaga os *namespaces* e prova que nenhum PV nem
@@ -1159,10 +1160,14 @@ manifesto anterior (Registro §48).
 make gcp-debezium-digest
 ```
 
-`vigente`: siga. `TROCAR` (sai 3): o Claude Code põe o *digest* que a linha mostra no
+`vigente`: siga. `debezium: TROCAR — …` (o módulo sai com 3; o `make` devolve 2, como a qualquer falha —
+guie-se pela mensagem, não pelo código; `ERRO: …` é leitura que falhou, repita; RVT-2-05): o Claude
+Code põe o *digest* que a linha mostra no
 `terraform/charts/debezium-server/values.yaml` (*commit*), e o `09_aplicacoes` o leva ao *cluster* —
 `make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"`,
-que deve dar `0 a criar, 1 a alterar, 0 a destruir`, e `make gcp-apply NOME=09_aplicacoes`. O pod é
+que deve dar `0 a criar, 1 a alterar, 0 a destruir` — o `helm_release.debezium`, com a `imagem` nova
+nos `values` (o *release* a lê do `values.yaml`, RVT-2-01; o caminho foi validado em 10/11, Registro
+§52) —, e `make gcp-apply NOME=09_aplicacoes`. O pod é
 recriado e retoma dos *offsets* (provado na terça, §6.8 passo 24); `make gcp-debezium-status` confere.
 O *digest* novo vale até ~21:50; as provas terminam às 21:00, e o desmonte não baixa imagem.
 

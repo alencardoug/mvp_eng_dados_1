@@ -2521,3 +2521,29 @@ o `debezium-server`.
 pede o *login* de administrador que o *chart* gerou, e o Claude Code não digita credencial. A prova
 da D72 está no §49 (passo 10, `247.902 linhas`); a captura fica com o Owner, se ele a quiser, pelo
 *port-forward* que o Claude Code abre.
+
+## 52. A rodada 2 da revisão das correções de terça (10/11/2026, noite)
+
+A primeira tentativa da rodada 2 (18:31) não começou: o `codex exec` em segundo plano ficou 25 min em
+`Reading additional input from stdin...`, porque a entrada padrão não fechou; o Claude Code encerrou o
+processo pelo PID e relançou com `< /dev/null` (sessão `01a1c77b-8659-7030-a990-4eadfe0f0462`, 18:58 →
+19:08). Parecer em `data/medicoes/etapa_13/revisao/codex2_correcoes_terca_r2.md`: "Mudanças
+necessárias" — 1 bloqueante, 3 ajustes, 1 observação; 56 testes passando; os sete achados da rodada 1
+atendidos ou parcialmente atendidos dentro da D88 a D90.
+
+| # | Achado | Como ficou |
+|---|---|---|
+| RVT-2-01 | trocar só o *digest* no `values.yaml` do *chart* local não muda nenhuma entrada do `helm_release`: a renovação das 07:00 poderia dar `No changes` | a `imagem` lida do `values.yaml` vai nos `values` do *release*; validado no projeto (abaixo) |
+| RVT-2-02 | o desmonte não ordena o Airbyte antes do *dataset* e do papel dele | `depends_on` do *release* do Airbyte sobre os dois |
+| RVT-2-03 | se a lista dos *datasets* falhar, o `gcp-evidencias` exporta só o `airbyte_internal` e sai com sucesso | a enumeração é conferida antes do laço e falha no manifesto |
+| RVT-2-04 | a §6.5 contava 6 no degrau das aplicações; são 5 | 5 no passo 3; 7 do Dataflow e 21 no passo 2 |
+| RVT-2-05 | o código 3 é do módulo; o `make` devolve 2 | o texto guia pela mensagem |
+
+**A validação do RVT-2-01** [medido]: `make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true
+enable_gke=true enable_gke_apps=true enable_dataflow=true"` (19:09) → `Plan: 0 to add, 1 to change, 0
+to destroy.`, só `helm_release.debezium[0] will be updated in-place`, com `+ "imagem":
+"quay.io/debezium/server:3.7.1.Final@sha256:8c4e6c7e…"` nos `values` e o resto metadado calculado;
+`make gcp-apply NOME=09_aplicacoes` (19:10:27 → 19:10:48) → `Apply complete! Resources: 0 added, 1
+changed, 0 destroyed.`, o *release* na revisão 2 `deployed`, e **o mesmo pod**
+(`debezium-server-6f64445b4-fzhb2`, de pé desde 17:17:27) — os manifestos renderizados não mudaram.
+Na quarta, um *digest* diferente muda o manifesto, e o pod é recriado pelo *upgrade*.
