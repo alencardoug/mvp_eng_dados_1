@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.8 |
+| Versão | 2.9 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 10/11/2026 — o diagrama da §1 deixa de contar fatos e dimensões; o inventário é o do Modelo de Dados §3 |
+| Última revisão | 10/11/2026 — o catálogo da §4 pelo caminho da D80; o diagrama da §1 deixa de contar fatos e dimensões; o inventário é o do Modelo de Dados §3 |
 
 ---
 
@@ -155,7 +155,7 @@ alvos, não o modo de operar. Os comandos concretos vivem em [Execução Local](
 | Transformação | dbt, com adaptação de dialeto | Firmada |
 | Orquestração | **Cloud Composer**, em janela curta | [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) |
 | Ingestão *batch* | **Airbyte em contêiner**, provisionado por Terraform, em janela curta | [ADR-0024](adr/0024-airbyte-e-airflow-no-gcp.md) |
-| Catálogo corporativo | Dataplex, alimentado pelo `manifest.json` do dbt | [ADR-0007](adr/0007-catalogo-como-codigo.md) |
+| Catálogo corporativo | Dataplex, que lê do BigQuery as descrições e os *labels* que o dbt grava a partir do `manifest.json` ([Governança §5.2](governanca_de_dados.md#52-materialização-da-governança-na-fase-gcp)) | [ADR-0007](adr/0007-catalogo-como-codigo.md) |
 
 Boas práticas previstas no BigQuery: **um dataset por camada**, **particionamento** por data de
 evento nas tabelas de fato, **clustering** pelas chaves de filtro mais frequentes, **rótulos** para

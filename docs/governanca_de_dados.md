@@ -10,10 +10,10 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.22 |
+| Versão | 2.23 |
 | Situação | Vigente para a fase local |
 | Responsável | Líder de Governança |
-| Última revisão | 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita; o domínio é escrito e conferido no `meta` efetivo; o limite do escritor em bloco (rodadas 11 e 12 do lote 3 da v1.1.0) |
+| Última revisão | 10/11/2026 — §5.2 alinhada às decisões D79 e D80 da Etapa 13; 05/11/2026 — §5.1: a coluna é achada pelo nome que o YAML lê, e todo conteúdo final é lido estrito antes de qualquer escrita; o domínio é escrito e conferido no `meta` efetivo; o limite do escritor em bloco (rodadas 11 e 12 do lote 3 da v1.1.0) |
 
 ---
 
@@ -248,20 +248,27 @@ entrega que os criou, e o que eles contam está nos próprios testes.
 
 O trabalho já está codificado; a migração consome os mesmos arquivos:
 
-1. **Descrições e metadados** — o `manifest.json` gerado pelo dbt é lido, o que atualiza as
-   descrições das tabelas no BigQuery e popula o **Dataplex** com o conteúdo do bloco `meta:`. O
-   caminho pode ser um pacote de código aberto do ecossistema dbt (por exemplo,
-   `dbt-google-data-catalog`) ou um script próprio chamando a API do GCP — a escolha é feita na
-   Etapa 13, com a avaliação do pacote antes de escrever código.
-2. **Políticas de acesso** — o Terraform provisiona a taxonomia de *policy tags* no BigQuery, e um
-   **fluxo automatizado** vincula cada *tag* à coluna correspondente a partir do YAML de
-   classificação, disparado quando esse YAML muda
-   ([ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)). A coluna marcada como
-   `sensitivity: "personal"` recebe a *tag*, e apenas identidades autorizadas pelo IAM conseguem
-   executar `SELECT` sobre ela. A autorização é a exposição
-   ([ADR-0049](adr/0049-separar-a-classificacao-da-exposicao.md)): o grupo do `analyst` a recebe nas
-   *tags* do dado sintético, e a negação se prova com uma identidade sem ela. A autenticação do fluxo usa **federação de identidade**: nenhuma
-   chave de conta de serviço é armazenada como segredo.
+1. **Descrições e metadados** — o dbt grava as descrições de tabela e de coluna no BigQuery pelo
+   `persist_docs`; `domain`, `owner` e `retention` viram *labels* do BigQuery, derivados do bloco
+   `meta:` por um *post-hook* do dbt, e o **Dataplex** os lê do próprio BigQuery. A linhagem por
+   coluna é a que o BigQuery captura dos *jobs* do dbt, **medida** contra o módulo do
+   [Dicionário §3](dicionario_de_dados.md) em vez de publicada a partir dele; as travessias de fora
+   do BigQuery (Airbyte, CDC, Beam) são publicadas por tabela, pela API. Decidido na D80
+   ([Pendências §2](pendencias.md#d80--a-linhagem-por-coluna-é-a-nativa-do-bigquery-o-metadado-vai-em-labels-decidida-em-07112026));
+   o que se mediu está no [Registro §23](registro_fase_gcp.md#23-g5-catálogo-e-linhagem-07112026-noite).
+2. **Políticas de acesso** — só os níveis `confidential` e `personal` viram *policy tag* com
+   controle ligado: em `public` e `internal` não há o que negar. O **Terraform** cria a taxonomia,
+   as *tags* e o IAM de leitura; o **dbt** aplica a *tag* às colunas das tabelas que materializa, a
+   partir do YAML de classificação (D71), porque substituir uma tabela no BigQuery apaga as *tags*
+   dela; o **fluxo automatizado** do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)
+   converge as tabelas que o dbt não materializa, e roda só na janela da fase GCP. Apenas
+   identidades autorizadas pelo IAM conseguem executar `SELECT` sobre coluna marcada. A autorização
+   é a exposição ([ADR-0049](adr/0049-separar-a-classificacao-da-exposicao.md)): os papéis a
+   recebem nas *tags* do dado sintético, e a negação se prova com uma identidade sem ela. A
+   autenticação do fluxo usa **federação de identidade**: nenhuma chave de conta de serviço é
+   armazenada como segredo. Decidido na D79
+   ([Pendências §2](pendencias.md#d79--as-policy-tags-quais-níveis-quem-cria-quem-lê-quando-o-fluxo-roda-decidida-em-07112026));
+   o que se mediu está no [Registro §22](registro_fase_gcp.md#22-g4-as-policy-tags-07112026-noite).
 
 A classificação deixa de ser documental e passa a ser **controle efetivo**, sem que nenhuma
 descrição precise ser reescrita.
