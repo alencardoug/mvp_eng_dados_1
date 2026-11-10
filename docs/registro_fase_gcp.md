@@ -2547,3 +2547,23 @@ to destroy.`, só `helm_release.debezium[0] will be updated in-place`, com `+ "i
 changed, 0 destroyed.`, o *release* na revisão 2 `deployed`, e **o mesmo pod**
 (`debezium-server-6f64445b4-fzhb2`, de pé desde 17:17:27) — os manifestos renderizados não mudaram.
 Na quarta, um *digest* diferente muda o manifesto, e o pod é recriado pelo *upgrade*.
+
+**A rodada 3** (regressão estreita, sessão `01a1c788-650c-7272-800a-fc7d2806cc31`, 19:16 → 19:18): "Nenhum
+achado novo no escopo desta rodada"; RVT-2-01 a RVT-2-05 atendidos; 58 testes passando. **A revisão das
+correções de terça está fechada** — três rodadas: 2 bloqueantes, 4 ajustes, 1 observação; 1 bloqueante,
+3 ajustes, 1 observação; 0. Pareceres e pedidos, fora do Git, em `data/medicoes/etapa_13/revisao/`
+(`*codex2_correcoes_terca*`).
+
+## 53. A porta P4 (10/11/2026, 19:20)
+
+O que a §6.2 pede para a janela abrir na quarta, às 07:00, contra o medido:
+
+| Pré-requisito | Situação | Onde |
+|---|---|---|
+| P2 — `dbt build --target gcp` verde; catálogo comparado | passou em 08/11 (PASS=909) e de novo hoje sobre o dado real (PASS=909, 0 erros); catálogo 2.983/2.983 colunas | §41, §49 passos 15 e 18 |
+| P3 — integração | passou às 17:25 | §49 |
+| Estimativa aprovada | aprovada (Capacidade §2.14); o custo bruto do mês no orçamento da Etapa 13 está em R$ 37,30 de R$ 400,00 | §51 |
+| `plan` caro revisado | GKE, Dataflow e Composer em 09/11 (4 rodadas); os planos reais de hoje — `08_gke` (11/0/0) e `11_dataflow` (4/0/0) iguais aos revisados, `09_aplicacoes` pelo passo 4a; as correções de hoje revisadas pelo codex2 (3 rodadas, fechada) | §45, §48, §49, §50, §52 |
+
+**P4 passa.** A janela abre na quarta, 07:00, com o roteiro da §6.9 — começando pelo
+`make gcp-debezium-digest` (passo 1a). O relógio da §6.4 não muda.
