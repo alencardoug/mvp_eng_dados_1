@@ -20,9 +20,9 @@ Faker → PostgreSQL → Airbyte → dbt → datamart → consumption     (batch
 |---|---|
 | **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP (Etapa 13) foi autorizada em 06/11/2026 e está em execução — o estado é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, do [Registro da fase GCP](docs/registro_fase_gcp.md) |
 | **Stack** | PostgreSQL · Airbyte (em Kubernetes local) · dbt · Airflow · Debezium sobre Kafka Connect · Redpanda · Apache Beam · Terraform · Docker · Python com SQLAlchemy e Alembic |
-| **Escopo** | 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
-| **Qualidade** | `make check` com 905 nós do dbt (700 testes de dados) e 637 testes Python; reconciliação em toda fronteira entre camadas; 4.161 de 4.161 colunas classificadas por sensibilidade |
-| **Processo** | 48 ADRs; 33 dias e 306 *commits* do primeiro *commit* à `v1.0.0`; as Etapas 10 a 12 revisadas por um segundo agente, em rodadas até não restar achado |
+| **Escopo** | Na `v1.1.0`: 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
+| **Qualidade** | No aceite da `v1.1.0` (05/11/2026): `make check` verde com `PASS=907` e 1.079 testes Python; reconciliação em toda fronteira entre camadas; toda coluna classificada por sensibilidade, conferida por igualdade a cada `make check`. O medido de cada etapa está no [Plano](docs/plano_de_desenvolvimento.md) |
+| **Processo** | 33 dias e 306 *commits* do primeiro *commit* à `v1.0.0`; as Etapas 10 a 12 revisadas por um segundo agente, em rodadas até não restar achado |
 | **Reprodutível** | O ciclo inteiro refeito num clone novo e medido passo a passo, e um ponto único de recuperação restaurado de ponta a ponta |
 
 ## Para estudar o projeto
@@ -52,33 +52,33 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 
 | Artefato | O que só existe ali | Situação |
 |---|---|---|
-| [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | v1.2 — **aprovado** |
+| [Termo de Abertura](Abertura_de_projeto.md) | Justificativa, objetivo, escopo, entregas, critérios de sucesso, premissas, restrições, papéis e aprovação | **Aprovado** |
 | [`CLAUDE.md`](CLAUDE.md) | Idioma, nomenclatura, *commits*, modo de desenvolvimento assistido e definição de pronto | Vigente |
 | [Princípios](docs/principios.md) | As dez regras **P1**–**P10** que governam as decisões | Vigente |
-| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | v3.10 — Etapa 12 aceita em 04/10/2026: o M5 fechado, a fase local concluída (`v1.0.0`); a `v1.1.0` aceita em 05/11/2026 |
-| [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | v2.5 |
-| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | v1.9 — inventário e diagrama **gerados**; invariante 14 na v1.1.0 |
-| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | v3.3 — árvore de categorias, faixa de preço por folha e lançamento antes da venda (v1.1.0) |
-| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | v2.10 — o livro retido da memória e o oráculo dela (v1.1.0) |
-| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | v2.2 — revalidado na D31 e na regeneração da v1.1.0 |
-| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | v1.15 — toda fronteira com teste; invariante 14 no varejo |
-| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | v2.17 — a estimativa da janela da Etapa 13 |
-| [Registro da fase GCP](docs/registro_fase_gcp.md) | O processo de construção da Etapa 13, em ordem: comandos, saídas, decisões, becos sem saída, custo — o que sobrevive à destruição da infraestrutura | v1.0 — aberto em 06/11/2026 |
-| [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | v2.6 — acesso por papel implementado e testado; a varredura do histórico na §9, e o tratamento do que ela acha no ADR-0048 |
-| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | 12 achados, todos tratados — o último, um falso positivo, em 04/11/2026 |
-| [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** — 40 tabelas, 418 campos; linhagem por coluna do consumo e travessias fora do dbt |
-| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | 16 perguntas, 16 conceitos |
+| [Plano de Desenvolvimento](docs/plano_de_desenvolvimento.md) | Etapas, marcos, dependências e critérios de conclusão | Vigente — dono do estado de cada etapa e marco |
+| [Arquitetura](docs/arquitetura.md) | Topologia, camadas, componentes, paridade local ↔ GCP e organização do repositório | Vigente |
+| [Modelo de Dados](docs/modelo_de_dados.md) | As 40 tabelas transacionais, o modelo dimensional, as invariantes e o contrato do evento de estoque | Vigente — inventário e diagrama **gerados** |
+| [Geração de Dados](docs/geracao_de_dados.md) | Motor de geração, perfis de volume, parâmetros e realismo | Vigente |
+| [Origem Legada](docs/origem_legada.md) | Banco defeituoso, catálogo de falhas, limpeza, quarentena e empilhamento | Vigente |
+| [Streaming](docs/streaming.md) | CDC, transporte, processamento por tempo de evento, saldo em tempo real e alerta | Vigente |
+| [Qualidade de Dados](docs/qualidade_de_dados.md) | Estratégia de testes e reconciliação por camada | Vigente |
+| [Capacidade e Recuperação](docs/capacidade_e_recuperacao.md) | Dimensionamento por cobertura, medição e ponto único de recuperação | Vigente |
+| [Registro da fase GCP](docs/registro_fase_gcp.md) | O processo de construção da Etapa 13, em ordem: comandos, saídas, decisões, becos sem saída, custo — o que sobrevive à destruição da infraestrutura | Em andamento — aberto em 06/11/2026 |
+| [Governança de Dados](docs/governanca_de_dados.md) | Regras: dados permitidos, classificação, acesso, retenção, segredos e catálogo como código | Vigente |
+| [Segredos tratados](docs/segredos_tratados.yml) | Registro: os achados históricos de credencial já tratados, com o tratamento e o motivo (ADR-0048) | Vigente — conferido pelo `make secrets-history` |
+| [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** pelo `make catalog` |
+| [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | Vigente |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
 | [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 4 pendentes em 07/11/2026: D63 e D64, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0) e a D43 (adiada para a fase GCP, medida na Etapa 13); a D65 e a D67, fechadas pela v1.1.0; as decisões da abertura da Etapa 13, fechadas em 06–07/11/2026, e a D62, fechada no G2.3; e a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 (05/11/2026) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 51 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
-| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | v1.5 — R7 com a política do ADR-0048; R6 com o *chart* do Airbyte fixado |
-| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | v1.17 — o preparo do clone, o ciclo na ordem do B5 e os alvos da Etapa 12, conferidos contra o B5 |
+| [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
+| [Execução Local](docs/execucao_local.md) | Pré-requisitos e comandos de operação | Vigente |
 | [Referências](docs/referencias.md) | Fontes externas que sustentam as decisões | Vigente |
 
 ## Decisões já tomadas
 
-**51 ADRs aceitos.** As escolhas que mais definem o projeto: domínio de varejo *omnichannel* ·
+As escolhas que mais definem o projeto, cada uma num ADR aceito: domínio de varejo *omnichannel* ·
 Airbyte, dbt e Airflow desde a fase local · Terraform como infraestrutura como código · geração com
 Faker orientada a configuração · streaming de estoque com Debezium sobre Kafka Connect, Redpanda e
 Apache Beam · catálogo como código · **nove schemas no armazém**, com `governance` restrito a
