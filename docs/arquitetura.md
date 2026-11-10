@@ -12,9 +12,9 @@
 
 | Campo | Informação |
 |---|---|
-| Versão | 2.7 |
+| Versão | 2.8 |
 | Situação | Componentes, camadas e paridade decididos — nenhum item pendente |
-| Última revisão | 07/11/2026 — o CDC da fase GCP pelo Debezium Server (ADR-0051) |
+| Última revisão | 10/11/2026 — o diagrama da §1 deixa de contar fatos e dimensões; o inventário é o do Modelo de Dados §3 |
 
 ---
 
@@ -38,7 +38,7 @@ flowchart TB
         RAWL["raw_legacy"]
         STG["staging"]
         TRU["trusted"]
-        ANA["analytics<br/>9 fatos + 17 dimensões"]
+        ANA["analytics<br/>fatos e dimensões"]
         CON["consumption<br/>views de consumo"]
         QUA["quarantine"]
     end
@@ -61,6 +61,10 @@ flowchart TB
     AF["Airflow orquestra todo o fluxo batch"] -.-> RAW
     AF -.-> ANA
 ```
+
+O inventário de fatos e dimensões de `analytics` vive no
+[Modelo de Dados §3](modelo_de_dados.md#3-modelo-dimensional--25-tabelas-em-analytics); o diagrama
+não o repete.
 
 A separação entre `source_db`, `legacy_db` e `warehouse_db` torna a ingestão observável e impede
 que o pipeline analítico consulte diretamente as tabelas das aplicações — a mesma separação que
