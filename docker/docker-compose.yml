@@ -3,8 +3,10 @@
 # São três contêineres, e não um com três bancos, por duas razões:
 # a origem transacional roda com `wal_level=logical` para o CDC da Etapa 7
 # (ADR-0006, ADR-0020), configuração que não deve ser imposta ao armazém; e
-# instâncias separadas espelham o desenho da fase GCP, em que cada banco é uma
-# instância Cloud SQL própria (P4).
+# a separação entre as origens e o armazém espelha a fase GCP (P4), em que as
+# origens ficam no Cloud SQL e o armazém é o BigQuery. Lá as duas origens
+# dividem uma instância, com um banco cada (terraform/cloud_sql.tf); aqui
+# cada uma tem o seu contêiner, e só a transacional liga o `wal_level=logical`.
 #
 # Perfis: os serviços base sobem sempre. Streaming e orquestração entram nas
 # Etapas 7 e 5 com perfis próprios, para que nunca seja preciso subir tudo
