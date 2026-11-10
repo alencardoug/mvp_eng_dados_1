@@ -138,3 +138,14 @@ resource "google_pubsub_subscription_iam_member" "le" {
   role         = "roles/pubsub.subscriber"
   member       = google_service_account.role["streamer"].member
 }
+
+# A prova da terça disse (Registro §49): o Dataflow, antes de ler a assinatura `beam`, consulta a
+# configuração dela (`pubsub.subscriptions.get`), que o `subscriber` não dá — "User not authorized",
+# e nenhum *pull*. O `viewer` é só leitura de metadado, e só nesta assinatura.
+resource "google_pubsub_subscription_iam_member" "consulta" {
+  for_each = var.enable_cheap ? toset(["beam"]) : toset([])
+
+  subscription = google_pubsub_subscription.this[each.key].name
+  role         = "roles/pubsub.viewer"
+  member       = google_service_account.role["streamer"].member
+}

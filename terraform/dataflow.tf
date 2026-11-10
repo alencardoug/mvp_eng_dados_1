@@ -43,6 +43,42 @@ resource "google_project_iam_member" "streamer_dataflow_worker" {
   member  = google_service_account.role["streamer"].member
 }
 
+# **O *watermark* pelo atributo (Registro §49):** com `timestamp_attribute`, o Dataflow cria no
+# tópico uma assinatura própria de acompanhamento (`<assinatura>__df_internal…`) e a apaga quando o
+# *job* sai. Sem permissão, ele repete "Creating watermark tracking pubsub subscription … failed
+# with error: User not authorized" e não lê nada. Criar assinatura é permissão de projeto; um papel
+# só com o que a assinatura de acompanhamento pede, em vez do `pubsub.editor`, que apagaria tópicos.
+# O `attachSubscription` vem do `subscriber` **no tópico** de eventos. Os dois saem com o degrau.
+resource "google_project_iam_custom_role" "rastreio_watermark" {
+  count = local.dataflow ? 1 : 0
+
+  role_id     = "mvpRastreioWatermark"
+  title       = "mvp-ed1 — assinatura de acompanhamento do Dataflow"
+  description = "Criar, ler, consumir e apagar a assinatura de watermark que o Dataflow cria no tópico (Registro §49)."
+  permissions = [
+    "pubsub.subscriptions.create",
+    "pubsub.subscriptions.get",
+    "pubsub.subscriptions.consume",
+    "pubsub.subscriptions.delete",
+  ]
+}
+
+resource "google_project_iam_member" "streamer_rastreio_watermark" {
+  count = local.dataflow ? 1 : 0
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.rastreio_watermark[0].id
+  member  = google_service_account.role["streamer"].member
+}
+
+resource "google_pubsub_topic_iam_member" "streamer_anexa_rastreio" {
+  count = local.dataflow ? 1 : 0
+
+  topic  = google_pubsub_topic.this["eventos"].name
+  role   = "roles/pubsub.subscriber"
+  member = google_service_account.role["streamer"].member
+}
+
 resource "google_bigquery_table_iam_member" "papel" {
   for_each = local.dataflow ? local.concessao_por_tabela : {}
 
