@@ -78,3 +78,46 @@ resource "helm_release" "airbyte" {
 
   depends_on = [google_container_node_pool.this, google_service_account_iam_member.identidade_do_cluster]
 }
+
+# ── O destino BigQuery do Airbyte (D72; Registro §49) ────────────────────────────────────
+# O conector (`destination-bigquery` 3.1.0) faz, no *check* e em cada sincronização, um `POST` de
+# criação para cada *dataset* que usa (`BigQueryUtils.getOrCreateDataset`) — o da camada e o
+# `airbyte_internal`, onde guarda as tabelas brutas da tipagem e deduplicação. O `POST` exige
+# `bigquery.datasets.create` no projeto **mesmo quando o *dataset* já existe** (a resposta seria
+# 409); sem ele, "User does not have bigquery.datasets.create permission", e a sincronização falha
+# antes de ler a origem. O papel próprio tem só essa permissão. O `airbyte_internal` nasce aqui, e
+# não pelo conector: fica no desmonte e não nasce fora do Terraform com cópia bruta da origem; só o
+# `ingestor` o acessa.
+resource "google_project_iam_custom_role" "criar_dataset" {
+  count = local.aplicacoes ? 1 : 0
+
+  role_id     = "mvpCriarDatasetAirbyte"
+  title       = "mvp-ed1 — o POST de dataset do destino BigQuery do Airbyte"
+  description = "Só bigquery.datasets.create: o conector pede a criação de todo dataset que usa (Registro §49)."
+  permissions = ["bigquery.datasets.create"]
+}
+
+resource "google_project_iam_member" "ingestor_criar_dataset" {
+  count = local.aplicacoes ? 1 : 0
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.criar_dataset[0].id
+  member  = google_service_account.role["ingestor"].member
+}
+
+resource "google_bigquery_dataset" "airbyte_internal" {
+  count = local.aplicacoes ? 1 : 0
+
+  dataset_id                 = "airbyte_internal"
+  location                   = var.region
+  description                = "Tabelas brutas do destino BigQuery do Airbyte (tipagem e deduplicação); só o ingestor."
+  delete_contents_on_destroy = true
+}
+
+resource "google_bigquery_dataset_access" "airbyte_internal" {
+  count = local.aplicacoes ? 1 : 0
+
+  dataset_id    = google_bigquery_dataset.airbyte_internal[0].dataset_id
+  role          = "roles/bigquery.dataEditor"
+  user_by_email = google_service_account.role["ingestor"].email
+}

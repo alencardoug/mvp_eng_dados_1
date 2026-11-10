@@ -107,3 +107,26 @@ def test_o_streamer_cria_a_assinatura_de_watermark_com_o_minimo():
     anexo = bloco("google_pubsub_topic_iam_member", "streamer_anexa_rastreio")
     assert 'google_pubsub_topic.this["eventos"].name' in anexo and '"roles/pubsub.subscriber"' in anexo
     assert "pubsub.editor" not in tf.split("rastreio_watermark", 1)[1].split("google_bigquery_table_iam_member", 1)[0]
+
+
+def test_o_ingestor_tem_o_post_de_dataset_e_o_airbyte_internal_e_declarado():
+    """Registro §49: o destino BigQuery do Airbyte faz `POST` de criação de cada dataset que usa, e
+    o `airbyte_internal` nasce no Terraform, só com o ingestor — tudo no degrau das aplicações."""
+    import pathlib
+    import re
+
+    tf = (pathlib.Path(__file__).resolve().parent.parent / "terraform" / "aplicacoes_gke.tf").read_text(encoding="utf-8")
+
+    def bloco(tipo, nome):
+        achado = re.search(rf'resource "{tipo}" "{nome}" \{{(.*?)\n\}}', tf, re.S)
+        assert achado, f"falta {tipo}.{nome}"
+        return achado.group(1)
+
+    papel = bloco("google_project_iam_custom_role", "criar_dataset")
+    assert re.findall(r'"(bigquery\.[a-z.]+)"', papel) == ["bigquery.datasets.create"]
+    assert 'google_service_account.role["ingestor"].member' in bloco("google_project_iam_member", "ingestor_criar_dataset")
+    assert 'dataset_id                 = "airbyte_internal"' in bloco("google_bigquery_dataset", "airbyte_internal")
+    acesso = bloco("google_bigquery_dataset_access", "airbyte_internal")
+    assert 'google_service_account.role["ingestor"].email' in acesso and "dataEditor" in acesso
+    for nome in ("criar_dataset", "ingestor_criar_dataset", "airbyte_internal"):
+        assert re.search(rf'"{nome}" \{{\n  count = local\.aplicacoes \? 1 : 0', tf)
