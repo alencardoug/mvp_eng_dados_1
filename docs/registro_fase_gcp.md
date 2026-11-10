@@ -2380,3 +2380,53 @@ data/medicoes/etapa_13/g2_1/t3_20261110T195239Z.json`.
 **Passo 20 — `make gcp-jobs-auditoria`** (17:01:34 → 17:02:03) [medido]: `3 jobs da conexão legada
 desde a linha de base, 3 tentativas com job no livro (0 antes dela)`; `nenhum POST indevido`. **O
 G2.1 real passou** (passos 11 a 13, 19 e 20).
+
+**Passo 21 — `make gcp-quente-produzir LIMITE=20`** (17:09:55 → 17:10:17) [medido]: 20 movimentos na
+origem do Cloud SQL com o Dataflow parado (9 `purchase_receipt`, 7 `sale_dispatch`, 1
+`customer_return`, 1 `supplier_return` e o resto da lista do alvo).
+
+**Passo 22 — `make gcp-dataflow-lancar`** (17:10:17 → 17:10:52) [medido]: `job enviado:
+2026-11-10_12_10_49-16829467957252927162`. O taxímetro do Dataflow volta a correr; desta vez sem
+falta de permissão.
+
+**Passo 23 — `make gcp-quente-conferir`, repetido** (17:11:01 → 17:16:26) [medido]: quatro `PENDENTE
+— … 13725 de 13745`, enquanto o *worker* subia; às 17:16:26, `destino (BigQuery): 13745 movimentos
+em 13745 linhas`, `conteúdo: os 13745 movimentos iguais por chave e pelas 16 colunas de negócio` e
+dois alertas lidos (`motivo: normalizacao`, variantes 565 e 56). Os 20 que esperaram na assinatura
+entraram uma vez: **a retomada da assinatura por um *job* novo, provada**.
+
+**Passo 24 — `make gcp-debezium-reiniciar`** (17:17:17 → 17:18:18) [medido]: `deployment
+"debezium-server" successfully rolled out`; `gcp-debezium-reiniciar: o pod novo retomou dos offsets e
+passou ao streaming, sem snapshot · data/medicoes/etapa_13/g23/debezium_reinicio_20261110T201816Z.log`.
+O pod novo baixou a imagem do *digest* de hoje antes das ~21:50 em que ela deixa de existir.
+
+**Passos 25 e 26** (17:18:24 → 17:18:46) [medido]: `20 eventos emitidos em 13.4s (1/s)`; o conferir,
+na primeira leitura, `os 13765 movimentos iguais por chave e pelas 16 colunas de negócio` — **nem
+perdido, nem repetido depois do reinício do pod**.
+
+**Passo 27 — `make gcp-quente-latencia`** (17:19:50 → 17:21:49) [medido]: 200 eventos esperados, 200
+vistos, `"completo": true`, intervalo de 5 s; **`min_s` 8,9, `p50_s` 18,9, `p95_s` 34,7, `max_s` 39,4**
+— a latência que um leitor do destino vê, do `recorded_at` na origem à primeira consulta que mostra o
+evento. Relatório em `data/medicoes/etapa_13/g23/latencia_20261110T201958Z.json`.
+
+**Passo 28 — `make gcp-quente-conferir`** (17:21:59) [medido]: `os 13965 movimentos iguais por chave e
+pelas 16 colunas de negócio`, dois alertas lidos.
+
+**Passo 29 — `make gcp-dataflow-parar`** (17:22:40 → 17:25:53) [medido]: `drenado; nenhum job ativo`; a
+assinatura interna saiu de novo (restam as duas declaradas). O segundo trecho do Dataflow: 17:10 →
+17:25. O Debezium Server e o GKE ficam de pé para a quarta, como o roteiro manda.
+
+**A parte 2 da terça (§6.8) completa às 17:25**, 29 de 29 passos.
+
+**A porta P3 (18:00)** — o que ela pede, contra o medido:
+
+| Item da P3 | Medido | Onde |
+|---|---|---|
+| Airbyte → BigQuery sem chave (D72) | 247.902 linhas no `raw` e duas capturas do legado de 12.741, como `mvp-ingestor` pelo Workload Identity | passos 10, 11, 13 |
+| G2.1 real | três capturas certificadas, uma interrompida e recuperada, `T3: memória contida`, `nenhum POST indevido` | passos 11 a 13, 19, 20 |
+| G2.3 real | as provas do passo 3; o *snapshot* e os movimentos iguais por chave e conteúdo; a retomada da assinatura por um *job* novo; o reinício do pod sem *snapshot*, nem perdido nem repetido; a latência | passos 3, 8, 21 a 28 |
+| DAG importada no layout | a prova do G2.4 na imagem do Composer, refeita em 07/11 com as duas DAGs (§28); nada em `airflow/` nem no `composer.py` mudou depois (`git log 7597179..HEAD`) | §24, §28 |
+
+**P3 passa.** Os limites do G2.3 continuam os declarados na §6.8 — os lotes concorrentes com a mesma
+chave e a recuperação do *worker* dentro do mesmo *job*, não atendidos como prova; o reenvio fora da
+janela, só na escrita.
