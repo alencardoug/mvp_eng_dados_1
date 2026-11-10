@@ -2181,3 +2181,140 @@ de certificado, 0 jobs da conexão legada`. O Airbyte lido foi o do GKE, pelo *p
 
 **A parte 1 da terça (§6.7) completa às 14:35**, 9 de 9 passos, com dois desvios registrados acima:
 a conta de faturamento suspensa (11:30–11:58) e o *digest* do Debezium (13:05–14:01).
+
+## 49. O roteiro de terça, parte 2: o caminho quente, as capturas e as provas (10/11/2026, tarde)
+
+O roteiro da §6.8 do `PLANO_etapa_13.md`, no mesmo rito da §48: o Claude Code roda os passos que só
+leem ou que o Owner aprovou, e anota cada saída aqui.
+
+**Passo 1 — `make gcp-gke-versao`** (14:40:32) [medido]: `kubectl 1.35, plano de controle 1.36` —
+dentro da folga de uma versão menor.
+
+**Passo 2 — `make gcp-debezium-status`** (14:40:36) [medido]: o pod `debezium-server-b796d9795-npnl7`
+`1/1 Running` há 41 min, sem reinício; `slot mvp_inventory_movements: ativo, WAL retido 203 kB`; o fim
+do log, sem erro, só os relatórios periódicos (`16`, `32` e `63 records sent`, com o LSN parado em
+`149352560`).
+
+**Passo 3 — `make gcp-quente-prova`** (14:41:14 → 14:45:15) [medido]: `12 passed in 62.51s`, nenhum
+pulado — inclusive o `test_no_bigquery_de_verdade_a_resposta_perdida_do_lote_nao_duplica_nem_cala`, que
+rodou pela primeira vez; a prova do grafo com 3 recursos temporários, 5 publicadas, 5 linhas no
+destino, saldo 23, 1 alerta (limiar 25 cruzado de 25 para 23) e `"falhas": []`.
+`gcp-quente-prova: as duas provas passaram (data/medicoes/etapa_13/g23/*_20261110T174114Z.*)`.
+
+**Passo 4 — `make gcp-dataflow-tabela`** (14:45:27) [medido]: `destino pronto:
+mvp-ed1-gcp.raw.inventory_movements_stream`.
+
+**Passo 5, o plano — `make gcp-plan NOME=11_dataflow VARS="… enable_dataflow=true"`** (14:45:32)
+[medido]: `Plan: 4 to add, 0 to change, 0 to destroy.`, a guarda aceitando — o número do §29 e o
+incremental que o 4a exige. Os quatro: `google_project_iam_member.streamer_dataflow_worker[0]` e três
+`google_bigquery_table_iam_member.papel` na `raw.inventory_movements_stream` (`insert` e `select` do
+`streamer`, `select` do `transformer`). Contra o `11_dataflow_revisao` de 09/11, os mesmos quatro; a
+diferença é só o GKE, que naquele plano ainda nascia.
+
+**Passo 5, o `apply` — `make gcp-apply NOME=11_dataflow`** (14:52:38 → 14:52:58) [medido], com o Owner
+aprovando: `Apply complete! Resources: 4 added, 0 changed, 0 destroyed.`
+
+**Passo 6 — `make gcp-dataflow-validar`** (14:53:03 → 14:53:09) [medido]: `job montado sem enviar:
+mvp-ed1-caminho-quente · 24 transformações · imagem
+gcr.io/cloud-dataflow/v1beta3/beam_python3.11_sdk:2.76.0 ·
+data/medicoes/etapa_13/g23/dataflow_job_20261110T175306Z.json`, nenhuma divergência. Os dois avisos
+do Beam (o *wheel* "must be binary-compatible" e o `pip freeze` que falha no venv do `uv`) são os do
+§29: registro do ambiente de submissão, não instalação.
+
+**Passo 7 — `make gcp-dataflow-lancar`** (14:59:38 → 15:00:09) [medido], com o Owner aprovando: `job
+enviado: 2026-11-10_10_00_06-6526723429947474908 (mvp-ed1-caminho-quente)`; `JOB_STATE_RUNNING` às
+15:00:53. **O taxímetro do Dataflow corre desde então.**
+
+**Passo 8 — `make gcp-quente-conferir`, repetido de 15:01 a 15:10** [medido]: sete leituras iguais,
+`PENDENTE — destino ainda não alcançou a origem: 0 de 13725 movimentos`. A origem tem 13.725
+movimentos (o "Exported 8262 records" do log do Debezium, às 14:01, era uma contagem parcial do
+*snapshot*). O laço foi interrompido às 15:11 para investigar: dez minutos sem nenhuma linha não é espera.
+
+**O diagnóstico** (15:11–15:13) [medido, só leituras]:
+
+- a assinatura `mvp.oltp.inventory_movements.beam`: **13.725 mensagens não entregues**, estável de
+  15:06 a 15:11, e **nenhum *pull*** (sem série de `pull_request_count` nem de `streaming_pull_*`);
+  IAM: só `roles/pubsub.subscriber` para o `mvp-streamer`;
+- o *worker* subiu: o *wheel* `mvp_ed1_worker-0.1.0` instalado, o *harness* Python iniciado às 15:03;
+- o *harness* do Streaming Engine, de 15:03:32 em diante, a cada 30 s: `Streaming engine endpoint …
+  closed unexpectedly with error code, NOT_FOUND`; nenhuma métrica de etapa no *job*;
+- a cada ~30 s, no `job-message`: `Querying the configuration of Pub/Sub subscription
+  …inventory_movements.beam failed. … Specific error: User not authorized to perform this action.`
+
+**Hipótese, não medida** [a medir]: o `roles/pubsub.subscriber` não dá `pubsub.subscriptions.get`, e o
+Dataflow, sem ler a configuração da assinatura, não começa a ler dela. A página oficial que o aviso
+cita não pôde ser lida nesta sessão. A prova do passo 3 não cobre isso: roda o Beam localmente com a
+ADC do Owner, não com o `mvp-streamer` no *worker*.
+
+**A correção do acesso, com o *job* de pé** (15:20–15:28) [medido]. O Owner preferiu conceder o acesso
+e seguir a parar o Dataflow: uma permissão nova vale para o *job* que já roda, e ele pode começar a
+ler sem relançamento. A concessão entrou pelo Terraform (`terraform/armazenamento.tf`,
+`google_pubsub_subscription_iam_member.consulta`: `roles/pubsub.viewer` só na assinatura `beam`,
+para o `streamer`), com `test_o_streamer_consulta_a_assinatura_que_o_dataflow_le`
+(`tests/test_gcp_acesso.py`, 6 passed) e `terraform fmt` limpo. Plano
+`make gcp-plan NOME=11b_pubsub_viewer VARS="…  enable_dataflow=true"` (15:28): `Plan: 1 to add, 0 to
+change, 0 to destroy.`, só `google_pubsub_subscription_iam_member.consulta["beam"]`, a guarda
+aceitando. Sem rodada do Codex: um papel só de leitura numa assinatura não é divergência substantiva
+dos planos revisados (§6.7, passo 4a), juízo do Claude Code registrado aqui.
+
+**O `apply` da consulta** (15:29:56 → 15:30:07) [medido], com o Owner autorizando ("se precisar
+descer, subir, remover, reinstalar, faça"): `Apply complete! Resources: 1 added, 0 changed, 0
+destroyed.` A partir das 15:34, o aviso "Querying the configuration … User not authorized" **sumiu**
+do `job-message`; o acumulado seguiu em 13.725.
+
+**A segunda falta de permissão** (15:34–15:37) [medido]: o `job-message`, a cada ~20 s, `Creating
+watermark tracking pubsub subscription
+projects/mvp-ed1-gcp/subscriptions/mvp.oltp.inventory_movements.beam__df_internal71aae1e07cb493fa to
+topic projects/mvp-ed1-gcp/topics/mvp.oltp.inventory_movements failed with error: User not
+authorized to perform this action.` O `ReadFromPubSub` usa `timestamp_attribute`
+(`src/mvp_ed1/streaming/nuvem.py:284`, o *watermark* pelo atributo, que fica como está), e com ele o
+Dataflow cria a sua assinatura de acompanhamento no tópico: precisa de `pubsub.subscriptions.create`
+no projeto e de `pubsub.topics.attachSubscription` no tópico, que o `streamer` não tinha.
+
+**A correção** (15:37–15:38) [medido]: em `terraform/dataflow.tf`, no degrau do Dataflow, o papel
+próprio `mvpRastreioWatermark` (só `pubsub.subscriptions.create`, `.get`, `.consume` e `.delete` — o
+`pubsub.editor` apagaria tópicos), o vínculo dele ao `streamer` no projeto e o `roles/pubsub.subscriber`
+do `streamer` no tópico de eventos; `test_o_streamer_cria_a_assinatura_de_watermark_com_o_minimo`
+(7 passed), `fmt` limpo. Plano `11c_rastreio_watermark` (15:38): `Plan: 3 to add, 0 to change, 0
+to destroy.`, os três endereços, a guarda aceitando. **Para o desmonte:** a assinatura
+`…beam__df_internal…` é criada pelo Dataflow em tempo de execução, fora do Terraform; o Dataflow a
+apaga quando o *job* sai, e o inventário da §6.5 a acusa se ficar [a conferir no passo 9].
+
+O `apply` do `11c` foi barrado pela trava de modo automático do Claude Code (IaC em escopo
+protegido) e passou ao Owner, pelo `!` do prompt.
+
+**Passo 10 — `make gcp-sync-retail`** (15:39:23 → 15:41:42) [medido], adiantado enquanto o `11c` esperava
+o Owner (as capturas não dependem do caminho quente; só o `dbt build` depende): `job 1: failed · 0
+linhas`, `ERRO: sincronização terminou como failed`. O *check* da origem passou (`SSL mode: require`);
+o do destino, `destination-bigquery-check-1-0-daokd`: `Creating dataset if not present airbyte_internal`
+e `… raw`, e então `POST …/projects/mvp-ed1-gcp/datasets` → `Access Denied: Project mvp-ed1-gcp: User
+does not have bigquery.datasets.create permission in project mvp-ed1-gcp.` **A autenticação sem chave
+da D72 funcionou** — o erro é de autorização da `mvp-ingestor`, não de credencial. O conector pede a
+criação de todo *dataset* que usa, mesmo o que existe, e guarda as tabelas brutas num
+`airbyte_internal` que o projeto não declarava.
+
+**A correção** (15:41–15:43) [medido]: em `terraform/aplicacoes_gke.tf`, no degrau das aplicações, o
+papel próprio `mvpCriarDatasetAirbyte` (só `bigquery.datasets.create`) para o `ingestor` no projeto, e
+o *dataset* `airbyte_internal` declarado no Terraform (`delete_contents_on_destroy`, acesso só do
+`ingestor`) — assim ele sai no desmonte e não nasce pelo conector, fora do Terraform, com cópia bruta
+da origem. `test_o_ingestor_tem_o_post_de_dataset_e_o_airbyte_internal_e_declarado` (8 passed),
+`fmt` limpo. Plano `11d_destino_bigquery` (15:43): `Plan: 7 to add, 0 to change, 0 to destroy.` — os
+3 do `11c`, ainda não aplicado, e os 4 novos; a guarda aceitando. O binário do `11c` foi apagado
+(superado pelo `11d`); o texto ficou.
+
+**O `apply` do `11d`, pelo Owner** (~15:47) [medido, no `!` do prompt]: `Apply complete! Resources: 7
+added, 0 changed, 0 destroyed.` (A primeira tentativa do Owner foi com o `11c`, cujo binário já tinha
+saído: `ERRO: plano '11c_rastreio_watermark' não existe` — nada aplicado.)
+
+**O caminho quente lendo** [medido]: às 15:49, o `job-message` registra `Pub/Sub resources set up for
+topic 'projects/mvp-ed1-gcp/topics/mvp.oltp.inventory_movements'`; o acumulado da assinatura `beam`,
+13.725 até 15:51:54, cai a 1.645 às 15:52:43. O *job* lançado às 15:00 passou a ler **sem
+relançamento**, com as permissões novas.
+
+**Passo 8, de novo — `make gcp-quente-conferir`** (15:52:49) [medido]: `origem (Cloud SQL): 13725
+movimentos, seq até 13725`; `destino (BigQuery): 13725 movimentos em 13725 linhas, seq até 13725`;
+`conteúdo: os 13725 movimentos iguais por chave e pelas 16 colunas de negócio`; nenhum alerta lido.
+
+**Passo 10, repetido — `make gcp-sync-retail`** (15:48:40 → 15:53:38) [medido]: `job 2: succeeded ·
+247.902 linhas`, `concluída: 247.902 linhas`. A origem principal no `raw` pelo Airbyte do GKE,
+escrevendo como `mvp-ingestor` pelo Workload Identity, sem chave: **a prova da D72**.
