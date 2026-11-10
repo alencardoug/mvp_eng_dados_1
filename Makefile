@@ -988,6 +988,7 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 	@# degraus de pé, não só o novo: o esquecido seria destruído. A guarda do `mvp_ed1.gcp.desmonte`
 	@# recusa plano de construção que destrói (DESTROI=n, o número lido no plano, é a exceção do
 	@# Owner) e plano de desmonte que cria; o plano recusado vira `.tfplan.recusado` e não se aplica.
+	@# O `plan` que falha também: o Terraform grava o binário mesmo com erro de leitura (Registro §48).
 	@# PASSO=n tira nome e VARS da declaração do desmonte, a janela inteira menos o já desmontado.
 	@$(GCP_ENV); \
 	if test -n "$(PASSO)"; then \
@@ -1001,7 +1002,8 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 	args=; for v in $$vars; do args="$$args -var $$v"; done; \
 	echo "gcp-plan: $$nome ($$modo) $$destruir $$vars"; \
 	umask 077; $(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
-	rc=$$?; grep -E "Plan:|No changes" "$(GCP_PLANOS)/$$nome.txt"; test $$rc = 0 || exit $$rc; \
+	rc=$$?; grep -E "Plan:|No changes" "$(GCP_PLANOS)/$$nome.txt"; \
+	test $$rc = 0 || { test ! -f "$(GCP_PLANOS)/$$nome.tfplan" || mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit $$rc; }; \
 	$(GCP_TF) show -json "../$(GCP_PLANOS)/$$nome.tfplan" \
 		| .venv/bin/python -m mvp_ed1.gcp.desmonte conferir-plano --modo "$$modo" $(if $(DESTROI),--destroi $(DESTROI)) \
 		|| { mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit 1; }

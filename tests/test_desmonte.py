@@ -97,6 +97,28 @@ def test_o_gcp_plan_passa_pela_guarda_e_o_recusado_nao_se_aplica():
     assert 'test -f "$(GCP_PLANOS)/$$nome.tfplan"' in aplicar
 
 
+def test_o_plan_que_falha_tambem_vira_recusado(tmp_path):
+    """Registro §48: o Terraform gravou o `.tfplan` de um `plan` que terminou em erro (403 do
+    Secret Manager), e o `gcp-plan` só renomeava quando a guarda recusava. Aqui a receita roda de
+    verdade, com um Terraform falso que grava o binário e sai com 1."""
+    receita = MAKEFILE.split("\ngcp-plan:", 1)[1].split("\n\n", 1)[0].split("\n", 1)[1]
+    falso = tmp_path / "terraform_falso"
+    falso.write_text(
+        "#!/bin/sh\n"
+        'for a in "$@"; do case "$a" in -out=*) saida="${a#-out=../}";; esac; done\n'
+        'printf binario > "$saida"; echo "Plan: 1 to add, 0 to change, 0 to destroy."; echo Error: 403; exit 1\n',
+        encoding="utf-8")
+    falso.chmod(0o755)
+    (tmp_path / "planos").mkdir()
+    (tmp_path / "Makefile").write_text(
+        f"GCP_ENV = true\nGCP_TF := {falso}\nGCP_PLANOS := planos\n\ngcp-plan:\n{receita}\n", encoding="utf-8")
+    resultado = subprocess.run(["make", "--no-print-directory", "gcp-plan", "NOME=99_teste", "VARS=enable_x=true"],
+                               cwd=tmp_path, capture_output=True, text=True)
+    assert resultado.returncode != 0
+    assert not (tmp_path / "planos" / "99_teste.tfplan").exists()
+    assert (tmp_path / "planos" / "99_teste.tfplan.recusado").read_text(encoding="utf-8") == "binario"
+
+
 def _registro(tipo: str, nome: str) -> dict:
     return {"assetType": tipo, "name": nome}
 
