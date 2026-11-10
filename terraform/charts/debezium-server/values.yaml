@@ -1,7 +1,9 @@
 # Os valores vêm do Terraform (`aplicacoes_gke.tf`); aqui só a forma e o que não muda.
 
 # 3.7.1.Final, a primeira versão com o atributo cru do Pub/Sub (D78), fixada por digest.
-imagem: quay.io/debezium/server:3.7.1.Final@sha256:8e1036358ba53393a8c2e544a1d2dd6fdf97679f5237987c9e3dac5e13e08582
+# O quay.io republica a tag toda noite (~00:50 UTC) e apaga o manifesto anterior: o digest vale
+# até a próxima republicação, e um pull depois dela falha (Registro §48). Este é o de 10/11 00:52 UTC.
+imagem: quay.io/debezium/server:3.7.1.Final@sha256:8c4e6c7efc392f9adfd283ede2e75cd1a3594ef1126b014248054a5e718bfbd5
 
 # A conta de papel que a do Kubernetes personifica (Workload Identity): `mvp-streamer`.
 contaDePapel: ""
