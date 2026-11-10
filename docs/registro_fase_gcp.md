@@ -2318,3 +2318,65 @@ movimentos, seq até 13725`; `destino (BigQuery): 13725 movimentos em 13725 linh
 **Passo 10, repetido — `make gcp-sync-retail`** (15:48:40 → 15:53:38) [medido]: `job 2: succeeded ·
 247.902 linhas`, `concluída: 247.902 linhas`. A origem principal no `raw` pelo Airbyte do GKE,
 escrevendo como `mvp-ingestor` pelo Workload Identity, sem chave: **a prova da D72**.
+
+**Passo 9 — `make gcp-dataflow-parar`** (15:53:54 → 15:56:33) [medido]: `Started draining job`,
+`gcp-dataflow-parar: drenado; nenhum job ativo`. A assinatura `…beam__df_internal…`, que o Dataflow
+criou, saiu com ele: restam só `mvp.alerts.inventory_low_stock.observacao` e
+`mvp.oltp.inventory_movements.beam`. O taxímetro do ensaio do Dataflow: 15:00 → 15:56.
+
+**Passo 11 — `make gcp-sync-legacy`** (16:01:56 → 16:10:56) [medido]: `recuperação: nada devido —
+nenhuma tentativa a retomar`; `job 3: succeeded · 12.741 linhas`; a tentativa em
+`gs://mvp-ed1-gcp-livro/legado/epoch_0001_20261110T173526Z/cli_7329fe000d844491a0b262f89d68e5c5_attempt.json`
+(`sha256 41171a68…`); `concluída: 12.741 linhas`; `certificado 7329fe000d84: complete · snapshot 3 ·
+tabelas {'complete': 40}`.
+
+**Passo 12 — a captura interrompida** (16:11:05 → 16:14:15) [medido]. O Ctrl-C do roteiro foi
+reproduzido com `SIGINT` ao grupo de processos do alvo, na primeira linha `job …: running`. A primeira
+tentativa do Claude Code errou o controle: o `setsid`, lançado em segundo plano, se desligou do PID
+guardado, e o laço de espera terminou na hora, sem interromper nada; o alvo seguiu sozinho e foi
+achado pelo `ps` (grupo `146333`), ainda no *preflight*. Retomado o controle, `job 4: running · 0
+linhas` às 16:14:14 e o `SIGINT` ao grupo: `KeyboardInterrupt` em `acompanhar`, `make: ***
+[Makefile:1399: gcp-sync-legacy] Interrupção`. O *trap* da receita fechou o *port-forward* e o
+*proxy* (portas 18001 e 15432 livres). O *job* 4 segue no Airbyte, e a tentativa ficou pendente no
+livro — o que o passo 13 resolve.
+
+**Passo 13 — `make gcp-sync-legacy`** (16:18:38 → ~16:31, depois de 4 min de espera pelo *job* 4)
+[medido]: `recuperação registrou: …/recovery_c2131dc1f9274261a68e84798690a0a4_attempt.json` e
+`…_transition.json` — a tentativa interrompida do passo 12 —; `job 5: succeeded · 12.741 linhas`;
+`registro da tentativa: …/cli_9da6b1edb9814d0ab2ebe96df148afb9_attempt.json · sha256 e69329d9…`;
+`certificado 9da6b1edb981: complete · snapshot 5 · tabelas {'complete': 40}`. A barreira não
+precisou recusar: o *job* 4 já tinha terminado.
+
+**Passo 14 — `make gcp-tags-convergir`** (16:31:26 → 16:32:11) [medido]: `gcp-tags-convergir: fontes
+convergidas`.
+
+**Passo 15 — `make gcp-dbt-build`** (16:32:17 → 16:44:37) [medido]: `Done. PASS=909 WARN=0 ERROR=0 SKIP=0
+NO-OP=0 REUSED=0 TOTAL=909` — o número do §22, agora sobre o dado real da nuvem, com o
+`caminhos_de_ingestao_reconciliam` passando entre o `raw.inventory_movements` do Airbyte e o
+`_stream` do Dataflow.
+
+**Passo 16 — `make gcp-livro-tratamento NOME=terca_tratamento.json`** (16:44:50 → 16:45:10) [medido]:
+`registro de tratamento: …/epoch_0001_20261110T173526Z/terca_tratamento.json · sha256 a1608da2…`.
+
+**Passo 17 — `make gcp-tags-inventario`** (16:45:10 → 16:46:18) [medido]: `0 divergências, nenhuma
+tabela ausente`.
+
+**Passo 18 — `make gcp-oraculos`** (16:46:24 → 16:52:24) [medido]. Antes, às 16:32, o primeiro
+`docker` da sessão ativou o *socket* e subiu o Airflow e o Airbyte locais com os bancos (R11, como
+nos outros dias); o Airbyte voltou a ser pausado às 16:32:53 (`make airbyte-pause`). Saída: `contagens:
+224 iguais, 11 diferentes no estado ou de um lado só, 43 só na contagem da história (não comparáveis,
+D85)`; `consumo: 13 views iguais em conteúdo, 3 diferentes`; `colunas: 2983 no local, 2983 no
+BigQuery; 2983 com o mesmo nível`, 0 mudanças de nível, 0 problemas da derivação. O alvo sai com
+erro, como o roteiro prevê, e nada bloqueia. **As 11 diferenças são todas da linhagem dos movimentos
+de estoque**: a origem local tem 18.125 movimentos, a do Cloud SQL 13.725 (`raw.inventory_movements`,
+`_stream`, `raw.inventory_balances` 2923/2914 e os modelos de `staging`, `trusted`, `analytics` e
+`consumption` que leem deles). As três *views* que diferem são as do §37 — as duas de estoque e a
+`gross_margin_by_category` do mês corrente (16 linhas de 2026-11 só no local, que vêm dos movimentos
+a mais).
+
+**Passo 19 — `make gcp-memoria-oraculo`** (16:52:38 → 17:01:34) [medido]: `T3: memória contida ·
+data/medicoes/etapa_13/g2_1/t3_20261110T195239Z.json`.
+
+**Passo 20 — `make gcp-jobs-auditoria`** (17:01:34 → 17:02:03) [medido]: `3 jobs da conexão legada
+desde a linha de base, 3 tentativas com job no livro (0 antes dela)`; `nenhum POST indevido`. **O
+G2.1 real passou** (passos 11 a 13, 19 e 20).
