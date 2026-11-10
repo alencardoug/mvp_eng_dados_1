@@ -1,14 +1,15 @@
 # 04 — BigQuery: o armazém
 
+> **Quando fazer.** **Seg 09, ou ter 10 antes do passo 7 do §6.7**, passos 1 a 7 e 9, com o dado de desenvolvimento. Esse passo zera o armazém; o dado volta depois do passo 15 da §6.8. O passo 8, depois do passo 8 da §6.8.
+
 **Em uma frase.** O `warehouse_db` sem servidor: nove *datasets* no lugar de nove schemas, tabelas
 particionadas e clusterizadas no lugar de índices, *authorized views* no lugar do `grant select` a
 `analyst`, e o dbt escrevendo tudo com o dialeto adaptado. Cobra por **byte lido** (consulta) e por
 GB guardado — não por hora.
 
 **Quanto custa e por quê.** Neste volume, centavos: US$ 0,02/GB/mês de armazenamento e
-US$ 6,25/TB consultado, com 1 TB/mês grátis ([conversa §3](../CONVERSAS_COM_CHAT/ARQUITETURA_E_CUSTOS_GCP.md)).
-O que faz subir: `SELECT *` sem filtro de partição em tabela grande, e *streaming inserts* (por GB
-inserido — é o caminho do Dataflow, cap. 08).
+US$ 6,25/TB consultado, com 1 TB/mês grátis ([Capacidade §2.14](../docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026)).
+O que faz subir: `SELECT *` sem filtro de partição em tabela grande.
 
 **Onde fica.** ☰ → *BigQuery* → *Studio* (`console.cloud.google.com/bigquery`). Painel esquerdo:
 *Explorer* (projeto → *datasets* → tabelas/views); centro: editor e resultados; embaixo: *Job
@@ -17,9 +18,9 @@ history* (*Personal* e *Project*). Ao lado: *Scheduled queries*, *Data transfers
 
 **O que é deste projeto aqui.** *Datasets* `raw`, `raw_legacy`, `staging`, `trusted`,
 `snapshots`, `analytics`, `consumption`, `quarantine`, `governance`. Em `analytics`, as dez fatos
-particionadas por data e clusterizadas por chave; em `consumption`, as 16 views de negócio como
-*authorized views*; em `raw`, `inventory_movements_stream` recebendo *streaming inserts* do
-Dataflow; em `governance`, `legacy_captures` (o certificado do ADR-0044, com `MERGE`). O dbt roda
+particionadas e clusterizadas por chave (`fact_sales_order_item`, por mês em `placed_at`); em
+`consumption`, as 16 views de negócio como *authorized views*; em `raw`, `inventory_movements_stream`
+recebendo do Dataflow pelo *sink* idempotente da D75; em `governance`, `legacy_captures` (o certificado do ADR-0044, com `MERGE`). O dbt roda
 do Composer com a conta `transformer`.
 
 ## Roteiro guiado
@@ -36,41 +37,42 @@ do Composer com a conta `transformer`.
 3. **Uma consulta com custo visível.** No editor: `select count(*) from analytics.fact_sales_order_item`.
    Antes de rodar, o canto superior direito mostra **"This query will process X MB"**. Rode. Em
    *Job information*: bytes processados, *slot time*, cache hit. Agora
-   `select * from analytics.fact_sales_order_item where order_date = '2026-08-01'` (a coluna de
-   partição): veja o estimador cair. *Por quê:* é a única prova de que a partição está sendo
+   `select * from analytics.fact_sales_order_item where placed_at >= '2026-08-01' and placed_at < '2026-09-01'`
+   (a coluna de partição, mensal): veja o estimador cair. *Por quê:* é a única prova de que a partição está sendo
    usada — e o que você vai dizer sobre custo.
 4. **Authorized view.** `consumption.<uma view>` → *Details*: SQL da view. Depois no *dataset*
    `analytics` → *Sharing → Authorize views*: a lista de views de `consumption` autorizadas a ler
    `analytics`. *Por quê:* é o mecanismo pelo qual `analyst` lê a view sem ter acesso ao
    *dataset* de baixo — o "authorized view em dataset próprio" da Arquitetura §5.
-5. **Permissões por *dataset*.** `consumption` → *Sharing → Permissions*: `analyst` como
-   `BigQuery Data Viewer`; `trusted` → o mesmo painel: `analyst` **ausente**. *Por quê:* a tabela da
+5. **Permissões.** A `mvp-analyst` não aparece no *dataset* `consumption`: o `BigQuery Data
+   Viewer` dela é **em cada view** (aba *Share* da view, ou `bq get-iam-policy`). No `trusted`:
+   **ausente**. *Por quê:* a tabela da
    §7 lida na tela. (Cap. 02 explicou por que isso não aparece no IAM do projeto.)
-6. **Job history → Project history.** Filtre pela conta `transformer`: cada modelo do dbt é um
+6. **Job history → Project history.** Filtre pela conta `mvp-transformer` (na quarta; antes disso, os *builds* são da sua conta ou da personificação): cada modelo do dbt é um
    *job* com SQL, bytes, duração e *labels* (`dbt_invocation_id`, se o dbt os enviar). *Por quê:*
    é o `run_results.json` visto pelo lado do servidor — o registro de que o Composer rodou o dbt.
 7. **`INFORMATION_SCHEMA`** — três consultas para salvar:
    ```sql
    -- o que o dbt executou hoje, por usuário, com bytes e duração
    select user_email, job_id, creation_time, total_bytes_processed, total_slot_ms, statement_type
-   from `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+   from `region-us-central1`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
    where creation_time > timestamp_sub(current_timestamp(), interval 1 day)
    order by creation_time desc;
    -- tamanho por tabela (o `make size-report` daqui)
    select table_schema, table_name, total_rows, total_logical_bytes/1e6 as mb
-   from `region-us`.INFORMATION_SCHEMA.TABLE_STORAGE order by mb desc;
+   from `region-us-central1`.INFORMATION_SCHEMA.TABLE_STORAGE order by mb desc;
    -- partições de uma fato
    select partition_id, total_rows from `analytics`.INFORMATION_SCHEMA.PARTITIONS
    where table_name = 'fact_sales_order_item' order by partition_id;
    ```
-   (troque `region-us` pela região do projeto). *Por quê:* medição reproduzível, e é a mesma
+   *Por quê:* medição reproduzível, e é a mesma
    família de consulta do `pg_stat`/`size-report` local.
 8. **`raw.inventory_movements_stream` → Details.** *Streaming buffer*: linhas ainda no *buffer*
    (chegaram pelo Dataflow, ainda não consolidadas — não aparecem em *Preview* nem em cópia de
    tabela por até ~90 min). *Por quê:* é a diferença de comportamento que um *streaming insert* tem
    e uma tabela normal não; quem operou Dataflow → BigQuery sabe disso.
 9. **Consulta como `analyst`.** No Cloud Shell:
-   `bq --impersonate_service_account=analyst@… query 'select 1 from trusted.orders limit 1'` →
+   `bq --impersonate_service_account=mvp-analyst@mvp-ed1-gcp.iam.gserviceaccount.com query --use_legacy_sql=false 'select 1 from trusted.orders limit 1'` →
    **Access Denied**; a mesma sobre `consumption.<view>` → resultado. *Por quê:* a asserção de
    falha da §7 executada, e ela fica nos *audit logs* (cap. 10). Coluna com *policy tag*: cap. 09.
 

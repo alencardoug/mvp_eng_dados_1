@@ -1,5 +1,7 @@
 # 02 — IAM, contas de serviço, federação e segredos: a fundação
 
+> **Quando fazer.** **Seg 09**, inteiro. Só leitura; as contas já existem.
+
 **Em uma frase.** IAM decide **quem pode o quê em qual recurso**; contas de serviço são as
 identidades dos componentes; *Workload Identity Federation* deixa um sistema de fora agir como uma
 delas sem chave; Secret Manager guarda o que o `.env` guardava. É o equivalente na nuvem dos cinco
@@ -14,11 +16,13 @@ gerada e baixada é um segredo longevo — a regra 1 do `CLAUDE.md` não admite.
 accounts*, *Workload Identity Federation*, *Audit Logs*, *Quotas*, *Asset Inventory*. Secret
 Manager: ☰ → *Security → Secret Manager* (`console.cloud.google.com/security/secret-manager`).
 
-**O que é deste projeto aqui.** Uma conta de serviço por papel — o Terraform deve criá-las com os
-nomes do ADR-0011: `ingestor` (Airbyte), `transformer` (dbt no Composer), `streamer` (Dataflow),
-`analyst`, `auditor` — mais as que os produtos exigem (a do ambiente Composer, a dos *workers* do
-Dataflow, a do Datastream). Um *pool* de federação para o fluxo das *policy tags* (ADR-0025). Os
-segredos: senhas do Cloud SQL, credenciais do Airbyte.
+**O que é deste projeto aqui.** Uma conta de serviço por papel, com o prefixo `mvp-`, nos nomes do
+ADR-0011: `mvp-ingestor` (Airbyte), `mvp-transformer` (dbt), `mvp-streamer` (Debezium e Dataflow),
+`mvp-analyst`, `mvp-auditor`; mais `mvp-politicas` (o fluxo das *policy tags*) e
+`mvp-prova-sem-leitura` (a identidade que serve para provar a negação). A dos nós do GKE e a do
+Composer nascem com os degraus deles. O *pool* de federação é o `mvp-ed1-github` (ADR-0025). Os
+segredos hoje são as senhas do Cloud SQL (`mvp-ed1-source-db-password`,
+`mvp-ed1-legacy-db-password`); os do Airbyte chegam na quarta (§6.9, passo 4).
 
 ## Roteiro guiado
 
@@ -35,7 +39,7 @@ segredos: senhas do Cloud SQL, credenciais do Airbyte.
    **usar** esta conta — `Service Account User`/`Token Creator`), **Keys** — deve estar
    **vazia**: nenhuma chave criada. *Logs* → mostra o uso. *Por quê:* "conta sem chave" é a
    frase que separa quem seguiu a regra 1 de quem não.
-4. **Workload Identity Federation.** *Pools* → o *pool* do CI → *Providers* (GitHub, OIDC) →
+4. **Workload Identity Federation.** *Pools* → `mvp-ed1-github` → *Providers* (GitHub, OIDC) →
    *Connected service accounts*. *O que olhar:* a condição de atributo (`assertion.repository ==
    "…"`) que restringe quem pode assumir. *Por quê:* é a "condição inseparável" do ADR-0025 em
    forma de tela.

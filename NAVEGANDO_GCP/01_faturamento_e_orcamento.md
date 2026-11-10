@@ -1,21 +1,25 @@
 # 01 — Faturamento e orçamento: o taxímetro
 
+> **Quando fazer.** Passos 1 a 6, **seg 09**, só olhando (não crie orçamento: já existe). O custo real, **sex 13 em diante**: a fatura atrasa até dois dias.
+
 **Em uma frase.** *Billing* é a conta bancária do projeto: mostra o que cada serviço custou, por
 dia e por SKU, e avisa quando passa de um teto. Na fase local não existe equivalente — é a
 novidade que muda o comportamento de todo o resto.
 
 **Quanto custa e por quê.** Nada: olhar é grátis. Mas é aqui que se lê o que os outros cobraram, e
 a fatura **atrasa 24–48 h** — o que você vê de manhã é ontem. A ordem de grandeza da janela está na
-[conversa §7–§8](../CONVERSAS_COM_CHAT/ARQUITETURA_E_CUSTOS_GCP.md): estimativa, não medição.
+[Capacidade §2.14](../docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026): estimativa, não medição.
 
 **Onde fica.** Menu ☰ → *Billing* (ou `/` e "Billing"). URL `console.cloud.google.com/billing`.
 Uma conta de faturamento pode servir vários projetos; confira que o seletor mostra **a conta do
 projeto certo**. Páginas que importam: *Overview*, *Reports*, *Cost table*, *Budgets & alerts*,
 *Credits*.
 
-**O que é deste projeto aqui.** O crédito de conta nova (US$ 300 / 90 dias, se aplicável — confira
-em *Credits*: valor restante e **data de expiração**), os dois alertas de orçamento combinados
-(US$ 100 e US$ 150) e, a partir de terça, as linhas de custo de Composer, GKE, Cloud SQL, Dataflow.
+**O que é deste projeto aqui.** O crédito da conta (confira em *Credits*: valor restante e **data
+de expiração**), um orçamento de R$ 400 do `mvp-ed1-gcp`, com alertas em R$ 120, 240 e 360 e os
+créditos excluídos do cálculo (senão o gasto líquido seria zero e nada dispararia), outro de R$ 180
+do `mvp-ed1-estudo`, e as linhas de custo do Cloud SQL desde segunda, do GKE desde terça e do Composer
+e do Dataflow na quarta. Os recursos têm a *label* `etapa=13`.
 
 ## Roteiro guiado
 
@@ -30,10 +34,9 @@ em *Credits*: valor restante e **data de expiração**), os dois alertas de orç
    filtros ficam na URL.
 4. **Cost table.** A mesma coisa em tabela, exportável em CSV. *Por quê:* é o arquivo que entra
    no registro de custo real (critério da Etapa 13).
-5. **Budgets & alerts.** Abra os dois alertas. *O que olhar:* escopo (projeto), valor, limiares
-   (50/90/100 %), e-mails. Se não existirem, **crie agora**: *Create budget* → escopo do projeto →
-   valor → limiares → notificação por e-mail. *Por quê:* é a única defesa que não depende de você
-   lembrar de olhar.
+5. **Budgets & alerts.** Abra os orçamentos, sem criar nenhum: o da janela é do Terraform, e sai no
+   desmonte. *O que olhar:* escopo (projeto), valor, limiares, e-mails. *Por quê:* é a única defesa
+   que não depende de você lembrar de olhar.
 6. **Billing export** (*Billing → Billing export*). Se estiver configurado para o BigQuery, o custo
    vira uma tabela consultável (`billing_export.gcp_billing_export_v1_…`): custo por
    `service.description`, por `labels.value`, por hora. *Por quê:* é a forma mais fiel de ler o
@@ -61,12 +64,12 @@ em *Credits*: valor restante e **data de expiração**), os dois alertas de orç
 
 - Captura de *Reports* por serviço, com a URL dos filtros.
 - CSV do *Cost table* da janela (na semana seguinte, o definitivo).
-- Captura dos dois orçamentos com os limiares.
+- Captura do orçamento da janela com os limiares.
 - Se houver *export*: a consulta SQL que dá o custo por serviço por dia.
 
 ## O que você saberá dizer depois
 
 - "O custo da janela foi X, dominado por Composer (Y) e GKE (Z); li no *export* de *billing* por
   SKU, não no gráfico."
-- "Configurei alertas de orçamento em dois limiares antes do primeiro `apply`."
+- "O orçamento com alertas nasceu pelo Terraform antes do primeiro `apply` cobrável, com os créditos excluídos."
 - "A fatura atrasa até 48 h, então o custo real entrou no registro só na semana seguinte."

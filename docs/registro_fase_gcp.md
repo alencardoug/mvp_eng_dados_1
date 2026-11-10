@@ -1916,3 +1916,28 @@ quarta [a medir]. Como a mudança não toca recurso, o Owner decidiu não abrir 
 
 O cronograma do PLANO §6.1 também foi acertado: a rodada do `plan` caro já aconteceu na segunda, e
 o que resta na terça é o parecer sobre o `09_aplicacoes` real (§6.7, passo 4a).
+
+## 47. O material de estudo alinhado à janela (09/11/2026, tarde)
+
+O Owner perguntou quais exercícios do `NAVEGANDO_GCP` e do laboratório conseguia fazer. A resposta
+exigiu confrontar o guia, escrito antes da Etapa 13, com o projeto de pé, e o Owner pediu para levar
+as correções aos arquivos, com a sugestão de quando fazer cada parte.
+
+- **O guia** (`NAVEGANDO_GCP/`, 14 arquivos): cada capítulo ganhou um "Quando fazer", e o README, o
+  calendário de 09 a 12/11 e três limites para o `mvp-ed1-gcp` — não criar nada à mão, não disparar
+  fora do roteiro, não mudar configuração pela consola. O capítulo 07 foi reescrito para o Debezium
+  Server (ADR-0051), adiantando o item do G8. Saíram o GKE Autopilot, o *bucket* de estado e o
+  Datastream; entraram os nomes reais [medido por leitura do GCP, em 09/11]: as contas `mvp-`, a taxonomia
+  `mvp-ed1-classificacao` com duas *tags*, o `mvp-analyst` com leitura em cada view e com leitura
+  fina, e a `mvp-prova-sem-leitura` como a identidade negada.
+- **O que o guia pedia e deixou de pedir**, porque conflita com o roteiro: Query Insights, *Sync
+  now*, *Trigger*, publicação à mão no tópico real, *Pull* na assinatura `beam`, *sink*, *dashboard*
+  e alerta no projeto da janela. A "sexta" do guia virou quinta: o projeto é apagado às 15:00.
+- **Não exercitado:** a UI do Airbyte por `port-forward` no Cloud Shell e o Cloud SQL Studio, ambos
+  marcados nos capítulos.
+- **O laboratório** (`data/medicoes/estudo_gcp/`, fora do Git): a página ganhou o calendário e as
+  dependências por bloco, extraídas das consultas (quem cria e quem lê cada tabela). O projeto
+  `mvp-ed1-estudo` estava pronto [medido]: ativo, com faturamento, conexão, *bucket* e *dataset* vazio.
+  O Artifact anterior pertence à outra conta, que esta sessão não enxerga; a versão nova saiu num
+  Artifact separado, apagado no mesmo dia a pedido do Owner — vale o da outra conta, e a fonte em
+  `data/medicoes/estudo_gcp/laboratorio_gcp.html` republica em link novo se preciso.

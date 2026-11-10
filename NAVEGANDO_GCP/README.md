@@ -10,13 +10,17 @@
 > rotuladas como tal. Caminhos de menu são os da consola que eu conheço; a Google renomeia produtos
 > e move menus com frequência, então cada capítulo diz também **como achar quando o menu mudou**
 > (a barra de busca da consola, tecla `/`, encontra qualquer produto ou recurso pelo nome).
+>
+> **Atualizado em 09/11/2026**, para a Etapa 13 como ela ficou: nomes, peças e horários reais. O
+> que manda na janela é o [plano](../PLANO_etapa_13.md#6-a-janela), e os custos estimados são os da
+> [Capacidade §2.14](../docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026); onde um capítulo citar a conversa de custos, vale a Capacidade.
 
 ---
 
 ## 1. O plano em uma frase
 
-**O plano 1** é a §3 da conversa de custos, em janela curta: segunda liga, terça e quarta correm o
-fluxo e colhem evidência, quinta derruba. Composer é a peça mais cara e a que este guia mais
+A janela é a do [plano da Etapa 13](../PLANO_etapa_13.md#61-cronograma-estimado): segunda o Cloud SQL, terça o
+GKE e o caminho quente, quarta o Composer, quinta o desmonte. Composer é a peça mais cara e a que este guia mais
 detalha — sobe por último, desce primeiro, e é onde você tem de saber andar sem pensar.
 
 O que vai existir lá, peça a peça, com o que cada uma substitui daqui:
@@ -29,7 +33,7 @@ O que vai existir lá, peça a peça, com o que cada uma substitui daqui:
 | `warehouse_db`, nove schemas | **BigQuery**, nove *datasets*, tabelas particionadas, *authorized views* | [04](04_bigquery.md) |
 | Airbyte local (abctl) | **Airbyte em contêiner no GKE**, por Terraform | [05](05_airbyte_no_gke.md) |
 | Airflow local (`fluxo_batch`) | **Cloud Composer** — a peça cara | [06](06_cloud_composer.md) |
-| Debezium + Redpanda | **Datastream** + **Pub/Sub** | [07](07_datastream_e_pubsub.md) |
+| Debezium + Redpanda | **Debezium Server** no GKE + **Pub/Sub** (ADR-0051) | [07](07_datastream_e_pubsub.md) |
 | Beam no Prism | **Dataflow** | [08](08_dataflow.md) |
 | `.yml` do dbt, Dicionário §3, papéis | **Dataplex**, linhagem por coluna, **policy tags** | [09](09_dataplex_linhagem_e_policy_tags.md) |
 | `docker logs`, `make dag-status` | **Cloud Logging**, **Monitoring**, *audit logs* | [10](10_observabilidade_logs_e_auditoria.md) |
@@ -56,39 +60,44 @@ estrutura, para que no dia você saiba onde olhar sem reler:
 8. *Evidência a levar* — o que salvar;
 9. *O que você saberá dizer depois* — três frases que só quem operou a ferramenta diz.
 
-**Durante (o dia, ~8 h).** O [roteiro do dia](#3-o-roteiro-do-dia) abaixo é o itinerário com
-horário. Com o Composer de pé, cada hora custa; o roteiro põe o que **depende** dele no meio do dia,
-num bloco só, e o que não depende antes e depois.
+**Durante (de segunda a quarta).** O [calendário](#3-quando-fazer-cada-capítulo) abaixo encaixa cada
+capítulo no que estiver de pé. Com o Composer ligado, cada hora custa; ele fica por último, e o que
+não depende dele vem antes.
 
 **Depois.** Preencha o caderno de evidências com o que **mediu** — número, captura, consulta —, não
 com o que planejou. Planejado e medido não se misturam (P5).
 
 ---
 
-## 3. O roteiro do dia
+## 3. Quando fazer cada capítulo
 
-Pressupõe o ambiente já de pé (o `apply` é de segunda; este dia é terça ou quarta). Horários são
-guia, não contrato; o único fixo é o bloco do Composer, porque é o que custa.
+Sugestão para 09 a 12/11/2026, encaixada nos roteiros do [plano](../PLANO_etapa_13.md#6-a-janela). Passos citados
+como §6.x são do plano; os demais são do próprio capítulo.
 
-| Hora | Bloco | Capítulo | Depende do Composer? |
-|---|---|---|---|
-| 08:00 | O taxímetro: fatura de ontem, alertas de orçamento, o que está de pé (*Asset Inventory*) | 01, 11 | não |
-| 08:30 | A fundação: IAM, contas de serviço, federação, segredos | 02 | não |
-| 09:00 | A origem: Cloud SQL — instância, bancos, conexões, *Query Insights*, *logs* | 03 | não |
-| 09:30 | O armazém: BigQuery — *datasets*, partições, *authorized views*, histórico de *jobs*, `INFORMATION_SCHEMA` | 04 | não |
-| 10:30 | A carga: Airbyte no GKE — *workloads*, UI, conexões, histórico de sincronização | 05 | não |
-| 11:00 | **A peça cara: Cloud Composer** — ambiente, *bucket*, UI do Airflow, disparar `fluxo_batch`, acompanhar, *logs* | 06 | **sim** |
-| 12:30 | Almoço — com o `fluxo_batch` rodando, não parado: hora de Composer parado é dinheiro sem evidência | — | — |
-| 13:30 | O caminho quente: Datastream e Pub/Sub — *stream*, objetos, atraso, tópicos, assinaturas, puxar mensagem | 07 | não |
-| 14:15 | O processamento: Dataflow — grafo do *job*, métricas, *autoscaling*, *logs* de *worker*, chegada em `raw` | 08 | não |
-| 15:00 | A governança: Dataplex, linhagem por coluna, *policy tags* e o acesso negado comprovado | 09 | não |
-| 15:45 | A prova: Logs Explorer, *audit logs*, Monitoring — a trilha do que você fez hoje | 10 | não |
-| 16:30 | O desmonte: Terraform — estado, `plan` de destruição, a lista do que sobrevive a um `destroy` | 11 | não |
-| 17:00 | Caderno de evidências: o que foi medido, o que ficou pendente | 12 | — |
+| Quando | O quê | Depende de |
+|---|---|---|
+| **Seg 09** | Cap. 00; 01 (só olhar); 02; 03 (passos 1 a 6, 8 e 9) | Cloud SQL, de pé desde 11:30 |
+| **Seg 09, ou ter 10 antes do passo 7 do §6.7** | Cap. 04 (1 a 7 e 9); 09 (1 a 3, 5 e 7); 10 (2 a 5); 11 (1, 3 e 4) | O dado de desenvolvimento, que o passo 7 do §6.7 apaga |
+| **Ter 10**, depois do passo 6 do §6.7 | Cap. 05 | GKE e Airbyte |
+| **Ter 10**, durante a §6.8 | Cap. 07; cap. 08 com o *job* de pé (passos 7 a 9 e 22 a 29); cap. 05 ao vivo (passos 10 a 13) | Debezium, Dataflow |
+| **Ter 10**, depois do passo 15 da §6.8 | Cap. 04 de novo (passo 8) e 09 com o dado real | O `dbt build` da nuvem |
+| **Qua 11**, ~07:30 a 21:30 | Cap. 06; cap. 08 completo (passos 7 a 17 da §6.9); cap. 10 (1, 6 e 8) | Composer e Dataflow; a parte cara |
+| **Qui 12** | O desmonte é a [§6.5 do plano](../PLANO_etapa_13.md#65-a-ordem-do-desmonte-rv13-1-02) | Faturamento desligado às 12:00; projeto apagado às 15:00 |
+| **Sex 13 em diante** | Cap. 01 (custo real); cap. 12 | A fatura atrasa até dois dias |
 
-Se o dia escorregar, a ordem de corte é a inversa da de custo: corte o que não cobra (10, 09, 07)
-antes de encurtar o bloco do Composer — e nunca deixe o bloco 11 de fora: é ele que diz o que a
-fatura vai cobrar depois que você sair.
+O laboratório (`data/medicoes/estudo_gcp/laboratorio_gcp.html`, fora do Git) roda à parte, no projeto
+`mvp-ed1-estudo`, e o calendário dele está na própria página. Vai até quarta à noite.
+
+**Três limites no `mvp-ed1-gcp`, que valem para todos os capítulos:**
+
+1. **Não crie nada à mão** (assinatura, *sink*, *dashboard*, alerta, orçamento): o inventário de
+   quinta reprova o que estiver fora da lista (§6.5, passo 9). Para praticar, use o `mvp-ed1-estudo`.
+2. **Não dispare nada fora do roteiro** (*Sync now*, *Trigger*, *Clear*, *Publish*): os alvos da
+   §6.8 e da §6.9 medem essas execuções.
+3. **Não mude configuração pela consola** (*flags*, Query Insights, *Data Access*): o Terraform é a
+   fonte, e o próximo `plan` acusaria a diferença.
+
+Se o dia escorregar, corte o que não cobra (10, 09, 07), nunca o desmonte.
 
 ---
 

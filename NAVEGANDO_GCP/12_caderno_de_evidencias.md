@@ -1,5 +1,7 @@
 # 12 — Caderno de evidências
 
+> **Quando fazer.** Durante a semana, e fechado **sex 13 em diante**, com o custo real.
+
 > Preencha **durante** e **logo depois** da viagem. Duas colunas que nunca se misturam:
 > *planejado* (o que este guia disse que você veria) e *medido* (o que viu, com número, captura ou
 > consulta). Vazio é resposta válida — "não medido" é melhor que inventado (P5).
@@ -11,7 +13,7 @@
 | CSV dos *audit logs* de atividade do dia, com seu e-mail (cap. 10 §2) | 1 arquivo | |
 | Consulta usada | `logName:"…/activity" AND principalEmail="…"` | |
 | Nº de ações administrativas registradas | — | |
-| Recursos criados na segunda (cap. 10 §4) vs. `terraform state list` | mesmo número | |
+| Recursos criados desde 07/11 (cap. 10 §4) vs. `terraform state list` | mesmo número | |
 
 ## 2. Por produto — o que trouxe
 
@@ -21,18 +23,17 @@ escreva o número.
 | Produto | Evidência | ✓ | Número / arquivo |
 |---|---|---|---|
 | Billing | *Reports* por serviço com URL dos filtros | | |
-| Billing | Orçamentos (2) com limiares | | |
-| Billing | Custo real da janela (semana seguinte) | | est.: 60–85 US$ · med.: |
-| IAM | Tabela IAM das 5 contas de serviço | | |
+| Billing | Orçamento da janela com limiares | | |
+| Billing | Custo real da janela (semana seguinte) | | est.: 40–70 US$ · med.: |
+| IAM | Tabela IAM das contas `mvp-` | | |
 | IAM | *Keys* vazia em cada conta de serviço | | |
 | IAM | *Policy Troubleshooter*: `analyst` × `trusted` = negado | | |
 | IAM | `gcloud projects get-iam-policy` salvo | | |
 | Cloud SQL | *Overview* + *Flags* (`cloudsql.logical_decoding`) | | |
-| Cloud SQL | *Query Insights* após um *sync* | | |
 | Cloud SQL | Contagens de 3–4 tabelas de `oltp` (reconciliação) | | |
 | BigQuery | *Details* de uma fato: *partitioned by* / *clustered by* | | |
 | BigQuery | Consulta com e sem filtro de partição: bytes | | sem: · com: |
-| BigQuery | *Sharing → Permissions* de `consumption` e de `trusted` | | |
+| BigQuery | Permissão da `mvp-analyst` numa view de `consumption`; ausência em `trusted` | | |
 | BigQuery | `INFORMATION_SCHEMA.JOBS` do dbt (CSV) | | nº de *jobs*: |
 | BigQuery | `bq` como `analyst`: negado em `trusted`, permitido em `consumption` | | |
 | Airbyte/GKE | *Workloads* com *restarts* | | restarts: |
@@ -46,11 +47,11 @@ escreva o número.
 | **Composer** | *Browse → Audit Logs* com *trigger* e *clear* | | |
 | **Composer** | *Monitoring* durante a execução | | |
 | **Composer** | Hora de criação → hora de exclusão | | horas de ambiente: |
-| Datastream | *Stream* com *backfill* concluído + *freshness* | | freshness: |
-| Datastream | `pg_replication_slots` ativo | | |
-| Pub/Sub | Mensagem crua (eventos) e uma de alerta | | |
+| Debezium | `make gcp-debezium-status` com o *pod* `Running` | | latência (§6.8, passo 27): |
+| Debezium | `pg_replication_slots` ativo | | |
+| Pub/Sub | Uma mensagem de alerta (`.observacao`, sem confirmar) | | |
 | Pub/Sub | *oldest unacked message age* com *pipeline* de pé | | |
-| Pub/Sub | Publicação duplicada não dobrou em `raw` | | |
+| Pub/Sub | Relatório de `make gcp-quente-prova` (duplicata em recurso temporário) | | |
 | Dataflow | *Job graph* com *watermark*/*throughput* | | |
 | Dataflow | *Custom counters* (tentados / inseridos / duplicados) | | |
 | Dataflow | *Job info* (máquina, `max_num_workers`, conta) | | |
@@ -58,14 +59,13 @@ escreva o número.
 | Dataflow | Hora de início → hora do *drain* | | horas de *worker*: |
 | Dataplex | Taxonomia com *Enforce* ligado + permissões de `personal` | | |
 | Dataplex | Coluna com *tag* em `raw` **e** em `analytics` | | |
-| Dataplex | `bq` como `analyst`: coluna negada citando a *policy tag* | | |
+| Dataplex | `bq` como `mvp-prova-sem-leitura`: coluna negada citando a *policy tag* | | |
 | Dataplex | Execução do fluxo do ADR-0025 (*log*, federação) | | |
 | Dataplex | Grafo de *Lineage* de uma view até `raw` | | |
-| Logging | CSV dos *audit logs* de acesso do `analyst` | | |
-| Logging | *Dashboard* com 3 métricas + 1 alerta | | |
-| Terraform | `state list` + `plan -destroy` (terça) | | recursos: |
-| Terraform | *Asset Inventory* terça e sexta + diferença | | sobreviventes: |
-| Terraform | `destroy_<data>.log` | | |
+| Logging | CSV dos *audit logs* de acesso negado e permitido | | |
+| Logging | *Metrics explorer* com as métricas do *pipeline* de pé | | |
+| Terraform | `state list` (segunda) + planos de destruição da §6.5 | | recursos: |
+| Terraform | *Asset Inventory* de segunda + `make gcp-desmonte-inventario` | | sobreviventes: |
 
 ## 3. O que ficou pendente
 

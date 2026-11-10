@@ -1,5 +1,7 @@
 # 00 — O mapa do país
 
+> **Quando fazer.** Leitura, antes de tudo. Não depende de nada de pé.
+
 > Leia este capítulo inteiro antes dos outros. Ele dá a gramática comum a toda a consola — o que
 > muda de produto para produto é só o vocabulário.
 
@@ -18,7 +20,7 @@
           │              │                        │ staging → trusted    │   └───────────────┘  │
           │ CDC          │                        │ → snapshots →        │                      │
           ▼              │                        │ analytics → consump. │◀── authorized views  │
-  Datastream (07) ──▶ Pub/Sub (07) ──▶ Dataflow (08) ──▶ raw.inventory_movements_stream          │
+  Debezium (07) ───▶ Pub/Sub (07) ──▶ Dataflow (08) ──▶ raw.inventory_movements_stream          │
                                           │                                                     │
                                           └──▶ tópico de alerta (estoque baixo)                 │
                                                                                                 │
@@ -70,8 +72,8 @@ Mais três hábitos que economizam a viagem:
 | BigQuery | Editor de consulta, `bq`, jobs do dbt via Composer, *scheduled queries* | *Job history* (pessoal e do projeto), `INFORMATION_SCHEMA.JOBS`, *audit logs* | IAM por *dataset*, *policy tags* por coluna, partição/expiração por tabela, cota de consulta |
 | Airbyte (GKE) | UI do Airbyte → *Sync now*; ou a API que a DAG chama | UI → *Job history* de cada conexão; *logs* dos *pods* no GKE | Conexões, modo por *stream*, agenda, *reset* |
 | Composer | UI do Airflow → *Trigger DAG*; `gcloud composer environments run`; agenda da DAG | UI: *Grid*, *task logs*; Logs Explorer `cloud_composer_environment`; aba *Monitoring* | Tamanho do ambiente, *overrides* do Airflow, variáveis, conexões, pacotes PyPI |
-| Datastream | Criar/iniciar/pausar o *stream* | Página do *stream*: estado, objetos, *backlog*; *logs* | Perfis de conexão, objetos incluídos, *backfill* |
-| Pub/Sub | Publicação (Datastream, ou você, em *Messages → Publish*) | Métricas do tópico/assinatura (*unacked*, *oldest unacked age*); *Messages → Pull* | Retenção, *ack deadline*, *dead letter*, *schema* |
+| Debezium Server | *Release* do Helm, pelo Terraform | *Logs* do *pod*; o *slot* no Cloud SQL | Tabelas capturadas, *offsets* em disco |
+| Pub/Sub | Publicação (o Debezium Server, ou o *pipeline*) | Métricas do tópico/assinatura (*unacked*, *oldest unacked age*); *Messages → Pull* | Retenção, *ack deadline*, *dead letter*, *schema* |
 | Dataflow | `python pipeline.py --runner DataflowRunner` ou *Templates*; *Cancel/Drain* na consola | Página do *job*: grafo, métricas por etapa, *logs* de *worker*, *autoscaling* | *Workers*, máquina, *streaming engine*, região |
 | Dataplex | Não "roda": indexa. *Scans* de qualidade/perfil são acionados na aba própria | Busca do catálogo; aba *Lineage* da tabela | Taxonomias de *policy tags*, *aspects*/metadados, *scans* |
 | Logging/Monitoring | Sempre ligado | Logs Explorer; painéis; *alerting* | Retenção por *bucket* de *logs*; políticas de alerta; *sinks* |
@@ -92,8 +94,8 @@ Mais três hábitos que economizam a viagem:
   uma conta de serviço **sem chave** — credencial de curta duração emitida na hora (ADR-0025).
 - ***Environment*** (Composer) = um Airflow inteiro: *scheduler*, *workers*, *web server*, banco
   de metadados, e um *bucket* onde as DAGs moram.
-- ***Stream*** (Datastream) = a captura de mudanças de um banco para um destino; tem *backfill*
-  (o *snapshot* inicial — o mesmo conceito do re-*snapshot* do Debezium) e o CDC contínuo.
+- ***Slot* de replicação** (PostgreSQL) = o marcador do que o Debezium já leu do log; enquanto
+  existir, o banco guarda o WAL dali em diante.
 - ***Topic* / *subscription*** (Pub/Sub) = tópico e grupo de consumo do Redpanda; a assinatura é
   quem guarda o que ainda não foi lido.
 - ***Job*** (Dataflow) = uma execução do *pipeline* Beam; *streaming job* fica de pé e cobra por

@@ -1,31 +1,30 @@
 # 06 — Cloud Composer: a peça cara
 
+> **Quando fazer.** **Qua 11**, do fim do passo 3 da §6.9 (~07:30) até o passo 16 (antes das 21:30). O bloco ao vivo é o passo 9 da §6.9.
+
 **Em uma frase.** O Airflow local (`airflow-apiserver`, `scheduler`, `dag_processor`, o banco de
 metadados) como serviço: a Google opera o *scheduler*, os *workers*, o *web server* e o banco; você
-entrega a DAG num *bucket* e ela aparece. `fluxo_batch` sobe com as mesmas 13 tarefas — o que muda é
+entrega a DAG num *bucket* e ela aparece. `fluxo_batch` sobe com as mesmas tarefas — o que muda é
 **como o dbt e o Airbyte são alcançados** (rede, contas de serviço, dependências) e que cada hora
 de ambiente ligado é cobrada, com ou sem DAG rodando.
 
-**Quanto custa e por quê.** Cobra por **hora de ambiente de pé**, em componentes: taxa do
-ambiente por tamanho (*small/medium/large*), vCPU/GB dos *workers* (escalam com a fila), banco de
-metadados, *web server*, armazenamento. Ambiente *small* fica na casa de US$ 350–450/mês
-([conversa §3](../CONVERSAS_COM_CHAT/ARQUITETURA_E_CUSTOS_GCP.md)) — **é a peça que domina a
-conta**, e ociosa cobra quase o mesmo. Leva 25–40 min para nascer e 10–20 para morrer. Por isso:
-sobe por último, desce primeiro, e este é o bloco de horário fixo do dia.
+**Quanto custa e por quê.** Cobra por **DCU-hora de ambiente de pé**: tudo (componentes e
+infraestrutura) entra nessa unidade, escalando com os *workers*. A estimativa está na
+[Capacidade §2.14](../docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026); os 12–15 DCUs dela são hipótese para estes valores, a medir na fatura
+(Registro §46). **É a peça mais cara por hora**, e ociosa continua cobrando. Leva ~25 min para
+nascer. Por isso: sobe por último, desce primeiro.
 
 **Onde fica.** ☰ → *Composer* → *Environments* (`console.cloud.google.com/composer/environments`).
 Página do ambiente: botões **Open Airflow UI** e **Open DAGs folder**; abas *Monitoring*, *Logs*,
 *DAGs*, *Environment configuration* (ou *Environment details*), *Airflow configuration overrides*,
-*Environment variables*, *PyPI packages*, *Labels*. Duas versões coexistem: **Composer 2** roda
-num cluster GKE Autopilot que aparece na sua lista de clusters; **Composer 3** não expõe cluster e
-tem tamanhos predefinidos. Confira qual o Terraform criou — muda onde os *workers* aparecem e o que
-cobra.
+*Environment variables*, *PyPI packages*, *Labels*. Aqui é **Composer 3**, que não expõe cluster na
+sua lista.
 
-**O que é deste projeto aqui.** Um ambiente; o *bucket* dele (`<região>-<ambiente>-<hash>-bucket`)
-com `dags/fluxo_batch.py`; o projeto dbt acessível às tarefas (o `PROJETO=/opt/mvp_ed1` local vira
-ou o próprio *bucket* `data/`, ou um pacote instalado, ou um `KubernetesPodOperator` — veja o que a
-Etapa 13 escolher); a conexão HTTP ao Airbyte (cap. 05) e as variáveis do ambiente; a conta de
-serviço do ambiente (idealmente `transformer` para o dbt); o `dbt` e o `mvp_ed1` em *PyPI packages*.
+**O que é deste projeto aqui.** O ambiente `mvp-ed1` (Composer 3, Airflow 3.2.2, *small*, com os
+componentes do `workloads_config`); o *bucket* `mvp-ed1-gcp-composer`, com `dags/` e o projeto em
+`data/`, publicados pelo `make gcp-composer-publicar`; as credenciais do Airbyte no Secret Manager
+(*secrets backend*, prefixo `mvp-ed1`), nunca em variável de ambiente; a conta do ambiente, que só
+personifica `mvp-ingestor` e `mvp-transformer` (D81); os pacotes em *PyPI packages*.
 
 ## Roteiro guiado
 
@@ -38,18 +37,17 @@ serviço do ambiente (idealmente `transformer` para o dbt); o `dbt` e o `mvp_ed1
    (IP privado?), *bucket*. *Por quê:* *max workers* é o teto de custo por rajada; conta de
    serviço é quem o dbt será no BigQuery.
 3. **Airflow configuration overrides.** O `airflow.cfg` sobrescrito: `core.parallelism`,
-   `scheduler.dag_dir_list_interval`, `webserver.*`. *Por quê:* onde a diferença entre o Airflow
+   `dag_processor.*`, `webserver.*`. *Por quê:* onde a diferença entre o Airflow
    local e este mora.
 4. **Environment variables** e **PyPI packages.** Variáveis (o `.env` que a DAG lê; **segredos
    aqui não** — devem vir do Secret Manager via *secrets backend*, veja em *overrides*
    `secrets.backend`); pacotes: `dbt-bigquery`, `mvp_ed1`. *Por quê:* mudar pacote **reinicia
    os *workers*** e leva 10–20 min — é o tipo de coisa que se faz antes da janela, não durante.
-5. **Open DAGs folder.** Abre o *bucket* no Cloud Storage: `dags/` (o que o *scheduler* lê),
+5. **Open DAGs folder.** Só olhe. Abre o *bucket* no Cloud Storage: `dags/` (o que o *scheduler* lê),
    `data/` (compartilhado com os *workers*), `logs/` (**os *logs* de tarefa, por
    DAG/tarefa/execução**), `plugins/`. *Por quê:* implantar uma DAG **é copiar um arquivo para
-   `dags/`** — `gcloud composer environments storage dags import --environment <env>
-   --location <região> --source airflow/dags/fluxo_batch.py`. Faça (ou refaça) e veja a DAG
-   aparecer na UI em 1–2 min.
+   `dags/`**; aqui quem copia é o `make gcp-composer-publicar` (§6.9, passo 5), que também tira o
+   que sobrou de publicação anterior. Não copie à mão.
 6. **Monitoring.** Painéis prontos: *Environment health* (o *heartbeat*), *Database health*,
    *Scheduler heartbeat*, *Workers* (CPU/memória, *queued tasks*), *DAG parse time*, *Task
    failures*. *Por quê:* é o que um operador olha antes de dizer "o Airflow está bem"; e
@@ -63,19 +61,17 @@ serviço do ambiente (idealmente `transformer` para o dbt); o `dbt` e o `mvp_ed1
 
 8. **DAGs.** `fluxo_batch` com as etiquetas `batch`, `armazem`; a chave *pause/unpause*; a
    coluna de execuções recentes. *Por quê:* DAG pausada não roda nem disparada à mão — é a
-   primeira coisa a conferir. Compare com o Airflow local: a UI é a mesma versão de Airflow?
-   (A DAG local usa `airflow.sdk` — Airflow 3; o Composer precisa suportar a mesma versão, ou a
-   DAG precisa da forma compatível. É decisão da Etapa 13; confira qual valeu.)
-9. **Trigger DAG** (o botão ▶). Sem parâmetros. Anote o `run_id` (`manual__2026-09-…`). *Por quê:*
-   **é o "onde aciona"**. Alternativa reproduzível, no Cloud Shell:
-   `gcloud composer environments run <env> --location <região> dags trigger -- fluxo_batch`.
+   primeira coisa a conferir. A DAG usa `airflow.sdk`: o Composer roda Airflow 3, como o local.
+9. **Não aperte *Trigger DAG*.** Quem dispara é o `make gcp-composer-fluxo` (§6.9, passo 9), que
+   guarda o estado e a duração de cada tarefa. Veja a execução aparecer e anote o `run_id`.
+   *Por quê:* **é o "onde aciona"**, e uma execução a mais estragaria a medida da §7.2.
 10. **Grid.** A grade execução × tarefa, com estado por cor. Clique na execução: duração total;
     clique numa tarefa: **Logs**, **XCom** (a captura do legado passa o `snapshot_id` por XCom —
     veja `concluir_captura_do_legado` → *XCom*), *Rendered template* (o `bash_command` do dbt
     com o `--vars` resolvido), *Task details* (tentativas, `retries=0` de propósito). *Por quê:*
     é a tríade inteira numa tela: o *log* da tarefa é o `dbt build` daquela camada, com
     `PASS=… WARN=… ERROR=…` no fim — o mesmo que você lia no contêiner.
-11. **Graph.** As 13 tarefas na ordem imposta (sincronizações em paralelo → `concluir_captura`
+11. **Graph.** As tarefas na ordem imposta (sincronizações em paralelo → `concluir_captura`
     → `dbt_seed` → camadas → `dbt_fronteiras` → `dbt_docs`). *Por quê:* a forma da DAG é a
     explicação do docstring dela; mostre-a.
 12. **Acompanhe ao vivo, em três lugares ao mesmo tempo:** o *Grid* (tarefa corrente), o
@@ -83,8 +79,10 @@ serviço do ambiente (idealmente `transformer` para o dbt); o `dbt` e o `mvp_ed1
     BigQuery (*Job history* do projeto — cap. 04: cada `dbt_<camada>` vira dezenas de *jobs* da
     conta `transformer`). *Por quê:* orquestração é isto — um lugar aciona, dois executam, os
     três registram. Se fizer uma coisa só neste dia, faça esta.
-13. **Uma reexecução parcial.** Quando terminar, *Clear* a tarefa `dbt_analytics` (com
-    *downstream*) e veja só ela e as seguintes rodarem — sem repetir a ingestão. *Por quê:* é o
+13. **Uma reexecução parcial.** Fora do roteiro: só se sobrar tempo depois do passo 15 da §6.9 e
+    antes da exportação do passo 16, combinando antes com o Claude Code. *Clear* na tarefa
+    `dbt_analytics` (com *downstream*) mostra só ela e as seguintes rodarem — sem repetir a ingestão.
+    *Por quê:* é o
     motivo declarado do ADR-0003 para ter Airflow ("reexecução parcial"); provar na nuvem é a
     paridade **P4** demonstrada.
 14. **Browse → Audit Logs / DAG Runs / Task Instances.** Sua ação de *trigger* e de *clear* com
@@ -114,18 +112,16 @@ serviço do ambiente (idealmente `transformer` para o dbt); o `dbt` e o `mvp_ed1
 
 ## Armadilhas
 
-- **Ambiente ocioso cobra quase o mesmo que ocupado.** Pausa não existe; só *delete*. A
-  conversa §8 fixou: quarta meio-dia é o ponto de decisão.
-- **O *bucket* não morre com o ambiente.** Apagar o ambiente deixa o *bucket* (e os *logs*) —
-  bom para evidência, ruim para a fatura se esquecido. Cap. 11 lista.
+- **Ambiente ocioso continua cobrando.** Pausa não existe; só *delete*. Quarta, 20:00 é o ponto de
+  decisão, e às 22:00 ele já saiu (§6.1).
+- **O *bucket* é do Terraform e sai no desmonte**, com os *logs*. Por isso o
+  `make gcp-composer-exportar` roda antes das 21:30 (§6.9, passo 16).
 - Mudar pacote PyPI ou *override* = *workers* reiniciam = 10–20 min sem tarefa. Faça antes.
-- Conta de serviço do ambiente sem `bigquery.jobUser` no projeto = todo `dbt` falha com
+- Conta personificada sem `bigquery.jobUser` no projeto = todo `dbt` falha com
   `Access Denied: … jobs.create`. Cap. 02.
 - DAG que importa `mvp_ed1` precisa do pacote instalado nos *workers*; `dbt` precisa do projeto
   acessível (o *bucket* `data/` é montado em `/home/airflow/gcs/data/`). Onde o Terraform pôs o
   projeto dbt é a primeira coisa a saber quando `dbt_seed` falhar com "no dbt_project.yml".
-- Airflow 3 vs 2: a DAG local usa `airflow.sdk`; se o Composer da janela for Airflow 2, a DAG
-  precisa da forma compatível. Não é decisão de dia de viagem.
 
 ## Evidência a levar
 

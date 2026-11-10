@@ -1,100 +1,87 @@
-# 07 — Datastream e Pub/Sub: o caminho quente, até o transporte
+# 07 — Debezium Server e Pub/Sub: o caminho quente, até o transporte
 
-**Em uma frase.** Datastream é o Debezium gerenciado: lê o WAL do Cloud SQL (*logical decoding*)
-e entrega cada mudança de `oltp.inventory_movements`; Pub/Sub é o Redpanda gerenciado: o tópico
-que guarda os eventos até o Dataflow (cap. 08) consumir. Os dois cobram por **GB processado**, não
-por hora — os mais baratos da janela.
+> Reescrito em 09/11/2026: o Datastream saiu da arquitetura ([ADR-0051](../docs/adr/0051-cdc-da-fase-gcp-pelo-debezium-server.md),
+> D69), porque não entrega em Pub/Sub. O nome do arquivo ficou, para não quebrar referências.
+>
+> **Quando fazer.** **Ter 10**, nos passos 2 a 9 e 21 a 29 da §6.8; os tópicos e as assinaturas já existem e dá para olhá-los hoje, ainda sem mensagens de movimentos.
 
-**Quanto custa e por quê.** Datastream por GB capturado (e o *backfill* inicial conta); Pub/Sub por
-GB publicado + entregue, com os primeiros 10 GB grátis
-([conversa §3](../CONVERSAS_COM_CHAT/ARQUITETURA_E_CUSTOS_GCP.md)). Neste volume (13.700
-movimentos + o que o produtor emitir), centavos. O que custa de verdade aqui é **tempo de
-depuração**: um *stream* que não sai de `Starting` costuma ser rede ou flag do Cloud SQL (cap. 03).
+**Em uma frase.** O mesmo conector Debezium da fase local, agora como **Debezium Server** num *pod*
+do GKE, lê o log do Cloud SQL (*logical decoding*) e publica cada mudança de
+`oltp.inventory_movements` no Pub/Sub, que é o Redpanda gerenciado: o tópico guarda os eventos até
+o Dataflow (cap. 08) consumir.
 
-**Onde fica.** Datastream: ☰ → *Datastream* → *Streams*, *Connection profiles*, *Private
-connectivity* (`console.cloud.google.com/datastream/streams`). Pub/Sub: ☰ → *Pub/Sub* →
-*Topics*, *Subscriptions*, *Schemas*, *Snapshots* (`console.cloud.google.com/cloudpubsub/topic/list`).
+**Quanto custa e por quê.** O Pub/Sub cobra por volume, e este cabe no nível gratuito; o *pod* do
+Debezium roda nos nós do GKE já contados no cap. 05 (os dois na
+[Capacidade §2.14](../docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026)). O que custa aqui é operar: o *pod* e o disco dos *offsets* são
+infraestrutura sua, não um serviço gerenciado.
 
-**O que é deste projeto aqui.** Um *stream* do Cloud SQL (perfil de conexão PostgreSQL, com
-*publication* e *replication slot* — os nomes vêm de `streaming/connectors/inventory_movements.yml`
-traduzido) para o destino que a Etapa 13 escolher. **Atenção ao mapa:** o Datastream entrega
-nativamente em BigQuery ou em Cloud Storage; a paridade "Datastream → Pub/Sub → Dataflow" da
-[Arquitetura §5](../docs/arquitetura.md#5-mapa-de-paridade-local--gcp) pressupõe um passo entre os
-dois (Cloud Storage com notificação em Pub/Sub, ou o *template* Dataflow *Datastream to BigQuery*).
-Qual o Terraform escolheu é a primeira coisa a ler na página do *stream*. Os tópicos:
-`mvp.oltp.inventory_movements` (eventos) e `mvp.alerts.inventory_low_stock` (o alerta da
-[Streaming §5](../docs/streaming.md#5-ramificação-de-alerta)), com as assinaturas do Dataflow.
+**Onde fica.** Debezium: ☰ → *Kubernetes Engine* → *Workloads*, *namespace* `debezium`. Pub/Sub: ☰ →
+*Pub/Sub* → *Topics*, *Subscriptions* (`console.cloud.google.com/cloudpubsub/topic/list`).
 
-## Roteiro guiado — Datastream
+**O que é deste projeto aqui.** O *pod* com a conta `debezium-server` (*Workload Identity*, agindo
+como `mvp-streamer`, sem chave); o *slot* de replicação `mvp_inventory_movements` no Cloud SQL; três
+tópicos — `mvp.oltp.inventory_movements` (eventos), `mvp.alerts.inventory_low_stock` (alertas) e
+`mvp-heartbeat.mvp` — e duas assinaturas: `mvp.oltp.inventory_movements.beam`, do Dataflow, e
+`mvp.alerts.inventory_low_stock.observacao`, que os alvos do roteiro leem.
 
-1. **Streams → o *stream*.** Estado (`Running`, `Paused`, `Failed`), origem, destino, **Objects**
-   (as tabelas incluídas: só `oltp.inventory_movements`?), *backfill* por objeto (estado,
-   linhas). *Por quê:* *backfill* é o *snapshot* do Debezium — o mesmo "re-*snapshot*" da
-   [Execução Local §3.2](../docs/execucao_local.md#32-regerar-uma-origem-que-já-alimenta-streaming)
-   tem aqui um botão: *Objects → Initiate backfill*.
-2. **Monitoring do *stream*.** *Throughput*, **data freshness** (atraso entre a mudança na origem e
-   a entrega), *unsupported events*, *system latency*. *Por quê:* *freshness* é a latência do
-   caminho quente medida pelo próprio serviço — número para o registro.
-3. **Connection profiles.** O perfil PostgreSQL: *hostname*/IP privado, usuário (com
-   `REPLICATION`), *publication* e *replication slot* declarados. *Test connection*. *Por quê:* é
-   onde 90 % dos problemas de CDC estão; e é o `connectors/*.yml` local em forma de tela.
-4. **Logs.** `resource.type="datastream.googleapis.com/Stream"`. Procure o início do *backfill* e
-   a transição para CDC. *Por quê:* prova de que o *snapshot* fechou e o contínuo começou.
-5. **No Cloud SQL (cap. 03):** `select * from pg_replication_slots` e `pg_publication_tables`.
-   *Por quê:* os dois lados da mesma coisa; *slot* ativo = Datastream conectado.
+## Roteiro guiado — Debezium Server
+
+1. **O estado, pelo alvo do roteiro.** `make gcp-debezium-status` (§6.8, passo 2): *pod*, fim do log e
+   *slot*. *O que olhar:* `Running` e `slot mvp_inventory_movements: ativo`. *Por quê:* *slot* ativo é
+   o Debezium conectado à origem.
+2. **Workloads → o *pod*.** Reinícios, CPU e memória, e o disco dos *offsets*. *Por quê:* os
+   *offsets* em disco são o que deixa o *pod* reiniciar sem repetir o *snapshot*; a prova disso é o
+   passo 24 da §6.8.
+3. **Logs.** `resource.type="k8s_container"` e `resource.labels.namespace_name="debezium"`. Procure o
+   fim do *snapshot* e a passagem para o *streaming*. *Por quê:* prova de que o *snapshot* fechou e o
+   contínuo começou.
+4. **No Cloud SQL (cap. 03):** `select * from pg_replication_slots` e `pg_publication_tables`.
+   *Por quê:* os dois lados da mesma coisa.
 
 ## Roteiro guiado — Pub/Sub
 
-6. **Topics → `mvp.oltp.inventory_movements`.** *Details* (retenção de mensagens, *schema* se
-   houver), *Subscriptions* (a do Dataflow), **Metrics** (*publish rate*, *message size*),
-   **Messages → Pull** (puxa uma amostra sem confirmar — veja o envelope: é o
-   `envelope.py` do projeto, ou o formato do Datastream). *Por quê:* ver a mensagem crua é o
-   `rpk topic consume` da fase local.
-7. **Subscriptions → a do Dataflow.** *Details*: *ack deadline*, retenção, *dead-letter topic*,
-   *exactly-once*. **Metrics**: *unacked messages* (fila) e **oldest unacked message age**
-   (atraso). *Por quê:* fila crescendo com Dataflow de pé = o *job* não acompanha; fila
-   crescendo com Dataflow parado = o que vai ser reprocessado quando subir (o *snapshot*
-   duplicado do ADR-0019 é aqui que se vê).
-8. **Publicar à mão.** *Messages → Publish message* no tópico de eventos com um evento válido (copie
-   um do *Pull*). Veja o Dataflow (cap. 08) consumir e a linha aparecer em
-   `raw.inventory_movements_stream`. Publique **o mesmo** de novo: a idempotência por
-   `movement_id` (ADR-0019) tem de rejeitar — é o `make stream-duplicate` na nuvem. *Por quê:* a
-   prova de idempotência sem a qual a garantia é só intenção (Streaming §3.2).
-9. **`mvp.alerts.inventory_low_stock`.** Crie uma assinatura de *pull* só sua (*Create
-   subscription*) e puxe: os alertas de estoque baixo emitidos pelo *pipeline*. *Por quê:* é o
-   `make stream-alerts` — e uma assinatura criada à mão é algo que **sobrevive ao `destroy`**
-   se o Terraform não a conhece; apague depois (cap. 11).
+5. **Topics → `mvp.oltp.inventory_movements`.** *Details* (retenção), *Subscriptions*, **Metrics**
+   (*publish rate*, *message size*). *Por quê:* mostra o volume que o Debezium publicou.
+6. **Subscriptions → `.beam`.** *Details*: *ack deadline*, retenção. **Metrics**: *unacked messages*
+   (fila) e **oldest unacked message age** (atraso). *Por quê:* fila crescendo com Dataflow de pé = o
+   *job* não acompanha; fila crescendo com Dataflow parado é o esperado, e é o que os passos 21 a 23
+   da §6.8 medem.
+7. **Ver a mensagem crua, em lugar seguro.** Não use *Pull* na `.beam`: ela é a fila que os passos
+   21 a 26 da §6.8 contam. Só na `.observacao`, e **sem confirmar** (*Enable ack messages* desligado),
+   porque o `make gcp-quente-conferir` lê os alertas dela. *Por quê:* é o `rpk topic consume` da fase
+   local.
+8. **A idempotência, por quem já a prova.** Não publique à mão no tópico real: o passo 26 da §6.8
+   confere "nem perdido, nem repetido". O `make gcp-quente-prova` (§6.8, passo 3) testa duplicatas em
+   recursos temporários; leia o relatório em `data/medicoes/etapa_13/g23/`. *Por quê:* a garantia do
+   ADR-0019 no BigQuery é a D75.
 
 ## Onde aciona, onde registra, o que controla
 
-- **Aciona:** Datastream — *Start/Pause/Resume* do *stream*, *Initiate backfill*; Pub/Sub —
-  publicação (Datastream, o *pipeline*, ou você).
-- **Registra:** página do *stream* (objetos, *freshness*), *logs*; métricas do tópico e da
-  assinatura (Monitoring), *Messages → Pull*.
-- **Controla:** objetos incluídos, *backfill*; retenção, *ack deadline*, *dead-letter*, *schema*,
-  IAM por tópico/assinatura (`pubsub.subscriber` para o `streamer`).
+- **Aciona:** o Terraform instala o *release* (§6.7, passo 5); `make gcp-debezium-reiniciar` reinicia
+  o *pod*; os movimentos vêm de `make gcp-quente-produzir` ou `make gcp-quente-latencia`.
+- **Registra:** *logs* do *pod* (Cloud Logging), métricas do tópico e da assinatura, `pg_replication_slots`.
+- **Controla:** o *chart* em `terraform/charts/debezium-server`; retenção, *ack deadline* e IAM por
+  tópico e assinatura, no Terraform.
 
 ## Armadilhas
 
-- *Stream* pausado com *slot* vivo **retém WAL** no Cloud SQL — disco cresce (cap. 03).
-- Retenção de mensagem padrão do Pub/Sub é 7 dias; mensagem não confirmada em assinatura sem
-  consumidor fica lá e é reentregue quando o consumidor voltar — e reentrega é duplicata, que a
-  idempotência trata, mas conta no *reprocessed*.
-- Assinatura criada à mão fora do Terraform sobrevive ao `destroy`.
-- Datastream não entrega em Pub/Sub diretamente; confira o desenho real do Terraform antes de
-  procurar "o tópico do Datastream".
+- *Slot* vivo sem consumidor **retém WAL** no Cloud SQL: o disco cresce. O alvo
+  `make gcp-desmonte-slot` tira o *slot* no desmonte (§6.5, passo 3).
+- Mensagem não confirmada é reentregue quando o consumidor volta. A idempotência trata, mas conta em
+  `eventos_duplicados`.
+- Assinatura criada à mão fica fora do Terraform e reprova o inventário de quinta. Para praticar, use
+  o bloco 10.1 do laboratório, no `mvp-ed1-estudo`.
 
 ## Evidência a levar
 
-- Captura da página do *stream* com *Objects* e o *backfill* concluído; *data freshness*.
-- `pg_replication_slots` no Cloud SQL com o *slot* ativo.
-- Uma mensagem puxada do tópico de eventos (o envelope) e uma do tópico de alertas.
-- Métrica *oldest unacked message age* da assinatura durante o *pipeline* de pé.
-- O resultado da publicação duplicada (a linha não dobrou em `raw.inventory_movements_stream`).
+- A saída de `make gcp-debezium-status` com o *slot* ativo; a medição de latência da §6.8, passo 27.
+- Métrica *oldest unacked message age* da `.beam` com o Dataflow parado e de pé.
+- Uma mensagem de alerta da `.observacao`.
+- O relatório de `make gcp-quente-prova`.
 
 ## O que você saberá dizer depois
 
-- "O CDC é Datastream lendo o *replication slot* do Cloud SQL; acompanhei o *backfill* virar CDC
-  nos *logs* e medi o *freshness*."
-- "Puxei mensagens cruas do tópico, publiquei uma duplicada e provei a idempotência no destino."
+- "O Datastream não entrega em Pub/Sub; o CDC é Debezium Server no GKE, sem chave, lendo o *slot* do
+  Cloud SQL."
+- "Parei o Dataflow, vi a fila crescer na assinatura e provei que cada movimento entrou uma vez."
 - "Fila e atraso de uma assinatura se leem em *unacked messages* e *oldest unacked age*."
