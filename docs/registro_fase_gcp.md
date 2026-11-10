@@ -2047,3 +2047,97 @@ o roteador e o Cloud NAT (`AUTO_ONLY`), o *cluster* `mvp-ed1` zonal em `us-centr
 `deletion_protection = false`), o *pool* `mvp-ed1` com 2 nós `e2-standard-4`, disco `pd-balanced` de
 50 GB, sem *spot*, a conta dos nós com os quatro papéis de log e métrica, e a personificação das contas
 `ingestor` e `streamer` pelo Workload Identity.
+
+**Passo 3 — `make gcp-apply NOME=08_gke`** (12:36:49 → 12:47:43) [medido]: aprovado pelo Owner
+depois da leitura do plano. `Apply complete! Resources: 11 added, 0 changed, 0 destroyed.` e a linha
+de que o binário do plano saiu. O *cluster* `mvp-ed1` em `us-central1-a`, `RUNNING`, mestre e nós em
+`1.36.4-gke.2377000` (o padrão do canal `REGULAR` lido em 09/11); o *pool* `mvp-ed1`, `RUNNING`, 2 nós
+`e2-standard-4`. **O taxímetro do GKE corre desde as 12:47.**
+
+**Passo 4 — `make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true
+enable_gke_apps=true"`** (12:48) [medido]: `Plan: 2 to add, 0 to change, 0 to destroy.` e
+`conferir-plano: construção: 2 a criar, 0 a alterar, 0 a destruir`; `.tfplan` com `-rw-------`.
+Leitura: `helm_release.airbyte[0]` (*chart* `airbyte` 2.3.0 de `https://airbytehq.github.io/charts`,
+*namespace* `airbyte`, `timeout = 1200`, `wait = true`, `atomic = false`) e
+`helm_release.debezium[0]` (*chart* local `./charts/debezium-server` 0.1.0, *namespace* `debezium`,
+`timeout = 300`); a senha da origem entra por `set_sensitive` (`origem.senha`) e aparece como
+`(sensitive value)`; o `application.properties` renderizado leva `${SOURCE_DB_PASSWORD}`, não o valor.
+
+**Passo 4a — o plano real ao Codex** (12:48, sessão `01a1c625-e634-7cc0-9ac8-c9faaa289723`): rodada 5 da revisão do `plan` caro, o complemento do
+RVPC-1-01; pedido em `data/medicoes/etapa_13/revisao/prompt_plancaro_r5_4a.txt`, parecer em
+`codex_plancaro_r5_4a.md`. O passo 5 espera o parecer.
+
+**O parecer do passo 4a** (12:48 → 12:55) [medido]: **"Nenhum bloqueante no escopo revisado."**
+O Codex confirmou `2/0/0` e só os dois `helm_release`; os valores renderizados no plano iguais, em
+texto e em YAML, a `airbyte/values.yaml`, `terraform/helm/airbyte_gke.yaml` e ao
+`application.properties`; o *chart* `airbyte` 2.3.0 (`appVersion` 2.3.0) e o Debezium com a imagem
+fixada por *digest*; as contas `airbyte/airbyte-admin → mvp-ingestor` e
+`debezium/debezium-server → mvp-streamer` iguais aos vínculos do Workload Identity já aplicados;
+a senha mascarada, lida por `secretKeyRef`; nenhuma credencial em claro nos 31 arquivos de
+configuração; o único *LoadBalancer*, o do servidor do Airbyte, interno. Um achado:
+**RVPC-5-01 (observação)** — os três PVCs das aplicações (Debezium 1 Gi, PostgreSQL e MinIO do
+Airbyte 500 Mi cada) são discos além dos 2 × 50 GB da estimativa §2.14, sem custo medido. Aceito
+sem mudança no declarativo: os PVs são lidos depois do passo 5 e anotados aqui; a nota de custo
+entra na Capacidade §2.14 no fechamento (G8). Parecer completo, fora do Git:
+`data/medicoes/etapa_13/revisao/codex_plancaro_r5_4a.md`. Com ele, o RVPC-1-01 está cumprido.
+
+**Passo 5 — `make gcp-apply NOME=09_aplicacoes`** (13:05:30 → 13:10:46) [medido]: aprovado pelo
+Owner depois do parecer do 4a. **Falhou pela metade.** `helm_release.airbyte[0]: Creation complete
+after 3m19s`; o `helm_release.debezium[0]` foi criado com status *failed* — `Helm release
+"debezium-server" was created but has a failed status` e `Error: Helm release error … context
+deadline exceeded`, nos 300 s do `timeout`. Pela regra 3 da §6.6, o `apply` **não** foi repetido.
+
+**O diagnóstico** (13:11–13:13) [medido, só leituras]: `make gcp-debezium-status` mostrou o pod
+`debezium-server-54dc86d774-frktv` em `0/1 ImagePullBackOff`, e o *slot* ausente no Cloud SQL (o
+Debezium nunca rodou). O evento do pod: `failed to resolve reference
+"quay.io/debezium/server@sha256:8e1036358ba5…": not found`. Não é rede — as imagens do Airbyte
+desceram pelo mesmo Cloud NAT. A API pública do quay.io mostra que **a *tag* `3.7.1.Final` é
+republicada toda noite, por volta das 00:50 UTC**, e que o manifesto substituído deixa de existir:
+
+| *Digest* da `3.7.1.Final` | Vigente de (UTC) | Manifesto hoje |
+|---|---|---|
+| `8e1036358ba5…` (o do *chart*, lido no §21) | 07/11 00:47 → 08/11 00:54 | HTTP 404 |
+| `55ba6ea1221a…` | 08/11 00:54 → 09/11 00:50 | HTTP 404 |
+| `0006f77b81f3…` | 09/11 00:50 → 10/11 00:52 | HTTP 404 |
+| `8c4e6c7efc39…` | 10/11 00:52 → | HTTP 200 |
+
+O *digest* lido em 07/11 estava certo naquele dia; a premissa errada foi a de que um *digest* do
+quay.io continua baixável depois que a *tag* anda. Nem a revisão de código de 09/11 nem o parecer
+do 4a podiam vê-lo: só o *pull* mostra. **Achado no declarativo** (`terraform/charts/debezium-server/values.yaml:4`),
+levado ao Owner.
+
+**A correção (a), escolhida pelo Owner** (até 13:49) [medido]: `values.yaml:4` com o *digest* de
+10/11 00:52 UTC, `8c4e6c7efc39…` (manifesto `HTTP 200` às 13:49), e um comentário com o prazo dele.
+O risco aceito: o *digest* deixa de existir na próxima republicação, ~21:50 de hoje em Brasília; o
+pod que já estiver de pé segue (a imagem fica no nó), mas um pod recriado em outro nó depois disso
+cai no mesmo `ImagePullBackOff`. O reinício do G2.3 é hoje, antes desse horário.
+
+**O plano novo** — `make gcp-plan NOME=09_aplicacoes VARS="…"` (13:49) [medido]:
+`Plan: 1 to add, 0 to change, 0 to destroy.`, só `helm_release.debezium[0] will be created`. O
+*release* com falha **não ficou no estado do Terraform** (`state list` só tem `helm_release.airbyte[0]`),
+mas ficou no *cluster*: `sh.helm.release.v1.debezium-server.v1`, `failed`, com o *deployment*, o
+pod, o PVC `debezium-server-offsets` (vazio: o Debezium nunca rodou), o Secret, o ConfigMap e a
+conta de serviço. Com `replace = false`, o `apply` recusaria o nome em uso; antes dele, o *release*
+com falha tem de sair (`helm uninstall`), o que leva também o PVC e o disco dele.
+
+**O *release* com falha removido** (13:58:36 → 13:59:04) [medido], com o Owner aprovando:
+`helm uninstall debezium-server -n debezium --wait` → `release "debezium-server" uninstalled`; no
+*namespace* ficou só o `kube-root-ca.crt`; o PV do PVC de *offsets* (`standard-rwo`, 1 Gi, política
+`Delete`) passou a `Released` e sumiu em ~25 s, com o disco dele. Nada órfão.
+
+**Passo 5, de novo — `make gcp-apply NOME=09_aplicacoes`** (13:59:13 → 14:01:21) [medido]:
+`helm_release.debezium[0]: Creation complete after 2m6s` e `Apply complete! Resources: 1 added, 0
+changed, 0 destroyed.` Os dois *releases* de pé.
+
+**O Debezium Server rodando** — `make gcp-debezium-status` (14:01 e 14:01:48) [medido]: pod
+`debezium-server-b796d9795-npnl7` `1/1 Running`, sem reinício. O *snapshot* inicial exportou
+**8.262 registros** de `oltp.inventory_movements` em 13,99 s; depois, `Starting replication stream
+from LSN LSN{0/8E6F070}` e `Processing messages`. O *slot* `mvp_inventory_movements`: inativo
+durante o *snapshot* (16 kB de WAL retido, a primeira leitura faz o alvo sair com erro), **ativo**
+na segunda, com 24 kB. A imagem nova baixou pelo Cloud NAT (o pod nasceu em menos de 2 min).
+
+**RVPC-5-01, medido** [medido, `gcloud compute disks list` às 13:59]: os dois PVCs do Airbyte pediram
+500 Mi cada e viraram discos `pd-balanced` de **1 GB** cada (`airbyte-minio-pv-claim-airbyte-minio-0`,
+`airbyte-volume-db-airbyte-db-0`), além dos dois discos de 50 GB dos nós; o do Debezium, 1 Gi pedido,
+`standard-rwo`. São ~3 GB de disco além dos 100 GB da §2.14; a nota de custo entra na Capacidade
+§2.14 no fechamento (G8).
