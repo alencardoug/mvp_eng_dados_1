@@ -2141,3 +2141,43 @@ na segunda, com 24 kB. A imagem nova baixou pelo Cloud NAT (o pod nasceu em meno
 `airbyte-volume-db-airbyte-db-0`), além dos dois discos de 50 GB dos nós; o do Debezium, 1 Gi pedido,
 `standard-rwo`. São ~3 GB de disco além dos 100 GB da §2.14; a nota de custo entra na Capacidade
 §2.14 no fechamento (G8).
+
+**Passo 6 — `make gcp-airbyte-config`** (plano às 14:27) [medido]. A confirmação digitada pela receita
+(`read`) não passa pelo `!` do prompt; o Owner escolheu que o Claude Code rodasse o alvo com a
+entrada num *pipe* nomeado (`mkfifo -m 600`, no *scratchpad*), parado na pergunta, e escrevesse o id
+do projeto só depois da aprovação no chat — o binário aplicado é o que foi lido. Saída:
+`airbyte: API do GKE em http://127.0.0.1:18001/api/public/v1 (port-forward)` e
+`Plan: 6 to add, 0 to change, 0 to destroy.`, texto em
+`data/medicoes/etapa_13/planos/airbyte_gcp_20261110T172708Z.txt` (`-rw-------`). Leitura: as fontes
+`source_retail` e `source_legacy`, os destinos `bigquery_raw` e `bigquery_raw_legacy` e as duas
+conexões `ingestao`, todas com `schedule_type = "manual"`, `namespace_definition = "destination"` e
+`non_breaking_schema_updates_behavior = "ignore"`; a `configuration` das fontes e dos destinos
+aparece inteira como `(sensitive value)` (4 ocorrências), e não há `credentials_json` nem HMAC no
+texto. **Os *streams* conferem com o `airbyte/streams.yml`:** `retail`, 36 (8
+`full_refresh_overwrite`, 5 `incremental_append`, 23 `incremental_deduped_history`), contra 36
+declarados (8 `full_refresh`, 5 `append`, 23 `dedup_history`); `legacy`, 40 `full_refresh_append`,
+contra 40 declarados.
+
+**A aplicação do passo 6** (resposta às 14:29:17, fim às 14:31:12) [medido], com o Owner aprovando
+no chat depois da leitura: `Apply complete! Resources: 6 added, 0 changed, 0 destroyed.` As fontes e
+os destinos em 0–2 s; as conexões `legacy_para_raw_legacy` (1 min 11 s, `7f5f0f6c-…`) e
+`oltp_para_raw` (36 s, `f42f7b5a-…`), o tempo da descoberta dos esquemas no Cloud SQL. Sem `AVISO`:
+a raiz `airbyte/` continua no *workspace* `default`, e o estado do `gcp` nasceu `-rw-------`. O
+*port-forward* fechou com a receita.
+
+**Passo 7 — `make gcp-armazem-zerar CONFIRMA=mvp-ed1-gcp`** (14:33:04 → 14:34:24) [medido], com o Owner
+aprovando: `armazém zerado: 278 tabelas e views apagadas {"analytics": 25, "consumption": 16,
+"governance": 2, "quarantine": 2, "raw": 37, "raw_legacy": 40, "snapshots": 4, "staging": 77,
+"trusted": 75}` — o mesmo total medido em 08/11.
+
+**Passo 8 — `make gcp-armazem-governanca`** (14:34:29 → 14:34:42) [medido]:
+`governance (BigQuery): 0001_legacy_captures, 0002_snapshot_id_e_o_job`.
+
+**Passo 9 — `make gcp-livro-epoca`** (14:34:48 → 14:35:28) [medido]: `pronto para a época inicial:
+livro vazio em gs://mvp-ed1-gcp-livro/legado, armazém sem dado`; `época aberta:
+gs://mvp-ed1-gcp-livro/legado/epoch_0001_20261110T173526Z`; a linha de base em
+`…/epoch_0001_20261110T173526Z/baseline.json`, `sha256 514089867289…`; `0 capturas no bruto, 0 linhas
+de certificado, 0 jobs da conexão legada`. O Airbyte lido foi o do GKE, pelo *port-forward*.
+
+**A parte 1 da terça (§6.7) completa às 14:35**, 9 de 9 passos, com dois desvios registrados acima:
+a conta de faturamento suspensa (11:30–11:58) e o *digest* do Debezium (13:05–14:01).
