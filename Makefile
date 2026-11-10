@@ -1449,6 +1449,29 @@ gcp-airbyte-ativos: gcp-preflight require-kubectl ## Antes do passo 3 do desmont
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
 	.venv/bin/python -m mvp_ed1.airbyte ativos
 
+gcp-evidencias: gcp-preflight ## Antes do desmonte: o que só a nuvem tem, em dado bruto datado (catálogo físico, linhagem nativa, recursos); só lê
+	@# A infraestrutura é apagada na quinta, e o que não for guardado antes não existe depois — para o
+	@# portfólio (G9) e para o portal `gdados` (docs/pendencias.md, V2). Dado **bruto**: o formato do
+	@# portal se deriva depois. Os endereços do Terraform vão sem atributo (o estado guarda senhas), e
+	@# nenhum item lê linha de tabela. Item que falha vira linha `FALHOU` no manifesto e o alvo sai com
+	@# erro, sem esconder os outros.
+	@$(GCP_ENV); quando=$$(date -u +%Y%m%dT%H%M%SZ); d="data/medicoes/etapa_13/evidencias/$$quando"; mkdir -p "$$d"; rc=0; \
+	item() { nome="$$1"; shift; if "$$@" > "$$d/$$nome" 2> "$$d/$$nome.erro"; then rm -f "$$d/$$nome.erro"; echo "ok $$nome" >> "$$d/manifesto.txt"; \
+		else rc=1; echo "FALHOU $$nome" >> "$$d/manifesto.txt"; fi; }; \
+	{ echo "commit $$(git rev-parse HEAD)"; echo "instante $$quando"; echo "projeto $$GCP_PROJECT_ID"; } > "$$d/manifesto.txt"; \
+	for ds in $$($(GCP_TF) output -json datasets | .venv/bin/python -c 'import json,sys; print(" ".join(json.load(sys.stdin)))') airbyte_internal; do \
+		for vista in TABLES COLUMNS; do \
+			item "bq_$${ds}_$$vista.json" bq query --project_id="$$GCP_PROJECT_ID" --use_legacy_sql=false --format=json --max_rows=100000 \
+				"select * from \`$$GCP_PROJECT_ID.$$ds.INFORMATION_SCHEMA.$$vista\`"; \
+		done; \
+	done; \
+	item linhagem_paridade.json .venv/bin/python -m mvp_ed1.gcp.linhagem paridade --manifest dbt/target_gcp/manifest.json; \
+	grep -q '"colunas_comparadas"' "$$d/linhagem_paridade.json" 2>/dev/null && sed -i 's/^FALHOU linhagem_paridade.json$$/ok linhagem_paridade.json (ausentes acusados no relatório)/' "$$d/manifesto.txt"; \
+	item terraform_enderecos.txt $(GCP_TF) state list; \
+	item inventario_recursos.json gcloud asset search-all-resources --scope="projects/$$GCP_PROJECT_ID" --format=json; \
+	cat "$$d/manifesto.txt"; grep -q '^FALHOU' "$$d/manifesto.txt" && rc=1 || rc=0; \
+	test $$rc = 0 && echo "gcp-evidencias: $$d" || echo "ERRO: item que falhou acima (o .erro ao lado diz por quê)"; exit $$rc
+
 gcp-debezium-digest: ## Quarta, 07:00, antes de tudo: o digest do Debezium no values.yaml contra o vigente no quay.io (RVT-1-01); só lê; sai 3 se for preciso trocar
 	@.venv/bin/python -m mvp_ed1.gcp.imagem_debezium
 
