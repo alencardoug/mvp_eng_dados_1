@@ -125,8 +125,16 @@ def test_o_ingestor_tem_o_post_de_dataset_e_o_airbyte_internal_e_declarado():
     papel = bloco("google_project_iam_custom_role", "criar_dataset")
     assert re.findall(r'"(bigquery\.[a-z.]+)"', papel) == ["bigquery.datasets.create"]
     assert 'google_service_account.role["ingestor"].member' in bloco("google_project_iam_member", "ingestor_criar_dataset")
-    assert 'dataset_id                 = "airbyte_internal"' in bloco("google_bigquery_dataset", "airbyte_internal")
-    acesso = bloco("google_bigquery_dataset_access", "airbyte_internal")
-    assert 'google_service_account.role["ingestor"].email' in acesso and "dataEditor" in acesso
+    dataset = bloco("google_bigquery_dataset", "airbyte_internal")
+    assert 'dataset_id                 = "airbyte_internal"' in dataset
+    # RVT-1-03: a lista é autoritativa e tem exatamente duas entradas — os donos e o ingestor.
+    entradas = re.findall(r"access \{(.*?)\n  \}", dataset, re.S)
+    assert len(entradas) == 2
+    assert 'role          = "OWNER"' in entradas[0] and 'special_group = "projectOwners"' in entradas[0]
+    assert 'role          = "WRITER"' in entradas[1] and 'google_service_account.role["ingestor"].email' in entradas[1]
+    codigo = "\n".join(linha for linha in dataset.splitlines() if not linha.strip().startswith("#"))
+    assert "projectReaders" not in codigo and "projectWriters" not in codigo
+    assert 'resource "google_bigquery_dataset_access" "airbyte_internal"' not in tf
+    assert re.search(r"removed \{\n  from = google_bigquery_dataset_access\.airbyte_internal\n\n  lifecycle \{\n    destroy = false", tf)
     for nome in ("criar_dataset", "ingestor_criar_dataset", "airbyte_internal"):
         assert re.search(rf'"{nome}" \{{\n  count = local\.aplicacoes \? 1 : 0', tf)

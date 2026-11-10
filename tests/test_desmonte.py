@@ -92,7 +92,7 @@ def test_desmonte_que_cria_e_recusado():
 def test_o_gcp_plan_passa_pela_guarda_e_o_recusado_nao_se_aplica():
     receita = MAKEFILE.split("\ngcp-plan:", 1)[1].split("\n\n", 1)[0]
     assert "mvp_ed1.gcp.desmonte conferir-plano" in receita
-    assert '.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"' in receita
+    assert '.tfplan.provisorio" "$(GCP_PLANOS)/$$nome.tfplan.recusado"' in receita
     aplicar = MAKEFILE.split("\ngcp-apply:", 1)[1].split("\n\n", 1)[0]
     assert 'test -f "$(GCP_PLANOS)/$$nome.tfplan"' in aplicar
 
@@ -117,6 +117,39 @@ def test_o_plan_que_falha_tambem_vira_recusado(tmp_path):
     assert resultado.returncode != 0
     assert not (tmp_path / "planos" / "99_teste.tfplan").exists()
     assert (tmp_path / "planos" / "99_teste.tfplan.recusado").read_text(encoding="utf-8") == "binario"
+
+
+def _receita_com_terraform(tmp_path, corpo_do_terraform: str):
+    receita = MAKEFILE.split("\ngcp-plan:", 1)[1].split("\n\n", 1)[0].split("\n", 1)[1]
+    falso = tmp_path / "terraform_falso"
+    falso.write_text("#!/bin/sh\n" + corpo_do_terraform, encoding="utf-8")
+    falso.chmod(0o755)
+    (tmp_path / "planos").mkdir()
+    (tmp_path / "Makefile").write_text(
+        f"GCP_ENV = true\nGCP_TF := {falso}\nGCP_PLANOS := planos\n\ngcp-plan:\n{receita}\n", encoding="utf-8")
+    return tmp_path / "planos"
+
+
+def test_o_plan_interrompido_nao_deixa_nada_aplicavel(tmp_path):
+    """RVT-1-06: o binário nasce provisório; interrompido entre o `plan` e a guarda (aqui, o
+    `show` morre por sinal), não sobra o nome que o `gcp-apply` aceita — nem o aplicável antigo."""
+    planos = _receita_com_terraform(tmp_path, (
+        'case "$1" in plan) for a in "$@"; do case "$a" in -out=*) saida="${a#-out=../}";; esac; done; '
+        'printf novo > "$saida"; echo "Plan: 1 to add, 0 to change, 0 to destroy.";; '
+        'show) kill -TERM $PPID; exit 143;; esac\n'))
+    (planos / "99_teste.tfplan").write_text("antigo", encoding="utf-8")
+    resultado = subprocess.run(["make", "--no-print-directory", "gcp-plan", "NOME=99_teste", "VARS=enable_x=true"],
+                               cwd=tmp_path, capture_output=True, text=True)
+    assert resultado.returncode != 0
+    assert not (planos / "99_teste.tfplan").exists()
+
+
+def test_so_o_plano_que_passa_na_guarda_ganha_o_nome_aplicavel():
+    receita = MAKEFILE.split("\ngcp-plan:", 1)[1].split("\n\n", 1)[0]
+    ultima = [linha.strip() for linha in receita.splitlines() if linha.strip()][-1]
+    assert ultima == 'mv "$(GCP_PLANOS)/$$nome.tfplan.provisorio" "$(GCP_PLANOS)/$$nome.tfplan"'
+    assert '-out="../$(GCP_PLANOS)/$$nome.tfplan.provisorio"' in receita
+    assert receita.index('rm -f "$(GCP_PLANOS)/$$nome.tfplan"') < receita.index("plan -no-color")
 
 
 def _registro(tipo: str, nome: str) -> dict:

@@ -85,9 +85,18 @@ resource "helm_release" "airbyte" {
 # `airbyte_internal`, onde guarda as tabelas brutas da tipagem e deduplicação. O `POST` exige
 # `bigquery.datasets.create` no projeto **mesmo quando o *dataset* já existe** (a resposta seria
 # 409); sem ele, "User does not have bigquery.datasets.create permission", e a sincronização falha
-# antes de ler a origem. O papel próprio tem só essa permissão. O `airbyte_internal` nasce aqui, e
-# não pelo conector: fica no desmonte e não nasce fora do Terraform com cópia bruta da origem; só o
-# `ingestor` o acessa.
+# antes de ler a origem. O papel próprio tem só essa permissão — mas criar *dataset* é também ser
+# dono do que se cria (o BigQuery dá `dataOwner` a quem cria): o `ingestor` pode criar e possuir
+# *datasets* novos no projeto, e o que impede é o destino só usar os declarados (RVT-1-03). O
+# `airbyte_internal` nasce aqui, e não pelo conector: fica no desmonte e não nasce fora do Terraform.
+#
+# **A exceção do G4 (RVT-1-02, decisão do Owner em 10/11/2026):** o `airbyte_internal` é área técnica
+# e transitória do conector — as tabelas brutas (`_airbyte_data`, o registro inteiro em JSON) existem
+# durante a sincronização e saem no fim (0 tabelas medido depois das de 10/11, Registro §49). Não
+# entra na classificação por coluna; os controles são a lista de acesso **declarada inteira** abaixo
+# (os donos do projeto e o `ingestor`, sem as entradas padrão de leitura e escrita do projeto) e o
+# `make gcp-airbyte-interno` depois de cada sincronização, que falha se sobrar tabela. O tratamento
+# permanente é pendência do Owner (`docs/pendencias.md`).
 resource "google_project_iam_custom_role" "criar_dataset" {
   count = local.aplicacoes ? 1 : 0
 
@@ -110,14 +119,28 @@ resource "google_bigquery_dataset" "airbyte_internal" {
 
   dataset_id                 = "airbyte_internal"
   location                   = var.region
-  description                = "Tabelas brutas do destino BigQuery do Airbyte (tipagem e deduplicação); só o ingestor."
+  description                = "Área técnica e transitória do destino BigQuery do Airbyte; só os donos do projeto e o ingestor (RVT-1-02)."
   delete_contents_on_destroy = true
+
+  # Os blocos `access` tornam a lista **autoritativa**: sai o que não está aqui (as entradas padrão
+  # `projectReaders` e `projectWriters`, e o criador). Aqui não há *authorized view* a preservar,
+  # ao contrário das camadas (`papeis.tf`).
+  access {
+    role          = "OWNER"
+    special_group = "projectOwners"
+  }
+  access {
+    role          = "WRITER"
+    user_by_email = google_service_account.role["ingestor"].email
+  }
 }
 
-resource "google_bigquery_dataset_access" "airbyte_internal" {
-  count = local.aplicacoes ? 1 : 0
+# A concessão avulsa de 10/11 deu lugar aos blocos `access` acima; sai do estado sem `destroy`, porque
+# apagá-la depois de a lista autoritativa ser aplicada tiraria o próprio ingestor.
+removed {
+  from = google_bigquery_dataset_access.airbyte_internal
 
-  dataset_id    = google_bigquery_dataset.airbyte_internal[0].dataset_id
-  role          = "roles/bigquery.dataEditor"
-  user_by_email = google_service_account.role["ingestor"].email
+  lifecycle {
+    destroy = false
+  }
 }

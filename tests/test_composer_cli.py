@@ -129,3 +129,86 @@ def test_o_veredito_do_log_so_aprova_retomada_dita_antes_do_streaming(texto, esp
     from mvp_ed1.gcp import debezium_log
 
     assert debezium_log.veredito(texto)[0] == esperado
+
+
+def _parar_com_gcloud_falso(tmp_path, assinaturas: list[str]):
+    """Roda a receita de verdade, com `gcloud` e Terraform falsos e nenhum *job* ativo."""
+    import os
+    import subprocess
+
+    receita = MAKEFILE.split("\ngcp-dataflow-parar:", 1)[1].split("\n\n", 1)[0].split("\n", 1)[1]
+    falsos = tmp_path / "bin"
+    falsos.mkdir()
+    (tmp_path / "lista").write_text("\n".join(assinaturas), encoding="utf-8")
+    (tmp_path / "apagadas").write_text("", encoding="utf-8")
+    (falsos / "gcloud").write_text(
+        "#!/bin/sh\n"
+        f'L="{tmp_path}/lista"; A="{tmp_path}/apagadas"\n'
+        'case "$1 $2 $3" in\n'
+        '  "dataflow jobs list") exit 0;;\n'
+        '  "pubsub subscriptions list") cat "$L"; exit 0;;\n'
+        '  "pubsub subscriptions delete") echo "$4" >> "$A"; grep -vxF "$4" "$L" > "$L.n"; mv "$L.n" "$L"; exit 0;;\n'
+        "esac\nexit 9\n", encoding="utf-8")
+    tf = falsos / "terraform"
+    tf.write_text('#!/bin/sh\necho \'{"regiao": "us-central1"}\'\n', encoding="utf-8")
+    for f in (falsos / "gcloud", tf):
+        f.chmod(0o755)
+    (tmp_path / ".venv" / "bin").mkdir(parents=True)
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.write_text(f'#!/bin/sh\nexec "{RAIZ / ".venv" / "bin" / "python"}" "$@"\n', encoding="utf-8")
+    python.chmod(0o755)
+    (tmp_path / "Makefile").write_text(
+        f"GCP_ENV = GCP_PROJECT_ID=p\nGCP_TF := {tf}\nDATAFLOW_JOB := j\n\nparar:\n{receita}\n", encoding="utf-8")
+    ambiente = {**os.environ, "PATH": f"{falsos}:{os.environ['PATH']}"}
+    r = subprocess.run(["make", "--no-print-directory", "parar"], cwd=tmp_path, capture_output=True, text=True, env=ambiente)
+    return r, (tmp_path / "apagadas").read_text(encoding="utf-8").split()
+
+
+def test_a_assinatura_de_watermark_que_sobra_e_apagada_e_provada(tmp_path):
+    """RVT-1-04: cancelado, o Dataflow pode deixar a `…beam__df_internal…`; a receita a apaga e prova."""
+    sobra = "projects/p/subscriptions/mvp.oltp.inventory_movements.beam__df_internal71aae1e0"
+    r, apagadas = _parar_com_gcloud_falso(tmp_path, [sobra])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert apagadas == [sobra] and "a assinatura de watermark que sobrou foi apagada" in r.stdout
+
+
+def test_so_a_assinatura_com_o_prefixo_exato_e_apagada(tmp_path):
+    """O filtro do `gcloud` casa por trecho; o nome que só contém o prefixo não é apagado."""
+    intrusa = "projects/p/subscriptions/outra.mvp.oltp.inventory_movements.beam__df_internalx"
+    r, apagadas = _parar_com_gcloud_falso(tmp_path, [intrusa])
+    assert r.returncode != 0 and apagadas == []
+    assert "não é a assinatura de watermark; não apago" in r.stdout
+
+
+def test_sem_sobra_nada_e_apagado(tmp_path):
+    r, apagadas = _parar_com_gcloud_falso(tmp_path, [])
+    assert r.returncode == 0 and apagadas == [] and "nenhuma assinatura de watermark sobrando" in r.stdout
+
+
+def test_job_do_airbyte_sem_estado_final_conta_como_em_curso():
+    """RVT-1-04: antes de o degrau das aplicações sair, nenhum *job* do Airbyte no ar."""
+    from mvp_ed1 import airbyte
+
+    listagem = {"data": [
+        {"jobId": 1, "status": "succeeded"}, {"jobId": 2, "status": "failed"},
+        {"jobId": 3, "status": "cancelled"}, {"jobId": 4, "status": "incomplete"},
+        {"jobId": 5, "status": "running"}, {"jobId": 6, "status": "pending"}, {"jobId": 7},
+    ]}
+    assert [j["jobId"] for j in airbyte.em_curso(listagem)] == [5, 6, 7]
+    assert airbyte.em_curso({"data": []}) == [] and airbyte.em_curso(None) == []
+
+
+def test_o_digest_do_debezium_e_lido_do_values_e_comparado_com_a_tag_ativa():
+    """RVT-1-01: a quarta começa conferindo o digest; duas versões ativas ou nenhuma não concluem nada."""
+    from mvp_ed1.gcp import imagem_debezium as im
+
+    repo, tag, digest = im.fixada(im.VALORES.read_text(encoding="utf-8"))
+    assert (repo, tag) == ("debezium/server", "3.7.1.Final") and digest.startswith("sha256:")
+    with pytest.raises(ValueError):
+        im.fixada("imagem: quay.io/debezium/server:3.7.1.Final\n")
+    a, b = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+    assert im.vigente({"tags": [{"name": tag, "manifest_digest": a, "end_ts": None},
+                                {"name": tag, "manifest_digest": b, "end_ts": 1}]}, tag) == a
+    for ruim in ({"tags": []}, {"tags": [{"name": tag, "manifest_digest": a, "end_ts": None}] * 2}):
+        with pytest.raises(ValueError):
+            im.vigente(ruim, tag)

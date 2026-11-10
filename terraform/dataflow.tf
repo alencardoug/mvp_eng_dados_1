@@ -49,6 +49,12 @@ resource "google_project_iam_member" "streamer_dataflow_worker" {
 # with error: User not authorized" e não lê nada. Criar assinatura é permissão de projeto; um papel
 # só com o que a assinatura de acompanhamento pede, em vez do `pubsub.editor`, que apagaria tópicos.
 # O `attachSubscription` vem do `subscriber` **no tópico** de eventos. Os dois saem com o degrau.
+#
+# **O `.get` no projeto (RVT-1-05, decisão do Owner em 10/11/2026):** a página do Dataflow com Pub/Sub
+# pede "ao menos" `create`, `consume` e `delete` no projeto da assinatura de acompanhamento; o `.get`
+# está a mais e **não foi demonstrado necessário** — a consulta que faltava era a da `beam`, que o
+# `viewer` dela resolve (`armazenamento.tf`). Fica porque foi com ele que o *job* de 10/11 leu, e
+# tirá-lo só se provaria no lançamento da quarta, dentro da janela. Menor privilégio não provado.
 resource "google_project_iam_custom_role" "rastreio_watermark" {
   count = local.dataflow ? 1 : 0
 

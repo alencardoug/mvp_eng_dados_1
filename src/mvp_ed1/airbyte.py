@@ -115,6 +115,17 @@ def jobs(jwt: str, limite: int = 100) -> Any:
     return _chamar(caminho_dos_jobs(limite), jwt)
 
 
+def em_curso(listagem: Any) -> list[dict]:
+    """Os *jobs* que ainda não terminaram, de qualquer conexão (RVT-1-04).
+
+    O desmonte não tira o Airbyte nem o `airbyte_internal` com sincronização no ar: interromper o
+    cliente não interrompe o *job* remoto (Registro §49, passo 12). Estado ausente conta como em
+    curso — não se conclui nada do que não se leu.
+    """
+    dados = (listagem or {}).get("data", [])
+    return [item for item in dados if item.get("status") not in CONCLUIDOS]
+
+
 def guardar_identidade(conexao_nome: str, jwt: str) -> None:
     """Pré-condição de disparar a conexão legada (D50, RV12-4-03).
 
@@ -272,7 +283,7 @@ def sincronizar_certificando(connection_id: str, nome: str, jwt: str) -> tuple[d
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m mvp_ed1.airbyte")
-    parser.add_argument("comando", choices=["sync", "reset", "status", "workspace"])
+    parser.add_argument("comando", choices=["sync", "reset", "status", "workspace", "ativos"])
     parser.add_argument("--connection", default="oltp_para_raw")
     parser.add_argument(
         "--certificar-legado",
@@ -293,6 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.comando == "workspace":
             print(workspace(jwt))
             return 0
+        if args.comando == "ativos":
+            ativos = em_curso(jobs(jwt))
+            for item in ativos:
+                print(f"  job {item.get('jobId')}: {item.get('status', '?')} · conexão {item.get('connectionId')}")
+            print("airbyte: nenhum job em curso" if not ativos else f"ERRO: {len(ativos)} job(s) do Airbyte em curso")
+            return 1 if ativos else 0
         connection_id = conexao(args.connection, jwt)
         if args.comando == "status":
             print(f"{args.connection}: {connection_id}")

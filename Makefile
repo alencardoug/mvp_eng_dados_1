@@ -989,6 +989,9 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 	@# recusa plano de construção que destrói (DESTROI=n, o número lido no plano, é a exceção do
 	@# Owner) e plano de desmonte que cria; o plano recusado vira `.tfplan.recusado` e não se aplica.
 	@# O `plan` que falha também: o Terraform grava o binário mesmo com erro de leitura (Registro §48).
+	@# O binário nasce com nome **provisório**, que o `gcp-apply` não aceita, e só ganha o nome
+	@# aplicável depois do `plan`, do `show` e da guarda; o aplicável anterior do mesmo nome sai no
+	@# começo. Interrompido no meio, não sobra nada aplicável (RVT-1-06).
 	@# PASSO=n tira nome e VARS da declaração do desmonte, a janela inteira menos o já desmontado.
 	@$(GCP_ENV); \
 	if test -n "$(PASSO)"; then \
@@ -1001,12 +1004,14 @@ gcp-plan: gcp-preflight ## Salva um plano para o Owner aprovar: NOME=06_cloud_sq
 	fi; \
 	args=; for v in $$vars; do args="$$args -var $$v"; done; \
 	echo "gcp-plan: $$nome ($$modo) $$destruir $$vars"; \
-	umask 077; $(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
+	rm -f "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.provisorio"; \
+	umask 077; $(GCP_TF) plan -no-color $$destruir $$args -out="../$(GCP_PLANOS)/$$nome.tfplan.provisorio" > "$(GCP_PLANOS)/$$nome.txt" 2>&1; \
 	rc=$$?; grep -E "Plan:|No changes" "$(GCP_PLANOS)/$$nome.txt"; \
-	test $$rc = 0 || { test ! -f "$(GCP_PLANOS)/$$nome.tfplan" || mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit $$rc; }; \
-	$(GCP_TF) show -json "../$(GCP_PLANOS)/$$nome.tfplan" \
+	test $$rc = 0 || { test ! -f "$(GCP_PLANOS)/$$nome.tfplan.provisorio" || mv "$(GCP_PLANOS)/$$nome.tfplan.provisorio" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit $$rc; }; \
+	$(GCP_TF) show -json "../$(GCP_PLANOS)/$$nome.tfplan.provisorio" \
 		| .venv/bin/python -m mvp_ed1.gcp.desmonte conferir-plano --modo "$$modo" $(if $(DESTROI),--destroi $(DESTROI)) \
-		|| { mv "$(GCP_PLANOS)/$$nome.tfplan" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit 1; }
+		|| { mv "$(GCP_PLANOS)/$$nome.tfplan.provisorio" "$(GCP_PLANOS)/$$nome.tfplan.recusado"; exit 1; }; \
+	mv "$(GCP_PLANOS)/$$nome.tfplan.provisorio" "$(GCP_PLANOS)/$$nome.tfplan"
 
 gcp-apply: gcp-preflight ## Aplica um plano JÁ APROVADO pelo Owner: NOME=06_cloud_sql (ou PASSO=n no desmonte); guarda o estado antes
 	@# O estado e as cópias dele levam as senhas do Cloud SQL (o estado é local, D74): nascem e ficam
@@ -1300,19 +1305,38 @@ gcp-dataflow-lancar: gcp-dataflow-validar ## Janela: lança o caminho quente no 
 	@$(GCP_ENV); $(DATAFLOW_PREPARAR); \
 	.venv/bin/python -m mvp_ed1.streaming.dataflow lancar --terraform "$$base/tf.json" --pacote "$$pacote"
 
-gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min), cancela se não terminar, e prova que nenhum ficou ativo (§6.5 passo 1)
+gcp-dataflow-parar: gcp-preflight ## Drena o job do caminho quente (até 15 min), cancela se não terminar, prova que nenhum ficou ativo e que a assinatura de watermark do Dataflow saiu (§6.5 passo 1)
+	@# A assinatura de *watermark* (`<assinatura>__df_internal…`) o Dataflow cria em tempo de execução,
+	@# fora do Terraform, e a apaga quando o *job* é drenado (Registro §49). Cancelado, não se provou
+	@# (RVT-1-04): por isso, com nenhum *job* ativo, a receita procura a que sobrou e apaga **só** a
+	@# que começa pelo nome da assinatura de eventos, lido de onde o lançador o lê
+	@# (`streaming/fluxo.yml`, `nuvem.assinatura_de_eventos`) — nunca a `beam` declarada.
 	@$(GCP_ENV); \
 	regiao=$$($(GCP_TF) output -json dataflow | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["regiao"])') || exit 1; \
+	prefixo=$$(.venv/bin/python -c 'from mvp_ed1.streaming import config; print(config.carregar().nuvem.assinatura_de_eventos)') || exit 1; \
+	test -n "$$prefixo" || { echo "ERRO: sem a assinatura de eventos no fluxo.yml"; exit 1; }; \
+	prefixo="$$prefixo"__df_internal; \
 	ativos() { gcloud dataflow jobs list --project "$$GCP_PROJECT_ID" --region "$$regiao" --status=active \
 		--filter="name=$(DATAFLOW_JOB)" --format="value(id)"; }; \
 	vazio() { ids=$$(ativos) || { echo "ERRO: a listagem dos jobs ativos falhou; nada se conclui — repita (ou o relógio da §6.4)"; exit 1; }; test -z "$$ids"; }; \
-	vazio && { echo "gcp-dataflow-parar: nenhum job ativo"; exit 0; }; \
+	rastreio() { gcloud pubsub subscriptions list --project "$$GCP_PROJECT_ID" --filter="name:$$prefixo" --format="value(name)"; }; \
+	fim() { echo "$$1"; \
+		sobra=$$(rastreio) || { echo "ERRO: a listagem das assinaturas falhou; repita"; return 1; }; \
+		test -z "$$sobra" && { echo "gcp-dataflow-parar: nenhuma assinatura de watermark sobrando"; return 0; }; \
+		for s in $$sobra; do \
+			case "$${s##*/}" in "$$prefixo"*) ;; *) echo "ERRO: $$s não é a assinatura de watermark; não apago"; return 1 ;; esac; \
+			gcloud pubsub subscriptions delete "$$s" --project "$$GCP_PROJECT_ID" --quiet || return 1; \
+		done; \
+		sobra=$$(rastreio) || { echo "ERRO: a listagem das assinaturas falhou depois de apagar; repita"; return 1; }; \
+		test -z "$$sobra" || { echo "ERRO: a assinatura de watermark continua: $$sobra"; return 1; }; \
+		echo "gcp-dataflow-parar: a assinatura de watermark que sobrou foi apagada"; }; \
+	vazio && { fim "gcp-dataflow-parar: nenhum job ativo"; exit $$?; }; \
 	for id in $$ids; do gcloud dataflow jobs drain "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
-	for _ in $$(seq 60); do sleep 15; vazio && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; done; \
+	for _ in $$(seq 60); do sleep 15; vazio && { fim "gcp-dataflow-parar: drenado; nenhum job ativo"; exit $$?; }; done; \
 	echo "gcp-dataflow-parar: a drenagem não terminou em 15 min; cancelando"; \
-	vazio && { echo "gcp-dataflow-parar: drenado; nenhum job ativo"; exit 0; }; \
+	vazio && { fim "gcp-dataflow-parar: drenado; nenhum job ativo"; exit $$?; }; \
 	for id in $$ids; do gcloud dataflow jobs cancel "$$id" --project "$$GCP_PROJECT_ID" --region "$$regiao" || exit 1; done; \
-	for _ in $$(seq 20); do sleep 15; vazio && { echo "gcp-dataflow-parar: cancelado; nenhum job ativo"; exit 0; }; done; \
+	for _ in $$(seq 20); do sleep 15; vazio && { fim "gcp-dataflow-parar: cancelado; nenhum job ativo"; exit $$?; }; done; \
 	echo "ERRO: ainda há job ativo; o relógio da §6.4 manda escalar"; exit 1
 
 gcp-carga-dev: gcp-preflight ## Copia o bruto local para o BigQuery (desenvolvimento; APAGAR=1 apaga as cópias)
@@ -1409,6 +1433,24 @@ gcp-tags-inventario: gcp-preflight ## Terça, depois do gcp-dbt-build: o invent�
 	.venv/bin/python -m mvp_ed1.gcp.politicas inventario --manifest dbt/target_gcp/manifest.json \
 		--saida "data/medicoes/etapa_13/g4/inventario_$$(date -u +%Y%m%dT%H%M%SZ).json" > /dev/null; \
 	rc=$$?; test $$rc = 0 && echo "gcp-tags-inventario: 0 divergências, nenhuma tabela ausente" || echo "gcp-tags-inventario: DIVERGÊNCIA ou TABELA AUSENTE (as linhas AUSENTE acima; relatório em data/medicoes/etapa_13/g4/)"; exit $$rc
+
+gcp-airbyte-interno: gcp-preflight ## Depois de cada sincronização: o airbyte_internal sem tabela (o controle da exceção do G4, RVT-1-02); falha se sobrar
+	@# O `bq ls` de um *dataset* vazio não imprime nada; com tabela, a lista em JSON. Listagem que falha
+	@# não é "vazio": o alvo sai com erro.
+	@$(GCP_ENV); \
+	saida=$$(bq ls --format=json --project_id="$$GCP_PROJECT_ID" airbyte_internal) \
+		|| { echo "ERRO: a listagem do airbyte_internal falhou; nada se conclui — repita"; exit 1; }; \
+	n=$$(printf '%s' "$$saida" | .venv/bin/python -c 'import json,sys; s=sys.stdin.read().strip(); print(len(json.loads(s)) if s else 0)') || exit 1; \
+	test "$$n" = 0 && { echo "gcp-airbyte-interno: 0 tabelas no airbyte_internal"; exit 0; }; \
+	echo "ERRO: $$n tabela(s) no airbyte_internal — cópia bruta fora da exceção do G4 (RVT-1-02):"; \
+	printf '%s' "$$saida" | .venv/bin/python -c 'import json,sys; [print("  " + t["tableReference"]["tableId"]) for t in json.load(sys.stdin)]'; exit 1
+
+gcp-airbyte-ativos: gcp-preflight require-kubectl ## Antes do passo 3 do desmonte: nenhum job do Airbyte do GKE em curso (RVT-1-04); falha se houver
+	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); \
+	.venv/bin/python -m mvp_ed1.airbyte ativos
+
+gcp-debezium-digest: ## Quarta, 07:00, antes de tudo: o digest do Debezium no values.yaml contra o vigente no quay.io (RVT-1-01); só lê; sai 3 se for preciso trocar
+	@.venv/bin/python -m mvp_ed1.gcp.imagem_debezium
 
 gcp-gke-versao: gcp-preflight require-kubectl ## Terça, depois do apply do cluster: as versões do plano de controle e do kubectl, dentro da folga de uma versão menor
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); \
