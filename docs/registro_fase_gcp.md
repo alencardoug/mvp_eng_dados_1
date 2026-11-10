@@ -1985,3 +1985,65 @@ grava o binário e sai com erro (falha na receita antiga, passa na nova).
 **Estado às 11:35:** roteiro parado no passo 2; nada criado hoje. O Cloud SQL de segunda continua de
 pé. Se a conta continuar fechada, o que o Google faz com os recursos do projeto e em que prazo não foi
 verificado [a medir]. Depende do Owner: abrir a conta na consola, ver o motivo e reabrir.
+
+**A causa, por eliminação (antes das 11:58)** [medido, menos o que está marcado]. A conta `0199D3-…` é a única
+de faturamento, e os cinco projetos ligados a ela (`analisador-de-risco`, `mvp-ed1-gcp`,
+`da-voz-ao-produto`, `customer-care-prod`, `mvp-ed1-estudo`) ficaram sem as APIs pagas. A hipótese
+do Owner, o `unlink` do "My First Project" (§42), não fecha conta, e a cronologia também a descarta:
+depois do `unlink`, em 08/11, o `link` do `mvp-ed1-estudo` foi aceito, e em 09/11, às 11:30, o
+`apply` do Cloud SQL criou os segredos. A conta fechou depois disso. A causa provável é o fim da
+avaliação gratuita, não convertida (§1: R$ 1.740,37 e 9 dias restantes em 06/11), por prazo ou por
+crédito [a medir na consola: a faixa da página da conta diz qual].
+
+**A conta reaberta (até 11:58)** [medido]. O Owner abriu a página da conta e a conta voltou a
+funcionar; os créditos continuam, e ele decidiu seguir com a janela. Conferido: `open: True`, o
+Secret Manager volta a responder, e os orçamentos de pé — `mvp-ed1 Etapa 13` (R$ 400) e `mvp-ed1-estudo` (R$ 180),
+ambos com `EXCLUDE_ALL_CREDITS`. A conversão vale para a conta inteira: nos outros três projetos, só
+serviços do Cloud Run sem instância mínima e *buckets* (`analisador-de-risco`, `da-voz-ao-produto`,
+`customer-care-prod`), nada que cobre parado.
+
+**A conta continua na avaliação gratuita** [lido pelo Owner na consola, 12:16]: a faixa mostra o
+crédito restante, **6 dias restantes** e o botão "Fazer upgrade", que o Owner **não** clicou e não
+pretende clicar. O Claude Code tinha inferido o contrário — que só a conversão reabriria uma conta de
+avaliação fechada — e a inferência estava errada: a API do Cloud Billing não expõe o tipo da conta
+(só `open`, moeda e conta-mãe; a `v1beta` responde 404), e as cotas (`GPUS_ALL_REGIONS = 0`,
+`CPUS_ALL_REGIONS = 32`) são as de 06/11. Consequência: o uso continua pago pelo crédito, sem cobrança
+no cartão, e a conta fecha sozinha ao fim da avaliação (~16/11) ou do crédito. A hipótese do fim da avaliação,
+acima, está descartada, porque restam dias e crédito.
+
+**A causa, pelo e-mail do Google** [lido pelo Owner, recebido na manhã de 10/11]: a conta foi
+**suspensa "por falta de pagamento de valores devidos ou por informações de pagamento inválidas"**
+(cartão expirado, cancelado ou recusado). Ou houve uma cobrança fora do crédito, que existe mesmo na
+avaliação para o que o crédito não cobre, ou o cartão de verificação deixou de valer. Qual dos dois,
+e o que reabriu a conta, ainda não foi medido [a medir: a página "Transações" da conta].
+
+**O uso fora do crédito, pelo que a API mostra** [medido, 30 dias, Cloud Monitoring
+`serviceruntime…/api/request_count` e `aiplatform…/publisher/online_serving/*`]. Nenhum dos cinco
+projetos tem exportação de faturamento para o BigQuery, e transações e faturas não têm API pública;
+por isso a medida é indireta: o que foi chamado, não o que foi cobrado. Nenhum projeto tem ligada API
+de mapas, de Gemini direto (`generativelanguage`) ou de Marketplace. O único volume fora do comum é o
+Vertex AI do `mvp-ed1-estudo`: 52.624 chamadas, quase todas `internal…GenerateContent` (as funções
+de IA do BigQuery) no dia que fecha em 09/11 12:23 de Brasília — o laboratório de 08/11 —, só
+modelos do Google: `gemini-3.5-flash-lite` com 10.746 invocações, 853.986 *tokens* de entrada e
+201.093 de saída; `text-multilingual-embedding-002` com 61 e 119.035; cinco modelos Flash com uma
+chamada de teste cada. Nenhum modelo de parceiro do Model Garden. Nos outros três projetos, só
+Secret Manager, Artifact Registry, Cloud Run e o Gemini Cloud Assist, em dezenas de chamadas.
+Conclusão, com o limite dito: nada do que a API mostra aponta para uso fora da cobertura, e o volume
+é pequeno; a causa 2, o cartão, fica mais provável, sem estar medida.
+
+**A lista de contas da consola** [medido pelo Owner, CSV exportado da página de faturamento]:
+`Minha conta de faturamento`, tipo `Direta`, **gastos dos últimos 30 dias R$ 0**, status `Ativa`,
+sem organização e sem verificação de integridade pendente. O crédito pagou todo o uso dos 30 dias:
+não há valor cobrado no cartão, e a causa 1 (uso fora da cobertura) fica descartada. Resta a causa 2,
+a informação de pagamento, que a consola não mostra nessa lista [a medir: "Formas de pagamento"]. Isso volta a ser risco da janela: um novo fechamento no
+meio da quarta pararia o Composer e o Dataflow, e o desmonte precisa das APIs de pé.
+
+**Passo 2, de novo** (11:59) [medido]: `Plan: 11 to add, 0 to change, 0 to destroy.` e
+`conferir-plano: construção: 11 a criar, 0 a alterar, 0 a destruir`; `.tfplan` com `-rw-------`.
+
+**Leitura do plano** (`08_gke.txt`) [medido]: os mesmos 11 endereços do `08_gke_revisao` de 09/11 —
+o roteador e o Cloud NAT (`AUTO_ONLY`), o *cluster* `mvp-ed1` zonal em `us-central1-a` (canal
+`REGULAR`, nós privados, `workload_pool = mvp-ed1-gcp.svc.id.goog`, `remove_default_node_pool = true`,
+`deletion_protection = false`), o *pool* `mvp-ed1` com 2 nós `e2-standard-4`, disco `pd-balanced` de
+50 GB, sem *spot*, a conta dos nós com os quatro papéis de log e métrica, e a personificação das contas
+`ingestor` e `streamer` pelo Workload Identity.
