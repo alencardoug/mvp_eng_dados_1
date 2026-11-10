@@ -2477,3 +2477,47 @@ em `data/medicoes/etapa_13/evidencias/20261110T211313Z/`; a linhagem `FALHOU` �
 respondeu `503 Service Unavailable` em `searchLinks` depois das novas tentativas do módulo. Repete-se
 na quarta (§6.9 passo 15a). As mudanças de governança e documentação que o parecer pede ficam para
 quando não houver mais pendências (V2 das pendências, decisão do Owner).
+
+**O `apply` do `11e`, pelo Owner** (~18:39, no `!` do prompt) [medido]: `Apply complete! Resources: 0
+added, 1 changed, 0 destroyed.` Conferido às 18:40 (`bq show`): a lista de acesso do `airbyte_internal`
+com **duas** entradas — `WRITER` do `mvp-ingestor` e `OWNER` de `projectOwners` —; o estado só com
+`google_bigquery_dataset.airbyte_internal[0]`, o avulso fora dele sem ter sido destruído.
+
+## 51. As capturas da segunda e da terça (10/11/2026, 18:50)
+
+O Chrome do Owner só se ligou a esta sessão depois do `/chrome` no prompt (a extensão logada na conta
+certa e o Chrome reiniciado não bastaram). As capturas 02 a 05 do roteiro do G9 saíram então, com os
+recursos ainda de pé. Em todas, a faixa do alto é a da consola: **R$ 1.691,93 de crédito e 5 dias
+restantes** na avaliação [medido, 18:50]. O ID da conta de faturamento não aparece no quadro (só na
+barra de endereço, que a captura não pega).
+
+**02 — os orçamentos, com os créditos excluídos.** O `mvp-ed1 Etapa 13` marca **R$ 37,30 de R$ 400,00**
+e o `mvp-ed1-estudo` R$ 2,84 de R$ 180,00, os dois com "Nenhum crédito usado" — o custo bruto do mês,
+antes do crédito [medido, consola, 18:52]; os alertas do primeiro estão em 30%, 60% e 90%.
+
+![Orçamentos e limites, os nomes](registro_fase_gcp/capturas/2026-11-10_02_orcamentos.jpg)
+
+![Orçamentos e limites, os valores](registro_fase_gcp/capturas/2026-11-10_02_orcamentos_valores.jpg)
+
+**03 — as camadas atravessaram.** A `analytics.fact_sales_order_item` particionada por mês em
+`placed_at` (33 partições, 7.738 linhas), agrupada por `source_system`, `sales_channel_key` e
+`product_key`, e com os rótulos `owner`, `domain` e `retention` — o metadado da D80 em *labels*.
+
+![A fato particionada, com os rótulos](registro_fase_gcp/capturas/2026-11-10_03_bigquery_particao.jpg)
+
+![A fato agrupada](registro_fase_gcp/capturas/2026-11-10_03_bigquery_cluster.jpg)
+
+**04 — a origem existe na nuvem.** A instância `mvp-ed1-origens`, PostgreSQL 16, com o `source_db` e o
+`legacy_db`.
+
+![A instância do Cloud SQL e os bancos](registro_fase_gcp/capturas/2026-11-10_04_cloud_sql.jpg)
+
+**05 — o mesmo Airbyte, no GKE.** Os onze *workloads* `OK` no *cluster* `mvp-ed1`: os dez do Airbyte e
+o `debezium-server`.
+
+![Os workloads do GKE](registro_fase_gcp/capturas/2026-11-10_05_gke.jpg)
+
+**A 06 (a sincronização no Airbyte, sem chave) não saiu do Claude Code:** a interface do Airbyte do GKE
+pede o *login* de administrador que o *chart* gerou, e o Claude Code não digita credencial. A prova
+da D72 está no §49 (passo 10, `247.902 linhas`); a captura fica com o Owner, se ele a quiser, pelo
+*port-forward* que o Claude Code abre.
