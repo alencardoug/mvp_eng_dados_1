@@ -35,9 +35,25 @@ variable "pendentes_por_tabela" {
 resource "google_bigquery_dataset_access" "papel" {
   for_each = var.enable_cheap ? { for a in var.acesso_por_dataset : "${a.dataset}/${a.role}/${a.papel}" => a } : {}
 
-  dataset_id    = google_bigquery_dataset.layer[each.value.dataset].dataset_id
-  role          = each.value.role
+  dataset_id = google_bigquery_dataset.layer[each.value.dataset].dataset_id
+  # Papel predefinido vai como está; o próprio (`mvpAutorizarViews`) vira o id do papel do projeto.
+  role          = startswith(each.value.role, "roles/") ? each.value.role : google_project_iam_custom_role.autorizar_views[0].id
   user_by_email = google_service_account.role[each.value.papel].email
+}
+
+# Recriar uma *authorized view* pede `bigquery.datasets.update` em cada dataset que ela lê
+# (`mvp_ed1.gcp.acesso.AUTORIZAR`). Só isso: nada de ler, escrever ou apagar tabela. Vai por
+# `google_bigquery_dataset_access`, como o resto, para não reescrever a lista de acesso do dataset.
+resource "google_project_iam_custom_role" "autorizar_views" {
+  count = var.enable_cheap ? 1 : 0
+
+  role_id     = "mvpAutorizarViews"
+  title       = "mvp-ed1 — autorizar views"
+  description = "Gravar a autorização de uma view na lista de acesso do dataset que ela lê (G1.5)."
+  permissions = [
+    "bigquery.datasets.get",
+    "bigquery.datasets.update",
+  ]
 }
 
 resource "google_project_iam_member" "job_user" {

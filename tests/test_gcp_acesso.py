@@ -36,6 +36,16 @@ def test_quem_materializa_pelo_dbt_e_dono_e_quem_so_escreve_fonte_edita():
     assert papeis[("raw", "ingestor")] == acesso.ESCRITA
 
 
+def test_quem_materializa_view_autorizada_autoriza_onde_nao_e_dono():
+    """Recriar uma *authorized view* pede `datasets.update` no que ela lê (Registro §55, passo 9)."""
+    no = _no("consumption", ["transformer"])
+    no["config"]["grant_access_to"] = [{"project": "p", "dataset": "analytics"}, {"project": "p", "dataset": "raw"}]
+    d = acesso.derivar(_manifest(nodes=[no, _no("analytics", ["transformer"])],
+                                 sources=[_fonte("raw", "s", ["ingestor"], ["transformer"])]))
+    autorizar = [(a["dataset"], a["papel"]) for a in d["acesso_por_dataset"] if a["role"] == acesso.AUTORIZAR]
+    assert autorizar == [("raw", "transformer")]
+
+
 def test_escritor_ganha_edicao_e_leitor_da_fonte_ganha_leitura():
     d = acesso.derivar(_manifest(
         nodes=[_no("staging", ["transformer"]), _no("staging", ["transformer"], "snapshot"), _no("x", tipo="test")],

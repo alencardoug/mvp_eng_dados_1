@@ -41,6 +41,13 @@ ESCRITA = "roles/bigquery.dataEditor"
 #: Airbyte e pelo livro) não concede nada por objeto e continua `dataEditor`.
 DONO = "roles/bigquery.dataOwner"
 LEITURA = "roles/bigquery.dataViewer"
+#: Recriar uma *authorized view* (`grant_access_to`, G1.5) pede `bigquery.datasets.update` em
+#: cada *dataset* que ela lê; onde quem a materializa já é `DONO`, isso vem junto. Onde não é —
+#: o `raw`, aterrissagem do caminho quente que só o `ingestor` escreve —, o papel próprio
+#: `mvpAutorizarViews` (`terraform/papeis.tf`: só `datasets.get` e `datasets.update`). No Composer
+#: o `create or replace view` da `skus_below_reorder_point` foi negado no `raw` (Registro §55,
+#: passo 9). Não é papel predefinido: o Terraform troca o nome pelo id do papel do projeto.
+AUTORIZAR = "mvpAutorizarViews"
 
 
 def derivar(manifest: dict) -> dict:
@@ -49,12 +56,15 @@ def derivar(manifest: dict) -> dict:
     leitores: dict[str, set[str]] = {}
     pendentes: list[dict] = []
 
+    autorizam: dict[str, set[str]] = {}
     for no in manifest["nodes"].values():
         if no["resource_type"] not in ("model", "snapshot", "seed"):
             continue
         for papel in (no["config"].get("meta") or {}).get("writers", []):
             escritores.setdefault(no["schema"], set()).add(papel)
             materializam.setdefault(no["schema"], set()).add(papel)
+            for alvo in no["config"].get("grant_access_to") or []:
+                autorizam.setdefault(alvo["dataset"], set()).add(papel)
 
     for fonte in manifest["sources"].values():
         meta_fonte = fonte.get("source_meta") or {}
@@ -74,6 +84,9 @@ def derivar(manifest: dict) -> dict:
     for schema, papeis in sorted(escritores.items()):
         dbt = materializam.get(schema, set())
         acesso += [{"dataset": schema, "role": DONO if p in dbt else ESCRITA, "papel": p} for p in sorted(papeis)]
+    for schema, papeis in sorted(autorizam.items()):
+        acesso += [{"dataset": schema, "role": AUTORIZAR, "papel": p}
+                   for p in sorted(papeis - materializam.get(schema, set()))]
     for schema, papeis in sorted(leitores.items()):
         # Quem escreve já lê: dataViewer a mais seria a mesma permissão duas vezes.
         acesso += [{"dataset": schema, "role": LEITURA, "papel": p}
