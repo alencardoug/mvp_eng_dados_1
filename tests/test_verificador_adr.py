@@ -7,8 +7,12 @@ não casava com a forma `1 — D36`, e ele acusava contadores certos. E as decis
 fecham nas Pendências sem ADR, ficavam fora da conta: com a D53 e a D54 abertas, o README dizia 1
 pendente enquanto as Pendências diziam 3, sem acusação nenhuma.
 
-Cada cenário monta um repositório mínimo com o verificador real, os três documentos e dois ADRs, e
-roda o script como a skill roda.
+Até 10/11/2026 os itens `### Vn —` de "Esperando você" — verificações e trabalho adiados — viravam
+aprovações, e o `rglob` lia o que está fora do Git. Os cenários com `adiado` e `rastreado` guardam as
+duas correções.
+
+Cada cenário monta um repositório Git mínimo com o verificador real, os três documentos e dois ADRs,
+e roda o script como a skill roda.
 """
 
 from __future__ import annotations
@@ -52,6 +56,7 @@ PENDENCIAS = """# Pendências do Owner
 | Campo | Informação |
 |---|---|
 | Aprovações pendentes | {aprovacoes} |
+| Verificações e trabalho adiados | {adiados} |
 | Decisões pendentes | {cabecalho} |
 
 ---
@@ -83,6 +88,7 @@ README = """# Projeto
 ATUAL = {
     "linhas": "| D43 | A guarda de identidade — adiada | 16/09/2026 | Nenhum na fase local |",
     "aprovacoes": "0",
+    "adiados": "0",
     "cabecalho": "1 (D43, adiada de propósito para a fase GCP)",
     "esperando": "### D43 — a guarda de identidade (adiada em 16/09/2026)\n\nTexto.",
     "fechadas": "### D53 e D54 — decididas e implementadas em 24/09/2026\n\nTexto.",
@@ -91,7 +97,16 @@ ATUAL = {
 }
 
 
-def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedProcess[str]:
+V1 = "### V1 — verificações adiadas (registrada em 05/11/2026)\n\nTexto."
+
+
+def _git(raiz: pathlib.Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=raiz, check=True, capture_output=True, timeout=60)
+
+
+def _verificar(
+    tmp_path: pathlib.Path, fora_do_git: dict[str, str] | None = None, **trocas: str
+) -> subprocess.CompletedProcess[str]:
     campos = ATUAL | trocas
     raiz = tmp_path / "repo"
     (raiz / ".claude" / "skills" / "adr").mkdir(parents=True)
@@ -104,6 +119,7 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
     (raiz / "docs" / "pendencias.md").write_text(
         PENDENCIAS.format(
             aprovacoes=campos["aprovacoes"],
+            adiados=campos["adiados"],
             cabecalho=campos["cabecalho"],
             esperando=campos["esperando"],
             fechadas=campos["fechadas"],
@@ -113,6 +129,12 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
     (raiz / "README.md").write_text(
         README.format(pendencias=campos["pendencias"], registro=campos["registro"]), encoding="utf-8"
     )
+    # O verificador lê só o que o Git rastreia: o índice basta, sem *commit*.
+    _git(raiz, "init", "-q")
+    _git(raiz, "add", "-A")
+    for relativo, texto in (fora_do_git or {}).items():
+        (raiz / relativo).parent.mkdir(parents=True, exist_ok=True)
+        (raiz / relativo).write_text(texto, encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(raiz / ".claude" / "skills" / "adr" / "verificar.py")],
         capture_output=True, text=True, timeout=60,
@@ -172,6 +194,14 @@ def _verificar(tmp_path: pathlib.Path, **trocas: str) -> subprocess.CompletedPro
         pytest.param(
             {"esperando": "### D43 — a guarda\n\nTexto.\n\n```markdown\n### Exemplo\n\n### D57 — exemplo\n```\n"},
             id="aprovacao-e-decisao-so-em-bloco-de-codigo",
+        ),
+        pytest.param(
+            {
+                "adiados": "1 (V1, registrada em 05/11/2026)",
+                "esperando": f"### D43 — a guarda\n\nTexto.\n\n{V1}",
+                "pendencias": "Decisões: 1 pendente; verificações e trabalho: 1 adiada, em 10/11/2026",
+            },
+            id="um-adiado-que-nao-e-aprovacao",
         ),
     ],
 )
@@ -253,6 +283,19 @@ def test_contadores_certos_passam(tmp_path, trocas):
             "link quebrado — docs/pendencias.md: sumiu.md",
             id="cerca-com-quatro-espacos-nao-esconde-o-link-depois",
         ),
+        pytest.param(
+            {
+                "esperando": f"### D43 — a guarda\n\nTexto.\n\n{V1}",
+                "pendencias": "Decisões: 1 pendente; verificações e trabalho: 1 adiada",
+            },
+            "o cabeçalho deveria dizer 1 verificações e trabalho adiados (V1",
+            id="cabecalho-sem-o-adiado",
+        ),
+        pytest.param(
+            {"adiados": "1 (V1)", "esperando": f"### D43 — a guarda\n\nTexto.\n\n{V1}"},
+            "conta 0 adiados, e 'Esperando você' tem 1 (V1",
+            id="readme-esquece-o-adiado",
+        ),
     ],
 )
 def test_contadores_errados_sao_acusados(tmp_path, trocas, acusacao):
@@ -260,3 +303,22 @@ def test_contadores_errados_sao_acusados(tmp_path, trocas, acusacao):
 
     assert r.returncode == 1, r.stdout + r.stderr
     assert acusacao in r.stdout, r.stdout
+
+
+# ── Só o que o Git rastreia ─────────────────────────────────────────────────
+
+
+def test_link_quebrado_fora_do_git_nao_conta(tmp_path):
+    """Relatório em `data/medicoes/`, fora do Git, tem links que ninguém publica (10/11/2026)."""
+    r = _verificar(tmp_path, fora_do_git={"data/medicoes/relatorio.md": "[perdido](sumiu.md) e ADR-9999\n"})
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "sumiu.md" not in r.stdout
+
+
+def test_link_quebrado_rastreado_conta(tmp_path):
+    """A contraprova: o mesmo texto, rastreado, é acusado."""
+    r = _verificar(tmp_path, esperando="### D43 — a guarda\n\n[perdido](sumiu.md)\n")
+
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "link quebrado — docs/pendencias.md: sumiu.md" in r.stdout

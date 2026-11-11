@@ -55,7 +55,9 @@ Os contadores de pendentes são **dois**, e cada um aparece em mais de um lugar.
 estão na §3 do Registro e na linha *Registro de Decisões* do README. Todas as que esperam o Owner —
 inclusive as de operação, que fecham nas Pendências sem ADR — estão em "Esperando você", no
 cabeçalho das Pendências e na linha *Pendências* do README; as da §3 do Registro estão entre elas.
-Movê-los juntos é o erro mais fácil de cometer aqui.
+Movê-los juntos é o erro mais fácil de cometer aqui. Os `### Vn —` de "Esperando você" —
+verificações e trabalho adiados — não são decisão nem aprovação: contam na linha *Verificações e
+trabalho adiados* do cabeçalho e como "N adiadas" na linha *Pendências* do README.
 
 Ao editar documento existente, prefira substituição verificada — que falha se o alvo não for único —
 em vez de `sed` solto. Um alvo que casa zero ou duas vezes é defeito silencioso.
@@ -66,8 +68,8 @@ em vez de `sed` solto. Um alvo que casa zero ou duas vezes é defeito silencioso
 python3 .claude/skills/adr/verificar.py
 ```
 
-Confere links relativos, ADRs citados, decisões resolvidas que continuam pendentes — no Registro ou
-nas Pendências — e os dois contadores. Um ADR que cita vocabulário substituído no Contexto **não** é
+Confere, nos documentos que o Git rastreia, links relativos, ADRs citados, decisões resolvidas que continuam pendentes — no Registro ou
+nas Pendências — e os contadores. Um ADR que cita vocabulário substituído no Contexto **não** é
 problema.
 
 ## 5. Commit

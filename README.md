@@ -69,7 +69,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** pelo `make catalog` |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | Vigente |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | 4 pendentes em 07/11/2026: D63 e D64, levantadas pela validação do material de estudo, a D66 (adiada para depois da v1.1.0) e a D43 (adiada para a fase GCP, medida na Etapa 13); a D65 e a D67, fechadas pela v1.1.0; as decisões da abertura da Etapa 13, fechadas em 06–07/11/2026, e a D62, fechada no G2.3; e a V1, verificações adiadas da revisão da v1.1.0, lotes 1 a 3 (05/11/2026) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Decisões: 4 pendentes; verificações e trabalho: 2 adiadas, em 10/11/2026. Quais são, no cabeçalho das [Pendências](docs/pendencias.md) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 51 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |

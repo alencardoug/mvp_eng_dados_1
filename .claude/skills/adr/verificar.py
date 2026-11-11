@@ -23,10 +23,21 @@ uma etapa —, com título `###` sem `Dnn`. O cabeçalho das Pendências conta c
 (*Decisões pendentes*, *Aprovações pendentes*), e a linha *Pendências do Owner* do README conta as
 duas. Até 03/10/2026 o verificador só via as decisões, e reprovava o README certo do fechamento da
 Etapa 12 — "o aceite da Etapa 12 e a D43" — por contar 2 (RVF12-07).
+
+**Nem tudo que fica em "Esperando você" espera aprovação.** Desde 05/11/2026 a seção guarda também
+verificações e trabalho adiados — títulos `### Vn —` —, contados na linha *Verificações e trabalho
+adiados* do cabeçalho. Até 10/11/2026 o verificador os contava como aprovações e reprovava o
+cabeçalho certo, "Aprovações pendentes: 0". A linha *Pendências do Owner* do README conta as
+decisões e as aprovações como "N pendentes", e os adiados à parte, como "N adiadas".
+
+**Só o rastreado.** Os documentos são os que o Git rastreia (`git ls-files`), como no `docs_check`:
+até 10/11/2026 o `rglob` lia também `data/medicoes/`, fora do Git, e acusava links de relatórios
+que ninguém publica.
 """
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -54,9 +65,21 @@ def codigos_dos_titulos(corpo: str) -> set[str]:
     return {c for titulo in re.findall(r"^### (.*)$", corpo, re.M) for c in re.findall(r"\bD\d{2}\b", titulo)}
 
 
+ADIADO = re.compile(r"^V\d+\b")
+
+
 def aprovacoes_dos_titulos(corpo: str) -> list[str]:
-    """Os títulos `###` sem `Dnn` de uma seção — aprovações, como o aceite de uma etapa."""
-    return [titulo for titulo in re.findall(r"^### (.*)$", corpo, re.M) if not re.search(r"\bD\d{2}\b", titulo)]
+    """Os títulos `###` sem `Dnn` nem `Vn` de uma seção — aprovações, como o aceite de uma etapa."""
+    return [
+        titulo
+        for titulo in re.findall(r"^### (.*)$", corpo, re.M)
+        if not re.search(r"\bD\d{2}\b", titulo) and not ADIADO.match(titulo)
+    ]
+
+
+def adiados_dos_titulos(corpo: str) -> list[str]:
+    """Os títulos `### Vn —` de uma seção — verificações e trabalho adiados, que não são aprovações."""
+    return [titulo for titulo in re.findall(r"^### (.*)$", corpo, re.M) if ADIADO.match(titulo)]
 
 
 def pendentes_do_registro(registro: str) -> set[str]:
@@ -73,8 +96,8 @@ def plural(n: int) -> str:
 
 def decisoes(
     registro: str, pendencias: str, readme: str, n_adr: int
-) -> tuple[list[str], set[str], set[str], list[str]]:
-    """Os problemas de coerência do que espera o Owner, e os conjuntos: do Registro, das Pendências e as aprovações."""
+) -> tuple[list[str], set[str], set[str], list[str], list[str]]:
+    """Os problemas de coerência do que espera o Owner, e os conjuntos: do Registro, das Pendências, as aprovações e os adiados."""
     problemas: list[str] = []
 
     # "Parte da D36" registra resolução **parcial**: o ADR fechou um pedaço e a
@@ -97,6 +120,7 @@ def decisoes(
         corpo = ""
     esperando = codigos_dos_titulos(corpo)
     aprovacoes = aprovacoes_dos_titulos(corpo)
+    adiados = adiados_dos_titulos(corpo)
     fechadas = codigos_dos_titulos(secao(pendencias, "2. Decisões já fechadas") or "")
     for d in sorted(esperando & (fechadas | resolvidas)):
         problemas.append(f"decisão fechada ainda esperando o Owner nas Pendências: {d}")
@@ -116,6 +140,12 @@ def decisoes(
         problemas.append(
             f"pendencias.md desatualizado — o cabeçalho deveria dizer {len(aprovacoes)} aprovações pendentes"
             f" ({'; '.join(aprovacoes) or 'nenhuma'})"
+        )
+    cabecalho = re.search(r"^\| Verificações e trabalho adiados \| (\d+)\b", pendencias, re.M)
+    if (int(cabecalho.group(1)) if cabecalho else 0) != len(adiados):
+        problemas.append(
+            f"pendencias.md desatualizado — o cabeçalho deveria dizer {len(adiados)} verificações e trabalho adiados"
+            f" ({'; '.join(adiados) or 'nenhum'})"
         )
 
     linha = re.search(r"^\| \[Registro de Decisões\].*$", readme, re.M)
@@ -153,8 +183,15 @@ def decisoes(
             )
         for d in sorted(nomeadas - esperando):
             problemas.append(f"README nomeia como pendente o que não espera o Owner: {d}")
+        numero = re.search(r"(\d+) adiad[ao]s?\b", situacao)
+        n = int(numero.group(1)) if numero else 0
+        if n != len(adiados):
+            problemas.append(
+                f"README desatualizado — a linha Pendências do Owner conta {n} adiados, e 'Esperando você'"
+                f" tem {len(adiados)} ({'; '.join(adiados) or 'nenhum'})"
+            )
 
-    return problemas, do_registro, esperando, aprovacoes
+    return problemas, do_registro, esperando, aprovacoes, adiados
 
 
 CERCA = re.compile(r"^(?P<recuo> *)(?P<cerca>`{3,}|~{3,})(?P<resto>.*)$")
@@ -210,8 +247,17 @@ def sem_codigo(texto: str) -> str:
     return "\n".join(linhas)
 
 
+def rastreados() -> list[Path]:
+    """Os `.md` que o Git rastreia — o que o repositório publica. Fora de um repositório, falha alto."""
+    saida = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
+    caminhos = (ROOT / c for c in saida.split("\0") if c)
+    return sorted(p for p in caminhos if p.is_file() and not IGNORADOS & set(p.relative_to(ROOT).parts))
+
+
 def main() -> int:
-    docs = [p for p in sorted(ROOT.rglob("*.md")) if not IGNORADOS & set(p.parts)]
+    docs = rastreados()
     texts = {p: p.read_text(encoding="utf-8") for p in docs}
     # Tudo o que se confere é lido fora de bloco de código, como no `docs_check`:
     # links, ADRs citados e os títulos e contadores das decisões. Até 03/10/2026
@@ -235,7 +281,7 @@ def main() -> int:
 
     # decisões pendentes: resolvidas que ficaram, e os contadores dos dois conjuntos
     n_adr = len(adr_numbers) - 1  # 0000-template não conta
-    achados, do_registro, esperando, aprovacoes = decisoes(
+    achados, do_registro, esperando, aprovacoes, adiados = decisoes(
         limpos[ROOT / "docs/adr/README.md"], limpos[ROOT / "docs/pendencias.md"], limpos[ROOT / "README.md"], n_adr
     )
     problemas += achados
@@ -248,7 +294,8 @@ def main() -> int:
 
     print(
         f"ADRs aceitos: {n_adr}  ·  esperando ADR: {len(do_registro)}  ·  esperando o Owner:"
-        f" {len(esperando)} decisão(ões) e {len(aprovacoes)} aprovação(ões)  ·  Dnn citados: {len(todos)}"
+        f" {len(esperando)} decisão(ões) e {len(aprovacoes)} aprovação(ões)  ·  adiados: {len(adiados)}"
+        f"  ·  Dnn citados: {len(todos)}"
     )
     print()
 
