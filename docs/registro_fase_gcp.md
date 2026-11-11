@@ -2585,3 +2585,61 @@ como aprovações e os relatórios fora do Git lidos. O verificador passou a rod
 no `Makefile`, só a receita do `check-offline`. O `dbt/target/manifest.json` de 09/11 não foi
 recompilado. O `make check-offline` passou antes de cada *commit* de código [medido]: 1.133 testes
 em 8 min 54 s e 1.134 em 6 min 43 s, contra os ~4 min que o plano estimava.
+
+## 55. O roteiro de quarta começa às 15:02: o *digest* do Debezium trocado (11/11/2026)
+
+O roteiro da [§6.9 do plano](../PLANO_etapa_13.md) previa as 07:00. Começou às **15:02** [medido]: a
+máquina ligou às ~10:07 e nada da quarta tinha rodado (nenhum arquivo de 11/11 em
+`data/medicoes/etapa_13/`). O ponto de decisão das 20:00 e o relógio da §6.4 não mudam; o que não
+couber até lá vira pendência.
+
+**O que estava de pé às 15:03** [medido, `gcloud`, só leitura]: faturamento ligado
+(`billingEnabled: True`); Cloud SQL `mvp-ed1-origens` `RUNNABLE`; GKE `mvp-ed1` `RUNNING`, 2 nós,
+`1.36.4-gke.2377000`; nenhum *job* ativo no Dataflow; nenhum ambiente do Composer.
+
+**Passo 1 — `make gcp-preflight`** (15:03:08): `projeto mvp-ed1-gcp nos três lugares`.
+
+**Passo 1a — `make gcp-debezium-digest`** (15:03:08): `debezium: TROCAR — o values.yaml fixa
+sha256:8c4e6c7efc39…, o quay.io serve sha256:4c08e2f090cc…`, e o `make` devolveu 2, como a §6.9
+avisa. A API do quay.io dá a republicação da *tag* `3.7.1.Final` em **11/11 00:48:52 UTC**, a mesma
+hora em que o manifesto de 10/11 deixou de valer: o comportamento do Registro §48, pela terceira
+noite seguida. O *digest* novo entrou em `terraform/charts/debezium-server/values.yaml`, e o alvo,
+rodado de novo, disse `vigente`.
+
+- `make gcp-plan NOME=09_aplicacoes VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true"`
+  (15:05:53 → 15:06:24): `0 a criar, 1 a alterar, 0 a destruir`, o `helm_release.debezium[0]`; nos
+  `values`, a única linha que muda é `imagem`. É o esperado da §6.9.
+- O Owner aprovou às 15:08. `make gcp-apply NOME=09_aplicacoes` (15:08:42 → 15:10:16):
+  `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.`
+- `make gcp-debezium-status` (15:10:24): pod novo `debezium-server-677f9cb9c7-4zrrp`, `1/1 Running`,
+  0 reinícios, 93 s; `Starting replication stream from LSN{0/928BBB0}`, a posição guardada, sem
+  *snapshot*; `slot mvp_inventory_movements: ativo, WAL retido 9237 kB`.
+
+O *digest* novo vale até a republicação desta noite (~21:50 daqui). O *commit* é o `123032b`, depois
+do `make check-offline` verde sobre a árvore com a troca [medido]: 1.134 testes em 4 min 57 s.
+
+**Achado: o Debezium Server caiu e voltou cinco vezes em 21 horas** [medido às 15:03, antes da
+troca]. O pod que vinha da terça (`debezium-server-6f64445b4-fzhb2`, 21 h) tinha `RESTARTS 5`, o último às
+11:24:44; o contêiner anterior vivera de 08:21:18 a 11:24:44 e saíra com código 1. O fim do log dele:
+`Engine has failed` ← `DebeziumException: Error while executing batch` ←
+`TimeoutException: Waited 30000 milliseconds … for ListFuture[status=PENDING]`. É a espera do *sink*
+pela confirmação de uma publicação no Pub/Sub. Naquelas três horas a origem não teve movimento novo
+(o *offset* ficou em `LSN{0/928BBB0}` do começo ao fim), e o que o motor publicava eram os
+*heartbeats* de 10 s (`355 records sent during previous 00:59:56`, tópico `mvp-heartbeat.mvp`): foi
+uma publicação de *heartbeat* que não confirmou em 30 s. O motor parou, o processo saiu, o Kubernetes
+recriou o contêiner, e ele retomou da posição guardada, sem *snapshot*.
+
+- **O que isso não quebrou:** nenhum evento se perdeu — a posição só avança com a confirmação do
+  *sink*, e o *slot* seguiu `ativo` na leitura das 15:03.
+- **O que não foi medido:** a causa das quatro quedas anteriores (o Kubernetes guarda o log só do
+  contêiner anterior) e a causa da publicação que não confirmou. Um intervalo de ~3 h entre quedas é
+  o que a única que se leu mostra; não é regra medida.
+- **O que pode custar hoje:** uma queda dessas no meio do `make gcp-quente-latencia` entra na
+  latência máxima como o tempo de o contêiner voltar. Se aparecer, é este achado, e não o *batch*.
+- **O WAL retido** passou de 203 kB (terça, 14:40, §49 passo 2) a 9.192 kB: o log repete `Received offset commit
+  request … but ignoring it. LSN flushing is not allowed yet` desde a retomada, sem evento novo da
+  tabela. A leitura de que o primeiro movimento novo destrava a confirmação é hipótese; o passo 11
+  (`make gcp-quente-conferir`) e o status depois dele dizem.
+
+O que fazer com a queda periódica (tolerar, como hoje, ou tratar no *sink*) é do Owner, e não entra
+na janela: fica anotado para o fechamento da Etapa 13.
