@@ -2643,3 +2643,124 @@ recriou o contêiner, e ele retomou da posição guardada, sem *snapshot*.
 
 O que fazer com a queda periódica (tolerar, como hoje, ou tratar no *sink*) é do Owner, e não entra
 na janela: fica anotado para o fechamento da Etapa 13.
+
+**Passo 2 — `make gcp-plan NOME=10_composer VARS="enable_cloud_sql=true enable_gke=true enable_gke_apps=true enable_dataflow=true enable_composer=true"`**
+(15:19 → 15:20, 31 s): `construção: 14 a criar, 0 a alterar, 0 a destruir`, o número da §6.9. Os
+14: o `google_composer_environment.this[0]` (`composer-3-airflow-3.2.2-build.9`,
+`ENVIRONMENT_SIZE_SMALL`, `us-central1`, SA `mvp-composer`, *triggerer* 1 CPU / 2 GB — a correção
+RVPC-2-01 do Registro §45), a `google_service_account.composer[0]` e o `composer_worker[0]` dela, os
+três segredos do Airbyte e os quatro acessos a segredos (os três e o `legacy-db-password`), as duas
+personificações (`ingestor` e `transformer`) e o *bucket* com o IAM dele.
+
+**Passo 3 — `make gcp-apply NOME=10_composer`.** O Owner aprovou às 15:20, e o *apply* começou às
+15:20:52; os 13 recursos auxiliares nasceram em ~10 s, e o ambiente entrou em `Creating...`. A parte
+cara da janela começa aqui.
+O *apply* terminou às **16:11:40**: `Apply complete! Resources: 14 added, 0 changed, 0 destroyed.`
+O ambiente levou **50 min 22 s** para nascer (`Creation complete after 50m22s`), o dobro dos ~25 min
+que a §6.9 estimava [medido].
+
+**Passo 4 — `make gcp-composer-segredos`** (16:12): as três linhas `… gravado`.
+
+**Passo 5 — `make gcp-composer-publicar`** (16:12:44 → 16:13:06): `layout em gs://mvp-ed1-gcp-composer
+(dags/ e data/)`.
+
+**Passo 6 — `make gcp-composer-smoke`: dois defeitos, duas correções, verde na 4ª rodada.**
+
+- **1ª rodada** (16:13): o alvo caiu antes de disparar a DAG, num `JSONDecodeError: Extra data`. No
+  Composer 3 o `gcloud composer environments run` põe no stdout as linhas de log do comando
+  (`[2026-11-11T19:16:44Z] {{…dag_command.py:50}} WARNING - Could not import graphviz …`) antes da
+  resposta; a resposta em si era `[]`. O mesmo leitor (`composer_cli._lista`) atende o `list-runs`
+  do `COMPOSER_RODAR`, as tarefas da §7.2 e a listagem do `gcp-desmonte-parar` — todos recusariam a
+  resposta. Correção em `26f7dc4`: o leitor aceita o JSON que vai até o fim da resposta, e o smoke
+  passa a usá-lo (`composer_cli importacao`).
+- **2ª rodada** (16:17:54 → 16:21:02): `importação: sem erro`; cinco tarefas verdes — `rede` entre
+  elas, o que **fecha a hipótese aberta do Registro §28** (o Composer chega ao Cloud SQL pelo
+  *peering* dos serviços privados) — e `origem_e_livro` falhou:
+  `LEGACY_LEDGER_DIR=gs://mvp-ed1-gcp-livro/legado: o bucket não existe ou não é legível`. O
+  `existe_raiz` usava `bucket.exists()`, que pede `storage.buckets.get`; a `mvp-ingestor`
+  personificada só tem `objectViewer` e `objectCreator` no *bucket* do livro (conferido com
+  `gcloud iam roles describe`). Na terça a captura rodou com a ADC do Owner, por isso não apareceu.
+  Correção em `c1d222c`: a prova passa a ser `testIamPermissions(["storage.objects.list"])`, a
+  mesma pergunta do `pode_criar`, e o erro do `ledger.root` diz o motivo.
+- **3ª rodada** (16:24:10 → 16:26:45): a mesma falha. O código no *bucket* era o novo (md5 igual ao
+  local), e o *traceback* não dizia qual versão o *worker* executou. A leitura provável — não
+  provada — é que o *worker* ainda não tinha sincronizado o arquivo publicado ~1 min antes.
+- **4ª rodada** (16:28:50 → 16:31:13), com o motivo no erro e o layout publicado de novo:
+  `diagnostico_composer: … terminou com sucesso`, as seis tarefas `success`.
+
+**Passo 7 — `make gcp-dataflow-lancar`** (16:31:34 → 16:31:53): `job enviado:
+2026-11-11_11_31_51-4639799584056864245 (mvp-ed1-caminho-quente)`, 24 transformações. Os avisos do
+*stager* (`No module named pip`) são os de terça. `make gcp-quente-conferir` (16:33:17): origem e
+destino com **13.965 movimentos**, conteúdo igual pelas 16 colunas, nenhum `PENDENTE`.
+
+**Passo 8 — `make gcp-legado-mutar`** (16:33:55): as quatro mutações (`remover brands`,
+`remover customers`, `inserir brands`, `alterar brands`, cada uma com o *hash* antes e depois) e
+`4 mutações aplicadas agora; o diário tem as 4 da janela`.
+
+**Passo 9 — `make gcp-composer-fluxo` com `make gcp-quente-latencia LIMITE=500`** (16:34:46).
+
+- **Latência com o *batch* junto** [medido, 16:35 → 16:38:35]: 500 movimentos, p50 **29,0 s**,
+  p95 **119,1 s**, máx. **130,4 s**, mín. 8,1 s.
+- **A `fluxo_batch` FALHOU no `dbt_seed`** (execução `fluxo_batch_20261111T193446`, terminada às
+  16:42:21). As seis tarefas de ingestão passaram, com os tempos da §7.2: `iniciar_captura_do_legado`
+  25 s, `sincronizar_oltp_para_raw` 214 s, `retomar_capturas_do_legado` 52 s,
+  `sincronizar_legado_para_raw_legacy` 187 s, `concluir_captura_do_legado` 61 s,
+  `registrar_captura_do_legado` 28 s. O `dbt seed` deu `PASS=1 ERROR=3`: `Access Denied: Table
+  mvp-ed1-gcp:trusted.brazilian_states: Permission bigquery.tables.setIamPolicy denied` (e o mesmo
+  em `order_status_transitions` e `support_categories`). O `+grants` do dbt
+  (`bigquery__apply_grants`) concede o `select` objeto a objeto, e isso pede
+  `bigquery.tables.setIamPolicy`, que o `dataEditor` do `transformer` não tem. Na terça a P2
+  (`gcp-dbt-build`, PASS=909) rodou com a ADC do Owner; só a personificação do Composer mostrou o
+  buraco. Os oito `dbt_*` seguintes ficaram `upstream_failed`.
+- **Decisão do Owner (16:47): o `transformer` vira dono** (`roles/bigquery.dataOwner`) dos seis
+  *datasets* que materializa (staging, trusted, quarantine, snapshots, analytics, consumption) —
+  a paridade com o PostgreSQL, onde quem cria a tabela é o dono dela e concede a leitura. A regra
+  entrou na derivação (`mvp_ed1.gcp.acesso`: quem materializa pelo dbt é `DONO`; quem só escreve
+  fontes, o `ingestor`, continua `dataEditor`). Plano `11f_transformer_dono` (16:50): `6 a criar,
+  0 a alterar, 6 a destruir` — as seis entradas de acesso do `transformer`, cuja chave leva o papel;
+  a guarda pediu `DESTROI=6`. O *apply* de IAM é do Owner, pela trava do Claude Code.
+
+## 56. O Gemini no BigQuery: 20 perguntas em linguagem natural, 25% de acerto (11/11/2026, 15:50 → 17:18)
+
+Pedido do Owner durante a espera do Composer: medir se a geração de SQL por linguagem natural do
+Gemini no BigQuery responde certo. É estudo, fora do escopo do M6 (como o laboratório do §42). Rodou
+na consola (BigQuery Studio, ferramenta "Gerar SQL com o Gemini"), pelo Chrome do Owner, que
+acompanhou na tela.
+
+**Ativação, fora do Terraform** (autorizada pelo Owner às 16:16): *Gemini for Google Cloud API* e
+*BigQuery Unified API*, pelo painel "Ativar recursos principais" da consola. A página oficial de
+preços diz que a geração de SQL não tem custo adicional "until a date to be determined", com limite
+diário de uso sem valor publicado. As duas APIs somem com o projeto na quinta.
+
+**Desenho, decidido pelo Owner antes da primeira pergunta:** contexto do Gemini só no *dataset*
+`analytics` (as 25 dimensões e fatos, marcadas a cada pergunta em "Editar fontes da tabela"; o
+`consumption` fora); a pergunta é a frase de negócio crua do cabeçalho de cada view, sem tabela,
+coluna nem regra; uma tentativa; certo = o resultado do SQL gerado igual ao gabarito nas colunas
+da pergunta (grão e métrica), arredondado a 2 casas, com razão e percentual equivalentes. São 15
+views conhecidas (P01–P16 menos a P12, que lê o estoque fora do datamart) e 5 perguntas novas. O
+gabarito foi fixado às 16:07, antes de qualquer resposta (sha256 `886b94f3…` do arquivo das
+perguntas); o SQL de cada resposta saiu do `INFORMATION_SCHEMA.JOBS_BY_USER`, e um adaptador só
+renomeou e formatou colunas, sem tocar em filtro, junção ou agregação.
+
+**Resultado [medido]: 5 de 20 certas (25%)** — 2 de 15 views conhecidas (P02, P03) e 3 de 5 novas
+(N2, N3, N5). Todas as 20 rodaram sem erro: o SQL é sempre válido; o que falha é o significado. Os
+erros se agrupam em quatro causas:
+
+- **a regra de negócio que não está no nome da coluna** — receita só de pedido realizado
+  (`is_realised`: P01, P05, P06, N1), versão vigente da dimensão SCD2 (N4), "voltou em 90 dias"
+  (P04);
+- **o grão** — item em vez de remessa ou pedido (P13, P14), contagem distinta sem a origem (P15),
+  cliente em vez de pedido (P16, leitura defensável da pergunta);
+- **o denominador e a data** — P07, P09, P10;
+- **dado que existe em outra fato** — P08 declarou no SQL que não havia custo e devolveu margem de
+  100% (o custo está em `fact_inventory_movement`); P11 não calculou giro.
+
+**Achado lateral:** sem restringir as fontes, o Gemini escolheu a view pronta do `consumption` nas
+duas vezes em que ela estava no contexto (P01 e P02, antes da restrição). Com a camada de consumo
+à vista ele tende a acertar lendo a view; esse cenário não foi medido nas 20.
+
+Evidência (fora do Git): `data/medicoes/estudo_gcp/nl_sql/` — `perguntas.py` (perguntas e
+gabarito em SQL), `gabarito/*.json`, `respostas/<id>.sql|.adapt.sql|.resultado.json|.job.json`,
+`resultado.json`. A trilha e a seção do portfólio são a próxima entrega; o pacote portátil
+(perguntas, gabarito, esquema e dados) é o que permite repetir o teste em AWS, Databricks,
+Snowflake e localmente.
