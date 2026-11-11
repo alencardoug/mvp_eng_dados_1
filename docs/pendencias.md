@@ -13,8 +13,8 @@
 | Etapa atual | Etapa 13 — replicação no GCP com Terraform (M6). O estado dela, e o das anteriores, é do [Plano de Desenvolvimento](plano_de_desenvolvimento.md) |
 | Aprovações pendentes | 0 |
 | Verificações e trabalho adiados | 2 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026; V2, a governança e a documentação para quando não houver mais pendências, registrada em 10/11/2026) |
-| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3 a D84 a D87 na revisão dos roteiros da janela e a D88 a D90 na revisão das correções de terça (§2) |
-| Última revisão | 10/11/2026 — D88 a D90 levantadas pela revisão das correções de terça e decididas; V2 registrada; 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
+| Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3, a D84 a D87 na revisão dos roteiros da janela, a D88 a D90 na revisão das correções de terça e a D91 na revisão da governança para o portal (§2) |
+| Última revisão | 10/11/2026, noite — D91 levantada e decidida; V2 com G01 a G05 fechados; 10/11/2026 — D88 a D90 levantadas pela revisão das correções de terça e decididas; V2 registrada; 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
 
 ---
 
@@ -203,8 +203,10 @@ recusada ou fica fora da guarda, e a lista diz onde olhar.
 ### V2 — a governança e a documentação para quando não houver mais pendências (registrada em 10/11/2026)
 
 **Pergunta:** quando tratar o que segue? A decisão do Owner, em 10/11/2026, foi **não** tratar
-durante a Etapa 13: entra quando não houver mais pendências, cada item no seu dono documental. Nada
-aqui é bloqueante para o M6, salvo o que a Definição de Pronto já exige no G8 (marcado).
+durante a Etapa 13: entra quando não houver mais pendências, cada item no seu dono documental. Na
+mesma noite, o Owner antecipou o que não toca a janela de quarta — o texto fora do projeto dbt, o Bloco A
+do plano `PLANO_revisao_governanca.md`, na raiz; o que lê ou altera o dbt fica para depois do M6.
+Nada aqui é bloqueante para o M6.
 
 **O tratamento permanente do `airbyte_internal`** (RVT-1-02, a exceção da D89). Hoje é exceção com
 controle: área técnica e transitória do conector, lista de acesso declarada inteira, e o
@@ -214,26 +216,26 @@ controle: área técnica e transitória do conector, lista de acesso declarada i
 na [Governança](governanca_de_dados.md), com ADR se o Owner julgar.
 
 **A revisão da governança para o portal `gdados`** (parecer `REVISAO_GOVERNANCA.md`, de outra sessão,
-10/11/2026, sobre `8e606d9`; fora do Git, na raiz). Os achados, cada um no seu dono:
+10/11/2026, sobre `8e606d9`; versionado na raiz em `fa98214`, sai com `git rm` quando esta V2
+fechar). Os achados, cada um no seu dono:
 
-- **G01 e G02 — o README** diz que a fase GCP "não começou" e mistura números e versões de entregas
-  diferentes (48 e 51 ADRs; Arquitetura v2.5 e Governança v2.6 contra v2.7 e v2.22). *No G8* (o
-  estado do M6 é Definição de Pronto); tirar do README as contagens mantidas à mão.
-- **G03 — a Arquitetura §1** rotula `analytics` "9 fatos + 17 dimensões"; o modelo tem 10 e 15.
-  *No G8*; melhor tirar o número do desenho e apontar para o [Modelo de Dados](modelo_de_dados.md).
-- **G04 — a Governança §5.2** ainda trata como futura a escolha do catálogo que a D80 fechou. *No G8.*
-- **G05 — o comentário de abertura do `docker/docker-compose.yml`** fala em uma instância Cloud SQL
-  por banco; o Terraform tem uma instância com os dois bancos. Uma linha; não muda o Terraform.
+- **G01 a G05 — fechados em 10/11/2026, noite:** o estado da Etapa 13 no Plano, aqui e no README
+  (`69479e4`); o README sem as contagens e versões mantidas à mão (`5831da8`); o diagrama da
+  Arquitetura sem a contagem de fatos e dimensões (`3e6fbac`); a Governança §5.2 pela D79 e pela D80
+  (`eb93a5d`); o comentário do compose com a topologia do Terraform (`a95e910`). A conferência achou
+  dois defeitos do verificador da skill `adr` — os V contados como aprovações e os arquivos fora do
+  Git lidos —, corrigidos com a linha *Pendências do Owner* do README (`728c08d`); ele passou a rodar
+  no `check-offline` (`034cec8`).
 - **G06 — 141 colunas declaradas sem descrição** (5 em `staging`, 125 em `trusted`, 5 em
-  `quarantine`, 6 em `snapshots`), iguais aos tetos de `tests/test_descricao.py`. Entrega própria
-  depois do M6: declarativo do dbt, revisão integral do Owner, catraca ajustada na mesma entrega.
+  `quarantine`, 6 em `snapshots`), iguais aos tetos de `tests/test_descricao.py`. *Depois do M6*, no
+  `main`, sem *worktree*: declarativo do dbt, revisão integral do Owner, catraca ajustada na mesma
+  entrega. A revisão do plano pelo codex2 (RVG-1-01 a RVG-1-03) pede antes uma forma de declarar
+  texto próprio na ponte do legado e trata à parte os campos de *snapshot*. Junto, a pergunta das
+  três colunas em português de `trusted.legacy_order_totals_divergence`.
 - **G07 a G10** são requisitos do portal (a linhagem nativa com exceções por coluna, a D66 exibida
   como está, a procedência dos artefatos, o pacote de metadados) e vivem no `gdados`, não aqui.
 
-**O alvo de exportação para o portal.** O `gdados` só lê este repositório e não roda comando que
-escreva nele, mas o `dbt/target/` e o `data/` estão fora do Git. O pacote de metadados precisa nascer
-de um alvo **deste** projeto, dono dos dados, que o `gdados` consome (a D03 dele). Entrega nova,
-decisão do Owner sobre formato e gatilho.
+**O alvo de exportação para o portal** — decidido na D91 (§2); a implementação vem *depois do M6*.
 
 ## 1.1 Decididas e implementadas
 
@@ -296,6 +298,27 @@ cada lote e estão no histórico em `28044c7^`, `20ea4f3^` e `4cf41ff^`.
 ---
 
 ## 2. Decisões já fechadas
+
+### D91 — o pacote de metadados para o portal `gdados` (decidida em 10/11/2026)
+
+Levantada pela revisão da governança para o portal (V2, §1) e decidida pelas opções recomendadas
+(Bloco C do plano `PLANO_revisao_governanca.md`). O `gdados` só lê este repositório, e o
+`dbt/target/` e o `data/` estão fora do Git; o pacote precisa nascer de um alvo **deste** projeto.
+
+- **Formato e lugar:** um arquivo JSON gerado de forma determinística e **versionado aqui**, como o
+  [Dicionário](dicionario_de_dados.md). Compõe o que os exportadores já dão, sem reimplementar a
+  inferência: o `lineage --json` (formato 1); descrições, sensibilidade e `meta` do *manifest*; as
+  perguntas do glossário; as travessias; as faltas da catraca de descrição, explícitas; e a
+  procedência (*commit*, árvore limpa ou suja, `generated_at` e `invocation_id` dos artefatos do dbt,
+  ambiente).
+- **Gatilho e guarda:** regenerado **dentro do `make catalog`**; o `check-offline` confere que ele
+  está em dia, como faz com os outros derivados. A guarda tem de funcionar sem `dbt/target` e sem o
+  pacote citar o próprio *commit* (RVG-1-04).
+- **Quando:** a implementação vem **depois do M6** — ela lê o *manifest* e toca no `make catalog`,
+  que a janela usa. O nome e o caminho do arquivo, o número de versão do formato e o tratamento de
+  artefato incompleto se fecham nela, com a E1 do `gdados` como consumidor.
+- Descartadas: o anexo de *release* com *hash* fixado no `gdados`, um alvo manual e um passo a mais a
+  cada versão; o `gdados` lendo o `dbt/target/` direto, que é o problema da G09.
 
 ### D88 a D90 — da revisão das correções de terça da Etapa 13 (decididas em 10/11/2026)
 
