@@ -1227,7 +1227,7 @@ gcp-composer-smoke: gcp-preflight ## Janela: as DAGs importam e a diagnostico_co
 	@# pausada: o `unpause` é dela só, e ela não tem agendamento.
 	@$(GCP_ENV); $(COMPOSER_G); \
 	erros=$$(g dags list-import-errors -- -o json 2>/dev/null) || exit 1; \
-	printf '%s' "$$erros" | .venv/bin/python -c 'import json,sys; t=sys.stdin.read().strip(); e=[] if not t or "No data found" in t else json.loads(t); print("importação:", "sem erro" if not e else e); sys.exit(1 if e else 0)' || exit 1; \
+	printf '%s' "$$erros" | .venv/bin/python -m mvp_ed1.gcp.composer_cli importacao || exit 1; \
 	$(call COMPOSER_RODAR,diagnostico_composer,60)
 
 # ── Quarta: a fluxo_batch, as duas capturas da §7.2 e a exportação ────────────────────────────────

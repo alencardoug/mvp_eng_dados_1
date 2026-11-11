@@ -220,3 +220,45 @@ def test_a_exportacao_acusa_a_enumeracao_dos_datasets_que_falha():
     assert "for ds in $$lista airbyte_internal; do" in receita
     assert receita.index('test -n "$$lista"') < receita.index("for ds in $$lista")
     assert 'echo "FALHOU enumeracao_datasets' in receita and "grep -q '^FALHOU'" in receita
+
+
+#: O stdout do `gcloud composer environments run` no Composer 3 (Airflow 3), lido em 11/11/2026
+#: (Registro §55, passo 6): linhas de log antes da resposta, uma delas começada por `[`.
+PREAMBULO = (
+    "2026-11-11 19:16:39 [debug    ] Getting connection using `google.auth.default()` since no explicit"
+    " credentials are provided.\n"
+    "[2026-11-11T19:16:44.162937Z] {{/opt/python3.11/lib/python3.11/site-packages/airflow/cli/commands/"
+    "dag_command.py:50}} WARNING - Could not import graphviz. Rendering graph to the graphical format will"
+    " not be possible.\n"
+    "You might need to install the graphviz package and necessary system packages.\n"
+    "Run `pip install graphviz` to attempt to install it. category=UserWarning\n"
+)
+
+
+def test_o_preambulo_de_log_do_composer_3_nao_impede_a_leitura():
+    assert composer_cli.erros_de_importacao(PREAMBULO + "[]\n") == []
+    assert composer_cli.execucoes(PREAMBULO + json.dumps([{"run_id": "a"}], indent=2)) == 1
+    assert composer_cli.execucoes(PREAMBULO + "No data found\n") == 0
+    lista = PREAMBULO + json.dumps([{"run_id": "b", "state": "running"}])
+    assert composer_cli.estado(lista, "b") == "running"
+
+
+@pytest.mark.parametrize("texto", [PREAMBULO, PREAMBULO + "Traceback (most recent call last)\n",
+                                   PREAMBULO + "[1, 2]\n"])
+def test_so_preambulo_ou_resposta_invalida_depois_dele_e_erro(texto):
+    with pytest.raises(composer_cli.RespostaInvalida):
+        composer_cli.execucoes(texto)
+
+
+def test_erro_de_importacao_sai_com_1_e_o_smoke_usa_o_leitor(monkeypatch, capsys):
+    import io
+
+    erros = [{"filepath": "/home/airflow/gcs/dags/fluxo_batch.py", "error": "ImportError: x"}]
+    monkeypatch.setattr("sys.stdin", io.StringIO(PREAMBULO + json.dumps(erros)))
+    assert composer_cli.main(["importacao"]) == 1
+    monkeypatch.setattr("sys.stdin", io.StringIO(PREAMBULO + "[]"))
+    assert composer_cli.main(["importacao"]) == 0
+    assert "sem erro" in capsys.readouterr().out
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    assert composer_cli.main(["importacao"]) == 1
+    assert "composer_cli importacao" in _receita("gcp-composer-smoke")
