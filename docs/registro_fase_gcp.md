@@ -2720,6 +2720,111 @@ destino com **13.965 movimentos**, conteúdo igual pelas 16 colunas, nenhum `PEN
   0 a alterar, 6 a destruir` — as seis entradas de acesso do `transformer`, cuja chave leva o papel;
   a guarda pediu `DESTROI=6`. O *apply* de IAM é do Owner, pela trava do Claude Code.
 
+- **O *apply* do `11f_transformer_dono`** (Owner, ~17:20): `Apply complete! Resources: 6 added, 0
+  changed, 6 destroyed.` Uma segunda chamada do Owner disse `plano … não existe`: o `gcp-apply`
+  apaga o binário depois do sucesso, como deve.
+- **A re-execução só do dbt, na mesma execução.** A execução manual do Airflow 3 nasce sem
+  `logical_date`, e o `tasks clear` da CLI seleciona por data: não a alcança. Foi pela API REST do
+  Airflow (`POST /api/v2/dags/fluxo_batch/clearTaskInstances`, `dag_run_id`, `only_failed`), com
+  ensaio `dry_run` antes — as 9 tarefas `dbt_*`, nenhuma de ingestão. Às 17:20:35: `dbt_seed`
+  91 s, `dbt_staging` 226 s, `dbt_trusted` 206 s, **verdes com o IAM novo**.
+- **`dbt_quarantine` falhou num teste de qualidade**: `saldo_reconstruido_confere_com_a_projecao`,
+  3 linhas (25 de 26 PASS). Cada divergência é exatamente o delta de um movimento gravado às
+  **16:36:49** — durante o `gcp-quente-latencia` do mesmo passo 9 — (`(5,34)` −12, `(1,465)` −10,
+  `(1,18)` −6): o movimento chegou ao `raw.inventory_movements` (lido por inteiro, extraído às
+  16:37:01) e a atualização do saldo não chegou ao `raw.inventory_balances` (incremental, extraído
+  às 16:36:53; as três linhas ainda com `updated_at` de terça). A sincronização do Airbyte lê as
+  tabelas em instantes diferentes, sem retrato transacional entre elas; com o produtor escrevendo
+  ao mesmo tempo, os dois lados do livro divergem, e o teste acusa — que é o trabalho dele.
+  **Achado de desenho:** o passo 9 roda latência e *batch* juntos de propósito; enquanto isso for
+  assim, essa divergência pode voltar sempre que a sincronização cruzar com o produtor.
+- **Recuperação** (17:32:52): de novo pela API, `sincronizar_oltp_para_raw` e as nove `dbt_*` da
+  mesma execução, com a origem parada (sem produtor). A captura certificada do legado não foi
+  tocada: o dbt lê o `legacy_snapshot_id` dela pela XCom. `sincronizar_oltp_para_raw` 155 s,
+  `dbt_seed` 47 s; o `dbt_staging` (216 s) deu `PASS=454 ERROR=1`, e o erro não foi de dado: o
+  teste `not_null_stg_legacy__coupons_snapshot_id` não conseguiu o token personificado —
+  `('Unable to acquire impersonated credentials', … "code": 503, "message": "Authentication backend
+  unavailable."')`, falha transitória da API de credenciais do IAM. Re-executadas só as tarefas
+  falhas (17:41:12, 8 limpas). As tarefas dbt da DAG não têm `retries`: uma 503 isolada derruba a
+  camada inteira — fica anotado para o fechamento.
+
+- **`dbt_consumption` negado no `raw`** (17:55): `PASS=16 ERROR=1`, a `skus_below_reorder_point`.
+  O log de auditoria do BigQuery mostra que o negado foi o próprio `create or replace view`
+  (`InsertJob … Permission bigquery.datasets.update denied on dataset mvp-ed1-gcp:raw`): recriar
+  uma *authorized view* pede `datasets.update` em cada *dataset* que ela lê, e ela é a única de
+  consumo que lê o `raw` (o caminho quente). As autorizações das 16 views já estavam nos três
+  *datasets* desde terça. **Decisão do Owner (18:00):** papel próprio `mvpAutorizarViews` (só
+  `bigquery.datasets.get` e `datasets.update`), derivado no `acesso.py` para quem materializa view
+  autorizada nos *datasets* da autorização em que não é dono — hoje só `raw/transformer` —, por
+  `google_bigquery_dataset_access`, que não reescreve a lista de acesso (`db0d91e`). Plano
+  `11g_autorizar_views` 2/0/0; o 1º *apply* do Owner criou o papel e falhou na entrada de acesso
+  (`Role … does not exist in the resource's hierarchy` — propagação); o 2º (~18:15), 1/0/0, passou.
+- **A `fluxo_batch` VERDE às 18:20:53** (re-execução das 3 falhas às 18:16:46), as 15 tarefas
+  `success`. Tempos finais [medido; os de ingestão são da 1ª rodada, exceto o `oltp`, re-sincronizado]:
+  `iniciar_captura_do_legado` 25 s, `sincronizar_oltp_para_raw` 155 s,
+  `sincronizar_legado_para_raw_legacy` 187 s, `retomar_capturas_do_legado` 52 s,
+  `concluir_captura_do_legado` 61 s, `registrar_captura_do_legado` 28 s, `dbt_seed` 47 s,
+  `dbt_staging` 264 s, `dbt_trusted` 254 s, `dbt_quarantine` 61 s, `dbt_snapshots` 51 s,
+  `dbt_analytics` 142 s, `dbt_consumption` 97 s, `dbt_fronteiras` 48 s, `dbt_docs` 69 s. Uma
+  execução limpa, de uma vez, **não foi medida**.
+
+**Passo 10 — `make gcp-livro-tratamento NOME=quarta_tratamento.json`** (18:21): `registro de
+tratamento: gs://mvp-ed1-gcp-livro/legado/epoch_0001_20261110T173526Z/quarta_tratamento.json ·
+sha256 c549e432…`.
+
+**Passo 11 — `make gcp-quente-conferir`** (18:00, adiantado enquanto o IAM esperava): origem e
+destino com **14.465 movimentos**, iguais pelas 16 colunas; 32 alertas lidos.
+
+**Passo 12 — `make gcp-legado-matriz`** (18:00): `interval 5->7, diary_entries 4, net_absent_keys 4`
+· `matriz das duas capturas: o intervalo e a memória mostram o efeito líquido do diário`.
+
+**Passo 13 — `make gcp-memoria-oraculo`** (18:00 → 18:12): `T3: memória contida`.
+
+**Passo 14 — `make gcp-jobs-auditoria`** (18:12): `4 jobs da conexão legada desde a linha de base,
+4 tentativas com job no livro` · `nenhum POST indevido` — a contagem que a §6.9 espera.
+
+**Passo 15.**
+
+- `make gcp-airbyte-interno` (18:21): `0 tabelas no airbyte_internal`.
+- `make gcp-tags-inventario` (18:21): **2 divergências** em 3.516 colunas —
+  `raw.inventory_movements.unit_cost` e `raw.warehouses.capacity_units` sem a *tag*
+  `confidential`. A re-sincronização das 17:32 recriou as duas tabelas e a `fluxo_batch` não
+  converge as *tags* das fontes (o alvo `gcp-tags-convergir` diz "como a DAG fará no Composer";
+  na terça ele rodou à mão depois de cada sincronização, e a §6.9 não o lista). `make
+  gcp-tags-convergir` (18:23) e o inventário de novo: `0 divergências, nenhuma tabela ausente`.
+  **Achado:** entre uma sincronização no Composer e a convergência, as duas colunas ficam sem
+  *tag*; a DAG precisa da tarefa.
+- `make gcp-oraculos` (18:25, com o *warehouse* local de pé — o primeiro comando `docker` ativou
+  o Docker pelo *socket*, e o Airbyte local, que subiu junto, foi pausado com `make
+  airbyte-pause`): colunas 2.983 = 2.983, todas no mesmo nível; **contagens 164 iguais, 70
+  diferentes**, 44 não comparáveis (D85); **consumo: 0 de 16 views iguais**. A causa principal é
+  do diário do passo 8, e o tamanho dela não estava no esperado da §6.9: a mutação `remover
+  brands` apagou a **única marca apta** do legado (o próprio YAML diz que a geração tem uma), os
+  15 produtos do legado caíram como `FK_ORPHAN` (`brand_id → brands`, ausente) no snapshot 7, e a
+  cascata `parent_rejected` levou o legado inteiro para a quarentena (variantes 30, itens de
+  pedido 373, movimentos 682, saldos 139…). No BigQuery as `trusted.legado__*` de catálogo e de
+  movimento ficaram com 0 linhas, e toda view que soma venda, estoque ou pagamento perdeu a parte
+  do legado; o caminho quente de terça e de hoje soma a diferença das views de estoque. É o
+  esperado pelo diário; a atribuição linha a linha de cada uma das 16 views **não foi medida**.
+- `make gcp-armazem-tamanho` (18:33): analytics 25 tabelas / 138.625 linhas / 43,6 MiB; consumption
+  16 / 0 / 0 (views); governance 2 / 162; quarantine 2 / 10.939 / 6,6 MiB; raw 37 / 263.519 /
+  39,6 MiB; raw_legacy 40 / 50.961 / 9,4 MiB; snapshots 4 / 2.222 / 0,6 MiB; staging 77 / 12.739 /
+  3,4 MiB; trusted 75 / 310.728 / 59,0 MiB.
+
+**Passo 15a — `make gcp-evidencias`** (18:33): todos os itens `ok`, a linhagem inclusive (na terça
+deu 503) · `data/medicoes/etapa_13/evidencias/20261111T213339Z`. As capturas G9 02–05 já estavam
+feitas (§51); a 06 segue com o Owner.
+
+**Passo 16 — `make gcp-composer-exportar`** (18:37): `logs em data/medicoes/etapa_13/g6/logs (0
+arquivos)`. No Composer 3 os *logs* das tarefas vão para o Cloud Logging, não para a pasta `logs/`
+do *bucket* (que já estava vazia no diagnóstico do passo 6). Exportados do Cloud Logging, só
+leitura, para `data/medicoes/etapa_13/g6/logs_cloud_logging/`: `fluxo_batch` 5.566 entradas e
+`diagnostico_composer` 371, todas as tarefas cobertas (5 MB). **Achado:** o alvo lê a pasta
+errada no Composer 3; corrigir.
+
+**Passos 17 e 18** — o Owner pediu o desmonte perto das 20:00, para visitar antes o Composer e o
+Dataflow pela consola (NAVEGANDO_GCP, capítulos 06, 08 e 10).
+
 ## 56. O Gemini no BigQuery: 20 perguntas em linguagem natural, 25% de acerto (11/11/2026, 15:50 → 17:18)
 
 Pedido do Owner durante a espera do Composer: medir se a geração de SQL por linguagem natural do
