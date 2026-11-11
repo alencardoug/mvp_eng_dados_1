@@ -20,7 +20,7 @@
 |---|---|
 | Versão | 1.0 |
 | Abertura | 06/11/2026 |
-| Última revisão | 09/11/2026 — o roteiro de segunda: o Cloud SQL de pé, povoado e provado (§44) |
+| Última revisão | 10/11/2026 — o Bloco A da revisão da governança, com a janela parada (§54) |
 
 ---
 
@@ -2567,3 +2567,21 @@ O que a §6.2 pede para a janela abrir na quarta, às 07:00, contra o medido:
 
 **P4 passa.** A janela abre na quarta, 07:00, com o roteiro da §6.9 — começando pelo
 `make gcp-debezium-digest` (passo 1a). O relógio da §6.4 não muda.
+
+## 54. O Bloco A da revisão da governança, com a janela parada (10/11/2026, 20:44 → 21:20)
+
+Com a janela ociosa até quarta, 07:00, o Owner antecipou a parte da V2
+([Pendências §1](pendencias.md#v2--a-governança-e-a-documentação-para-quando-não-houver-mais-pendências-registrada-em-10112026))
+que não toca o que a janela usa: o texto fora do projeto dbt. O plano é o
+`PLANO_revisao_governanca.md`, na raiz, revisado antes pelo codex2 (5 achados, todos do trabalho
+depois do M6, salvo uma observação sobre o próprio plano; nenhum contra o Bloco A).
+
+**O que entrou** (`fa98214` a `bd2313b`, sem *push*): G01 a G05 do parecer, a D91 (§2 das
+Pendências) e dois defeitos do verificador da skill `adr` que a conferência achou — os V contados
+como aprovações e os relatórios fora do Git lidos. O verificador passou a rodar no `check-offline`.
+
+**O que não foi tocado** [medido, `git diff --name-only 846050c..HEAD`]: nada em `dbt/`,
+`terraform/`, `src/mvp_ed1/` nem no glossário, que é o que o `make gcp-composer-publicar` copia, e,
+no `Makefile`, só a receita do `check-offline`. O `dbt/target/manifest.json` de 09/11 não foi
+recompilado. O `make check-offline` passou antes de cada *commit* de código [medido]: 1.133 testes
+em 8 min 54 s e 1.134 em 6 min 43 s, contra os ~4 min que o plano estimava.
