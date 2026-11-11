@@ -865,9 +865,13 @@ check-offline: require-env require-venv ## O que se confere sem nada de pé: seg
 	@# presentes, porque sem elas os guardas de `skip` escondem o acesso. O que
 	@# fica de fora é listado: os pulados, com o motivo; os de integração, por
 	@# arquivo.
-	@echo "── 1/3 revisão de segredos, .gitignore e coerência dos documentos ──"
+	@echo "── 1/3 revisão de segredos, .gitignore, coerência dos documentos e contadores de decisões ──"
 	@.venv/bin/python -m mvp_ed1.secrets_review
 	@.venv/bin/python -m mvp_ed1.docs_check
+	@# Os contadores de decisões, aprovações e adiados entre README, Pendências
+	@# e Registro: antes só a skill `adr` os conferia, e o README divergiu sem
+	@# ninguém ver até 10/11/2026 (Q5 do plano da revisão da governança).
+	@.venv/bin/python .claude/skills/adr/verificar.py
 	@echo "── 2/3 pytest sem os testes de integração ──"
 	@set -a; . ./.env; set +a; MVP_TESTE_FATO=0 .venv/bin/pytest -q -rs -m "not integracao"
 	@echo "── 3/3 o que ficou de fora: os de integração, que rodam no make check ──"

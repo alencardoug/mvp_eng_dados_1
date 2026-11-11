@@ -810,13 +810,25 @@ def test_check_offline_nao_sobe_nem_consulta_nada(tmp_path):
     r, chamadas = _make(tmp_path, "check-offline")
 
     assert r.returncode == 0, r.stdout + r.stderr
-    assert chamadas[:3] == [
+    assert chamadas[:4] == [
         "python -m mvp_ed1.secrets_review",
         "python -m mvp_ed1.docs_check",
+        "python .claude/skills/adr/verificar.py",
         "pytest -q -rs -m not integracao",
     ], chamadas
     assert "pytest -q --co -m integracao" in chamadas, chamadas
     assert not any(c.split()[0] in {"dbt", "alembic", "docker", "abctl", "terraform"} for c in chamadas), chamadas
+
+
+def test_check_offline_falha_quando_os_contadores_de_decisoes_divergem(tmp_path):
+    """Q5 (10/11/2026): o verificador da skill `adr` entra no `check-offline`, e o código de saída
+    dele para o alvo antes da suíte."""
+    verificador_que_acusa = REGISTRADOR + 'case " $* " in *verificar.py*) echo "PROBLEMAS:"; exit 1;; esac\n'
+    r, chamadas = _make(tmp_path, "check-offline", simulados={".venv/bin/python": verificador_que_acusa})
+
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert "python .claude/skills/adr/verificar.py" in chamadas, chamadas
+    assert not any(c.startswith("pytest") for c in chamadas), chamadas
 
 
 def test_check_offline_falha_quando_a_coleta_dos_de_integracao_falha(tmp_path):
