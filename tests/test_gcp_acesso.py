@@ -25,6 +25,17 @@ def _fonte(schema, nome, writers=(), select=(), proprio=None):
     return {"schema": schema, "name": nome, "source_meta": meta, "meta": proprio if proprio is not None else meta}
 
 
+def test_quem_materializa_pelo_dbt_e_dono_e_quem_so_escreve_fonte_edita():
+    """O `+grants` do dbt pede `bigquery.tables.setIamPolicy` (Registro §55, passo 9)."""
+    d = acesso.derivar(_manifest(
+        nodes=[_no("trusted", ["transformer"], "seed"), _no("analytics", ["transformer"])],
+        sources=[_fonte("raw", "a", ["ingestor"], ["transformer"])],
+    ))
+    papeis = {(a["dataset"], a["papel"]): a["role"] for a in d["acesso_por_dataset"]}
+    assert papeis[("trusted", "transformer")] == papeis[("analytics", "transformer")] == acesso.DONO
+    assert papeis[("raw", "ingestor")] == acesso.ESCRITA
+
+
 def test_escritor_ganha_edicao_e_leitor_da_fonte_ganha_leitura():
     d = acesso.derivar(_manifest(
         nodes=[_no("staging", ["transformer"]), _no("staging", ["transformer"], "snapshot"), _no("x", tipo="test")],
@@ -32,7 +43,7 @@ def test_escritor_ganha_edicao_e_leitor_da_fonte_ganha_leitura():
     ))
     assert d["acesso_por_dataset"] == [
         {"dataset": "raw", "role": acesso.ESCRITA, "papel": "ingestor"},
-        {"dataset": "staging", "role": acesso.ESCRITA, "papel": "transformer"},
+        {"dataset": "staging", "role": acesso.DONO, "papel": "transformer"},
         {"dataset": "raw", "role": acesso.LEITURA, "papel": "transformer"},
     ]
     assert d["pendentes_por_tabela"] == []

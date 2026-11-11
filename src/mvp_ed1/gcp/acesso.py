@@ -33,11 +33,19 @@ SAIDA = RAIZ / "terraform" / "acesso.auto.tfvars.json"
 #: O privilégio do PostgreSQL e o papel do BigQuery que faz a mesma coisa no *dataset*.
 #: `create` no schema é escrever tabelas novas e as próprias — `dataEditor`.
 ESCRITA = "roles/bigquery.dataEditor"
+#: Quem **materializa pelo dbt** também concede o `select` objeto a objeto (`+grants`,
+#: `bigquery__apply_grants`), e isso pede `bigquery.tables.setIamPolicy`, que o `dataEditor` não
+#: tem — no Composer, o `transformer` personificado parou no `dbt seed` (Registro §55, passo 9).
+#: É a paridade com o PostgreSQL, onde quem cria a tabela é o dono dela e concede a leitura:
+#: `dataOwner` no *dataset* que escreve, e só nele. Quem só escreve fontes (o `ingestor`, pelo
+#: Airbyte e pelo livro) não concede nada por objeto e continua `dataEditor`.
+DONO = "roles/bigquery.dataOwner"
 LEITURA = "roles/bigquery.dataViewer"
 
 
 def derivar(manifest: dict) -> dict:
     escritores: dict[str, set[str]] = {}
+    materializam: dict[str, set[str]] = {}
     leitores: dict[str, set[str]] = {}
     pendentes: list[dict] = []
 
@@ -46,6 +54,7 @@ def derivar(manifest: dict) -> dict:
             continue
         for papel in (no["config"].get("meta") or {}).get("writers", []):
             escritores.setdefault(no["schema"], set()).add(papel)
+            materializam.setdefault(no["schema"], set()).add(papel)
 
     for fonte in manifest["sources"].values():
         meta_fonte = fonte.get("source_meta") or {}
@@ -63,7 +72,8 @@ def derivar(manifest: dict) -> dict:
 
     acesso = []
     for schema, papeis in sorted(escritores.items()):
-        acesso += [{"dataset": schema, "role": ESCRITA, "papel": p} for p in sorted(papeis)]
+        dbt = materializam.get(schema, set())
+        acesso += [{"dataset": schema, "role": DONO if p in dbt else ESCRITA, "papel": p} for p in sorted(papeis)]
     for schema, papeis in sorted(leitores.items()):
         # Quem escreve já lê: dataViewer a mais seria a mesma permissão duas vezes.
         acesso += [{"dataset": schema, "role": LEITURA, "papel": p}
