@@ -97,8 +97,9 @@ def root(environ: Mapping[str, str] | None = None) -> pathlib.Path | Lugar:
             lugar = Lugar.de(valor)
         except livro_gcs.LivroGcsError as erro:
             raise LedgerError(f"{ENV}={valor}: {erro}") from None
-        if not livro_gcs.existe_raiz(lugar):
-            raise LedgerError(f"{ENV}={valor}: o bucket não existe ou não é legível")
+        motivo = livro_gcs.motivo_raiz(lugar)
+        if motivo is not None:
+            raise LedgerError(f"{ENV}={valor}: o bucket não existe ou não é legível — {motivo}")
         return lugar
     caminho = pathlib.Path(valor)
     if not caminho.is_dir():

@@ -37,17 +37,24 @@ class _Blob:
 
 
 class _Bucket:
-    def __init__(self, nome: str, existe: bool = True, pode_criar: bool = True):
-        self.nome, self._existe, self._pode_criar, self.objetos = nome, existe, pode_criar, {}
+    """As contas de papel têm só permissões de objeto no *bucket* do livro: `exists()` (que pede
+    `storage.buckets.get`) não está ao alcance delas, e o dublê recusa a pergunta (Registro §55)."""
+
+    def __init__(self, nome: str, existe: bool = True, pode_criar: bool = True, pode_listar: bool = True):
+        self.nome, self._existe, self.objetos = nome, existe, {}
+        self._pode_criar, self._pode_listar = pode_criar, pode_listar
 
     def exists(self) -> bool:
-        return self._existe
+        raise exceptions.Forbidden("storage.buckets.get negada à conta de papel")
 
     def blob(self, nome: str) -> _Blob:
         return _Blob(self, nome)
 
     def test_iam_permissions(self, permissoes):
-        return list(permissoes) if self._pode_criar else []
+        if not self._existe:
+            raise exceptions.NotFound(self.nome)
+        tem = {"storage.objects.create": self._pode_criar, "storage.objects.list": self._pode_listar}
+        return [p for p in permissoes if tem.get(p)]
 
 
 class _Pagina(list):
@@ -108,6 +115,17 @@ def test_a_raiz_gs_exige_o_bucket(bucket):
     assert ledger.root({ledger.ENV: "gs://mvp-ed1-gcp-livro/livro"}) == Lugar("mvp-ed1-gcp-livro", "livro")
     bucket._existe = False
     with pytest.raises(ledger.LedgerError, match="não existe ou não é legível"):
+        ledger.root({ledger.ENV: "gs://mvp-ed1-gcp-livro/livro"})
+
+
+def test_a_raiz_gs_so_com_objetos_listaveis_e_sem_storage_buckets_get(bucket):
+    """A conta de papel lê o livro com `objectViewer`, sem `storage.buckets.get` (Registro §55)."""
+    assert ledger.root({ledger.ENV: "gs://mvp-ed1-gcp-livro/livro"}) == Lugar("mvp-ed1-gcp-livro", "livro")
+    bucket._pode_listar = False
+    with pytest.raises(ledger.LedgerError, match="não tem storage.objects.list"):
+        ledger.root({ledger.ENV: "gs://mvp-ed1-gcp-livro/livro"})
+    bucket._existe = False
+    with pytest.raises(ledger.LedgerError, match="não existe \\(404\\)"):
         ledger.root({ledger.ENV: "gs://mvp-ed1-gcp-livro/livro"})
 
 

@@ -86,13 +86,30 @@ def _bucket(lugar: Lugar, cliente=None):
 
 
 def existe_raiz(lugar: Lugar, cliente=None) -> bool:
-    """O *bucket* existe e é legível. A raiz, sendo prefixo, não precisa existir antes da 1ª época."""
+    """O *bucket* existe e a credencial corrente lista os objetos dele. A raiz, sendo prefixo, não
+    precisa existir antes da 1ª época.
+
+    A pergunta é a do `pode_criar`, `testIamPermissions`, e não `bucket.exists()`: este pede
+    `storage.buckets.get`, que as contas de papel não têm no *bucket* do livro (`objectViewer` e
+    `objectCreator` só dão permissões de objeto) — no Composer, a `mvp-ingestor` personificada leu
+    o livro como inexistente (Registro §55, passo 6). *Bucket* que não existe responde 404.
+    """
+    return motivo_raiz(lugar, cliente) is None
+
+
+def motivo_raiz(lugar: Lugar, cliente=None) -> str | None:
+    """Por que a raiz não serve, ou `None` se serve — o que o erro do `ledger.root` mostra."""
     from google.api_core import exceptions
 
     try:
-        return _bucket(lugar, cliente).exists()
-    except exceptions.Forbidden:
-        return False
+        concedidas = _bucket(lugar, cliente).test_iam_permissions(["storage.objects.list"])
+    except exceptions.NotFound:
+        return "o bucket não existe (404)"
+    except exceptions.Forbidden as erro:
+        return f"403 ao perguntar as permissões: {erro.message}"
+    if "storage.objects.list" not in concedidas:
+        return f"a credencial não tem storage.objects.list no bucket (concedidas: {list(concedidas)})"
+    return None
 
 
 def subprefixos(lugar: Lugar, cliente=None) -> list[Lugar]:
