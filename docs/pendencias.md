@@ -312,8 +312,10 @@ Levantada pela revisão da governança para o portal (V2, §1) e decidida pelas 
   procedência (*commit*, árvore limpa ou suja, `generated_at` e `invocation_id` dos artefatos do dbt,
   ambiente).
 - **Gatilho e guarda:** regenerado **dentro do `make catalog`**; o `check-offline` confere que ele
-  está em dia, como faz com os outros derivados. A guarda tem de funcionar sem `dbt/target` e sem o
-  pacote citar o próprio *commit* (RVG-1-04).
+  está em dia. Não há precedente a copiar: hoje a classificação e a linhagem se conferem no `check`
+  completo, com o *manifest*, e o `check-offline` roda num clone sem `dbt/target`. O contrato da
+  guarda — que declarações rastreadas invalidam o pacote, o que ela faz só com o JSON versionado, e
+  a procedência sem o pacote citar o próprio *commit* — se fecha na implementação (RVG-1-04).
 - **Quando:** a implementação vem **depois do M6** — ela lê o *manifest* e toca no `make catalog`,
   que a janela usa. O nome e o caminho do arquivo, o número de versão do formato e o tratamento de
   artefato incompleto se fecham nela, com a E1 do `gdados` como consumidor.
