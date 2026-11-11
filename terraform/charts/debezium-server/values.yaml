@@ -2,8 +2,8 @@
 
 # 3.7.1.Final, a primeira versão com o atributo cru do Pub/Sub (D78), fixada por digest.
 # O quay.io republica a tag toda noite (~00:50 UTC) e apaga o manifesto anterior: o digest vale
-# até a próxima republicação, e um pull depois dela falha (Registro §48). Este é o de 10/11 00:52 UTC.
-imagem: quay.io/debezium/server:3.7.1.Final@sha256:8c4e6c7efc392f9adfd283ede2e75cd1a3594ef1126b014248054a5e718bfbd5
+# até a próxima republicação, e um pull depois dela falha (Registro §48). Este é o de 11/11 00:48 UTC.
+imagem: quay.io/debezium/server:3.7.1.Final@sha256:4c08e2f090cc988265a5858ff3fd76c6d62967162d6b099050ce2987cf040ccb
 
 # A conta de papel que a do Kubernetes personifica (Workload Identity): `mvp-streamer`.
 contaDePapel: ""
