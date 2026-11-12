@@ -1197,6 +1197,23 @@ gcp-composer-reexecutar: gcp-preflight ## Quarta: re-executa tarefas de uma exec
 	.venv/bin/python -m mvp_ed1.gcp.composer_api limpar --uri "$$uri" --dag '$(DAG)' --run '$(RUN)' \
 		--tarefas '$(TAREFAS)' $(if $(APLICAR),--aplicar)
 
+# A interface do Airbyte do GKE nesta máquina. O load balancer é interno (10.10.0.x, sem IP público,
+# por desenho), e o Airbyte 1.x serve a interface pelo próprio `airbyte-server`: não há Service
+# `webapp`. A porta não é a 8000, que o Airbyte local (abctl) publica mesmo pausado. O `kubectl` vai
+# para segundo plano com `wait`, para o Ctrl+C chegar ao `trap` e a pasta com o token sumir.
+GCP_AIRBYTE_UI_PORTA ?= 18080
+
+gcp-airbyte-ui: gcp-preflight require-kubectl ## Janela: abre a interface do Airbyte do GKE em http://localhost:18080 (port-forward; Ctrl+C fecha; o token da ADC vale ~1 h)
+	@$(GCP_ENV); $(GCP_LIMPEZA); trap 'exit 130' INT TERM; $(GKE_KUBECTL); \
+	remota=$$(k -n airbyte get service airbyte-airbyte-server-svc -o jsonpath='{.spec.ports[0].port}') || exit 1; \
+	$(call GCP_PORTA_LIVRE,$(GCP_AIRBYTE_UI_PORTA)); \
+	$$KUBECTL -n airbyte port-forward service/airbyte-airbyte-server-svc "$(GCP_AIRBYTE_UI_PORTA):$$remota" > "$$base/port-forward.log" 2>&1 & encaminhamento=$$!; \
+	pids="$$pids $$encaminhamento"; \
+	for _ in $$(seq 30); do (exec 3<>/dev/tcp/127.0.0.1/$(GCP_AIRBYTE_UI_PORTA)) 2>/dev/null && break; kill -0 $$encaminhamento 2>/dev/null || break; sleep 1; done; \
+	kill -0 $$encaminhamento 2>/dev/null || { echo "ERRO: o port-forward do Airbyte não abriu:"; cat "$$base/port-forward.log"; exit 1; }; \
+	echo "gcp-airbyte-ui: abra http://localhost:$(GCP_AIRBYTE_UI_PORTA) (Ctrl+C fecha)"; \
+	wait $$encaminhamento
+
 gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret Manager as credenciais do Airbyte do GKE e o endereço do load balancer interno, sem mostrá-los
 	@# O bootloader do chart gera as credenciais no Secret `airbyte-auth-secrets`, e o IP do load
 	@# balancer interno só existe depois do Service: nenhum dos dois o Terraform conhece no plano.
