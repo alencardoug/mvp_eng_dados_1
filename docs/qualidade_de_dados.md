@@ -30,6 +30,14 @@ inverso também acontece. Por isso o projeto mantém duas famílias:
 **Falha de teste interrompe o pipeline.** Um dado errado que segue adiante custa mais caro do que
 uma execução interrompida.
 
+**E não se tenta de novo.** As tarefas de dbt da `fluxo_batch` têm `retries: 0`: repetir um teste
+vermelho só atrasaria a notícia. A única exceção é a falha de **infraestrutura transitória**
+(código 429 ou 5xx, `UNAVAILABLE`, `backendError`…) em **todos** os nós que falharam. Ela vem do
+`run_results.json` da própria tarefa e é refeita uma vez, por `dbt retry`, só nos nós que falharam
+(`mvp_ed1.orquestracao.falha_transitoria`). Teste com `fail`, erro de permissão ou de SQL nunca
+re-tenta. A exceção nasceu de uma 503 da API de credenciais do IAM que derrubou uma camada inteira
+no Composer, em 11/11/2026 ([Registro §55](registro_fase_gcp.md)).
+
 ---
 
 ## 2. Banco transacional

@@ -34,7 +34,7 @@ import os
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import dag, task
 
-from mvp_ed1.orquestracao import DBT, segredos
+from mvp_ed1.orquestracao import DBT, RETENTAR_SE_TRANSITORIO, segredos
 
 #: Sem `retries` nas tarefas de dbt: falha de teste de dados **não** se resolve
 #: tentando de novo. Repetir só atrasaria a notícia (Qualidade de Dados §1).
@@ -310,9 +310,11 @@ def fluxo_batch():
             """--vars '{legacy_snapshot_id: """
             "{{ ti.xcom_pull(task_ids='concluir_captura_do_legado') }}}'"
         )
+        # Falha de infraestrutura transitória (uma 503 do IAM, em 11/11) refaz os nós que falharam,
+        # uma vez, por `dbt retry`; teste de dado vermelho, não (`orquestracao.falha_transitoria`).
         return BashOperator(
             task_id=f"dbt_{nome}",
-            bash_command=f"{DBT} {comando} {selecao} {vars_}".strip(),
+            bash_command=f"{DBT} {comando} {selecao} {vars_}".strip() + RETENTAR_SE_TRANSITORIO,
         )
 
     # ── Testes de fronteira ficam para o fim ─────────────────────────────────

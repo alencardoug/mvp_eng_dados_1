@@ -8,6 +8,7 @@ a DAG dele duas vezes. É leve de propósito: o processador de DAGs o importa a 
 from __future__ import annotations
 
 import os
+import re
 
 #: Onde está o projeto dbt — e, ao lado dele, o glossário que os `docs-paths` leem — vem do
 #: ambiente (Etapa 13, G2.4): `/opt/mvp_ed1` no contêiner local, que o compose monta somente
@@ -57,3 +58,46 @@ def segredos() -> None:
         valor = Variable.get(nome, default=None)
         if valor:
             os.environ[env] = valor
+
+
+# ── Re-tentativa só de infraestrutura (Registro §55, passo 9; decisão do Owner em 11/11) ─────────
+#: A DAG tem `retries: 0`: teste de dado vermelho não se resolve tentando de novo (Qualidade §1).
+#: Mas em 11/11 uma 503 da API de credenciais do IAM derrubou o `dbt_staging` inteiro (1 de 455
+#: nós). A saída: quando o dbt falha, o `run_results.json` da tarefa diz se **toda** falha foi de
+#: infraestrutura transitória — então, e só então, um `dbt retry` refaz os nós que falharam, uma
+#: vez. Teste com `status: fail` (dado errado) nunca re-tenta; erro sem marca de transitório
+#: (permissão, SQL, compilação) também não; `run_results.json` ausente, também não.
+TRANSITORIO = r"\b(?:429|500|502|503|504)\b|UNAVAILABLE|DEADLINE_EXCEEDED|backendError|rateLimitExceeded|internalError"
+
+#: O classificador que o `bash` da tarefa roda, autocontido: no Composer o pacote está na pasta
+#: `dags/`, que o Airflow põe no `sys.path` dele, e não necessariamente no do subprocesso. Sem
+#: aspas simples (vai entre elas no `bash`) e sem `{{` (o `bash_command` passa pelo Jinja).
+CLASSIFICADOR = (
+    "import json, os, re, sys\n"
+    "p = sys.argv[1]\n"
+    "if not os.path.exists(p):\n"
+    "    sys.exit(1)\n"
+    "falhas = [r for r in json.load(open(p)).get(\"results\", [])"
+    " if r.get(\"status\") not in (\"success\", \"pass\", \"skipped\", \"warn\")]\n"
+    f"t = re.compile(r\"{TRANSITORIO}\")\n"
+    "sys.exit(0 if falhas and all(r.get(\"status\") == \"error\" and t.search(r.get(\"message\") or \"\")"
+    " for r in falhas) else 1)\n"
+)
+
+
+def falha_transitoria(run_results: dict) -> bool:
+    """O mesmo critério do `CLASSIFICADOR`, no processo: toda falha é transitória, e há uma."""
+    falhas = [r for r in run_results.get("results", []) if r.get("status") not in ("success", "pass", "skipped", "warn")]
+    return bool(falhas) and all(
+        r.get("status") == "error" and re.search(TRANSITORIO, r.get("message") or "") for r in falhas
+    )
+
+
+#: O que a `camada()` da DAG acrescenta ao comando do dbt: se ele falhar e a falha for transitória,
+#: um `dbt retry` no mesmo diretório de artefatos (é de lá que ele lê o que falhou e com que
+#: argumentos — os `--vars` inclusive). Falha que não é transitória devolve o erro como antes.
+RETENTAR_SE_TRANSITORIO = (
+    " || { python3 -c '" + CLASSIFICADOR + "' \"$ARTEFATOS/target/run_results.json\""
+    ' && echo "falha transitória de infraestrutura: dbt retry, uma vez"'
+    ' && DBT_TARGET_PATH="$ARTEFATOS/target" DBT_LOG_PATH="$ARTEFATOS/logs" dbt retry; }'
+)
