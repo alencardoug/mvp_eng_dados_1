@@ -262,3 +262,13 @@ def test_erro_de_importacao_sai_com_1_e_o_smoke_usa_o_leitor(monkeypatch, capsys
     monkeypatch.setattr("sys.stdin", io.StringIO(""))
     assert composer_cli.main(["importacao"]) == 1
     assert "composer_cli importacao" in _receita("gcp-composer-smoke")
+
+
+def test_a_exportacao_le_o_cloud_logging_e_nao_aceita_zero():
+    """No Composer 3 os logs não ficam no bucket: em 11/11 o `rsync` copiou 0 arquivos (Registro §55)."""
+    receita = _receita("gcp-composer-exportar")
+    assert "gcloud logging read" in receita and "storage rsync" not in receita
+    assert 'resource.labels.environment_name=\\"$$nome\\"' in receita
+    assert 'labels.workflow=\\"$$dag\\"' in receita
+    assert 'test "$$total" -gt 0' in receita
+    assert "\nCOMPOSER_DAGS := fluxo_batch diagnostico_composer\n" in MAKEFILE

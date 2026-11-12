@@ -1271,13 +1271,26 @@ gcp-composer-tarefas: gcp-preflight ## Quarta: coleta de novo o estado e a dura�
 	@$(GCP_ENV); $(COMPOSER_G); $(call COMPOSER_TAREFAS,$(DAG),"$(RUN)",--terminada) \
 	test -n "$$tarefas" || { echo "ERRO: a coleta das tarefas de $(RUN) falhou de novo"; exit 1; }; echo "tarefas em $$tarefas"
 
-gcp-composer-exportar: gcp-preflight ## Quarta, antes das 21:30: copia os logs do Airflow do bucket do Composer para data/medicoes/etapa_13/g6/ (o bucket sai no desmonte)
+# No Composer 3 os logs das tarefas não ficam na pasta `logs/` do bucket: vão para o Cloud Logging
+# (`resource.type="cloud_composer_environment"`, com `workflow`, `run-id`, `task-id` e
+# `try-number` nos rótulos). Em 11/11 o `rsync` do bucket copiou 0 arquivos (Registro §55, passo
+# 16). O Cloud Logging guarda 30 dias, mas o projeto é apagado no desmonte: daí a cópia.
+COMPOSER_DAGS := fluxo_batch diagnostico_composer
+
+gcp-composer-exportar: gcp-preflight ## Quarta, antes do desmonte: exporta do Cloud Logging os logs das tarefas das DAGs do Composer para data/medicoes/etapa_13/g6/logs/; falha se não houver nenhum
 	@$(GCP_ENV); \
-	bucket=$$($(call COMPOSER_SAIDA,bucket)); \
-	test -n "$$bucket" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
-	mkdir -p $(COMPOSER_EVIDENCIA)/logs; \
-	gcloud storage rsync --recursive "gs://$$bucket/logs" $(COMPOSER_EVIDENCIA)/logs || exit 1; \
-	echo "gcp-composer-exportar: logs em $(COMPOSER_EVIDENCIA)/logs ($$(find $(COMPOSER_EVIDENCIA)/logs -type f | wc -l) arquivos)"
+	nome=$$($(call COMPOSER_SAIDA,nome)); \
+	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	mkdir -p $(COMPOSER_EVIDENCIA)/logs; total=0; \
+	for dag in $(COMPOSER_DAGS); do \
+		arq="$(COMPOSER_EVIDENCIA)/logs/$$dag.json"; \
+		gcloud logging read "resource.type=\"cloud_composer_environment\" AND resource.labels.environment_name=\"$$nome\" AND labels.workflow=\"$$dag\"" \
+			--project "$$GCP_PROJECT_ID" --freshness=7d --limit=200000 --order=asc --format=json > "$$arq" || exit 1; \
+		n=$$(.venv/bin/python -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$$arq") || exit 1; \
+		echo "  $$dag: $$n entradas"; total=$$((total + n)); \
+	done; \
+	test "$$total" -gt 0 || { echo "ERRO: nenhuma entrada de log das DAGs no Cloud Logging."; exit 1; }; \
+	echo "gcp-composer-exportar: logs em $(COMPOSER_EVIDENCIA)/logs ($$total entradas do Cloud Logging)"
 
 gcp-legado-mutar: gcp-preflight require-cloud-sql-proxy ## Quarta, entre as duas capturas: aplica no legado do Cloud SQL as mutações de src/mvp_ed1/gcp/mutacoes_da_janela.yml, com diário (ADR-0045); uma vez só
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GCP_ORIGENS); .venv/bin/python -m mvp_ed1.gcp.mutacoes_janela
