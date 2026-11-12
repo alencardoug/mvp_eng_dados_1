@@ -94,6 +94,17 @@ resource "google_service_account_iam_member" "composer_personifica" {
   member             = google_service_account.composer[0].member
 }
 
+# E a da `mvp-politicas`, para a tarefa `convergir_policy_tags` da `fluxo_batch`: a sincronização
+# recria tabelas das fontes sem as *policy tags*, e em 11/11 duas colunas do `raw` ficaram sem
+# elas até a convergência rodar à mão (Registro §55, passo 15). Decisão do Owner em 11/11.
+resource "google_service_account_iam_member" "composer_personifica_politicas" {
+  count = local.composer ? 1 : 0
+
+  service_account_id = google_service_account.politicas[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = google_service_account.composer[0].member
+}
+
 resource "google_storage_bucket" "composer" {
   count = local.composer ? 1 : 0
 
@@ -230,6 +241,8 @@ resource "google_composer_environment" "this" {
         # D81: quem escreve é a conta do papel.
         MVP_IMPERSONATE_SA     = google_service_account.role["ingestor"].email
         MVP_DBT_IMPERSONATE_SA = google_service_account.role["transformer"].email
+        # O fluxo das policy tags (ADR-0025), na tarefa `convergir_policy_tags`.
+        MVP_POLITICAS_IMPERSONATE_SA = google_service_account.politicas[0].email
         # A captura do legado com o certificado no BigQuery e o livro no Cloud Storage (G2.1).
         LEGACY_WAREHOUSE  = "bigquery"
         LEGACY_LEDGER_DIR = local.livro_raiz
@@ -253,6 +266,7 @@ resource "google_composer_environment" "this" {
     google_storage_bucket_iam_member.composer,
     google_secret_manager_secret_iam_member.composer,
     google_service_account_iam_member.composer_personifica,
+    google_service_account_iam_member.composer_personifica_politicas,
   ]
 }
 

@@ -33,6 +33,8 @@ from typing import Any
 
 RAIZ = pathlib.Path(__file__).resolve().parents[3]
 MANIFEST = RAIZ / "dbt" / "target" / "manifest.json"
+#: A conta que o fluxo das tags personifica no Composer (`terraform/composer.tf`).
+ENV_POLITICAS = "MVP_POLITICAS_IMPERSONATE_SA"
 
 #: Os níveis que viram *tag* com controle ligado (D79).
 NIVEIS_MARCADOS = ("confidential", "personal")
@@ -166,7 +168,12 @@ def main(argv: list[str] | None = None) -> int:
     projeto = os.environ["GCP_PROJECT_ID"]
     tags = tags_do_ambiente()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    cliente = bigquery.Client(project=projeto, location=os.environ.get("GCP_BQ_LOCATION"))
+    # No Composer, a conta do ambiente personifica a `mvp-politicas` (ADR-0025): é ela que tem o
+    # `mvpVincularPolicyTags` nos datasets das fontes. Sem a variável, a ADC — o Owner, nesta máquina.
+    from mvp_ed1.gcp.credenciais import personificada
+
+    cred = personificada(variavel=ENV_POLITICAS)
+    cliente = bigquery.Client(project=projeto, location=os.environ.get("GCP_BQ_LOCATION"), credentials=cred)
     convergir = args.comando == "convergir"
     rel = percorrer(cliente, projeto, manifest, tags, corrigir=convergir, so_fontes=convergir)
     texto = json.dumps(rel.como_dict(), ensure_ascii=False, indent=2)

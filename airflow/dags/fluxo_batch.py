@@ -302,6 +302,34 @@ def fluxo_batch():
     registro = registrar_captura_do_legado()
     captura_legada >> registro
 
+    @task
+    def convergir_policy_tags() -> str:
+        """As *policy tags* nas tabelas das fontes, depois das sincronizações e antes do primeiro build.
+
+        A sincronização do Airbyte recria tabelas do `raw` sem as *tags* que o fluxo do ADR-0025 pôs
+        nelas: em 11/11, no Composer, `raw.inventory_movements.unit_cost` e
+        `raw.warehouses.capacity_units` ficaram sem a `confidential` até o `make gcp-tags-convergir`
+        rodar à mão (Registro §55, passo 15). Aqui a convergência é da DAG. O *manifest* sai de um
+        `dbt parse` num diretório temporário, como o resto das tarefas de dbt; quem escreve as *tags*
+        é a `mvp-politicas`, personificada (`MVP_POLITICAS_IMPERSONATE_SA`). No armazém local
+        (PostgreSQL) não há *policy tag*: a tarefa não faz nada e diz isso.
+        """
+        if os.environ.get("DBT_TARGET") != "gcp":
+            return "armazém local: sem policy tags a convergir"
+        import subprocess
+        import tempfile
+
+        from mvp_ed1.gcp import politicas
+
+        with tempfile.TemporaryDirectory() as artefatos:
+            subprocess.run(
+                ["dbt", "parse", "--target-path", f"{artefatos}/target", "--log-path", f"{artefatos}/logs"],
+                cwd=f"{os.environ['MVP_PROJECT_DIR']}/dbt", check=True,
+            )
+            if politicas.main(["convergir", "--manifest", f"{artefatos}/target/manifest.json"]) != 0:
+                raise RuntimeError("a convergência das policy tags falhou (tabela declarada ausente?)")
+        return "fontes convergidas"
+
     def camada(nome: str, selecao: str, comando: str = "build") -> BashOperator:
         # `--vars` em todas as tarefas, e não só nas do legado: as tarefas são
         # por camada (não por origem), e uma variável que só valesse em algumas
@@ -364,8 +392,10 @@ def fluxo_batch():
     # DAG são por **camada**, e os modelos dele vivem nas camadas que já existem.
     # É a propriedade que o cabeçalho desta DAG anuncia — acrescentar domínio
     # não acrescenta tarefa —, e a Etapa 10 é o teste dela.
+    tags = convergir_policy_tags()
+    [captura_principal, captura_legada, registro] >> tags
     (
-        [captura_principal, captura_legada, registro]
+        tags
         >> semear
         >> staging
         >> trusted

@@ -26,9 +26,9 @@ ESCOPO = "https://www.googleapis.com/auth/cloud-platform"
 VIDA_EM_SEGUNDOS = 3600
 
 
-def personificada(environ: Mapping[str, str] | None = None):
-    """A credencial da conta em `MVP_IMPERSONATE_SA`, ou `None` para a ADC."""
-    conta = ((os.environ if environ is None else environ).get(ENV) or "").strip()
+def personificada(environ: Mapping[str, str] | None = None, variavel: str = ENV):
+    """A credencial da conta na `variavel` (por padrão `MVP_IMPERSONATE_SA`), ou `None` para a ADC."""
+    conta = ((os.environ if environ is None else environ).get(variavel) or "").strip()
     if not conta:
         return None
     import google.auth

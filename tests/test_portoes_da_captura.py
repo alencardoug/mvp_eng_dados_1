@@ -274,21 +274,25 @@ def test_o_portao_fica_entre_a_conclusao_e_o_primeiro_build() -> None:
     assert variaveis["registro"] == "registrar_captura_do_legado"
     assert variaveis["captura_legada"] == "concluir_captura_do_legado"
     assert variaveis["semear"] == "camada"
+    # Entre as capturas e o primeiro build, a convergência das policy tags das fontes (11/11).
+    assert variaveis["tags"] == "convergir_policy_tags"
     arestas = _arestas()
     assert ("captura_legada", "registro") in arestas
-    assert {("captura_principal", "semear"), ("captura_legada", "semear"), ("registro", "semear")} <= arestas
+    assert {("captura_principal", "tags"), ("captura_legada", "tags"), ("registro", "tags"),
+            ("tags", "semear")} <= arestas
     # Nenhum build antes do portão: o único caminho até as camadas passa por `semear`.
     assert not any(b == "registro" for a, b in arestas if a != "captura_legada")
 
 
-def test_a_dag_tem_quinze_tarefas() -> None:
+def test_a_dag_tem_dezesseis_tarefas() -> None:
     tarefas = [n.name for n in _funcao("fluxo_batch").body if isinstance(n, ast.FunctionDef)]
     assert tarefas == ["sincronizar", "retomar_capturas_do_legado", "iniciar_captura_do_legado",
-                       "concluir_captura_do_legado", "registrar_captura_do_legado", "camada"]
+                       "concluir_captura_do_legado", "registrar_captura_do_legado", "convergir_policy_tags",
+                       "camada"]
     camadas = [n for n in ast.walk(_funcao("fluxo_batch"))
                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "camada"]
-    # 2 sincronizações + recuperação + iniciar + concluir + portão + 9 camadas de dbt.
-    assert 2 + 4 + len(camadas) == 15
+    # 2 sincronizações + recuperação + iniciar + concluir + portão + tags + 9 camadas de dbt.
+    assert 2 + 5 + len(camadas) == 16
 
 
 def test_o_portao_roda_seja_qual_for_o_desfecho_da_conclusao() -> None:

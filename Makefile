@@ -1469,7 +1469,7 @@ gcp-sync-legacy: gcp-preflight require-kubectl require-cloud-sql-proxy ## Terça
 	@$(GCP_ENV); $(GCP_LIMPEZA); $(GKE_KUBECTL); $(GKE_AIRBYTE); $(GCP_ORIGENS); $(GCP_LIVRO); \
 	.venv/bin/python -m mvp_ed1.airbyte sync --connection legacy_para_raw_legacy --certificar-legado
 
-gcp-tags-convergir: gcp-preflight ## Terça, depois de cada sincronização: as policy tags nas fontes (raw, raw_legacy, governance), como a DAG fará no Composer
+gcp-tags-convergir: gcp-preflight ## Depois de uma sincronização fora da DAG: as policy tags nas fontes (raw, raw_legacy, governance); na fluxo_batch é a tarefa convergir_policy_tags
 	@$(GCP_ENV); export MVP_POLICY_TAGS="$$($(GCP_TF) output -json policy_tags)"; \
 	.venv/bin/python -m mvp_ed1.gcp.politicas convergir --manifest dbt/target_gcp/manifest.json > /dev/null \
 		&& echo "gcp-tags-convergir: fontes convergidas"

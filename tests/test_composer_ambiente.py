@@ -66,11 +66,14 @@ def test_nenhum_segredo_nas_variaveis_de_ambiente_do_composer():
     assert not set(nomes) & reservados
 
 
-def test_a_conta_do_ambiente_so_personifica_os_dois_papeis():
+def test_a_conta_do_ambiente_so_personifica_os_dois_papeis_e_o_fluxo_das_tags():
     assert 'toset(["ingestor", "transformer"])' in TF
+    # A `mvp-politicas`, para a `convergir_policy_tags` da `fluxo_batch` (decisão de 11/11).
+    assert "service_account_id = google_service_account.politicas[0].name" in TF
+    assert "MVP_POLITICAS_IMPERSONATE_SA = google_service_account.politicas[0].email" in TF
     assert re.findall(r'role\s+= "(roles/[^"]+)"', TF) == [
-        "roles/composer.worker", "roles/iam.serviceAccountTokenCreator", "roles/storage.objectAdmin",
-        "roles/secretmanager.secretAccessor"]
+        "roles/composer.worker", "roles/iam.serviceAccountTokenCreator", "roles/iam.serviceAccountTokenCreator",
+        "roles/storage.objectAdmin", "roles/secretmanager.secretAccessor"]
     assert 'MVP_IMPERSONATE_SA     = google_service_account.role["ingestor"].email' in TF
     assert 'MVP_DBT_IMPERSONATE_SA = google_service_account.role["transformer"].email' in TF
     perfil = (RAIZ / "dbt" / "profiles.yml").read_text(encoding="utf-8")
@@ -248,3 +251,24 @@ INVALIDOS = [
 @pytest.mark.parametrize(("nome", "troca"), INVALIDOS)
 def test_a_guarda_recusa_o_que_a_tabela_recusa(nome, troca):
     assert _violacoes(nome, _componentes(_com(nome, **troca))[nome])
+
+
+def test_a_personificacao_le_a_variavel_pedida():
+    from mvp_ed1.gcp import credenciais, politicas
+
+    assert credenciais.personificada({"MVP_IMPERSONATE_SA": "a@x"}, variavel="MVP_POLITICAS_IMPERSONATE_SA") is None
+    assert credenciais.personificada({}) is None
+    assert politicas.ENV_POLITICAS == "MVP_POLITICAS_IMPERSONATE_SA"
+
+
+def test_a_convergencia_das_tags_na_dag_nao_faz_nada_no_armazem_local():
+    import ast
+
+    fonte = (RAIZ / "airflow" / "dags" / "fluxo_batch.py").read_text(encoding="utf-8")
+    funcao = next(n for n in ast.walk(ast.parse(fonte))
+                  if isinstance(n, ast.FunctionDef) and n.name == "convergir_policy_tags")
+    primeiro = funcao.body[1]  # depois da docstring
+    assert isinstance(primeiro, ast.If) and "DBT_TARGET" in ast.unparse(primeiro.test)
+    assert isinstance(primeiro.body[0], ast.Return)
+    corpo = ast.unparse(funcao)
+    assert "'dbt', 'parse', '--target-path'" in corpo and "politicas.main(['convergir'" in corpo
