@@ -1185,6 +1185,18 @@ GKE_AIRBYTE = remota=$$(k -n airbyte get service airbyte-airbyte-server-svc -o j
 	export AIRBYTE_URL="http://127.0.0.1:$(GCP_AIRBYTE_PORTA)/api/public/v1" AIRBYTE_CLIENT_ID AIRBYTE_CLIENT_SECRET; \
 	echo "airbyte: API do GKE em $$AIRBYTE_URL (port-forward)"
 
+# Re-executa tarefas de uma execução da DAG, na mesma execução (sem refazer a captura), pela API REST
+# do Airflow (`mvp_ed1.gcp.composer_api`): o ensaio sempre; a limpeza só com APLICAR=1. Sem TAREFAS,
+# só as falhas. Depois, `make gcp-composer-tarefas DAG=… RUN=…` coleta os tempos.
+gcp-composer-reexecutar: gcp-preflight ## Quarta: re-executa tarefas de uma execução no Composer (DAG= RUN= [TAREFAS=a,b] [APLICAR=1]); sem APLICAR, só o ensaio
+	@test -n '$(DAG)' && test -n '$(RUN)' || { echo 'ERRO: use make gcp-composer-reexecutar DAG=fluxo_batch RUN=<run_id> [TAREFAS=a,b] [APLICAR=1]'; exit 1; }
+	@$(GCP_ENV); \
+	nome=$$($(call COMPOSER_SAIDA,nome)); \
+	test -n "$$nome" || { echo "ERRO: sem Composer no estado (enable_composer)."; exit 1; }; \
+	uri=$$(gcloud composer environments describe "$$nome" --location "$$GCP_BQ_LOCATION" --project "$$GCP_PROJECT_ID" --format='value(config.airflowUri)') || exit 1; \
+	.venv/bin/python -m mvp_ed1.gcp.composer_api limpar --uri "$$uri" --dag '$(DAG)' --run '$(RUN)' \
+		--tarefas '$(TAREFAS)' $(if $(APLICAR),--aplicar)
+
 gcp-composer-segredos: gcp-preflight require-kubectl ## Janela: grava no Secret Manager as credenciais do Airbyte do GKE e o endereço do load balancer interno, sem mostrá-los
 	@# O bootloader do chart gera as credenciais no Secret `airbyte-auth-secrets`, e o IP do load
 	@# balancer interno só existe depois do Service: nenhum dos dois o Terraform conhece no plano.
