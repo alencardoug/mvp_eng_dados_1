@@ -2823,7 +2823,27 @@ leitura, para `data/medicoes/etapa_13/g6/logs_cloud_logging/`: `fluxo_batch` 5.5
 errada no Composer 3; corrigir.
 
 **Passos 17 e 18** — o Owner pediu o desmonte perto das 20:00, para visitar antes o Composer e o
-Dataflow pela consola (NAVEGANDO_GCP, capítulos 06, 08 e 10).
+Dataflow pela consola (NAVEGANDO_GCP, capítulos 06, 08 e 10), e adiou duas vezes, até ~20:50. Na
+visita, o `kubectl port-forward svc/airbyte-webapp 8000:80` dele não funcionou por três motivos:
+nenhum contexto do `kubectl` aponta o GKE (os alvos montam um kubeconfig temporário); o Airbyte 1.x
+não tem Service `webapp` (a interface sai do `airbyte-airbyte-server-svc`, 8001); e a 8000 é do
+Airbyte local (abctl). O encaminhamento para a 18080 respondeu 200.
+
+**Passo 17 — `make gcp-desmonte-parar`** (21:02:13 → 21:07:26): `Started draining job
+[2026-11-11_11_31_51-4639799584056864245]` · `drenado; nenhum job ativo` · `nenhuma assinatura de
+watermark sobrando` · `DAGs pausadas, nenhuma execução em curso` · `MVP_GCP_ATIVO=false (D79)`.
+
+**Passo 18 — `make gcp-plan PASSO=2`** (21:07): `20_desmonte_composer`, `desmonte: 0 a criar, 0 a
+alterar, 21 a destruir` — os 14 do Composer e os 7 de IAM do Dataflow (o IAM por tabela do
+`inventory_movements_stream`, o `mvpRastreioWatermark` e a concessão dele, o `dataflow.worker` do
+`streamer`, a anexação ao tópico). O Owner aprovou; `make gcp-apply PASSO=2` (21:22:46 → 21:33:02):
+`Apply complete! Resources: 0 added, 0 changed, 21 destroyed.` O ambiente saiu em **8 min 34 s**.
+Conferido às 21:33: `gcloud composer environments list` → 0; nenhum *job* ativo no Dataflow.
+**A parte cara terminou às 21:33, antes das 22:00.** De pé até quinta: Cloud SQL e GKE (Airbyte e
+Debezium), na ordem da §6.5.
+
+**O Composer ficou de pé de 15:20:52 a 21:33:02 (~6 h 12 min) [medido].** O custo é da fatura, que
+atrasa (G8).
 
 ## 56. O Gemini no BigQuery: 20 perguntas em linguagem natural, 25% de acerto (11/11/2026, 15:50 → 17:18)
 
@@ -2869,3 +2889,21 @@ gabarito em SQL), `gabarito/*.json`, `respostas/<id>.sql|.adapt.sql|.resultado.j
 `resultado.json`. A trilha e a seção do portfólio são a próxima entrega; o pacote portátil
 (perguntas, gabarito, esquema e dados) é o que permite repetir o teste em AWS, Databricks,
 Snowflake e localmente.
+
+## 57. O que foi manual na quarta vira código (11/11/2026, 21:25 → 22:30)
+
+O Owner, durante o desmonte: "Se conseguir fazer as etapas serem automatizáveis, melhor. Códigos
+executados manualmente tiram a automação do processo." Cada comando solto da quarta virou alvo ou
+tarefa, com teste:
+
+| Na quarta, à mão | Agora | Exercitado |
+|---|---|---|
+| `gcloud logging read` dos logs das DAGs (o `gcp-composer-exportar` copiou 0 arquivos do *bucket*) | `gcp-composer-exportar` lê o Cloud Logging por DAG e falha com zero (`dabb2a8`) | o filtro, contra o ambiente real: 5.566 + 371 entradas, as mesmas da cópia manual |
+| `curl` em `clearTaskInstances` (a CLI do Airflow 3 não alcança execução sem `logical_date`) | `gcp-composer-reexecutar DAG= RUN= [TAREFAS=] [APLICAR=1]`, `mvp_ed1.gcp.composer_api`: ensaio sempre, limpeza só com `APLICAR=1` (`53b36f4`) | não como alvo: o Composer já tinha saído; é o mesmo pedido dos três `curl` da tarde |
+| `kubectl port-forward` da interface do Airbyte do GKE | `gcp-airbyte-ui`, na 18080, com o kubeconfig temporário; o Ctrl+C fecha tudo (`65a76e7`) | HTTP 200; depois do SIGINT, nenhum `kubectl`, porta fechada, pasta do *token* apagada |
+| Re-execução depois da 503 do IAM | **Decisão do Owner:** `retries: 0` fica, e só falha de infraestrutura transitória (429/5xx, `UNAVAILABLE`…, em **todos** os nós que falharam, lida do `run_results.json`) roda `dbt retry` uma vez; teste vermelho, permissão e SQL nunca (`c6ee895`; Qualidade §1) | a cola do `bash` com um `dbt` falso: a mensagem real da 503 re-tenta e passa; os outros quatro casos falham sem re-tentar |
+| `make gcp-tags-convergir` depois da sincronização | **Decisão do Owner:** tarefa `convergir_policy_tags` na `fluxo_batch`, entre as capturas e o `dbt_seed`, como a `mvp-politicas` (personificada pela conta do Composer, `MVP_POLITICAS_IMPERSONATE_SA`); no armazém local não faz nada (`d29f952`) | o caminho da nuvem com a ADC do Owner: 79 tabelas das fontes, 0 trocas (já convergidas); a personificação, não — o Composer saiu |
+
+O IAM novo do Composer (`composer_personifica_politicas`) só nasce no próximo `apply` do degrau
+dele; nada foi aplicado. Uma execução da `fluxo_batch` inteira com as duas mudanças não existe
+ainda.
