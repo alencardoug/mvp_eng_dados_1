@@ -2948,7 +2948,8 @@ como saída de terminal em `data/medicoes/etapa_13/g7/`.
 | 01:32 | 10 — plano 25 (`25_desmonte_raiz`) | 0/0/23: o orçamento e 22 APIs, que só saem do estado (`disable_on_destroy = false` nas 22) |
 | 01:32 | 10 — `gcp-desmonte-orcamento` | nenhum orçamento `mvp-ed1 Etapa 13` na conta |
 
-**O inventário do passo 9 não ficou vazio, e o estado real ficou** [medido]. O Cloud Asset
+**O inventário do passo 9 não ficou vazio; os recursos verificados um a um, sim** [medido] — o
+que a prova direta abaixo cobre, não o projeto inteiro (redação corrigida pela RVG8-1-06, §60). O Cloud Asset
 Inventory ainda devolvia, 40 min depois de o GKE sair, o *node pool* como `STOPPING`, e 3 min depois
 do plano 24, as 278 tabelas. Cada tipo, contra a prova direta:
 
@@ -2956,7 +2957,7 @@ do plano 24, as 278 tabelas. Cada tipo, contra a prova direta:
 |---|---|---|
 | 278 tabelas e o *dataset* `trusted`; *node pool* e o HPA `kube-state-metrics`; rede `mvp-ed1` e a conexão de *peering*; 8 chaves de contas de serviço | `bq ls` vazio; nenhum *cluster*; só a rede `default`; só a conta padrão do Compute | atraso de indexação: já não existem |
 | os 5 papéis `mvp*` como `GA` | `gcloud iam roles list --show-deleted`: `deleted=True` nos 5 | apagados, como a RVT-1-07 previa; o inventário os devolve, e com o estado de antes |
-| *log buckets* e *sinks* `_Default` e `_Required`; 6 `InstanceSettings`; o *namespace* `goog-psc-default` do Service Directory; os 3 *jobs* do Dataflow `JOB_STATE_DRAINED` | não se apagam (o `_Required` é da plataforma) ou são histórico de execução | padrão da plataforma, sem custo, fora de `residuos_esperados.yml` (medido em 08/11, antes de Logging, PSC e Dataflow terem uso); saem com o projeto |
+| *log buckets* e *sinks* `_Default` e `_Required`; 6 `InstanceSettings`; o *namespace* `goog-psc-default` do Service Directory; os 3 *jobs* do Dataflow `JOB_STATE_DRAINED` | não se apagam (o `_Required` é da plataforma) ou são histórico de execução | padrão da plataforma, sem custo **esperado** (não medido: a prova é a fatura), fora de `residuos_esperados.yml` (medido em 08/11, antes de Logging, PSC e Dataflow terem uso); saem com o projeto |
 
 A lista do esperado **não foi alargada** (RVT-1-07): alargá-la é mudança no declarativo, do Owner.
 O inventário vazio (captura 16) não existe; o que existe é a prova direta por tipo, acima.
@@ -3003,8 +3004,11 @@ teste) casa cada tabela pela chave substituta, separa por `source_system` e cont
 que diverge. A primeira rodada achou divergência em toda fato, **só nas chaves estrangeiras** para as
 quatro dimensões SCD tipo 2 (`dim_customer`, `dim_product`, `dim_coupon`, `dim_support_agent`). As
 chaves dessas quatro dimensões não casavam, embora o `valid_from` de cada versão fosse igual nos dois
-lados. **Achado de portabilidade:** a chave substituta de uma versão SCD não é a mesma no PostgreSQL e
-no BigQuery. Ela é coerente dentro de cada alvo, mas não se compara entre alvos. O comparador passou a
+lados. **Achado:** a chave substituta de uma versão SCD não é a mesma nos dois armazéns. A causa **não foi
+isolada** (RVG8-1-02, §60): o *hash* leva `dbt_valid_from`, a hora em que o *snapshot* rodou, e não
+o `valid_from` exposto, que na primeira versão é `period_start` — duas execuções do *snapshot* dariam
+chaves diferentes até no mesmo dialeto. Ela é coerente dentro de cada alvo, mas não se compara entre
+alvos. O comparador passou a
 trocar, nos dois lados, a chave dessas dimensões e as estrangeiras para elas pela identidade da
 versão: `source_system`, chave natural e a ordem da versão por `valid_from`.
 
@@ -3012,27 +3016,56 @@ versão: `source_system`, chave natural e a ordem da versão por `valid_from`.
 
 | Tabelas | Resultado |
 |---|---|
-| as 15 dimensões | iguais linha a linha, em todo grupo de `source_system` (`retail`, `legacy`, `unknown` e as conformadas) |
-| 9 das 10 fatos | iguais linha a linha, `retail` e `legacy` |
+| as 15 dimensões | iguais depois da normalização do comparador, em todo grupo de `source_system` (`retail`, `legacy`, `unknown` e as conformadas) |
+| 9 das 10 fatos | iguais depois da normalização, `retail` e `legacy` |
 | `fact_inventory_movement` | `legacy` 473 = 473; `retail` 13.725 iguais e **4.400 só no local** (18.125 × 13.725), nenhum só na nuvem |
 
 Os 4.400 são a diferença entre as origens que o §49 (passo 18) já tinha medido: 18.125 movimentos
 na origem local e 13.725 no Cloud SQL. É a eles que o §49 atribuiu as 3 views de terça que diferiam
 (as duas de estoque e a `gross_margin_by_category` do mês corrente), com as outras **13 de 16
-iguais**. A medida de hoje confirma isso no grão de onde as views leem: fora esses movimentos, o
-`analytics` construído na nuvem é o mesmo do local. A lógica das views também é a mesma. O SQL
+iguais**. A medida de hoje é coerente com isso no `analytics`: fora esses movimentos, o construído
+na nuvem é o mesmo do local. Não cobre todas as entradas das views de estoque, que leem também
+`raw.inventory_movements_stream` e `trusted.inventory_balances` (RVG8-1-01, §60). A lógica das views também é a mesma. O SQL
 compilado de `top_skus_by_revenue` nos dois alvos difere só em `bool_or` × `logical_or` e na grafia
 dos nomes. E a receita da categoria Notebooks recalculada do Parquet dá 3.997.774,00, o valor local.
 
 **A quarta, à luz disso.** O oráculo das 18:25 já viu o BigQuery sem o legado nas dimensões
 (`dim_brand` 18 × 19 no local, `dim_category` 16 × 25, `dim_customer` 1.571 × 1.574). Esse é o efeito
-do diário de quarta, que a cascata da marca única espalhou. As 0 de 16 views são consequência
-dele, e não defeito da tradução. O efeito view a view **não foi medido** e não se mede mais.
+do diário de quarta, que a cascata da marca única espalhou. As 0 de 16 views são **compatíveis**
+com ele; que sejam só consequência dele, e não também de defeito de tradução, não está provado
+(redação corrigida pela RVG8-1-01, §60). O efeito view a view **não foi medido** e não se mede mais.
 
-**O que muda no G8:** a linha da paridade, no §11.1 do plano, passa a "cumprido, com ressalva". A
+**O que muda no G8:** a linha da paridade, no §11.1 do plano, passa a "cumprido, com ressalva" —
+revista para "parcial" depois da revisão (§60). A
 ressalva tem duas partes. As 3 views de estoque nunca ficaram iguais, porque as origens divergem em
 4.400 movimentos. E as views da quarta não se medem. O rótulo final é do Owner.
 
 Ambiente local nesta medida: o primeiro `docker` da sessão ativou o *socket* e subiu Airbyte,
 Airflow e os bancos (R11). O Airbyte foi pausado na mesma chamada (`make airbyte-pause`), e o Airflow
 ficou de pé, ocioso.
+
+## 60. A revisão do fechamento pelo Codex (13/11/2026, ~02:40 → 03:00)
+
+**O que se revisou.** Os cinco *commits* `cbc5271..b4c06a5` — capturas, §58, comparador, §59 e o
+§11 do plano —, pelo Codex da conta 1, esforço `high` (decisão 4 do §11.4). O dossiê passou pelo
+`make check` (1.359 passaram, 19 pulados). Parecer em `data/medicoes/etapa_13/revisao/codex_g8.md`.
+
+**O que o revisor não conseguiu medir.** O `make gcp-paridade-atribuicao` falhou na conexão ao
+`warehouse_db` dentro da *sandbox* dele. O banco estava de pé: a mesma receita, rodada fora dela às
+02:50, deu o mesmo resultado do §59 (`g8/atribuicao_20261113T055022Z.json`: 24 de 25 iguais;
+`fact_inventory_movement` com `retail` 4.400 só no local e 13.725 iguais, `legacy` 473 iguais) [medido].
+
+| # | Achado | Veredito | Resposta |
+|---|---|---|---|
+| RVG8-1-01 | a igualdade do `analytics` ampliada para causa das views e exclusão de defeito de tradução | bloqueante | §59 corrigido; paridade no §11.1 proposta **parcial**, com a atribuição parcial como ressalva a decidir |
+| RVG8-1-02 | a diferença das chaves SCD atribuída ao dialeto sem isolar a causa | ajuste | §59 e pendência 7 do §11.3: causa não isolada, `dbt_valid_from` no *hash* |
+| RVG8-1-03 | *batch* + *streaming* "cumprido" com o custo pendente; a simultaneidade provada pela terça, com o Dataflow drenado | bloqueante | §11.1: **parcial**, com a prova de quarta (PASS às 17:23, 17:37 e 17:43) |
+| RVG8-1-04 | retenção e expiração dos *datasets* nunca declaradas, contra o critério "antes do provisionamento" | bloqueante | confirmado: o §12 deixou "não declaradas ainda" e nada as declarou; §11.1 **parcial**, pendência 8 |
+| RVG8-1-05 | "iguais" é igualdade de projeção normalizada; FK SCD desconhecida dos dois lados saía igual | observação | a FK desconhecida carrega o lado e diverge (teste novo); os demais limites na *docstring* do comparador; "linha a linha" trocado no §59 e no §11.1 |
+| RVG8-1-06 | "estado real vazio" e "sem custo" além da prova do desmonte | ajuste | §58 corrigido; pendência 9 do §11.3 (fatura com bruto, créditos e líquido) |
+| RVG8-1-07 | §11.2 sem a Governança §5.2 e sem os PVCs na Capacidade; o 07 já entregue | ajuste | as duas linhas no §11.2; o 07 marcado para conferir |
+| RVG8-1-08 | pendências que perdem limites: periodicidade do Debezium, atraso do inventário, `gcp-composer-reexecutar` | ajuste | itens 1, 4 e 6 do §11.3 reescritos |
+
+**O que a revisão muda no aceite.** Três linhas da matriz passam de "cumprido" a **parcial**: retenção
+dos *datasets*, *batch* com *streaming* e paridade. Nenhuma se refaz, porque a nuvem saiu; o que resta
+é o Owner decidir se as aceita como ressalva (decisão 2 do §11.4).
