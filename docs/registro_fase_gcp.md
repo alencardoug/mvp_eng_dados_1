@@ -2907,3 +2907,75 @@ tarefa, com teste:
 O IAM novo do Composer (`composer_personifica_politicas`) só nasce no próximo `apply` do degrau
 dele; nada foi aplicado. Uma execução da `fluxo_batch` inteira com as duas mudanças não existe
 ainda.
+
+## 58. O desmonte, sete horas e meia depois do limite (13/11/2026, 00:33 → 01:36)
+
+**O limite foi perdido** [medido]: a regra 1 do plano (§0) era "nada cobrável de pé depois de
+quinta, 12/11, 18:00", e o relógio da §6.4 pedia o `unlink` às 12:00 e o `delete` às 15:00 de
+quinta. Na quinta não houve sessão de desmonte: o Owner usou o dia no `NAVEGANDO_GCP` e nas
+capturas. À 00:33 de sexta, `gcloud billing projects describe` dava `billingEnabled: True` nos dois
+projetos (`mvp-ed1-gcp` e `mvp-ed1-estudo`), com o Cloud SQL `RUNNABLE` e o GKE com 2 nós (Airbyte e
+Debezium) de pé. A faixa da consola à 01:17 mostrava R$ 1.492,08 de crédito e 3 dias de avaliação
+(captura 14); nada saiu da Free Trial, e o custo das ~7,5 h além do limite duro (~13,5 h além do
+`unlink` das 12:00) foi de crédito, não de cobrança.
+O custo dessas horas por serviço fica para a conciliação do G8, quando o faturamento fechar.
+
+**As capturas, antes de apagar** (Owner, 13/11, 01:03 → 01:19): 08 (Dataflow: grafo em três partes,
+contadores e métricas do *job* drenado de quarta), 09 (Pub/Sub: tópicos e alerta), 10 (paridade no
+BigQuery), 11 (*policy tags*: taxonomia e colunas), 13 (linhagem da `fact_sales_order_item`, das
+dimensões às *views* de `consumption`) e 14 (auditoria: as 7 negações `InsertJob` de quarta, com o
+detalhe de uma). Ficam sem captura **06** (Airbyte, login do Owner), **07** (Composer, já
+destruído na quarta) e **12** (*authorized view* negada na tabela); as 15 a 18, do desmonte, ficam
+como saída de terminal em `data/medicoes/etapa_13/g7/`.
+
+**A §6.5, passos 3 a 10** — cada `apply` com o plano salvo, lido e aprovado pelo Owner
+(AskUserQuestion), e a saída em `data/medicoes/etapa_13/g7/`:
+
+| Hora | Passo | Resultado [medido] |
+|---|---|---|
+| 00:34 | 3 — `gcp-airbyte-ativos` | nenhum *job* do Airbyte em curso |
+| 00:37 | 3 — plano 21 (`21_desmonte_aplicacoes`) | 0/0/5, como a declaração: os 2 *releases*, `mvpCriarDatasetAirbyte`, o vínculo dele e o `airbyte_internal` |
+| 00:37 | 3 — `gcp-desmonte-slot` | *slot* `mvp_inventory_movements` removido e ausência conferida |
+| ~00:40 | 4 — `gcp-desmonte-kubernetes` | barrado pela trava do Claude Code; o Owner rodou com `!`: *namespaces* `airbyte` e `debezium` apagados, nenhum PV nem *load balancer* |
+| 00:52 | 5 — plano 22 (`22_desmonte_gke`) | 0/0/11, os mesmos 11 que o `08_gke` criou |
+| 00:53 | 5 — `gcp-desmonte-orfaos` | nada do GKE nem do Composer no Compute Engine |
+| 00:56 | 6–7 — plano 23 (`23_desmonte_cloud_sql`) | 0/1/11: Cloud SQL, bancos, usuários, senhas e segredos; a retenção do livro (7 dias, `is_locked = false`) zerada |
+| 00:57 | 7 — `gcp-desmonte-sql` | nenhuma instância nem *backup* retido |
+| 00:57 | 8 — `gcp-desmonte-linhagem` | **recusou**: sem captura da linhagem em `capturas/` (pendência única do G5). O Chrome não conectou; o Owner tirou a 13 |
+| 01:27 | 8 — `gcp-desmonte-linhagem` | 433 processos apagados; a lista do local vazia |
+| 01:29 | 8 — plano 24 (`24_desmonte_barato`) | 0/0/93: 9 *datasets* com conteúdo, 2 *buckets*, Pub/Sub, taxonomia, contas de serviço, papéis próprios, *pool* do GitHub, rede e *peering* |
+| 01:30 e 01:33 | 9 — `gcp-desmonte-inventario` | **falhou nas duas**: 310 e 308 "resíduos" — ver abaixo |
+| 01:32 | 10 — plano 25 (`25_desmonte_raiz`) | 0/0/23: o orçamento e 22 APIs, que só saem do estado (`disable_on_destroy = false` nas 22) |
+| 01:32 | 10 — `gcp-desmonte-orcamento` | nenhum orçamento `mvp-ed1 Etapa 13` na conta |
+
+**O inventário do passo 9 não ficou vazio, e o estado real ficou** [medido]. O Cloud Asset
+Inventory ainda devolvia, 40 min depois de o GKE sair, o *node pool* como `STOPPING`, e 3 min depois
+do plano 24, as 278 tabelas. Cada tipo, contra a prova direta:
+
+| O que o inventário devolveu | Prova direta, 01:31 | Leitura |
+|---|---|---|
+| 278 tabelas e o *dataset* `trusted`; *node pool* e o HPA `kube-state-metrics`; rede `mvp-ed1` e a conexão de *peering*; 8 chaves de contas de serviço | `bq ls` vazio; nenhum *cluster*; só a rede `default`; só a conta padrão do Compute | atraso de indexação: já não existem |
+| os 5 papéis `mvp*` como `GA` | `gcloud iam roles list --show-deleted`: `deleted=True` nos 5 | apagados, como a RVT-1-07 previa; o inventário os devolve, e com o estado de antes |
+| *log buckets* e *sinks* `_Default` e `_Required`; 6 `InstanceSettings`; o *namespace* `goog-psc-default` do Service Directory; os 3 *jobs* do Dataflow `JOB_STATE_DRAINED` | não se apagam (o `_Required` é da plataforma) ou são histórico de execução | padrão da plataforma, sem custo, fora de `residuos_esperados.yml` (medido em 08/11, antes de Logging, PSC e Dataflow terem uso); saem com o projeto |
+
+A lista do esperado **não foi alargada** (RVT-1-07): alargá-la é mudança no declarativo, do Owner.
+O inventário vazio (captura 16) não existe; o que existe é a prova direta por tipo, acima.
+
+**As camadas 2 e 3, nos dois projetos** (decisão do Owner, 01:34: desligar e excluir já):
+
+| Hora | Projeto | Ação | Prova |
+|---|---|---|---|
+| 01:34 | `mvp-ed1-gcp` | `make gcp-desligar-faturamento CONFIRMA=mvp-ed1-gcp` | `billingEnabled=false` (`g7/faturamento_20261113T043448Z.json`) |
+| 01:35 | `mvp-ed1-estudo` | `gcloud billing projects unlink`, à mão (§6.4) | `billingEnabled: false` (`g7/estudo_faturamento_*.json`) |
+| 01:35 | `mvp-ed1-gcp` | `make gcp-apagar-projeto CONFIRMA=mvp-ed1-gcp` | `DELETE_REQUESTED` (`g7/projeto_20261113T043518Z.json`) |
+| 01:36 | `mvp-ed1-estudo` | `gcloud projects delete`, à mão | `DELETE_REQUESTED` (`g7/estudo_projeto_*.json`) |
+
+`DELETE_REQUESTED` é pedido de exclusão: o projeto pode voltar por `gcloud projects undelete` por
+cerca de 30 dias, e só então é eliminado. A variável `MVP_GCP_ATIVO` saiu `false` no passo 1, na
+quarta. Os outros projetos da conta de faturamento (§0) não foram tocados.
+
+**Pendências que o desmonte deixa:** (1) o custo real por serviço, inclusive o das horas além do
+limite, quando o faturamento estiver completo (G8, captura 19); (2) as capturas 06, 07, 12 e 16
+não existem e não podem mais ser tiradas; (3) se `residuos_esperados.yml` deve aceitar os padrões
+da plataforma vistos hoje, decisão do Owner; (4) o atraso do Cloud Asset Inventory depois de
+`destroy` não foi medido até zerar — o alvo do passo 9 não espera por ele.
