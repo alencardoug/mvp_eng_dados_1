@@ -164,7 +164,7 @@ endef
         gcp-quente-produzir gcp-quente-conferir gcp-memoria-oraculo gcp-jobs-auditoria gcp-livro-tratamento \
         gcp-quente-prova gcp-debezium-reiniciar gcp-composer-tarefas \
         gcp-composer-fluxo gcp-composer-exportar gcp-legado-mutar gcp-legado-matriz gcp-quente-latencia gcp-armazem-tamanho \
-        gcp-dbt-build gcp-oraculos gcp-carga-dev gcp-composer-prova \
+        gcp-dbt-build gcp-oraculos gcp-paridade-atribuicao gcp-carga-dev gcp-composer-prova \
         gcp-composer-segredos gcp-composer-publicar gcp-composer-smoke \
         gcp-dataflow-tabela gcp-dataflow-validar gcp-dataflow-lancar gcp-dataflow-parar \
         gcp-desmonte-parar gcp-desmonte-slot gcp-desmonte-kubernetes gcp-desmonte-orfaos gcp-desmonte-sql gcp-desmonte-linhagem \
@@ -1120,6 +1120,13 @@ gcp-oraculos: gcp-preflight ## Paridade local × BigQuery do estado corrente: co
 	.venv/bin/python -m mvp_ed1.gcp.oraculo consumo || { echo "gcp-oraculos: FALHOU o conteúdo das views de consumption"; rc=1; }; \
 	.venv/bin/python -m mvp_ed1.gcp.catalogo || { echo "gcp-oraculos: FALHOU o catálogo"; rc=1; }; \
 	test $$rc = 0 && echo "gcp-oraculos: as três comparações passaram"; exit $$rc
+
+gcp-paridade-atribuicao: require-env require-venv ## G8: o analytics exportado do BigQuery (PARQUET=<pasta>) contra o local, por tabela e source_system; só lê
+	@# Depois do desmonte não há BigQuery: o lado da nuvem é o Parquet do `analytics` exportado antes
+	@# dele (PLANO_etapa_13 §11.4). Mede de onde vem a diferença das views; não reprova por ela.
+	@test -n "$(PARQUET)" || { echo "ERRO: PARQUET=<pasta com um <tabela>.parquet por tabela de analytics>"; exit 1; }
+	@$(GCP_ENV); .venv/bin/python -m mvp_ed1.gcp.atribuicao --parquet '$(PARQUET)' \
+		--saida data/medicoes/etapa_13/g8/atribuicao_$$(date -u +%Y%m%dT%H%M%SZ).json
 
 # A imagem do Composer da D73, pelo *digest* — a de que o ambiente nasce na janela. A prova do G2.4
 # roda nela, não numa parecida: a lista de pacotes é a da imagem, não a de uma reconstrução.
