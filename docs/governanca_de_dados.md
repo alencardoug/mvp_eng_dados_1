@@ -261,7 +261,14 @@ O trabalho já está codificado; a migração consome os mesmos arquivos:
    as *tags* e o IAM de leitura; o **dbt** aplica a *tag* às colunas das tabelas que materializa, a
    partir do YAML de classificação (D71), porque substituir uma tabela no BigQuery apaga as *tags*
    dela; o **fluxo automatizado** do [ADR-0025](adr/0025-policy-tags-por-fluxo-automatizado.md)
-   converge as tabelas que o dbt não materializa, e roda só na janela da fase GCP. Apenas
+   converge as tabelas que o dbt não materializa, e roda só na janela da fase GCP. Como a
+   sincronização do Airbyte recria as tabelas das fontes — e com elas apaga as *tags* —, a
+   convergência é a tarefa `convergir_policy_tags` da `fluxo_batch`, entre as capturas e o
+   `dbt_seed`, rodando como `mvp-politicas`, que a conta do Composer personifica
+   (`MVP_POLITICAS_IMPERSONATE_SA`); no armazém local ela não faz nada. Essa rota está
+   implementada, **não validada no Composer**: a tarefa rodou com a ADC do Owner, e o IAM da
+   personificação nunca foi aplicado
+   ([Registro §57](registro_fase_gcp.md#57-o-que-foi-manual-na-quarta-vira-código-11112026-2125--2230)). Apenas
    identidades autorizadas pelo IAM conseguem executar `SELECT` sobre coluna marcada. A autorização
    é a exposição ([ADR-0049](adr/0049-separar-a-classificacao-da-exposicao.md)): os papéis a
    recebem nas *tags* do dado sintético, e a negação se prova com uma identidade sem ela. A

@@ -573,15 +573,17 @@ na [Origem Legada §4.3](origem_legada.md#43-o-livro-retido-da-memória-v110).
 transitório (§6.3). **Aprovada pelo Owner em 08/11/2026**, como está abaixo (US$ 40–70). Os preços foram **lidos** em 07/11/2026 — Compute pela Cloud Billing Catalog API,
 os demais nas páginas oficiais —, e a história da leitura está no
 [Registro da fase GCP §6](registro_fase_gcp.md#6-preços-lidos-para-a-estimativa-07112026). As
-durações são as do cronograma do plano, não medidas. O real é registrado depois, ao lado.
+durações são as do cronograma do plano, não medidas. O real é registrado depois, ao lado: as
+**durações [medido]**, no fechamento (13/11/2026); o **custo, pendente** até a leitura do faturamento
+por serviço, em 16/11/2026 ([plano da Etapa 13 §11.4](../PLANO_etapa_13.md#114-as-decisões-do-owner)).
 
 | Serviço | Configuração | Preço-hora | Duração planejada | Estimado (US$) | Real |
 |---|---|---|---|---|---|
-| Cloud SQL | Enterprise, 2 vCPU / 7,5 GB, zona única, SSD 20 GB | 2 × 0,0413 + 7,5 × 0,007 ≈ 0,135 | seg 09 08:00 → qui 12 09:00, ~73 h | ~10 | pendente |
-| GKE — nós | zonal, 2 × `e2-standard-4` (4 vCPU, 16 GB cada) | 2 × (4 × 0,021812 + 16 × 0,002924) ≈ 0,268 | ter 10 08:00 → qui 12 09:00, ~49 h | ~13 | pendente |
-| GKE — *cluster* | taxa de gerenciamento | 0,10 (o crédito de US$ 74,40/mês por conta cobre um zonal; contado aqui como custo, no pior caso) | ~49 h | ~5 | pendente |
-| GKE — discos, LB interno, NAT | 2 × 50 GB `pd-balanced`; 1 *forwarding rule*; NAT de 2 VMs | ≈ 0,014 + 0,025 + 0,003 | ~49 h | ~2 | pendente |
-| Composer 3 | *small*; o exemplo oficial usa 12 DCUs, 15 com mais *workers* | 12–15 × 0,06 = 0,72–0,90 | qua 11 07:00 → 22:00, ~15 h, mais ~0,5 h para nascer | ~11–14 | pendente |
+| Cloud SQL | Enterprise, 2 vCPU / 7,5 GB, zona única, SSD 20 GB | 2 × 0,0413 + 7,5 × 0,007 ≈ 0,135 | seg 09 08:00 → qui 12 09:00, ~73 h | ~10 | seg 09 11:30 → sex 13 00:56, **~85 h**; custo pendente |
+| GKE — nós | zonal, 2 × `e2-standard-4` (4 vCPU, 16 GB cada) | 2 × (4 × 0,021812 + 16 × 0,002924) ≈ 0,268 | ter 10 08:00 → qui 12 09:00, ~49 h | ~13 | ter 10 12:47 → sex 13 00:52, **~60 h**; custo pendente |
+| GKE — *cluster* | taxa de gerenciamento | 0,10 (o crédito de US$ 74,40/mês por conta cobre um zonal; contado aqui como custo, no pior caso) | ~49 h | ~5 | ~60 h, as do *cluster*; custo pendente |
+| GKE — discos, LB interno, NAT | 2 × 50 GB `pd-balanced`; 1 *forwarding rule*; NAT de 2 VMs | ≈ 0,014 + 0,025 + 0,003 | ~49 h | ~2 | ~60 h; além dos 2 × 50 GB, três PVCs: os dois do Airbyte viraram discos `pd-balanced` de **1 GB** cada [medido], o do Debezium pediu 1 Gi `standard-rwo` (pedido, não disco medido) — ~3 GB a mais ([Registro §48](registro_fase_gcp.md#48-o-roteiro-de-terça-parado-pela-conta-de-faturamento-fechada-10112026), RVPC-5-01); custo pendente |
+| Composer 3 | *small*; o exemplo oficial usa 12 DCUs, 15 com mais *workers* | 12–15 × 0,06 = 0,72–0,90 | qua 11 07:00 → 22:00, ~15 h, mais ~0,5 h para nascer | ~11–14 | qua 11 15:20 → 21:33, **~6,2 h**, 50 min delas nascendo; custo pendente |
 | Dataflow | 1 *worker* `n1-standard-2` (2 vCPU, 7,5 GB), Streaming Engine | 2 × 0,069 + 7,5 × 0,003557 ≈ 0,165 | ~15 h na janela + ~1 h de ensaio na terça (D83) | ~3 | pendente |
 | BigQuery, Pub/Sub, Cloud Storage, Secret Manager | volume `dev` (D68) | dentro do nível gratuito (1 TiB de consulta, 10 GiB de armazenamento, 10 GiB de Pub/Sub por mês) | toda a semana | ~0–2 | pendente |
 | **Total** | | | | **~44–49**, com margem para reexecução: **US$ 40–70** | pendente |

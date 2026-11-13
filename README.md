@@ -18,7 +18,7 @@ Faker → PostgreSQL → Airbyte → dbt → datamart → consumption     (batch
 
 | | |
 |---|---|
-| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP (Etapa 13) foi autorizada em 06/11/2026 e está em execução — o estado é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, do [Registro da fase GCP](docs/registro_fase_gcp.md) |
+| **Estado** | Fase local concluída: `v1.0.0`, em 04/10/2026, e a versão de manutenção `v1.1.0`, em 05/11/2026. A fase GCP (Etapa 13, M6) foi autorizada em 06/11/2026, desmontada em 13/11/2026 e **aceita com ressalvas** no mesmo dia; o custo real entra quando o faturamento fechar — o estado é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, do [Registro da fase GCP](docs/registro_fase_gcp.md) |
 | **Stack** | PostgreSQL · Airbyte (em Kubernetes local) · dbt · Airflow · Debezium sobre Kafka Connect · Redpanda · Apache Beam · Terraform · Docker · Python com SQLAlchemy e Alembic |
 | **Escopo** | Na `v1.1.0`: 40 tabelas de origem e uma origem legada defeituosa de propósito; nove camadas no armazém; 10 fatos, 15 dimensões e 16 views de consumo, uma por pergunta de negócio |
 | **Qualidade** | No aceite da `v1.1.0` (05/11/2026): `make check` verde com `PASS=907` e 1.079 testes Python; reconciliação em toda fronteira entre camadas; toda coluna classificada por sensibilidade, conferida por igualdade a cada `make check`. O medido de cada etapa está no [Plano](docs/plano_de_desenvolvimento.md) |
@@ -69,7 +69,7 @@ Cada assunto tem **um único dono documental**. Se a informação está em dois 
 | [Dicionário de Dados](docs/dicionario_de_dados.md) | Registro: objetos, campos, classificação aplicada e linhagem | **Gerado** pelo `make catalog` |
 | [Glossário de Negócio](docs/glossario_de_negocio/) | Conceitos do varejo e as perguntas de negócio, importados pelo dbt | Vigente |
 | [Glossário Técnico](docs/glossario.md) | Termos de engenharia de dados usados no projeto | Vigente |
-| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Decisões: 4 pendentes; verificações e trabalho: 2 adiadas, em 10/11/2026. Quais são, no cabeçalho das [Pendências](docs/pendencias.md) |
+| [Pendências do Owner](docs/pendencias.md) | O que está parado esperando decisão sua, em ordem de urgência | Decisões: 4 pendentes; verificações e trabalho: 3 adiadas, em 13/11/2026. Quais são, no cabeçalho das [Pendências](docs/pendencias.md) |
 | [Registro de Decisões](docs/adr/) | ADRs aceitos e decisões ainda pendentes | 51 aceitos, 2 pendentes (D43 e D66, adiadas) |
 | [Materialização no dbt](docs/materializacao.md) | Materializações, estratégias de incremental e o critério de robustez que escolhe entre elas | Vigente — base do [ADR-0016](docs/adr/0016-materializacao-por-camada.md) |
 | [Registro de Riscos](docs/riscos.md) | Riscos **R1**–**R14** e seus tratamentos | Vigente |
@@ -112,8 +112,10 @@ Contexto, alternativas e consequências de cada uma em [`docs/adr/`](docs/adr/).
 ## Status
 
 **A fase local está concluída: o M5 fechou em 04/10/2026, com a *tag* `v1.0.0`.** A Etapa 13 —
-replicação no GCP com Terraform, o M6 — foi autorizada pelo Owner em 06/11/2026 e está em execução: o
-estado dela é do [Plano](docs/plano_de_desenvolvimento.md), e o processo, passo a passo, do
+replicação no GCP com Terraform, o M6 — foi autorizada pelo Owner em 06/11/2026, executada numa janela
+de sete dias e desmontada em 13/11/2026, quando o Owner a **aceitou com ressalvas**: quatro critérios
+ficam parciais, e o custo real entra quando o faturamento fechar. O estado dela é do
+[Plano](docs/plano_de_desenvolvimento.md), e o processo, passo a passo, do
 [Registro da fase GCP](docs/registro_fase_gcp.md).
 
 O fechamento (Etapa 12) refez o ciclo inteiro num clone novo do repositório, com `.env` novo, sobre

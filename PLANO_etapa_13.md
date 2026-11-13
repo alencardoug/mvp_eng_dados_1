@@ -386,7 +386,8 @@ do declarativo **pelo Owner**, distinta da revisão técnica do `plan`. Custo re
 serviço **depois** de o faturamento estar completo (até dois dias depois do desligamento,
 [modify-project](https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project));
 na sexta, se ainda incompleto, registrado como **parcial**, e o fechamento econômico fica pendente
-— sem estender a vida de recurso nenhum. *Tag* `v2.0.0` (D47) **só** com todos os critérios.
+— sem estender a vida de recurso nenhum. *Tag* `v2.0.0` (D47) **só** com todos os critérios —
+condição substituída pela decisão do Owner de 13/11/2026 (§11.4): a *tag* sai no aceite, com as ressalvas.
 
 ### G9 — as evidências e o caso de portfólio (do G0 ao G8)
 
@@ -1506,7 +1507,8 @@ Situação proposta ao Owner; o rótulo final é dele.
 
 ### 11.2 Os documentos donos a atualizar
 
-Cada um no seu lugar, uma vez só ([CLAUDE.md §5](CLAUDE.md)):
+Cada um no seu lugar, uma vez só ([CLAUDE.md §5](CLAUDE.md)). **Executado em 13/11/2026**, no
+*commit* do aceite, menos o custo da Capacidade, que espera a fatura (16/11; V3 das Pendências, item 9):
 
 | Documento | O que entra |
 |---|---|
@@ -1522,30 +1524,9 @@ O dicionário, o catálogo e a linhagem são gerados (`make catalog`); só mudam
 
 ### 11.3 Pendências que o fechamento leva
 
-1. As quedas do Debezium Server: cinco reinícios em 21 h; só o log do último contêiner foi lido, e
-   nele a queda veio depois de ~3 h, por *timeout* no *heartbeat* do Pub/Sub (§55). Periodicidade e
-   causa das outras quatro, não medidas.
-2. A corrida *batch* × produtor no teste de saldo (§55, passo 9).
-3. A cascata da marca única no diário de quarta (§55, passo 15): o diário remove a única marca apta
-   do legado. O efeito nas dimensões está no oráculo das 18:25 (`dim_brand` 18 × 19); o efeito
-   view a view não se mede mais. Corrigir o diário é do Owner.
-4. `residuos_esperados.yml` e os padrões da plataforma vistos em 13/11 (§58) — decisão do Owner.
-   Separado disso: o atraso do Cloud Asset Inventory depois de `destroy` não foi medido até zerar, e
-   o `gcp-desmonte-inventario` não espera por ele (§58).
-5. As capturas 06, 07, 12 e 16, que não existem mais (§58).
-6. O IAM `composer_personifica_politicas` e a `fluxo_batch` com retry e convergência nunca rodaram
-   juntos no Composer (§57); o `gcp-composer-reexecutar` também não rodou como alvo — os três pedidos
-   equivalentes da tarde foram à mão.
-7. A chave substituta das quatro dimensões SCD tipo 2 difere entre os dois armazéns para a mesma
-   versão (Registro §59), com causa **não isolada**: o *hash* leva o `dbt_valid_from` gravado na
-   versão, e dois históricos de *snapshot* inicializados em instantes diferentes o gravam diferente,
-   até no mesmo dialeto — a hipótese que sobra, não medida (RVG8-1-02, RVG8-2-02). Dentro
-   de cada alvo ela é coerente; o comparador resolve a identidade, mas não prova portabilidade da
-   chave nem histórias com mais de uma versão — todas as do Parquet têm uma só.
-8. A retenção e a expiração dos *datasets* do G3, nunca declaradas (§11.1; RVG8-1-04).
-9. O fechamento econômico dos dois projetos: a fatura com consumo bruto, créditos e líquido. O
-   desmonte provou os recursos removidos, o faturamento desligado e a exclusão pedida — não custo
-   residual zero (Registro §58; RVG8-1-06).
+Os nove itens que esta seção listava estão na [V3 das Pendências](docs/pendencias.md#v3--o-que-o-fechamento-da-etapa-13-deixa-registrada-em-13112026),
+dona deles desde o aceite (13/11/2026), com a mesma numeração; as referências "pendência N" e
+"item N do §11.3" do Registro §59 e §60 apontam para lá.
 
 ### 11.4 As decisões do Owner
 

@@ -12,9 +12,9 @@
 |---|---|
 | Etapa atual | Etapa 13 — replicação no GCP com Terraform (M6). O estado dela, e o das anteriores, é do [Plano de Desenvolvimento](plano_de_desenvolvimento.md) |
 | Aprovações pendentes | 0 |
-| Verificações e trabalho adiados | 2 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026; V2, a governança e a documentação para quando não houver mais pendências, registrada em 10/11/2026) |
+| Verificações e trabalho adiados | 3 (V1, da revisão da v1.1.0, lotes 1 a 3, registrada em 05/11/2026; V2, a governança e a documentação para quando não houver mais pendências, registrada em 10/11/2026; V3, o que o fechamento da Etapa 13 deixa, registrada em 13/11/2026) |
 | Decisões pendentes | 4 (D63 e D64, levantadas pela validação do material de estudo em 04/10/2026; D66, levantada pela revisão do roteiro de regeneração da v1.1.0 e adiada para depois dela; D43, adiada de propósito para a fase GCP e **medida em 07/11/2026**). A D65 e a D67 foram fechadas pela v1.1.0, a D68 a D74 na abertura da Etapa 13, a D76 e a D77 no G1 dela, a D62 e a D78 no G2.3, a D79 no G4, a D80 no G5, a D81 no G2.4, a D82 e a D83 no G2.3, a D84 a D87 na revisão dos roteiros da janela, a D88 a D90 na revisão das correções de terça e a D91 na revisão da governança para o portal (§2) |
-| Última revisão | 10/11/2026, noite — D91 levantada e decidida; V2 com G01 a G05 fechados; 10/11/2026 — D88 a D90 levantadas pela revisão das correções de terça e decididas; V2 registrada; 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
+| Última revisão | 13/11/2026 — M6 aceito com ressalvas; V3 registrada; V1 com o recorte da Etapa 13; 10/11/2026, noite — D91 levantada e decidida; V2 com G01 a G05 fechados; 10/11/2026 — D88 a D90 levantadas pela revisão das correções de terça e decididas; V2 registrada; 08/11/2026 — D84 a D87 levantadas pela revisão dos roteiros da janela e decididas; 07/11/2026 — D76 decidida, D43 medida, D77 levantada e decidida, no G1 da Etapa 13; D62 e D78 no G2.3; D79 no G4; D80 no G5; D81 no G2.4; D82 e D83 no G2.3 (08/11) |
 
 ---
 
@@ -190,6 +190,13 @@ oráculo do leitor. Ficaram sem exercitar:
    conferência de manifest atrasado (RVL3-2-07); quem as cumpre é o *build* que o `make check` faz
    antes.
 
+**O que a Etapa 13 exercitou, por recorte** (13/11/2026). Do lote 1, a recuperação de uma captura
+**interrompida** pelo livro, contra o Cloud SQL e o Cloud Storage reais, com três capturas
+certificadas, `T3: memória contida` e nenhum POST indevido ([Registro §49](registro_fase_gcp.md#49-o-roteiro-de-terça-parte-2-o-caminho-quente-as-capturas-e-as-provas-10112026-tarde), passos 11–13; [§55](registro_fase_gcp.md#55-o-roteiro-de-quarta-começa-às-1502-o-digest-do-debezium-trocado-11112026),
+passos 13 e 14). Isso não fecha os itens 1 a 3: um chamador por vez, sem parada por ambiguidade e sem
+teste mutante. Dos lotes 2 e 3, o código desses grupos rodou no BigQuery (G1 e G2.2), sem prova
+própria de nenhum dos itens 4 a 9. **A lista segue inteira.**
+
 *Recomendação:* voltar a cada grupo antes da próxima alteração que toque o código dele —
 `src/mvp_ed1/recovery/` e o livro (lote 1), a guarda de identidade e o login de leitura (lote 2),
 `src/mvp_ed1/models/` e `tests/test_vigencia_em_utc.py` (lote 3) —, e a todos na abertura da
@@ -236,6 +243,44 @@ fechar). Os achados, cada um no seu dono:
   como está, a procedência dos artefatos, o pacote de metadados) e vivem no `gdados`, não aqui.
 
 **O alvo de exportação para o portal** — decidido na D91 (§2); a implementação vem *depois do M6*.
+
+### V3 — o que o fechamento da Etapa 13 deixa (registrada em 13/11/2026)
+
+**Pergunta:** quando tratar o que segue? O M6 foi aceito com ressalvas em 13/11/2026; a matriz contra o
+medido é do [plano da Etapa 13 §11.1](../PLANO_etapa_13.md#111-os-critérios-do-m6-contra-o-medido).
+Cada item é limite não medido ou decisão sua; nenhum se refaz na nuvem, que saiu. Data marcada só a
+do item 9.
+
+1. **As quedas do Debezium Server:** cinco reinícios em 21 h; só o log do último contêiner foi lido,
+   e nele a queda veio depois de ~3 h, por *timeout* no *heartbeat* do Pub/Sub ([Registro §55](registro_fase_gcp.md#55-o-roteiro-de-quarta-começa-às-1502-o-digest-do-debezium-trocado-11112026)).
+   Periodicidade e causa das outras quatro, não medidas.
+2. **A corrida *batch* × produtor** no `saldo_reconstruido_confere_com_a_projecao` ([Registro §55](registro_fase_gcp.md#55-o-roteiro-de-quarta-começa-às-1502-o-digest-do-debezium-trocado-11112026), passo 9):
+   a sincronização lê as tabelas em instantes diferentes, e com o produtor escrevendo o teste acusa.
+3. **A cascata da marca única no diário de quarta** ([Registro §55](registro_fase_gcp.md#55-o-roteiro-de-quarta-começa-às-1502-o-digest-do-debezium-trocado-11112026), passo 15): o diário remove a única marca
+   apta do legado. O efeito nas dimensões está no oráculo das 18:25; o efeito view a view não se mede
+   mais. **Corrigir o diário é decisão sua.**
+4. **`residuos_esperados.yml`** e os padrões da plataforma vistos em 13/11 ([§58](registro_fase_gcp.md#58-o-desmonte-sete-horas-e-meia-depois-do-limite-13112026-0033--0136)) — **decisão sua**.
+   Separado disso: o atraso do Cloud Asset Inventory depois de `destroy` não foi medido até zerar, e
+   o `gcp-desmonte-inventario` não espera por ele.
+5. **As capturas 06, 07, 12 e 16**, que não existem mais ([§58](registro_fase_gcp.md#58-o-desmonte-sete-horas-e-meia-depois-do-limite-13112026-0033--0136)).
+6. **O IAM `composer_personifica_politicas` e a `fluxo_batch` com retry e convergência** nunca rodaram
+   juntos no Composer ([§57](registro_fase_gcp.md#57-o-que-foi-manual-na-quarta-vira-código-11112026-2125--2230)); o `gcp-composer-reexecutar` também não rodou como alvo — os três
+   pedidos equivalentes foram à mão.
+7. **A chave substituta das quatro dimensões SCD tipo 2** difere entre os dois armazéns para a mesma
+   versão ([§59](registro_fase_gcp.md#59-a-paridade-depois-do-desmonte-o-analytics-exportado-contra-o-local-13112026-0150--0200)), com causa **não isolada**: o *hash* leva o `dbt_valid_from` gravado na versão, e
+   dois históricos de *snapshot* inicializados em instantes diferentes o gravam diferente, até no
+   mesmo dialeto — a hipótese que sobra, não medida. Dentro de cada alvo ela é coerente; o
+   comparador resolve a identidade, mas não prova portabilidade da chave nem histórias com mais de
+   uma versão.
+8. **A retenção e a expiração dos *datasets*** que o G3 pedia, nunca declaradas — uma das ressalvas
+   do aceite.
+9. **O fechamento econômico dos dois projetos**, em **16/11/2026**: o Claude lê o faturamento pelo
+   Claude in Chrome, na sua sessão — por serviço, consumo bruto, créditos e líquido, captura 19 —, e
+   você confirma. O desmonte provou os recursos removidos, o faturamento desligado e a exclusão
+   pedida, não custo residual zero ([§58](registro_fase_gcp.md#58-o-desmonte-sete-horas-e-meia-depois-do-limite-13112026-0033--0136)). O número entra na [Capacidade §2.14](capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026).
+
+*Efeito de não decidir:* nenhum no projeto local. Os itens 1, 2, 6 e 7 voltam se a fase GCP for
+reaberta; o 9 fecha o critério de custo do M6.
 
 ## 1.1 Decididas e implementadas
 
