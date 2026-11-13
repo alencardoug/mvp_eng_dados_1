@@ -2979,3 +2979,60 @@ limite, quando o faturamento estiver completo (G8, captura 19); (2) as capturas 
 não existem e não podem mais ser tiradas; (3) se `residuos_esperados.yml` deve aceitar os padrões
 da plataforma vistos hoje, decisão do Owner; (4) o atraso do Cloud Asset Inventory depois de
 `destroy` não foi medido até zerar — o alvo do passo 9 não espera por ele.
+
+## 59. A paridade depois do desmonte: o `analytics` exportado contra o local (13/11/2026, ~01:50 → 02:00)
+
+**O que se queria medir.** A paridade funcional é o único critério do M6 que a matriz do G8
+(`PLANO_etapa_13.md` §11.1) deixava em aberto: na quarta, o `gcp-oraculos` das 18:25 deu **0 de 16**
+views de `consumption` iguais (§55, passo 15). A causa suposta era a cascata da marca única, e a
+atribuição view a view não tinha sido medida. **Decisão do Owner:** medir de novo, localmente.
+
+**O que sobrou da nuvem** [medido]. O oráculo de quarta guardou só a diferença, com três exemplos por
+view (`data/medicoes/etapa_13/g6_oraculos.txt`), e o `gcp-evidencias` não lê linha de tabela, por
+desenho. O que existe são as 25 tabelas de `analytics` que o pacote do teste do Gemini exportou em
+Parquet (`data/medicoes/estudo_gcp/nl_sql/pacote/dados/`, a mesma cópia de
+`~/Projetos/data/nl_sql/dados/`, conferida com `cmp`). **O pacote foi gravado às 17:22 de quarta.**
+Isso é depois das mutações do passo 8 (16:33), mas **antes** de a `dbt_analytics` daquela execução
+rodar: a re-execução das 17:20 refez só seed, staging e trusted, e a das 17:32 e a das 18:16 vieram
+depois. O Parquet é, portanto, o `analytics` do `gcp-dbt-build` de **terça** (§49, passo 15), sem o
+diário. A primeira leitura, de que era o estado das 18:57 depois da `fluxo_batch` verde, estava
+errada: 18:57 é a hora da cópia para o `nl_sql`.
+
+**O comparador.** `make gcp-paridade-atribuicao PARQUET=<pasta>` (`mvp_ed1.gcp.atribuicao`, com
+teste) casa cada tabela pela chave substituta, separa por `source_system` e conta, por coluna, o
+que diverge. A primeira rodada achou divergência em toda fato, **só nas chaves estrangeiras** para as
+quatro dimensões SCD tipo 2 (`dim_customer`, `dim_product`, `dim_coupon`, `dim_support_agent`). As
+chaves dessas quatro dimensões não casavam, embora o `valid_from` de cada versão fosse igual nos dois
+lados. **Achado de portabilidade:** a chave substituta de uma versão SCD não é a mesma no PostgreSQL e
+no BigQuery. Ela é coerente dentro de cada alvo, mas não se compara entre alvos. O comparador passou a
+trocar, nos dois lados, a chave dessas dimensões e as estrangeiras para elas pela identidade da
+versão: `source_system`, chave natural e a ordem da versão por `valid_from`.
+
+**O resultado** [medido, `data/medicoes/etapa_13/g8/atribuicao_20261113T045953Z.json`]:
+
+| Tabelas | Resultado |
+|---|---|
+| as 15 dimensões | iguais linha a linha, em todo grupo de `source_system` (`retail`, `legacy`, `unknown` e as conformadas) |
+| 9 das 10 fatos | iguais linha a linha, `retail` e `legacy` |
+| `fact_inventory_movement` | `legacy` 473 = 473; `retail` 13.725 iguais e **4.400 só no local** (18.125 × 13.725), nenhum só na nuvem |
+
+Os 4.400 são a diferença entre as origens que o §49 (passo 18) já tinha medido: 18.125 movimentos
+na origem local e 13.725 no Cloud SQL. É a eles que o §49 atribuiu as 3 views de terça que diferiam
+(as duas de estoque e a `gross_margin_by_category` do mês corrente), com as outras **13 de 16
+iguais**. A medida de hoje confirma isso no grão de onde as views leem: fora esses movimentos, o
+`analytics` construído na nuvem é o mesmo do local. A lógica das views também é a mesma. O SQL
+compilado de `top_skus_by_revenue` nos dois alvos difere só em `bool_or` × `logical_or` e na grafia
+dos nomes. E a receita da categoria Notebooks recalculada do Parquet dá 3.997.774,00, o valor local.
+
+**A quarta, à luz disso.** O oráculo das 18:25 já viu o BigQuery sem o legado nas dimensões
+(`dim_brand` 18 × 19 no local, `dim_category` 16 × 25, `dim_customer` 1.571 × 1.574). Esse é o efeito
+do diário de quarta, que a cascata da marca única espalhou. As 0 de 16 views são consequência
+dele, e não defeito da tradução. O efeito view a view **não foi medido** e não se mede mais.
+
+**O que muda no G8:** a linha da paridade, no §11.1 do plano, passa a "cumprido, com ressalva". A
+ressalva tem duas partes. As 3 views de estoque nunca ficaram iguais, porque as origens divergem em
+4.400 movimentos. E as views da quarta não se medem. O rótulo final é do Owner.
+
+Ambiente local nesta medida: o primeiro `docker` da sessão ativou o *socket* e subiu Airbyte,
+Airflow e os bancos (R11). O Airbyte foi pausado na mesma chamada (`make airbyte-pause`), e o Airflow
+ficou de pé, ocioso.
