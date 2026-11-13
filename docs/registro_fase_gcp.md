@@ -3005,9 +3005,10 @@ que diverge. A primeira rodada achou divergência em toda fato, **só nas chaves
 quatro dimensões SCD tipo 2 (`dim_customer`, `dim_product`, `dim_coupon`, `dim_support_agent`). As
 chaves dessas quatro dimensões não casavam, embora o `valid_from` de cada versão fosse igual nos dois
 lados. **Achado:** a chave substituta de uma versão SCD não é a mesma nos dois armazéns. A causa **não foi
-isolada** (RVG8-1-02, §60): o *hash* leva `dbt_valid_from`, a hora em que o *snapshot* rodou, e não
-o `valid_from` exposto, que na primeira versão é `period_start` — duas execuções do *snapshot* dariam
-chaves diferentes até no mesmo dialeto. Ela é coerente dentro de cada alvo, mas não se compara entre
+isolada** (RVG8-1-02 e RVG8-2-02, §60): o *hash* leva o `dbt_valid_from` gravado na versão, e não o
+`valid_from` exposto, que na primeira versão é `period_start`; dois históricos de *snapshot*
+inicializados em instantes diferentes o gravam diferente, até no mesmo dialeto — é a hipótese que
+sobra, não medida. Ela é coerente dentro de cada alvo, mas não se compara entre
 alvos. O comparador passou a
 trocar, nos dois lados, a chave dessas dimensões e as estrangeiras para elas pela identidade da
 versão: `source_system`, chave natural e a ordem da versão por `valid_from`.
@@ -3065,7 +3066,16 @@ ficou de pé, ocioso.
 | RVG8-1-06 | "estado real vazio" e "sem custo" além da prova do desmonte | ajuste | §58 corrigido; pendência 9 do §11.3 (fatura com bruto, créditos e líquido) |
 | RVG8-1-07 | §11.2 sem a Governança §5.2 e sem os PVCs na Capacidade; o 07 já entregue | ajuste | as duas linhas no §11.2; o 07 marcado para conferir |
 | RVG8-1-08 | pendências que perdem limites: periodicidade do Debezium, atraso do inventário, `gcp-composer-reexecutar` | ajuste | itens 1, 4 e 6 do §11.3 reescritos |
+| RVG8-2-01 | a rodada 2, de regressão: o resumo do §11.4 ainda dizia que o §59 "confirma" a atribuição de terça | ajuste | "coerente, sem confirmá-la" |
+| RVG8-2-02 | a resposta à RVG8-1-02 generalizou: com `strategy='check'`, a chave de uma versão não muda a cada execução, só entre históricos inicializados em instantes diferentes | ajuste | §59, §11.3 item 7 e *docstring* do comparador |
+
+A rodada 2 (`codex_g8_r2.md`) achou só os dois ajustes acima, nenhum bloqueante, e reproduziu o JSON
+das 02:50 contra o do §59; a revisão do fechamento se encerra nela.
 
 **O que a revisão muda no aceite.** Três linhas da matriz passam de "cumprido" a **parcial**: retenção
 dos *datasets*, *batch* com *streaming* e paridade. Nenhuma se refaz, porque a nuvem saiu; o que resta
 é o Owner decidir se as aceita como ressalva (decisão 2 do §11.4).
+
+**As decisões do Owner, ~03:10** (`PLANO_etapa_13.md` §11.4): aceite com ressalvas agora; o
+faturamento lido pelo Claude in Chrome na segunda, 16/11; a *tag* `v2.0.0` no *commit* do aceite,
+com as ressalvas na mensagem.

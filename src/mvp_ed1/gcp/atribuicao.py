@@ -8,8 +8,9 @@ execução só rodou depois. As views leem delas; a atribuição se mede ali.
 
 Cada tabela é casada pela **chave substituta** (a primeira coluna, `*_key`) e separada por
 `source_system` quando a tabela tem a coluna. A chave das dimensões SCD tipo 2 (as que têm
-`valid_from` e `<entidade>_natural_key`) **não é a mesma nos dois dialetos** — o *hash* que a gera
-difere —, então ela é trocada, nos dois lados, pela identidade da versão: `source_system`, chave
+`valid_from` e `<entidade>_natural_key`) **não é a mesma nos dois armazéns** — o *hash* leva o
+`dbt_valid_from` de cada histórico de *snapshot*, e a causa não foi isolada (Registro §59) —, então
+ela é trocada, nos dois lados, pela identidade da versão: `source_system`, chave
 natural e a ordem da versão por `valid_from`. A troca alcança as chaves estrangeiras das fatos.
 
 Para cada grupo: linhas de um lado só, linhas iguais e linhas diferentes, e, nas diferentes, quantas

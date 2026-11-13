@@ -1537,8 +1537,9 @@ O dicionário, o catálogo e a linhagem são gerados (`make catalog`); só mudam
    juntos no Composer (§57); o `gcp-composer-reexecutar` também não rodou como alvo — os três pedidos
    equivalentes da tarde foram à mão.
 7. A chave substituta das quatro dimensões SCD tipo 2 difere entre os dois armazéns para a mesma
-   versão (Registro §59), com causa **não isolada**: o *hash* leva `dbt_valid_from`, a hora em que o
-   *snapshot* rodou, que muda entre duas execuções quaisquer, até no mesmo dialeto (RVG8-1-02). Dentro
+   versão (Registro §59), com causa **não isolada**: o *hash* leva o `dbt_valid_from` gravado na
+   versão, e dois históricos de *snapshot* inicializados em instantes diferentes o gravam diferente,
+   até no mesmo dialeto — a hipótese que sobra, não medida (RVG8-1-02, RVG8-2-02). Dentro
    de cada alvo ela é coerente; o comparador resolve a identidade, mas não prova portabilidade da
    chave nem histórias com mais de uma versão — todas as do Parquet têm uma só.
 8. A retenção e a expiração dos *datasets* do G3, nunca declaradas (§11.1; RVG8-1-04).
@@ -1550,8 +1551,16 @@ O dicionário, o catálogo e a linhagem são gerados (`make catalog`); só mudam
 
 **Respondidas em 13/11/2026, ~02:00:** decisão 1 → (a), medir de novo localmente; decisão 4 → sim,
 pelo Codex da conta 1 (não o codex2), antes de editar os documentos donos — feita em 13/11, ~02:50
-(Registro §60: três bloqueantes nos rótulos da matriz, que passaram a **parcial**). As 2 e 3 seguem
-abertas.
+(Registro §60: três bloqueantes nos rótulos da matriz, que passaram a **parcial**).
+
+**As decisões 2 e 3, e a *tag*, respondidas em 13/11/2026, ~03:10:**
+- **decisão 2 → aceite com ressalvas agora**, como a Etapa 10 em 17/09/2026: as três linhas parciais
+  do §11.1 (retenção dos *datasets*, *batch* com *streaming*, paridade) ficam como ressalva
+  registrada, e o §11.2 se executa já. O custo real entra quando a fatura fechar, sem reabrir o aceite;
+- **decisão 3 → o Claude lê o faturamento pelo Claude in Chrome, na sessão do Owner, na segunda,
+  16/11**: os dois projetos, por serviço, com bruto, créditos e líquido; captura 19; o Owner confirma;
+- **a *tag* `v2.0.0` (D47) sai no *commit* do aceite, com as ressalvas na mensagem dela.** A condição
+  "só com todos os critérios", escrita abaixo, fica substituída: três critérios não se completam mais.
 
 **A decisão 1 refeita no mesmo dia (~02:15), sobre um achado:** o `gcp-oraculos` de quarta **não
 guardou** o conteúdo das views do BigQuery — só a diferença, com três exemplos por view
@@ -1568,8 +1577,9 @@ da causa, não da igualdade, e o rótulo final é do Owner.
 **Medido no mesmo dia (~02:00, Registro §59):** o Parquet não é da quarta depois da `fluxo_batch`
 verde, como se supôs. O pacote foi gravado às 17:22, antes da `dbt_analytics` daquela execução,
 então é o `analytics` de terça, sem o diário. Contra o local, 24 das 25 tabelas são iguais e a 25ª
-difere só nos 4.400 movimentos a mais da origem local. Isso confirma a atribuição que o Registro §49
-já tinha feito para as 3 views de terça. A linha da paridade, no §11.1, foi corrigida.
+difere só nos 4.400 movimentos a mais da origem local. Isso é coerente com a atribuição que o
+Registro §49 fez para as 3 views de terça, sem confirmá-la: o `analytics` não cobre todas as
+entradas delas (Registro §59; RVG8-2-01). A linha da paridade, no §11.1, foi corrigida.
 
 1. **Paridade funcional.** (a) Medir de novo **localmente**: aplicar o mesmo diário de mutações ao
    PostgreSQL e comparar as 16 views com os números exportados do BigQuery
