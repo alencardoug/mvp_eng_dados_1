@@ -17,6 +17,12 @@ vezes cada coluna diverge. A normalização é a do oráculo de consumo (`oracul
 número com 6 casas, instante em UTC, data em ISO. Colunas de metadado de execução (as que começam
 com `_`) saem, declaradas.
 
+**Limites** (RVG8-1-05): "igual" é igualdade da projeção normalizada, não de tipo — número e texto
+com a mesma grafia, ou dois decimais que só diferem depois da sexta casa, saem iguais; coluna
+presente num lado só sai da comparação e vai listada no relatório; a chave é a primeira coluna
+`*_key`, sem conferir a PK declarada; o inventário é o dos arquivos da pasta, então tabela que
+falta no Parquet não é acusada. Basta para atribuir uma diferença; não certifica paridade sozinho.
+
 É medida, não asserção: sai com 0 quando mede, e o relatório diz o que achou. Sai com 1 se uma
 tabela do Parquet não existe no armazém local, ou se a primeira coluna não é chave.
 
@@ -111,12 +117,14 @@ def identidades_scd(tabela: str, linhas: list[dict]) -> dict[object, tuple] | No
     return saida
 
 
-def resolver(linhas: list[dict], mapas: dict[str, dict[object, tuple]]) -> list[dict]:
+def resolver(linhas: list[dict], mapas: dict[str, dict[object, tuple]], lado: str) -> list[dict]:
     """As linhas com cada coluna de `mapas` (a chave SCD ou a estrangeira para ela) trocada pela identidade.
 
-    Chave sem versão conhecida vira `("?", valor)`: aparece como divergência, não some.
+    Chave sem versão conhecida vira `?<lado>|valor`: aparece como divergência, não some — nem quando
+    o mesmo valor desconhecido está dos dois lados (RVG8-1-05).
     """
-    return [{c: (("|".join(map(str, mapas[c][v])) if v in mapas[c] else f"?|{v}") if c in mapas and v is not None else v)
+    return [{c: (("|".join(map(str, mapas[c][v])) if v in mapas[c] else f"?{lado}|{v}")
+                 if c in mapas and v is not None else v)
              for c, v in linha.items()} for linha in linhas]
 
 
@@ -176,7 +184,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"atribuicao: chaves SCD resolvidas pela versão: {', '.join(sorted(mapas_local))}")
         for tabela, (local, nuvem) in dados.items():
             try:
-                relatorio[tabela] = comparar_tabela(resolver(local, mapas_local), resolver(nuvem, mapas_nuvem))
+                relatorio[tabela] = comparar_tabela(resolver(local, mapas_local, "local"),
+                                                   resolver(nuvem, mapas_nuvem, "nuvem"))
             except ValueError as erro:
                 print(f"  {tabela}: {erro}")
                 rc = 1

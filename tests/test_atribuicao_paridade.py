@@ -66,8 +66,8 @@ def test_chave_scd_com_hash_diferente_casa_pela_versao():
     nuvem = [_versao("n1", 7, 1), _versao("n2", 7, 2, nome="B")]
     a, b = atribuicao.identidades_scd("dim_customer", local), atribuicao.identidades_scd("dim_customer", nuvem)
     assert a == {"l1": ("retail", "7", 1), "l2": ("retail", "7", 2)} and b["n2"] == ("retail", "7", 2)
-    r = atribuicao.comparar_tabela(atribuicao.resolver(local, {"customer_key": a}),
-                                   atribuicao.resolver(nuvem, {"customer_key": b}))
+    r = atribuicao.comparar_tabela(atribuicao.resolver(local, {"customer_key": a}, "local"),
+                                   atribuicao.resolver(nuvem, {"customer_key": b}, "nuvem"))
     assert r["grupos"]["retail"]["iguais"] == 2 and r["grupos"]["retail"]["diferentes"] == 0
 
 
@@ -75,10 +75,19 @@ def test_estrangeira_resolvida_e_chave_desconhecida_aparece():
     mapa_l, mapa_n = {"l1": ("retail", "7", 1)}, {"n1": ("retail", "7", 1)}
     fato_l = [{"order_item_key": "f", "customer_key": "l1"}, {"order_item_key": "g", "customer_key": "perdida"}]
     fato_n = [{"order_item_key": "f", "customer_key": "n1"}, {"order_item_key": "g", "customer_key": "n1"}]
-    r = atribuicao.comparar_tabela(atribuicao.resolver(fato_l, {"customer_key": mapa_l}),
-                                   atribuicao.resolver(fato_n, {"customer_key": mapa_n}))
+    r = atribuicao.comparar_tabela(atribuicao.resolver(fato_l, {"customer_key": mapa_l}, "local"),
+                                   atribuicao.resolver(fato_n, {"customer_key": mapa_n}, "nuvem"))
     g = r["grupos"][atribuicao.SEM_ORIGEM]
     assert (g["iguais"], g["diferentes"], g["colunas_que_divergem"]) == (1, 1, {"customer_key": 1})
+
+
+def test_mesma_chave_desconhecida_dos_dois_lados_diverge():
+    # RVG8-1-05: a FK que nenhum lado resolve não pode casar consigo mesma e sair "igual".
+    fato = [{"order_item_key": "f", "customer_key": "perdida"}]
+    r = atribuicao.comparar_tabela(atribuicao.resolver(fato, {"customer_key": {}}, "local"),
+                                   atribuicao.resolver(fato, {"customer_key": {}}, "nuvem"))
+    g = r["grupos"][atribuicao.SEM_ORIGEM]
+    assert (g["iguais"], g["diferentes"]) == (0, 1)
 
 
 def test_dimensao_sem_versao_nao_e_scd():
