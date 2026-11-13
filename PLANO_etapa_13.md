@@ -1480,3 +1480,88 @@ a *Situação* de cada achado, está no `REVISAO.md` do *commit* `bddf8b1`, remo
 *commit* de fechamento. Para a P4, o GKE, o Dataflow e o Composer estão com o `plan` revisado; os
 *releases* do Helm (`09_aplicacoes`) **não**: o parecer sobre o plano real é o passo 4a da §6.7,
 antes do `apply` deles (RVPC-1-01).
+
+---
+
+## 11. O fechamento — G8 (aberto em 13/11/2026)
+
+A infraestrutura saiu (Registro §58). O que resta do M6 é documental e de decisão: a matriz de
+aceite contra o medido, as atualizações dos documentos donos e o aceite do Owner. Nada aqui
+recria recurso na nuvem — os projetos estão em `DELETE_REQUESTED`.
+
+### 11.1 Os critérios do M6 contra o medido
+
+Os critérios são os da [Etapa 13](docs/plano_de_desenvolvimento.md#etapa-13--replicação-no-gcp-com-terraform--m6).
+Situação proposta ao Owner; o rótulo final é dele.
+
+| Critério | Situação proposta | Evidência | O que falta |
+|---|---|---|---|
+| Todo item do mapa de paridade com equivalente provisionado | **cumprido** | as 20 linhas da [Arquitetura §5](docs/arquitetura.md#5-mapa-de-paridade-local--gcp) tiveram recurso de pé; certificado e livro "a medir na janela" medidos na quarta (Registro §55, passos 10, 12–14) | reescrever o mapa com o medido (§11.2) |
+| `terraform plan` revisado antes de cada `apply` | **cumprido** | o rito da §6.3 em todos os `apply` (Registro §11–§58); o `plan` caro pelo Codex (§45) e o `09_aplicacoes` pelo passo 4a | — |
+| Particionamento, *clustering*, retenção e políticas antes do provisionamento | **cumprido** | Registro §12 e §16 (degrau barato); captura 03 | — |
+| *Policy tag* em cada coluna sensível pelo fluxo do ADR-0025, acesso negado comprovado, sem credencial longeva | **cumprido, com ressalva** | inventário 0 divergências em 3.516 colunas (§49, §55 depois da convergência); negação pela `mvp-prova-sem-leitura` com auditoria código 7 (§22); OIDC do GitHub, sem chave | a convergência das *tags* dentro da DAG (`d29f952`) não rodou no Composer — ele saiu antes; a ressalva é essa |
+| Composer e Airbyte criados e **destruídos** na mesma janela, com custo estimado e real | **parcial** | Composer 15:20→21:33 de quarta (§55); Airbyte do GKE de terça a sexta 00:37 (§58); estimativa na Capacidade §2.14 | **custo real** por serviço, quando o faturamento fechar (até dois dias depois do desligamento); o Airbyte saiu ~7,5 h depois do limite |
+| *Batch* e *streaming* juntos, com tamanho, tempo e custo, e `caminhos_de_ingestao_reconciliam` passando | **cumprido, com achado** | terça: PASS=909 com o teste passando entre Airbyte e Dataflow (§49, passo 15); quarta: latência com o *batch* junto p50 29 s, p95 119 s (§55, passo 9); tamanho por *dataset* (§55, passo 15) | o custo (mesmo item acima); o **achado** da corrida *batch* × produtor no `saldo_reconstruido_confere_com_a_projecao` (§55) |
+| Paridade funcional com a fase local demonstrada | **cumprido, com ressalva** | **terça, sem o diário:** `consumo` 13 de 16 views iguais, e as 3 que diferem atribuídas aos movimentos de estoque a mais da origem local, 18.125 × 13.725 (Registro §49, passo 18). **Medido em 13/11** (Registro §59): o `analytics` de terça, exportado pelo `nl_sql`, contra o local, 24 das 25 tabelas iguais linha a linha e a 25ª (`fact_inventory_movement`) diferente só nos 4.400 movimentos que só o local tem. **Quarta, com o diário:** 0 de 16, porque a cascata da marca única tirou o legado das dimensões (`dim_brand` 18 × 19, `dim_category` 16 × 25 no oráculo das 18:25) | a ressalva: as views da quarta não se medem mais, e as 3 de estoque de terça nunca ficaram iguais, porque a origem local tem 4.400 movimentos a mais |
+
+### 11.2 Os documentos donos a atualizar
+
+Cada um no seu lugar, uma vez só ([CLAUDE.md §5](CLAUDE.md)):
+
+| Documento | O que entra |
+|---|---|
+| [Arquitetura §5](docs/arquitetura.md#5-mapa-de-paridade-local--gcp) | a coluna GCP com o medido: certificado e livro medidos (tirar "a medir" e "pendente"); a linhagem com o número da quarta |
+| [Capacidade §2.14](docs/capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026) | a coluna *Real*: durações medidas agora (Cloud SQL 09/11 11:30 → 13/11 00:56, ~85 h; GKE 10/11 12:47 → 13/11 00:52, ~60 h; Composer ~6,2 h); o custo, quando o faturamento fechar — até lá, **parcial** |
+| [Plano de desenvolvimento, Etapa 13](docs/plano_de_desenvolvimento.md#etapa-13--replicação-no-gcp-com-terraform--m6) | os ✓ por critério, como nas etapas anteriores, depois da decisão do Owner |
+| [Pendências](docs/pendencias.md) | as do fechamento (§11.3) e o que a Etapa 13 exercitou da V1 por recorte (G8 original) |
+| `NAVEGANDO_GCP/07` | alinhado ao Debezium Server (ADR-0051), como o G8 pedia |
+| README | o estado da etapa |
+
+O dicionário, o catálogo e a linhagem são gerados (`make catalog`); só mudam se o código mudar.
+
+### 11.3 Pendências que o fechamento leva
+
+1. A queda periódica do Debezium Server (~3 h, *timeout* no *heartbeat* do Pub/Sub; §55).
+2. A corrida *batch* × produtor no teste de saldo (§55, passo 9).
+3. A cascata da marca única no diário de quarta (§55, passo 15): o diário remove a única marca apta
+   do legado. O efeito nas dimensões está no oráculo das 18:25 (`dim_brand` 18 × 19); o efeito
+   view a view não se mede mais. Corrigir o diário é do Owner.
+4. `residuos_esperados.yml` e os padrões da plataforma vistos em 13/11 (§58).
+5. As capturas 06, 07, 12 e 16, que não existem mais (§58).
+6. O IAM `composer_personifica_politicas` e a `fluxo_batch` com retry e convergência nunca rodaram
+   juntos no Composer (§57).
+7. A chave substituta das quatro dimensões SCD tipo 2 difere entre os dialetos para a mesma versão
+   (Registro §59). Dentro de cada alvo ela é coerente; entre alvos, não é portável.
+
+### 11.4 As decisões do Owner
+
+**Respondidas em 13/11/2026, ~02:00:** decisão 1 → (a), medir de novo localmente; decisão 4 → sim,
+pelo Codex da conta 1 (não o codex2), antes de editar os documentos donos. As 2 e 3 seguem abertas.
+
+**A decisão 1 refeita no mesmo dia (~02:15), sobre um achado:** o `gcp-oraculos` de quarta **não
+guardou** o conteúdo das views do BigQuery — só a diferença, com três exemplos por view
+(`data/medicoes/etapa_13/g6_oraculos.txt`) —, e o `gcp-evidencias` não lê linha de propósito. O
+lado da nuvem que sobrou são as **25 tabelas de `analytics`** em Parquet que o `nl_sql` exportou às
+18:57 de quarta, depois da `fluxo_batch` verde das 18:20 (`~/Projetos/data/nl_sql/dados/`, fora
+deste repositório). A igualdade não se refaz: a origem do Cloud SQL, com os movimentos do produtor
+do caminho quente, não existe mais. **Decisão do Owner:** medir a **atribuição** — cada tabela de
+`analytics` do Parquet contra a local, separada por `source_system` (`retail` × `legacy`). Se o
+`retail` bate e o `legacy` falta na nuvem, a diferença das views é a cascata da marca, provada no
+grão de onde elas leem. O comparador nasce como alvo do `make`, com teste. O critério fica com prova
+da causa, não da igualdade, e o rótulo final é do Owner.
+
+**Medido no mesmo dia (~02:00, Registro §59):** o Parquet não é da quarta depois da `fluxo_batch`
+verde, como se supôs. O pacote foi gravado às 17:22, antes da `dbt_analytics` daquela execução,
+então é o `analytics` de terça, sem o diário. Contra o local, 24 das 25 tabelas são iguais e a 25ª
+difere só nos 4.400 movimentos a mais da origem local. Isso confirma a atribuição que o Registro §49
+já tinha feito para as 3 views de terça. A linha da paridade, no §11.1, foi corrigida.
+
+1. **Paridade funcional.** (a) Medir de novo **localmente**: aplicar o mesmo diário de mutações ao
+   PostgreSQL e comparar as 16 views com os números exportados do BigQuery
+   (`data/medicoes/etapa_13/`), se o exportado bastar; (b) aceitar com a explicação da cascata,
+   como ressalva; (c) deixar o critério pendente, e o M6 incompleto.
+2. **O aceite.** Com ressalvas registradas (como a Etapa 10, em 17/09/2026), ou só depois do custo
+   real e da decisão 1. A *tag* `v2.0.0` (D47) só com todos os critérios.
+3. **O custo real.** Quem lê o relatório de faturamento por serviço e quando — a partir de
+   domingo, 15/11.
+4. **Revisão pelo Codex** deste fechamento antes de executar o §11.2, como nas etapas anteriores.
