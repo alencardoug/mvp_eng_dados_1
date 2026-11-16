@@ -12,9 +12,9 @@
 |---|---|
 | Critério de dimensionamento | **Cobertura**, não volume — [ADR-0014](adr/0014-volume-por-proporcoes-e-fator-de-escala.md) |
 | Abrangência | `source_db` + `legacy_db` + `warehouse_db` + ponto de recuperação |
-| Versão | 2.17 |
+| Versão | 2.18 |
 | Situação | Medições históricas até a Etapa 9 preservadas; o ciclo do zero medido no B5 (§2.12) e a regeneração da v1.1.0 (§2.13); o ponto de recuperação **entregue em 25/09/2026**, substituído pelo da v1.1.0 em 04/11/2026, cada um restaurado de ponta a ponta antes da promoção (§3) |
-| Última revisão | 07/11/2026 — §2.14, a estimativa da janela da Etapa 13 |
+| Última revisão | 16/11/2026 — §2.14, o custo real da Etapa 13, lido no faturamento; 07/11/2026 — §2.14, a estimativa da janela da Etapa 13 |
 
 ---
 
@@ -586,13 +586,39 @@ por serviço, em 16/11/2026 ([plano da Etapa 13 §11.4](../PLANO_etapa_13.md#114
 | Composer 3 | *small*; o exemplo oficial usa 12 DCUs, 15 com mais *workers* | 12–15 × 0,06 = 0,72–0,90 | qua 11 07:00 → 22:00, ~15 h, mais ~0,5 h para nascer | ~11–14 | qua 11 15:20 → 21:33, **~6,2 h**, 50 min delas nascendo; custo pendente |
 | Dataflow | 1 *worker* `n1-standard-2` (2 vCPU, 7,5 GB), Streaming Engine | 2 × 0,069 + 7,5 × 0,003557 ≈ 0,165 | ~15 h na janela + ~1 h de ensaio na terça (D83) | ~3 | pendente |
 | BigQuery, Pub/Sub, Cloud Storage, Secret Manager | volume `dev` (D68) | dentro do nível gratuito (1 TiB de consulta, 10 GiB de armazenamento, 10 GiB de Pub/Sub por mês) | toda a semana | ~0–2 | pendente |
-| **Total** | | | | **~44–49**, com margem para reexecução: **US$ 40–70** | pendente |
+| **Total** | | | | **~44–49**, com margem para reexecução: **US$ 40–70** | **R$ 294,33 bruto, R$ 0,00 líquido** (abaixo) |
 
 O crédito da conta era de R$ 1.740,37 em 06/11/2026; a estimativa usa uma fração dele, à taxa de
 câmbio da fatura (não medida aqui). O orçamento do projeto (Terraform, `fundacao.tf`) alerta em
 R$ 120, 240 e 360 com os créditos **excluídos** do cálculo — senão o gasto líquido seria zero e
 nenhum alerta dispararia. **Não estimado:** saída de rede (o tráfego fica na região) e o
 armazenamento do banco do Composer (centavos por GiB-mês).
+
+**O real, lido em 16/11/2026** [medido: relatório de faturamento da consola, conta inteira, 1–15/11/2026,
+agrupado por serviço e filtrado por projeto; lido pelo Claude in Chrome, confirmado pelo Owner;
+[Registro §61](registro_fase_gcp.md#61-o-custo-real-lido-no-faturamento-16112026)]. Valores em reais,
+como a consola os dá; a conversão para o dólar da estimativa **não foi medida**. Custo estimado do
+relatório, não a fatura: novembro ainda não fechou, e lançamento atrasado pode entrar.
+
+| Projeto | Serviço | Bruto (R$) |
+|---|---|---|
+| `mvp-ed1-gcp` | Compute Engine (os nós do GKE e o resto de VM) | 103,39 |
+| | Cloud SQL | 73,04 |
+| | Kubernetes Engine | 36,77 |
+| | Dataplex | 25,15 |
+| | Cloud Composer | 22,75 |
+| | Networking | 18,76 |
+| | Cloud Monitoring | 8,73 |
+| | Cloud Dataflow | 5,65 |
+| | Cloud Storage | 0,08 |
+| | BigQuery Storage API | 0,01 |
+| | Cloud Pub/Sub | 0,00 |
+| | **Total** | **294,33** |
+| `mvp-ed1-estudo` | Vertex AI 6,07; Dataproc 0,46; Networking 0,22; Cloud Storage 0,14; Dataplex 0,02; Cloud Run 0,01 | **6,92** |
+
+Nos dois projetos, os créditos ("outras economias") cobrem o bruto inteiro: **líquido R$ 0,00**, sem
+tributo. Fora da estimativa: Dataplex (R$ 25,15) e Cloud Monitoring (R$ 8,73), que ela não listava. A
+atribuição do Compute Engine aos nós do GKE é inferência pelo nome do serviço, sem leitura por SKU.
 
 ## 3. Ponto único de recuperação
 

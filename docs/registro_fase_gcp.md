@@ -3079,3 +3079,16 @@ dos *datasets*, *batch* com *streaming* e paridade. Nenhuma se refaz, porque a n
 **As decisões do Owner, ~03:10** (`PLANO_etapa_13.md` §11.4): aceite com ressalvas agora; o
 faturamento lido pelo Claude in Chrome na segunda, 16/11; a *tag* `v2.0.0` no *commit* do aceite,
 com as ressalvas na mensagem.
+
+## 61. O custo real lido no faturamento (16/11/2026)
+
+Decisão 3 do §11.4 do plano: o Claude leu o relatório de faturamento pelo Claude in Chrome, na sessão
+do Owner — mês atual (1–15/11/2026), agrupado por serviço, filtrado por projeto —, e o Owner
+confirmou os números. **`mvp-ed1-gcp`: R$ 294,33 bruto; `mvp-ed1-estudo`: R$ 6,92; os dois com
+crédito igual ao bruto, líquido R$ 0,00.** A tabela por serviço está na
+[Capacidade §2.14](capacidade_e_recuperacao.md#214-a-estimativa-da-janela-da-etapa-13--07112026).
+A conta inteira deu R$ 302,24 bruto; os R$ 0,98 restantes são de três projetos fora do MVP. A consola
+avisou que o `mvp-ed1-gcp` está encerrado e programado para exclusão.
+
+**Não medido:** a taxa de câmbio (a estimativa é em dólar, o relatório em reais); a fatura de novembro,
+que ainda não fechou; o detalhe por SKU. A captura 19 não foi salva com a tabela.
